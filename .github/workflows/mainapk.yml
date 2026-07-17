@@ -1,37 +1,33 @@
-name: Build MIC Rhema APK
+name: Build Android APK
 
 on:
-  workflow_dispatch:
   push:
     branches:
       - main
+  workflow_dispatch: 
 
 jobs:
   build:
-    name: Generate APK
+    name: Gerar APK
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout do código
         uses: actions/checkout@v4
 
-      - name: Setup JDK 17
+      - name: Configurar o Java JDK 17
         uses: actions/setup-java@v4
         with:
-          distribution: temurin
-          java-version: 17
+          java-version: '17' 
+          distribution: 'temurin'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      # Aqui está o segredo: usamos 'gradle' em vez de './gradlew'
+      # Isso ignora totalmente o arquivo corrompido do AI Studio
+      - name: Construir o APK
+        run: gradle assembleDebug
 
-      - name: Make gradlew executable
-        run: chmod +x ./gradlew
-
-      - name: Build Debug APK
-        run: ./gradlew :app:assembleDebug --stacktrace
-
-      - name: Upload APK
+      - name: Upload do APK
         uses: actions/upload-artifact@v4
         with:
-          name: MIC-Rhema-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          name: aplicativo-pronto
+          path: '**/*.apk'
