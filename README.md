@@ -1,11 +1,29 @@
-<div align="center">
+# MIC Rhema Android App
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+Welcome to the MIC Rhema Android application! This app brings the community and teachings of the MIC Rhema church directly to your mobile device.
 
-  <h1>Built with AI Studio</h2>
+## Features
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+*   **Início (Home):** View the daily word and the next upcoming church service.
+*   **Devocionais (Devotionals):** Read daily devotionals and scriptures to grow your faith.
+*   **Cultos (Services):** Check the schedule of weekly services and upcoming special events.
+*   **Oração (Prayer):** Easily submit prayer requests to the pastoral team.
+*   **Membros (Members):** Access the members area (coming soon).
+*   **Sobre (About):** Learn more about the church, its mission, and its leadership.
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+## Technology Stack
 
-</div>
+This application is built natively for Android using modern technologies:
+
+*   **Language:** Kotlin
+*   **UI Toolkit:** Jetpack Compose
+*   **Navigation:** Jetpack Navigation Compose
+*   **Architecture:** Single Activity, Material Design 3
+
+## Build and Run
+
+To build the project, open it in Android Studio or use the Gradle wrapper:
+
+```bash
+./gradlew assembleDebug
+```

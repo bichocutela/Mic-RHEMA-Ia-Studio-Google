@@ -1,0 +1,3 @@
+sed -i 's/workRuntimeKtx = "2.9.0"/workRuntimeKtx = "2.9.0"\nmedia3 = "1.2.1"/' gradle/libs.versions.toml
+sed -i 's/material-icons-extended" }/material-icons-extended" }\nandroidx-media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3" }\nandroidx-media3-ui = { group = "androidx.media3", name = "media3-ui", version.ref = "media3" }\nandroidx-media3-session = { group = "androidx.media3", name = "media3-session", version.ref = "media3" }/' gradle/libs.versions.toml
+sed -i 's/implementation(libs.material.icons.extended)/implementation(libs.material.icons.extended)\n    implementation(libs.androidx.media3.exoplayer)\n    implementation(libs.androidx.media3.ui)\n    implementation(libs.androidx.media3.session)/' app/build.gradle.kts

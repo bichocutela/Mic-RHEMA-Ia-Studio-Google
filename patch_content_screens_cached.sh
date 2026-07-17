@@ -1,0 +1,11 @@
+# BooksList
+sed -i 's/Row(modifier = Modifier.padding(16.dp)) {/Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {/g' app/src/main/java/com/aistudio/micrhema/ContentScreens.kt
+sed -i 's/Column {/Column(modifier = Modifier.weight(1f)) {/g' app/src/main/java/com/aistudio/micrhema/ContentScreens.kt
+sed -i 's/Text(book.author, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)\n                        }/Text(book.author, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)\n                        }\n                        if (book.isCached) {\n                            Icon(Icons.Default.CheckCircle, contentDescription = "Baixado", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))\n                        }/g' app/src/main/java/com/aistudio/micrhema/ContentScreens.kt
+
+# AudiosList
+sed -i 's/if (selectedAudio == audio) {/if (audio.isCached) {\n                            Icon(Icons.Default.CheckCircle, contentDescription = "Baixado", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(end = 8.dp).size(24.dp))\n                        }\n                        if (selectedAudio == audio) {/g' app/src/main/java/com/aistudio/micrhema/ContentScreens.kt
+
+# VideosList
+sed -i 's/Column(modifier = Modifier.padding(16.dp)) {/Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {\n                            Column(modifier = Modifier.weight(1f)) {/g' app/src/main/java/com/aistudio/micrhema/ContentScreens.kt
+sed -i 's/Text(video.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)\n                        }/Text(video.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)\n                            }\n                            if (video.isCached) {\n                                Icon(Icons.Default.CheckCircle, contentDescription = "Baixado", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))\n                            }\n                        }/g' app/src/main/java/com/aistudio/micrhema/ContentScreens.kt

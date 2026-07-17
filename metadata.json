@@ -1,0 +1,6 @@
+{
+  "name": "MIC Rhema",
+  "description": "Aplicativo oficial da igreja MIC Rhema com devocionais, cultos e pedidos de oração.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

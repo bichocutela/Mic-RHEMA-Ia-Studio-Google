@@ -1,0 +1,5 @@
+sed -i 's/import androidx.compose.material.icons.filled.Settings/import androidx.compose.material.icons.filled.Settings\nimport androidx.compose.material.icons.filled.LibraryBooks/' app/src/main/java/com/aistudio/micrhema/MainActivity.kt
+sed -i 's/object Settings : Screen("settings", "Configurações", Icons.Default.Settings)/object Settings : Screen("settings", "Configurações", Icons.Default.Settings)\n    object Content : Screen("content", "Conteúdo", Icons.Default.LibraryBooks)/' app/src/main/java/com/aistudio/micrhema/MainActivity.kt
+sed -i 's/Screen.Settings,/Screen.Settings,\n    Screen.Content,/' app/src/main/java/com/aistudio/micrhema/MainActivity.kt
+sed -i 's/loadDevotionalsFromJson(context)/loadDevotionalsFromJson(context)\n        initializeMockContent()/' app/src/main/java/com/aistudio/micrhema/MainActivity.kt
+sed -i 's/composable(Screen.Settings.route) { SettingsScreen() }/composable(Screen.Settings.route) { SettingsScreen() }\n                composable(Screen.Content.route) { ContentScreen() }/' app/src/main/java/com/aistudio/micrhema/MainActivity.kt
