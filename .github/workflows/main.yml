@@ -21,19 +21,15 @@ jobs:
           java-version: '17' 
           distribution: 'temurin'
 
-      # Esta é a etapa nova que vai consertar o erro do arquivo corrompido
-      - name: Corrigir o Gradle Wrapper
-        run: gradle wrapper
+      # Esta nova etapa cria o arquivo de assinatura digital que estava faltando
+      - name: Criar chave de assinatura (debug.keystore)
+        run: keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "C=BR, O=Android, CN=Android Debug"
 
-      - name: Dar permissão de execução ao Gradle
-        run: chmod +x ./gradlew
+      - name: Construir o APK
+        run: gradle assembleDebug
 
-      - name: Construir o APK (Debug)
-        run: ./gradlew assembleDebug
-
-      # Modificado para encontrar o APK em qualquer pasta do projeto
       - name: Upload do APK
         uses: actions/upload-artifact@v4
         with:
-          name: meu-app-apk
+          name: aplicativo-pronto
           path: '**/*.apk'
