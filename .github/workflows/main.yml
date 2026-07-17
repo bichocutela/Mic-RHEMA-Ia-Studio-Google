@@ -1,36 +1,39 @@
-name: Android Build
+name: Build Android APK
 
 on:
   push:
     branches:
       - main
-  workflow_dispatch:
+  workflow_dispatch: 
 
 jobs:
   build:
+    name: Gerar APK
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout do código
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Configurar o Java JDK 17
         uses: actions/setup-java@v4
         with:
-          distribution: temurin
-          java-version: '17'
+          java-version: '17' 
+          distribution: 'temurin'
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+      # Esta é a etapa nova que vai consertar o erro do arquivo corrompido
+      - name: Corrigir o Gradle Wrapper
+        run: gradle wrapper
 
-      - name: Grant execute permission
-        run: chmod +x gradlew
+      - name: Dar permissão de execução ao Gradle
+        run: chmod +x ./gradlew
 
-      - name: Build Debug APK
+      - name: Construir o APK (Debug)
         run: ./gradlew assembleDebug
 
-      - name: Upload APK
+      # Modificado para encontrar o APK em qualquer pasta do projeto
+      - name: Upload do APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: meu-app-apk
+          path: '**/*.apk'
