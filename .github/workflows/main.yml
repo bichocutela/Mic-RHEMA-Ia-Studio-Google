@@ -10,12 +10,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout do código
-        uses: actions/checkout@      - name: Configurar o Java JDK 21
+        uses: actions/checkout@v4
+      - name: Configurar o Java JDK 21
         uses: actions/setup-java@v4
         with:
           java-version: '21' 
           distribution: 'temurin'
-      # Esta nova etapa cria o arquivo de assinatura digital que estava faltando
       - name: Criar chave de assinatura (debug.keystore)
         run: keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "C=BR, O=Android, CN=Android Debug"
       - name: Construir o APK
