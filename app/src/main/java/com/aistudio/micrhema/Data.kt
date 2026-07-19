@@ -1,8 +1,52 @@
 package com.aistudio.micrhema
 
+import com.google.firebase.Firebase
+import com.google.firebase.firestore.firestore
+import android.util.Log
+
 import android.content.Context
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+
+object DevotionalManager {
+    fun syncDevotionals(context: Context) {
+        try {
+            val db = Firebase.firestore
+            db.collection("devotionals").get()
+                .addOnSuccessListener { result ->
+                    val newList = mutableListOf<Devotional>()
+                    for (document in result) {
+                        val id = document.id
+                        val title = document.getString("title") ?: ""
+                        val date = document.getString("date") ?: ""
+                        val verse = document.getString("verse") ?: ""
+                        val verseReference = document.getString("verseReference") ?: ""
+                        val textContent = document.getString("content") ?: ""
+                        val likes = document.getLong("likes")?.toInt() ?: 0
+                        newList.add(Devotional(id, title, date, verse, verseReference, textContent, likes))
+                    }
+                    if (newList.isNotEmpty()) {
+                        newList.sortByDescending { it.date }
+                        devotionalsState.clear()
+                        devotionalsState.addAll(newList)
+                        
+                        val dbHelper = IbrDatabaseHelper(context)
+                        dbHelper.saveCachedDevotionals(newList)
+                    }
+                }
+                .addOnFailureListener {
+                    // fallback to local cache
+                    val cachedDevotionals = IbrDatabaseHelper(context).getCachedDevotionals()
+                    if (cachedDevotionals.isNotEmpty()) {
+                        devotionalsState.clear()
+                        devotionalsState.addAll(cachedDevotionals)
+                    }
+                }
+        } catch (e: Exception) {
+            Log.e("DevotionalManager", "Firestore not initialized or error", e)
+        }
+    }
+}
 
 fun loadDevotionalsFromJson(context: Context) {
     val dbHelper = IbrDatabaseHelper(context)
@@ -54,7 +98,8 @@ data class Devotional(
     val date: String,
     val verse: String,
     val verseReference: String,
-    val content: String
+    val content: String,
+    var likes: Int = 0
 )
 
 data class ChurchService(
@@ -86,7 +131,8 @@ data class CarouselItem(
     val title: String,
     val description: String,
     val date: String,
-    val tag: String // "EVENTO" ou "NOTÍCIA"
+    val tag: String, // "EVENTO" ou "NOTÍCIA"
+    val imageUrl: String? = null
 )
 
 // Global mutable states
@@ -268,6 +314,128 @@ val memberRequestsState = mutableStateListOf<MemberRequest>(
 )
 
 val loggedInMemberState = mutableStateOf<MemberRequest?>(null)
+
+object MemberManager {
+    private const val PREFS_NAME = "micrhema_members_prefs"
+    private const val KEY_MEMBERS = "members_list"
+    private const val KEY_LOGGED_IN_ID = "logged_in_member_id"
+
+    fun syncFromFirestore(context: android.content.Context) {
+        try {
+            val db = Firebase.firestore
+            db.collection("members").get()
+                .addOnSuccessListener { result ->
+                    val newList = mutableListOf<MemberRequest>()
+                    for (document in result) {
+                        val id = document.id
+                        val name = document.getString("name") ?: ""
+                        val email = document.getString("email") ?: ""
+                        val isApproved = document.getBoolean("isApproved") ?: false
+                        val isVip = document.getBoolean("isVip") ?: false
+                        val isIbr = document.getBoolean("isIbr") ?: false
+                        newList.add(MemberRequest(id, name, email, isApproved, isVip, isIbr))
+                    }
+                    if (newList.isNotEmpty()) {
+                        memberRequestsState.clear()
+                        memberRequestsState.addAll(newList)
+                        saveMembers(context)
+                        
+                        val loggedInId = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+                            .getString(KEY_LOGGED_IN_ID, "") ?: ""
+                        if (loggedInId.isNotEmpty()) {
+                            val member = memberRequestsState.find { it.id == loggedInId }
+                            if (member != null) {
+                                loggedInMemberState.value = member
+                            }
+                        }
+                    }
+                }
+                .addOnFailureListener { exception ->
+                    Log.e("MemberManager", "Error getting documents: ", exception)
+                }
+        } catch (e: Exception) {
+            Log.e("MemberManager", "Firestore not initialized or error", e)
+        }
+    }
+
+    fun deleteFromFirestore(member: MemberRequest) {
+        try {
+            val db = Firebase.firestore
+            db.collection("members").document(member.id).delete()
+        } catch (e: Exception) {
+            Log.e("MemberManager", "Firestore not initialized or error", e)
+        }
+    }
+
+    fun saveToFirestore(member: MemberRequest) {
+        try {
+            val db = Firebase.firestore
+            val memberMap = hashMapOf(
+                "name" to member.name,
+                "email" to member.email,
+                "isApproved" to member.isApproved,
+                "isVip" to member.isVip,
+                "isIbr" to member.isIbr
+            )
+            db.collection("members").document(member.id).set(memberMap)
+                .addOnSuccessListener { Log.d("MemberManager", "Document successfully written!") }
+                .addOnFailureListener { e -> Log.w("MemberManager", "Error writing document", e) }
+        } catch (e: Exception) {
+            Log.e("MemberManager", "Firestore not initialized or error", e)
+        }
+    }
+
+    fun loadMembers(context: android.content.Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+        val serialized = prefs.getString(KEY_MEMBERS, "") ?: ""
+        if (serialized.isNotEmpty()) {
+            val list = serialized.split("||").mapNotNull {
+                val parts = it.split("|")
+                if (parts.size >= 6) {
+                    MemberRequest(
+                        id = parts[0],
+                        name = parts[1],
+                        email = parts[2],
+                        isApproved = parts[3].toBoolean(),
+                        isVip = parts[4].toBoolean(),
+                        isIbr = parts[5].toBoolean()
+                    )
+                } else null
+            }
+            if (list.isNotEmpty()) {
+                memberRequestsState.clear()
+                memberRequestsState.addAll(list)
+            }
+        }
+        
+        val loggedInId = prefs.getString(KEY_LOGGED_IN_ID, "") ?: ""
+        if (loggedInId.isNotEmpty()) {
+            val member = memberRequestsState.find { it.id == loggedInId }
+            if (member != null) {
+                loggedInMemberState.value = member
+            }
+        }
+    }
+
+    fun saveMembers(context: android.content.Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+        val serialized = memberRequestsState.joinToString("||") {
+            "${it.id}|${it.name}|${it.email}|${it.isApproved}|${it.isVip}|${it.isIbr}"
+        }
+        prefs.edit().putString(KEY_MEMBERS, serialized).apply()
+    }
+    
+    fun setLoggedInMember(context: android.content.Context, member: MemberRequest?) {
+        loggedInMemberState.value = member
+        val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+        if (member == null) {
+            prefs.edit().remove(KEY_LOGGED_IN_ID).apply()
+        } else {
+            prefs.edit().putString(KEY_LOGGED_IN_ID, member.id).apply()
+        }
+    }
+}
+
 
 data class IbrChapter(
     val id: String,

@@ -25,6 +25,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.Color
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -33,6 +35,10 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.unit.dp
 import android.app.Activity
 import androidx.compose.ui.platform.LocalContext
+
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.font.FontWeight
+
 
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
     object Home : Screen("home", "Início", Icons.Default.Home)
@@ -76,6 +82,9 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainScreen() {
     val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val isCompact = configuration.screenWidthDp < 600
+    val bottomBarItems = listOf(Screen.Home, Screen.Devotionals, Screen.Services, Screen.Content)
     
     val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
@@ -87,11 +96,35 @@ fun MainScreen() {
         NotificationHelper.createNotificationChannel(context)
         try {
             NotificationHelper.scheduleDailyReminder(context)
+        try {
+            NotificationHelper.scheduleDevotionalSync(context)
+        } catch(e: Exception) {}
+        try {
+            com.google.firebase.messaging.FirebaseMessaging.getInstance().subscribeToTopic("devotionals")
+        } catch(e: Exception) {}
         } catch (e: Exception) {
             e.printStackTrace()
         }
         loadDevotionalsFromJson(context)
         initializeMockContent()
+        MemberManager.loadMembers(context)
+        
+        // Initialize Firebase if keys are present (via Secrets panel/BuildConfig)
+        if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty() && com.google.firebase.FirebaseApp.getApps(context).isEmpty()) {
+            try {
+                val options = com.google.firebase.FirebaseOptions.Builder()
+                    .setProjectId(com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID)
+                    .setApplicationId(com.aistudio.micrhema.BuildConfig.FIREBASE_APP_ID)
+                    .setApiKey(com.aistudio.micrhema.BuildConfig.FIREBASE_API_KEY)
+                    .build()
+                com.google.firebase.FirebaseApp.initializeApp(context, options)
+                MemberManager.syncFromFirestore(context)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        } else if (com.google.firebase.FirebaseApp.getApps(context).isNotEmpty()) {
+            MemberManager.syncFromFirestore(context)
+        }
         
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             if (!NotificationHelper.hasNotificationPermission(context)) {
@@ -151,58 +184,91 @@ fun MainScreen() {
             }
         }
     ) {
-        Scaffold(
-            containerColor = MaterialTheme.colorScheme.background,
-            topBar = {
-                CenterAlignedTopAppBar(
-                    title = {
-                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                            Image(
-                                painter = painterResource(id = R.drawable.rhema_logo),
-                                contentDescription = "Logo",
-                                modifier = Modifier.size(36.dp).padding(end = 8.dp)
-                            )
-                            Text(topBarTitle, color = MaterialTheme.colorScheme.onBackground)
-                        }
-                    },
-                    navigationIcon = {
+        Row(modifier = Modifier.fillMaxSize()) {
+            if (!isCompact) {
+                NavigationRail(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    header = {
                         IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Icons.Default.Menu, contentDescription = "Menu", tint = MaterialTheme.colorScheme.onBackground)
+                            Icon(Icons.Default.Menu, contentDescription = "Menu")
                         }
-                    },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.background
-                    )
-                )
+                    }
+                ) {
+                    bottomBarItems.forEach { item ->
+                        NavigationRailItem(
+                            icon = { Icon(item.icon, contentDescription = null) },
+                            label = { Text(item.title) },
+                            selected = currentRoute == item.route,
+                            onClick = {
+                                navController.navigate(item.route) {
+                                    popUpTo(navController.graph.startDestinationId)
+                                    launchSingleTop = true
+                                }
+                            }
+                        )
+                    }
+                }
             }
-        ) { paddingValues ->
+
+            Scaffold(
+                modifier = Modifier.weight(1f),
+                containerColor = MaterialTheme.colorScheme.background,
+                topBar = {
+                    GlassTopAppBar(
+                        title = {
+                            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                Image(
+                                    painter = painterResource(id = R.drawable.rhema_logo),
+                                    contentDescription = "Logo",
+                                    modifier = Modifier.size(36.dp).padding(end = 8.dp)
+                                )
+                                Text(topBarTitle, color = MaterialTheme.colorScheme.onBackground, fontWeight = FontWeight.Bold)
+                            }
+                        },
+                        navigationIcon = {
+                            if (isCompact) {
+                                IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                    Icon(Icons.Default.Menu, contentDescription = "Menu", tint = MaterialTheme.colorScheme.onBackground)
+                                }
+                            }
+                        }
+                    )
+                },
+                bottomBar = {
+                    if (isCompact) {
+                        GlassNavigationBar {
+                            bottomBarItems.forEach { item ->
+                                NavigationBarItem(
+                                    icon = { Icon(item.icon, contentDescription = null) },
+                                    label = { Text(item.title) },
+                                    selected = currentRoute == item.route,
+                                    onClick = {
+                                        navController.navigate(item.route) {
+                                            popUpTo(navController.graph.startDestinationId)
+                                            launchSingleTop = true
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            ) { paddingValues ->
             NavHost(
                 navController = navController,
                 startDestination = Screen.Home.route,
                 modifier = Modifier.padding(paddingValues),
                 enterTransition = {
-                    slideIntoContainer(
-                        AnimatedContentTransitionScope.SlideDirection.Left,
-                        animationSpec = tween(400)
-                    ) + fadeIn(animationSpec = tween(400))
+                    fadeIn(animationSpec = spring(stiffness = Spring.StiffnessLow)) + scaleIn(initialScale = 0.9f, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessLow))
                 },
                 exitTransition = {
-                    slideOutOfContainer(
-                        AnimatedContentTransitionScope.SlideDirection.Left,
-                        animationSpec = tween(400)
-                    ) + fadeOut(animationSpec = tween(400))
+                    fadeOut(animationSpec = tween(250)) + scaleOut(targetScale = 1.05f, animationSpec = tween(250))
                 },
                 popEnterTransition = {
-                    slideIntoContainer(
-                        AnimatedContentTransitionScope.SlideDirection.Right,
-                        animationSpec = tween(400)
-                    ) + fadeIn(animationSpec = tween(400))
+                    fadeIn(animationSpec = spring(stiffness = Spring.StiffnessLow)) + scaleIn(initialScale = 1.05f, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessLow))
                 },
                 popExitTransition = {
-                    slideOutOfContainer(
-                        AnimatedContentTransitionScope.SlideDirection.Right,
-                        animationSpec = tween(400)
-                    ) + fadeOut(animationSpec = tween(400))
+                    fadeOut(animationSpec = tween(250)) + scaleOut(targetScale = 0.9f, animationSpec = tween(250))
                 }
             ) {
                 composable(Screen.Home.route) { HomeScreen() }
@@ -216,6 +282,7 @@ fun MainScreen() {
                 composable(Screen.Content.route) { ContentScreen() }
                 composable(Screen.Admin.route) { AdminScreen() }
             }
+        }
         }
     }
 }

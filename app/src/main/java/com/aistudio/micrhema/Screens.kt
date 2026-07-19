@@ -1,5 +1,8 @@
 package com.aistudio.micrhema
 
+import com.google.firebase.firestore.firestore
+import com.google.firebase.Firebase
+
 import android.content.Intent
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -172,7 +175,7 @@ fun InteractiveCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
     border: BorderStroke? = null,
-    colors: CardColors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    colors: CardColors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
     content: @Composable ColumnScope.() -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -182,32 +185,34 @@ fun InteractiveCard(
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
         label = "card_scale"
     )
-    val elevation by animateDpAsState(
-        targetValue = if (isPressed) 2.dp else 4.dp,
-        label = "card_elevation"
-    )
-
-    Card(
-        modifier = modifier
-            .scale(scale)
-            .shadow(elevation = elevation, shape = RoundedCornerShape(32.dp)),
-        shape = RoundedCornerShape(32.dp),
-        colors = colors,
-        border = border ?: BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-    ) {
-        Column(
-            modifier = if (onClick != null) {
-                Modifier.clickable(
-                    interactionSource = interactionSource,
-                    indication = LocalIndication.current,
-                    onClick = onClick
-                )
-            } else {
-                Modifier
+    
+    val cardModifier = modifier.scale(scale)
+    
+    if (onClick != null) {
+        Card(
+            onClick = onClick,
+            modifier = cardModifier,
+            border = border,
+            colors = colors,
+            shape = RoundedCornerShape(24.dp),
+            content = {
+                Column {
+                    content()
+                }
             }
-        ) {
-            content()
-        }
+        )
+    } else {
+        Card(
+            modifier = cardModifier,
+            border = border,
+            colors = colors,
+            shape = RoundedCornerShape(24.dp),
+            content = {
+                Column {
+                    content()
+                }
+            }
+        )
     }
 }
 
@@ -272,23 +277,36 @@ fun HomeCarousel() {
                         .width(280.dp)
                         .height(150.dp)
                         .scale(animatedScale)
-                        .clickable { activeIndex = index }
-                        .shadow(
-                            elevation = if (isSelected) 8.dp else 2.dp,
-                            shape = RoundedCornerShape(20.dp),
-                            spotColor = if (item.tag == "EVENTO") Color(0xFFD4AF37) else Color(0xFF3B82F6)
-                        ),
+                        .clickable { activeIndex = index },
                     shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.Transparent)
                 ) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(gradient)
-                            .padding(16.dp)
                     ) {
+                        if (item.imageUrl != null) {
+                            coil.compose.AsyncImage(
+                                model = item.imageUrl,
+                                contentDescription = null,
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                            // Glass overlay
+                            Box(modifier = Modifier.fillMaxSize().background(
+                                Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color.Black.copy(alpha = 0.1f),
+                                        Color.Black.copy(alpha = 0.8f)
+                                    )
+                                )
+                            ))
+                        } else {
+                            Box(modifier = Modifier.fillMaxSize().background(gradient))
+                        }
+                        
                         Column(
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier.fillMaxSize().padding(16.dp),
                             verticalArrangement = Arrangement.SpaceBetween
                         ) {
                             Row(
@@ -563,8 +581,7 @@ fun HomeScreen() {
                 }
 
                 item {
-                    DailyDevotionalCard(
-                        devotional = devotionalsState.firstOrNull(),
+                    FirestoreDailyDevotional(
                         onReadFull = { activeDevotionalForReading = it },
                         onShare = { dev ->
                             val shareIntent = Intent(Intent.ACTION_SEND).apply {
@@ -738,7 +755,7 @@ fun HomeScreen() {
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Button(
+                        GlassButton(
                             onClick = {
                                 val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                     type = "text/plain"
@@ -1003,6 +1020,9 @@ fun ServicesScreen() {
                 )
             }
             item {
+                ServiceVideosGallery()
+            }
+            item {
                 Text("Cultos Semanais", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
             items(2) {
@@ -1056,6 +1076,9 @@ fun ServicesScreen() {
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold
                 )
+            }
+            item {
+                ServiceVideosGallery()
             }
             item {
                 Text("Cultos Semanais", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -1238,7 +1261,7 @@ fun PrayerScreen() {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text("Enviar Pedido", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(16.dp))
-                        OutlinedTextField(
+                        GlassTextField(
                             value = name,
                             onValueChange = { name = it },
                             label = { Text("Seu nome") },
@@ -1246,7 +1269,7 @@ fun PrayerScreen() {
                             shape = RoundedCornerShape(24.dp)
                         )
                         Spacer(modifier = Modifier.height(16.dp))
-                        OutlinedTextField(
+                        GlassTextField(
                             value = request,
                             onValueChange = { request = it },
                             label = { Text("Pedido de oração") },
@@ -1255,7 +1278,7 @@ fun PrayerScreen() {
                             maxLines = 5
                         )
                         Spacer(modifier = Modifier.height(16.dp))
-                        Button(
+                        GlassButton(
                             onClick = {
                                 if (name.isNotBlank() && request.isNotBlank()) {
                                     val newReq = PrayerRequest(
@@ -1399,7 +1422,7 @@ fun GoogleLoginPlaceholder(
                                 },
                             shape = RoundedCornerShape(100.dp),
                             colors = CardDefaults.cardColors(containerColor = Color.White),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                             border = BorderStroke(1.dp, Color(0xFFE0E0E0))
                         ) {
                             Row(
@@ -1434,7 +1457,7 @@ fun GoogleLoginPlaceholder(
                     .widthIn(max = 360.dp),
                 shape = RoundedCornerShape(28.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Column(
                     modifier = Modifier
@@ -1506,9 +1529,11 @@ fun GoogleLoginPlaceholder(
                                                     isIbr = false
                                                 )
                                                 memberRequestsState.add(newReq)
+                                                MemberManager.saveToFirestore(newReq)
                                                 newReq
                                             }
-                                            loggedInMemberState.value = target
+                                            MemberManager.saveMembers(context)
+                                            MemberManager.setLoggedInMember(context, target)
                                             onLoginSuccess(target)
                                             isLoggingIn = false
                                             NotificationHelper.showNotification(
@@ -1626,7 +1651,7 @@ fun GoogleLoginPlaceholder(
 
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        OutlinedTextField(
+                        GlassTextField(
                             value = customName,
                             onValueChange = { customName = it; showError = "" },
                             label = { Text("Nome completo") },
@@ -1637,7 +1662,7 @@ fun GoogleLoginPlaceholder(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        OutlinedTextField(
+                        GlassTextField(
                             value = customEmail,
                             onValueChange = { customEmail = it; showError = "" },
                             label = { Text("E-mail do Google") },
@@ -1672,15 +1697,15 @@ fun GoogleLoginPlaceholder(
                                 Text("Voltar", color = Color(0xFF1A73E8))
                             }
 
-                            Button(
+                            GlassButton(
                                 onClick = {
                                     if (customName.isBlank() || customEmail.isBlank()) {
                                         showError = "Preencha todos os campos!"
-                                        return@Button
+                                        return@GlassButton
                                     }
                                     if (!customEmail.contains("@") || !customEmail.contains(".")) {
                                         showError = "Digite um e-mail do Google válido!"
-                                        return@Button
+                                        return@GlassButton
                                     }
                                     showGoogleChooser = false
                                     isLoggingIn = true
@@ -1699,9 +1724,11 @@ fun GoogleLoginPlaceholder(
                                                 isIbr = false
                                             )
                                             memberRequestsState.add(newReq)
+                                            MemberManager.saveToFirestore(newReq)
                                             newReq
                                         }
-                                        loggedInMemberState.value = target
+                                        MemberManager.saveMembers(context)
+                                        MemberManager.setLoggedInMember(context, target)
                                         onLoginSuccess(target)
                                         isLoggingIn = false
                                         NotificationHelper.showNotification(
@@ -1753,7 +1780,7 @@ fun PendingApprovalScreen(member: MemberRequest, onLogout: () -> Unit) {
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
                 Spacer(modifier = Modifier.height(24.dp))
-                Button(
+                GlassButton(
                     onClick = onLogout,
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer),
                     modifier = Modifier.fillMaxWidth(),
@@ -1795,7 +1822,7 @@ fun RestrictedAccessScreen(member: MemberRequest, requiredRole: String, onLogout
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
                 Spacer(modifier = Modifier.height(24.dp))
-                Button(
+                GlassButton(
                     onClick = onLogout,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(24.dp)
@@ -1814,15 +1841,15 @@ fun MembersScreen() {
     
     if (member == null) {
         GoogleLoginPlaceholder(roleRequired = "Membro (VIP)") { req ->
-            loggedInMemberState.value = req
+            MemberManager.setLoggedInMember(context, req)
         }
     } else {
         val currentMember = memberRequestsState.find { it.email.equals(member.email, ignoreCase = true) } ?: member
         
         if (!currentMember.isApproved) {
-            PendingApprovalScreen(member = currentMember, onLogout = { loggedInMemberState.value = null })
+            PendingApprovalScreen(member = currentMember, onLogout = { MemberManager.setLoggedInMember(context, null) })
         } else if (!currentMember.isVip) {
-            RestrictedAccessScreen(member = currentMember, requiredRole = "Membro (VIP)", onLogout = { loggedInMemberState.value = null })
+            RestrictedAccessScreen(member = currentMember, requiredRole = "Membro (VIP)", onLogout = { MemberManager.setLoggedInMember(context, null) })
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
@@ -1850,7 +1877,7 @@ fun MembersScreen() {
                         }
                         IconButton(
                             onClick = { 
-                                loggedInMemberState.value = null 
+                                MemberManager.setLoggedInMember(context, null) 
                                 NotificationHelper.showNotification(context, "Log Out", "Você saiu da área de membros.")
                             }
                         ) {
@@ -1924,7 +1951,7 @@ fun MembersScreen() {
                             Spacer(modifier = Modifier.height(4.dp))
                             Text("Como membro VIP, você tem acesso direto à agenda pastoral para aconselhamento espiritual e oração.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(modifier = Modifier.height(12.dp))
-                            Button(
+                            GlassButton(
                                 onClick = {
                                     NotificationHelper.showNotification(context, "Solicitação Recebida", "Em breve a equipe pastoral entrará em contato.")
                                 },
@@ -1948,15 +1975,15 @@ fun IbrScreen() {
     
     if (member == null) {
         GoogleLoginPlaceholder(roleRequired = "IBR") { req ->
-            loggedInMemberState.value = req
+            MemberManager.setLoggedInMember(context, req)
         }
     } else {
         val currentMember = memberRequestsState.find { it.email.equals(member.email, ignoreCase = true) } ?: member
         
         if (!currentMember.isApproved) {
-            PendingApprovalScreen(member = currentMember, onLogout = { loggedInMemberState.value = null })
+            PendingApprovalScreen(member = currentMember, onLogout = { MemberManager.setLoggedInMember(context, null) })
         } else if (!currentMember.isIbr) {
-            RestrictedAccessScreen(member = currentMember, requiredRole = "IBR", onLogout = { loggedInMemberState.value = null })
+            RestrictedAccessScreen(member = currentMember, requiredRole = "IBR", onLogout = { MemberManager.setLoggedInMember(context, null) })
         } else {
             var activeView by remember { mutableStateOf("catalog") } // "catalog", "details", "player", "pip"
             var selectedCourse by remember { mutableStateOf<IbrCourse?>(null) }
@@ -1976,7 +2003,7 @@ fun IbrScreen() {
                     "catalog" -> {
                         IbrCatalogView(
                             currentMemberName = currentMember.name,
-                            onLogout = { loggedInMemberState.value = null },
+                            onLogout = { MemberManager.setLoggedInMember(context, null) },
                             onCourseSelected = { course ->
                                 selectedCourse = course
                                 activeView = "details"
@@ -2070,7 +2097,7 @@ fun IbrScreen() {
                             .padding(16.dp)
                             .width(200.dp)
                             .height(120.dp)
-                            .shadow(8.dp, RoundedCornerShape(24.dp))
+                            
                             .clickable {
                                 // Restore player state
                                 selectedCourse = pipCourse
@@ -2307,7 +2334,7 @@ fun IbrCatalogView(
 
         // Search Bar
         item {
-            OutlinedTextField(
+            GlassTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
                 placeholder = { Text("Buscar cursos, temas ou lições...") },
@@ -2539,7 +2566,7 @@ fun IbrCatalogView(
                     shape = RoundedCornerShape(18.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     Column {
                         // Custom Gradient Course Poster representation
@@ -2781,7 +2808,7 @@ fun IbrCourseDetailView(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             if (chapter.isYoutube) {
-                                Button(
+                                GlassButton(
                                     onClick = { onPlayChapter(chapter, "video") },
                                     modifier = Modifier.weight(1f),
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE50914)), // YouTube Red / Netflix style
@@ -2794,7 +2821,7 @@ fun IbrCourseDetailView(
                                 }
                             } else {
                                 if (chapter.videoUrl.isNotEmpty()) {
-                                    Button(
+                                    GlassButton(
                                         onClick = { onPlayChapter(chapter, "video") },
                                         modifier = Modifier.weight(1f),
                                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
@@ -3449,7 +3476,7 @@ fun AdminScreen() {
             )
             Spacer(modifier = Modifier.height(24.dp))
             
-            OutlinedTextField(
+            GlassTextField(
                 value = username,
                 onValueChange = { 
                     username = it
@@ -3461,7 +3488,7 @@ fun AdminScreen() {
                 singleLine = true
             )
             Spacer(modifier = Modifier.height(16.dp))
-            OutlinedTextField(
+            GlassTextField(
                 value = password,
                 onValueChange = { 
                     password = it
@@ -3484,7 +3511,7 @@ fun AdminScreen() {
             }
             
             Spacer(modifier = Modifier.height(24.dp))
-            Button(
+            GlassButton(
                 onClick = {
                     if (username.trim() == "Admin" && password == "igreja10") {
                         isAdminLogged.value = true
@@ -3611,7 +3638,7 @@ fun EditIbrSection() {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("🆕 Criar Novo Curso", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     
-                    OutlinedTextField(
+                    GlassTextField(
                         value = courseTitle,
                         onValueChange = { courseTitle = it },
                         label = { Text("Título do Curso") },
@@ -3619,7 +3646,7 @@ fun EditIbrSection() {
                         shape = RoundedCornerShape(24.dp)
                     )
 
-                    OutlinedTextField(
+                    GlassTextField(
                         value = courseDescription,
                         onValueChange = { courseDescription = it },
                         label = { Text("Descrição Curta") },
@@ -3642,7 +3669,7 @@ fun EditIbrSection() {
                         }
                     }
 
-                    Button(
+                    GlassButton(
                         onClick = {
                             if (courseTitle.isNotBlank()) {
                                 val newCourse = IbrCourse(
@@ -3709,7 +3736,7 @@ fun EditIbrSection() {
                             }
                         }
 
-                        OutlinedTextField(
+                        GlassTextField(
                             value = chapterTitle,
                             onValueChange = { chapterTitle = it },
                             label = { Text("Título da Aula") },
@@ -3717,7 +3744,7 @@ fun EditIbrSection() {
                             shape = RoundedCornerShape(24.dp)
                         )
 
-                        OutlinedTextField(
+                        GlassTextField(
                             value = chapterDescription,
                             onValueChange = { chapterDescription = it },
                             label = { Text("Descrição / Conteúdo") },
@@ -3730,7 +3757,7 @@ fun EditIbrSection() {
                             horizontalArrangement = Arrangement.spacedBy(16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            OutlinedTextField(
+                            GlassTextField(
                                 value = chapterDuration,
                                 onValueChange = { chapterDuration = it },
                                 label = { Text("Duração (Minutos)") },
@@ -3748,7 +3775,7 @@ fun EditIbrSection() {
                         }
 
                         if (isYoutube) {
-                            OutlinedTextField(
+                            GlassTextField(
                                 value = videoUrl,
                                 onValueChange = { videoUrl = it },
                                 label = { Text("Link do YouTube (ID ou URL)") },
@@ -3757,14 +3784,14 @@ fun EditIbrSection() {
                                 placeholder = { Text("https://youtube.com/watch?v=...") }
                             )
                         } else {
-                            OutlinedTextField(
+                            GlassTextField(
                                 value = videoUrl,
                                 onValueChange = { videoUrl = it },
                                 label = { Text("URL do Upload do Vídeo") },
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(24.dp)
                             )
-                            OutlinedTextField(
+                            GlassTextField(
                                 value = audioUrl,
                                 onValueChange = { audioUrl = it },
                                 label = { Text("URL do Upload do Áudio (Opcional)") },
@@ -3773,7 +3800,7 @@ fun EditIbrSection() {
                             )
                         }
 
-                        Button(
+                        GlassButton(
                             onClick = {
                                 if (chapterTitle.isNotBlank() && selectedCourseForChapter != null) {
                                     val duration = chapterDuration.toIntOrNull() ?: 30
@@ -3928,8 +3955,25 @@ fun StatusBadge(text: String, containerColor: Color, contentColor: Color) {
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 fun EditMembersSection() {
     val context = LocalContext.current
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedFilter by remember { mutableStateOf("Todos") }
+    
+    val filteredMembers = remember(memberRequestsState.toList(), searchQuery, selectedFilter) {
+        memberRequestsState.filter { member ->
+            val matchesSearch = member.name.contains(searchQuery, ignoreCase = true) || member.email.contains(searchQuery, ignoreCase = true)
+            val matchesFilter = when (selectedFilter) {
+                "Aprovados" -> member.isApproved
+                "Pendentes" -> !member.isApproved
+                "VIP" -> member.isVip
+                "IBR" -> member.isIbr
+                else -> true
+            }
+            matchesSearch && matchesFilter
+        }
+    }
     
     Column(
         modifier = Modifier
@@ -3957,7 +4001,37 @@ fun EditMembersSection() {
         
         Spacer(modifier = Modifier.height(16.dp))
         
-        if (memberRequestsState.isEmpty()) {
+        GlassTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            label = { Text("Buscar membro por nome ou email") },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Buscar") },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            singleLine = true
+        )
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val filters = listOf("Todos", "Aprovados", "Pendentes", "VIP", "IBR")
+            filters.forEach { filter ->
+                FilterChip(
+                    selected = selectedFilter == filter,
+                    onClick = { selectedFilter = filter },
+                    label = { Text(filter) }
+                )
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        if (filteredMembers.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
@@ -3974,7 +4048,7 @@ fun EditMembersSection() {
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = PaddingValues(bottom = 24.dp)
             ) {
-                items(memberRequestsState) { req ->
+                items(filteredMembers) { req ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(32.dp),
@@ -4022,6 +4096,8 @@ fun EditMembersSection() {
                                 IconButton(
                                     onClick = {
                                         memberRequestsState.remove(req)
+                                        MemberManager.saveMembers(context)
+                                        MemberManager.deleteFromFirestore(req)
                                         NotificationHelper.showNotification(
                                             context,
                                             "Membro removido",
@@ -4064,12 +4140,14 @@ fun EditMembersSection() {
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Button(
+                                GlassButton(
                                     onClick = {
                                         val idx = memberRequestsState.indexOf(req)
                                         if (idx != -1) {
                                             val updated = req.copy(isApproved = !req.isApproved)
                                             memberRequestsState[idx] = updated
+                                            MemberManager.saveMembers(context)
+                                            MemberManager.saveToFirestore(updated)
                                             NotificationHelper.showNotification(
                                                 context,
                                                 if (updated.isApproved) "Membro Aprovado! 🎉" else "Membro Desaprovado!",
@@ -4104,6 +4182,8 @@ fun EditMembersSection() {
                                         if (idx != -1) {
                                             val updated = req.copy(isVip = !req.isVip)
                                             memberRequestsState[idx] = updated
+                                            MemberManager.saveMembers(context)
+                                            MemberManager.saveToFirestore(updated)
                                             NotificationHelper.showNotification(
                                                 context,
                                                 if (updated.isVip) "VIP Ativado! ✨" else "VIP Desativado!",
@@ -4139,6 +4219,8 @@ fun EditMembersSection() {
                                         if (idx != -1) {
                                             val updated = req.copy(isIbr = !req.isIbr)
                                             memberRequestsState[idx] = updated
+                                            MemberManager.saveMembers(context)
+                                            MemberManager.saveToFirestore(updated)
                                             NotificationHelper.showNotification(
                                                 context,
                                                 if (updated.isIbr) "IBR Ativado! ⛪" else "IBR Desativado!",
@@ -4191,6 +4273,12 @@ fun EditHomeSection() {
     var carouselDescriptionInput by remember { mutableStateOf("") }
     var carouselDateInput by remember { mutableStateOf("") }
     var carouselTagInput by remember { mutableStateOf("EVENTO") } // "EVENTO" ou "NOTÍCIA"
+    var carouselImageUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    val carouselImagePicker = rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri: android.net.Uri? ->
+        carouselImageUri = uri
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -4201,7 +4289,7 @@ fun EditHomeSection() {
             Text("Palavra do Dia", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         }
         item {
-            OutlinedTextField(
+            GlassTextField(
                 value = verseInput,
                 onValueChange = { verseInput = it },
                 label = { Text("Versículo") },
@@ -4210,7 +4298,7 @@ fun EditHomeSection() {
             )
         }
         item {
-            OutlinedTextField(
+            GlassTextField(
                 value = refInput,
                 onValueChange = { refInput = it },
                 label = { Text("Referência") },
@@ -4225,7 +4313,7 @@ fun EditHomeSection() {
             Text("Configurar Próximo Culto", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         }
         item {
-            OutlinedTextField(
+            GlassTextField(
                 value = cultoTitleInput,
                 onValueChange = { cultoTitleInput = it },
                 label = { Text("Título do Culto") },
@@ -4235,14 +4323,14 @@ fun EditHomeSection() {
         }
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                OutlinedTextField(
+                GlassTextField(
                     value = cultoDayFullInput,
                     onValueChange = { cultoDayFullInput = it },
                     label = { Text("Dia (Completo)") },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(24.dp)
                 )
-                OutlinedTextField(
+                GlassTextField(
                     value = cultoDayShortInput,
                     onValueChange = { cultoDayShortInput = it },
                     label = { Text("Dia (Curto)") },
@@ -4252,7 +4340,7 @@ fun EditHomeSection() {
             }
         }
         item {
-            OutlinedTextField(
+            GlassTextField(
                 value = cultoTimeInput,
                 onValueChange = { cultoTimeInput = it },
                 label = { Text("Horário") },
@@ -4262,7 +4350,7 @@ fun EditHomeSection() {
         }
         
         item {
-            Button(
+            GlassButton(
                 onClick = {
                     palavraDoDiaVerse.value = verseInput
                     palavraDoDiaRef.value = refInput
@@ -4284,7 +4372,7 @@ fun EditHomeSection() {
             Text("Adicionar ao Carrossel", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         }
         item {
-            OutlinedTextField(
+            GlassTextField(
                 value = carouselTitleInput,
                 onValueChange = { carouselTitleInput = it },
                 label = { Text("Título da Novidade/Evento") },
@@ -4293,7 +4381,7 @@ fun EditHomeSection() {
             )
         }
         item {
-            OutlinedTextField(
+            GlassTextField(
                 value = carouselDescriptionInput,
                 onValueChange = { carouselDescriptionInput = it },
                 label = { Text("Descrição Breve") },
@@ -4302,13 +4390,25 @@ fun EditHomeSection() {
             )
         }
         item {
-            OutlinedTextField(
+            GlassTextField(
                 value = carouselDateInput,
                 onValueChange = { carouselDateInput = it },
                 label = { Text("Data (Ex: 2026-07-20)") },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(24.dp)
             )
+        }
+        item {
+            GlassButton(
+                onClick = { carouselImagePicker.launch("image/*") },
+                modifier = Modifier.fillMaxWidth().height(50.dp),
+                shape = RoundedCornerShape(24.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
+            ) {
+                Icon(androidx.compose.material.icons.Icons.Default.Add, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(if (carouselImageUri != null) "Imagem Selecionada" else "Adicionar Imagem do Evento (Recomendado: 16:9)")
+            }
         }
         @OptIn(ExperimentalMaterial3Api::class)
         item {
@@ -4331,7 +4431,7 @@ fun EditHomeSection() {
             }
         }
         item {
-            Button(
+            GlassButton(
                 onClick = {
                     if (carouselTitleInput.isNotBlank() && carouselDescriptionInput.isNotBlank()) {
                         val newItem = CarouselItem(
@@ -4339,7 +4439,8 @@ fun EditHomeSection() {
                             title = carouselTitleInput,
                             description = carouselDescriptionInput,
                             date = if (carouselDateInput.isBlank()) "Hoje" else carouselDateInput,
-                            tag = carouselTagInput
+                            tag = carouselTagInput,
+                            imageUrl = carouselImageUri?.toString()
                         )
                         carouselItemsState.add(newItem)
                         NotificationHelper.showNotification(
@@ -4350,6 +4451,7 @@ fun EditHomeSection() {
                         carouselTitleInput = ""
                         carouselDescriptionInput = ""
                         carouselDateInput = ""
+                        carouselImageUri = null
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(50.dp),
@@ -4424,7 +4526,7 @@ fun EditDevotionalsSection() {
             Text("Novo Devocional", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         }
         item {
-            OutlinedTextField(
+            GlassTextField(
                 value = title,
                 onValueChange = { title = it },
                 label = { Text("Título") },
@@ -4433,7 +4535,7 @@ fun EditDevotionalsSection() {
             )
         }
         item {
-            OutlinedTextField(
+            GlassTextField(
                 value = date,
                 onValueChange = { date = it },
                 label = { Text("Data (Ex: YYYY-MM-DD)") },
@@ -4442,7 +4544,7 @@ fun EditDevotionalsSection() {
             )
         }
         item {
-            OutlinedTextField(
+            GlassTextField(
                 value = verse,
                 onValueChange = { verse = it },
                 label = { Text("Versículo Base") },
@@ -4451,7 +4553,7 @@ fun EditDevotionalsSection() {
             )
         }
         item {
-            OutlinedTextField(
+            GlassTextField(
                 value = verseRef,
                 onValueChange = { verseRef = it },
                 label = { Text("Referência Bíblica") },
@@ -4460,7 +4562,7 @@ fun EditDevotionalsSection() {
             )
         }
         item {
-            OutlinedTextField(
+            GlassTextField(
                 value = content,
                 onValueChange = { content = it },
                 label = { Text("Conteúdo / Mensagem") },
@@ -4469,30 +4571,41 @@ fun EditDevotionalsSection() {
             )
         }
         item {
-            Button(
+            GlassButton(
                 onClick = {
                     if (title.isNotBlank() && date.isNotBlank() && verse.isNotBlank()) {
-                        devotionalsState.add(
-                            0,
-                            Devotional(
-                                id = (devotionalsState.size + 1).toString(),
-                                title = title,
-                                date = date,
-                                verse = verse,
-                                verseReference = verseRef,
-                                content = content
+                        val newId = java.util.UUID.randomUUID().toString()
+                        val newDevotional = hashMapOf(
+                            "title" to title,
+                            "date" to date,
+                            "verse" to verse,
+                            "verseReference" to verseRef,
+                            "content" to content,
+                            "likes" to 0
+                        )
+                        
+                        try {
+                            val db = com.google.firebase.Firebase.firestore
+                            db.collection("devotionals").document(newId).set(newDevotional)
+                                .addOnSuccessListener {
+                                    NotificationHelper.showNotification(
+                                        context = context,
+                                        title = "Novo Devocional Publicado! 📖",
+                                        message = title
+                                    )
+                                    title = ""
+                                    date = ""
+                                    verse = ""
+                                    verseRef = ""
+                                    content = ""
+                                }
+                        } catch (e: Exception) {
+                            NotificationHelper.showNotification(
+                                context = context,
+                                title = "Erro",
+                                message = "Falha ao salvar no Firestore"
                             )
-                        )
-                        NotificationHelper.showNotification(
-                            context = context,
-                            title = "Novo Devocional Publicado! 📖",
-                            message = title
-                        )
-                        title = ""
-                        date = ""
-                        verse = ""
-                        verseRef = ""
-                        content = ""
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(50.dp),
@@ -4554,7 +4667,7 @@ fun EditServicesSection() {
             Text("Novo Culto Semanal", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         }
         item {
-            OutlinedTextField(
+            GlassTextField(
                 value = serviceTitle,
                 onValueChange = { serviceTitle = it },
                 label = { Text("Nome do Culto") },
@@ -4564,14 +4677,14 @@ fun EditServicesSection() {
         }
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                OutlinedTextField(
+                GlassTextField(
                     value = serviceDay,
                     onValueChange = { serviceDay = it },
                     label = { Text("Dia (Completo)") },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(24.dp)
                 )
-                OutlinedTextField(
+                GlassTextField(
                     value = serviceDayShort,
                     onValueChange = { serviceDayShort = it },
                     label = { Text("Dia (Curto)") },
@@ -4581,7 +4694,7 @@ fun EditServicesSection() {
             }
         }
         item {
-            OutlinedTextField(
+            GlassTextField(
                 value = serviceTime,
                 onValueChange = { serviceTime = it },
                 label = { Text("Horário (Ex: 19:00)") },
@@ -4590,7 +4703,7 @@ fun EditServicesSection() {
             )
         }
         item {
-            OutlinedTextField(
+            GlassTextField(
                 value = serviceDesc,
                 onValueChange = { serviceDesc = it },
                 label = { Text("Descrição") },
@@ -4599,7 +4712,7 @@ fun EditServicesSection() {
             )
         }
         item {
-            Button(
+            GlassButton(
                 onClick = {
                     if (serviceTitle.isNotBlank() && serviceDay.isNotBlank() && serviceTime.isNotBlank()) {
                         weeklyServicesState.add(
@@ -4664,7 +4777,7 @@ fun EditServicesSection() {
             Text("Novo Evento Especial", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         }
         item {
-            OutlinedTextField(
+            GlassTextField(
                 value = eventTitle,
                 onValueChange = { eventTitle = it },
                 label = { Text("Nome do Evento") },
@@ -4673,7 +4786,7 @@ fun EditServicesSection() {
             )
         }
         item {
-            OutlinedTextField(
+            GlassTextField(
                 value = eventDate,
                 onValueChange = { eventDate = it },
                 label = { Text("Data (Ex: YYYY-MM-DD)") },
@@ -4682,7 +4795,7 @@ fun EditServicesSection() {
             )
         }
         item {
-            OutlinedTextField(
+            GlassTextField(
                 value = eventLoc,
                 onValueChange = { eventLoc = it },
                 label = { Text("Localização") },
@@ -4691,7 +4804,7 @@ fun EditServicesSection() {
             )
         }
         item {
-            OutlinedTextField(
+            GlassTextField(
                 value = eventDesc,
                 onValueChange = { eventDesc = it },
                 label = { Text("Descrição") },
@@ -4700,7 +4813,7 @@ fun EditServicesSection() {
             )
         }
         item {
-            Button(
+            GlassButton(
                 onClick = {
                     if (eventTitle.isNotBlank() && eventDate.isNotBlank()) {
                         eventsState.add(
@@ -4817,7 +4930,7 @@ fun EditAboutSection() {
             Text("Editar Informações da Igreja", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         }
         item {
-            OutlinedTextField(
+            GlassTextField(
                 value = pastorNameInput,
                 onValueChange = { pastorNameInput = it },
                 label = { Text("Nome do Pastor") },
@@ -4826,7 +4939,7 @@ fun EditAboutSection() {
             )
         }
         item {
-            OutlinedTextField(
+            GlassTextField(
                 value = pastorTitleInput,
                 onValueChange = { pastorTitleInput = it },
                 label = { Text("Título do Pastor") },
@@ -4835,7 +4948,7 @@ fun EditAboutSection() {
             )
         }
         item {
-            OutlinedTextField(
+            GlassTextField(
                 value = taglineInput,
                 onValueChange = { taglineInput = it },
                 label = { Text("Slogan / Missão") },
@@ -4844,7 +4957,7 @@ fun EditAboutSection() {
             )
         }
         item {
-            OutlinedTextField(
+            GlassTextField(
                 value = meaningInput,
                 onValueChange = { meaningInput = it },
                 label = { Text("Significado de Rhema") },
@@ -4853,7 +4966,7 @@ fun EditAboutSection() {
             )
         }
         item {
-            Button(
+            GlassButton(
                 onClick = {
                     pastorNameState.value = pastorNameInput
                     pastorTitleState.value = pastorTitleInput
@@ -5033,7 +5146,7 @@ fun SettingsScreen() {
                                 )
                             }
 
-                            Button(
+                            GlassButton(
                                 onClick = {
                                     NotificationHelper.showNotification(
                                         context,
@@ -5057,7 +5170,7 @@ fun SettingsScreen() {
                             }
                         }
                     } else {
-                        Button(
+                        GlassButton(
                             onClick = {
                                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
                                     permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -5181,7 +5294,7 @@ fun DailyDevotionalCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Button(
+                    GlassButton(
                         onClick = { onReadFull(devotional) },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primary,
@@ -5210,6 +5323,238 @@ fun DailyDevotionalCard(
                 Text("Nenhum devocional disponível", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(4.dp))
                 Text("Puxe a tela para atualizar ou verifique seu arquivo local.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+
+@Composable
+fun FirestoreDailyDevotional(
+    onReadFull: (Devotional) -> Unit,
+    onShare: (Devotional) -> Unit
+) {
+    var devotional by remember { mutableStateOf<Devotional?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+    var hasError by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        try {
+            val db = com.google.firebase.Firebase.firestore
+            db.collection("devotionals")
+                .get()
+                .addOnSuccessListener { result ->
+                    val list = mutableListOf<Devotional>()
+                    for (document in result) {
+                        val id = document.id
+                        val title = document.getString("title") ?: ""
+                        val date = document.getString("date") ?: ""
+                        val verse = document.getString("verse") ?: ""
+                        val verseReference = document.getString("verseReference") ?: ""
+                        val textContent = document.getString("content") ?: ""
+                        val likes = document.getLong("likes")?.toInt() ?: 0
+                        list.add(Devotional(id, title, date, verse, verseReference, textContent, likes))
+                    }
+                    if (list.isNotEmpty()) {
+                        list.sortByDescending { it.date }
+                        devotional = list.first()
+                    }
+                    isLoading = false
+                }
+                .addOnFailureListener {
+                    hasError = true
+                    isLoading = false
+                }
+        } catch (e: Exception) {
+            hasError = true
+            isLoading = false
+        }
+    }
+
+    if (isLoading) {
+        Box(modifier = Modifier.fillMaxWidth().height(150.dp), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+    } else if (hasError || devotional == null) {
+        // Fallback to offline or standard daily devotional card if error or empty
+        DailyDevotionalCard(
+            devotional = devotionalsState.firstOrNull(),
+            onReadFull = onReadFull,
+            onShare = onShare
+        )
+    } else {
+        DailyDevotionalCard(
+            devotional = devotional,
+            onReadFull = onReadFull,
+            onShare = onShare
+        )
+    }
+}
+
+
+@Composable
+fun DevotionalFeed() {
+    var devotionals by remember { mutableStateOf<List<Devotional>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    var hasError by remember { mutableStateOf(false) }
+    var isLoadingMore by remember { mutableStateOf(false) }
+    var hasMore by remember { mutableStateOf(true) }
+    var lastDocument by remember { mutableStateOf<com.google.firebase.firestore.DocumentSnapshot?>(null) }
+    val PAGE_SIZE = 10L
+
+    val loadMore = {
+        if (!isLoadingMore && hasMore) {
+            if (devotionals.isNotEmpty()) isLoadingMore = true
+            try {
+                val db = com.google.firebase.Firebase.firestore
+                var query = db.collection("devotionals")
+                    .orderBy("date", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                    .limit(PAGE_SIZE)
+                
+                lastDocument?.let { 
+                    query = query.startAfter(it)
+                }
+
+                query.get()
+                    .addOnSuccessListener { result ->
+                        if (result.isEmpty) {
+                            hasMore = false
+                        } else {
+                            lastDocument = result.documents.lastOrNull()
+                            val list = mutableListOf<Devotional>()
+                            for (document in result) {
+                                val id = document.id
+                                val title = document.getString("title") ?: ""
+                                val date = document.getString("date") ?: ""
+                                val verse = document.getString("verse") ?: ""
+                                val verseReference = document.getString("verseReference") ?: ""
+                                val textContent = document.getString("content") ?: ""
+                                val likes = document.getLong("likes")?.toInt() ?: 0
+                                list.add(Devotional(id, title, date, verse, verseReference, textContent, likes))
+                            }
+                            devotionals = devotionals + list
+                            if (result.size() < PAGE_SIZE) {
+                                hasMore = false
+                            }
+                        }
+                        isLoading = false
+                        isLoadingMore = false
+                    }
+                    .addOnFailureListener {
+                        hasError = true
+                        isLoading = false
+                        isLoadingMore = false
+                    }
+            } catch (e: Exception) {
+                hasError = true
+                isLoading = false
+                isLoadingMore = false
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        loadMore()
+    }
+
+    if (isLoading && devotionals.isEmpty()) {
+        Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+    } else if (hasError && devotionals.isEmpty()) {
+        Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+            Text("Nenhum devocional encontrado.")
+        }
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            items(devotionals.size) { index ->
+                val dev = devotionals[index]
+                DevotionalFeedItem(devotional = dev)
+                
+                if (index == devotionals.size - 1 && !isLoadingMore && hasMore) {
+                    LaunchedEffect(index) {
+                        loadMore()
+                    }
+                }
+            }
+            if (isLoadingMore) {
+                item {
+                    Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DevotionalFeedItem(devotional: Devotional) {
+    var likes by remember { mutableStateOf(devotional.likes) }
+    var isLiked by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = devotional.date,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = devotional.title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = devotional.content,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 3,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                IconButton(
+                    onClick = {
+                        if (!isLiked) {
+                            likes += 1
+                            isLiked = true
+                            try {
+                                val db = com.google.firebase.Firebase.firestore
+                                db.collection("devotionals").document(devotional.id)
+                                    .update("likes", com.google.firebase.firestore.FieldValue.increment(1))
+                            } catch (e: Exception) {
+                                // Ignore or handle
+                            }
+                        }
+                    }
+                ) {
+                    Icon(
+                        imageVector = if (isLiked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                        contentDescription = "Like",
+                        tint = if (isLiked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Text(
+                    text = "$likes likes",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }

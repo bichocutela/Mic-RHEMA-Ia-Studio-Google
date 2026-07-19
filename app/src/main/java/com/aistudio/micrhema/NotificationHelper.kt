@@ -49,6 +49,18 @@ object NotificationHelper {
         )
     }
 
+    
+    fun scheduleDevotionalSync(context: Context) {
+        val syncRequest = androidx.work.PeriodicWorkRequestBuilder<DevotionalSyncWorker>(1, TimeUnit.HOURS)
+            .build()
+            
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            "DevotionalSyncWorker",
+            androidx.work.ExistingPeriodicWorkPolicy.KEEP,
+            syncRequest
+        )
+    }
+
     fun createNotificationChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val importance = NotificationManager.IMPORTANCE_DEFAULT

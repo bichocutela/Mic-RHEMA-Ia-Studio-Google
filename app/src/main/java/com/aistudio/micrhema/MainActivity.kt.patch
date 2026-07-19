@@ -1,0 +1,127 @@
+--- app/src/main/java/com/aistudio/micrhema/MainActivity.kt
++++ app/src/main/java/com/aistudio/micrhema/MainActivity.kt
+@@ -10,6 +10,10 @@
+ import androidx.compose.animation.fadeIn
+ import androidx.compose.animation.fadeOut
+ import androidx.compose.animation.core.tween
++import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
++import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
++import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
++import androidx.compose.ui.platform.LocalConfiguration
+ import androidx.compose.foundation.Image
+ import androidx.compose.foundation.layout.*
+ import androidx.compose.material.icons.Icons
+@@ -75,6 +79,8 @@
+ @OptIn(ExperimentalMaterial3Api::class)
+ @Composable
+ fun MainScreen() {
+     val context = LocalContext.current
++    val configuration = LocalConfiguration.current
++    val isCompact = configuration.screenWidthDp < 600
+     
+     val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+@@ -109,6 +115,8 @@
+     navController.addOnDestinationChangedListener { _, destination, _ ->
+         currentRoute = destination.route ?: Screen.Home.route
+         topBarTitle = drawerItems.find { it.route == currentRoute }?.title ?: "MIC Rhema"
+     }
++    
++    val bottomBarItems = listOf(Screen.Home, Screen.Devotionals, Screen.Services, Screen.Content)
+ 
+     ModalNavigationDrawer(
+@@ -151,21 +159,38 @@
+     ) {
+-        Scaffold(
+-            containerColor = MaterialTheme.colorScheme.background,
+-            topBar = {
+-                CenterAlignedTopAppBar(
+-                    title = {
+-                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+-                            Image(
+-                                painter = painterResource(id = R.drawable.rhema_logo),
+-                                contentDescription = "Logo",
+-                                modifier = Modifier.size(36.dp).padding(end = 8.dp)
+-                            )
+-                            Text(topBarTitle, color = MaterialTheme.colorScheme.onBackground)
+-                        }
+-                    },
+-                    navigationIcon = {
+-                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+-                            Icon(Icons.Default.Menu, contentDescription = "Menu", tint = MaterialTheme.colorScheme.onBackground)
+-                        }
+-                    },
+-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+-                        containerColor = MaterialTheme.colorScheme.background
+-                    )
+-                )
+-            }
+-        ) { paddingValues ->
++        Row(modifier = Modifier.fillMaxSize()) {
++            if (!isCompact) {
++                NavigationRail(
++                    containerColor = MaterialTheme.colorScheme.surface,
++                    header = {
++                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
++                            Icon(Icons.Default.Menu, contentDescription = "Menu")
++                        }
++                    }
++                ) {
++                    bottomBarItems.forEach { item ->
++                        NavigationRailItem(
++                            icon = { Icon(item.icon, contentDescription = null) },
++                            label = { Text(item.title) },
++                            selected = currentRoute == item.route,
++                            onClick = {
++                                navController.navigate(item.route) {
++                                    popUpTo(navController.graph.startDestinationId)
++                                    launchSingleTop = true
++                                }
++                            }
++                        )
++                    }
++                }
++            }
++
++            Scaffold(
++                containerColor = MaterialTheme.colorScheme.background,
++                topBar = {
++                    GlassTopAppBar(
++                        title = {
++                            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
++                                Image(
++                                    painter = painterResource(id = R.drawable.rhema_logo),
++                                    contentDescription = "Logo",
++                                    modifier = Modifier.size(36.dp).padding(end = 8.dp)
++                                )
++                                Text(topBarTitle, color = MaterialTheme.colorScheme.onBackground, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
++                            }
++                        },
++                        navigationIcon = {
++                            if (isCompact) {
++                                IconButton(onClick = { scope.launch { drawerState.open() } }) {
++                                    Icon(Icons.Default.Menu, contentDescription = "Menu", tint = MaterialTheme.colorScheme.onBackground)
++                                }
++                            }
++                        }
++                    )
++                },
++                bottomBar = {
++                    if (isCompact) {
++                        GlassNavigationBar {
++                            bottomBarItems.forEach { item ->
++                                NavigationBarItem(
++                                    icon = { Icon(item.icon, contentDescription = null) },
++                                    label = { Text(item.title) },
++                                    selected = currentRoute == item.route,
++                                    onClick = {
++                                        navController.navigate(item.route) {
++                                            popUpTo(navController.graph.startDestinationId)
++                                            launchSingleTop = true
++                                        }
++                                    }
++                                )
++                            }
++                        }
++                    }
++                }
++            ) { paddingValues ->

@@ -36,10 +36,32 @@ fun ContentScreen() {
     var selectedAudio by remember { mutableStateOf<ContentAudio?>(null) }
     var selectedVideo by remember { mutableStateOf<ContentVideo?>(null) }
     var isRefreshing by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
     val coroutineScope = rememberCoroutineScope()
 
     Column(modifier = Modifier.fillMaxSize()) {
-        if (selectedBook == null && selectedVideo == null && recentlyViewedState.isNotEmpty()) {
+        if (selectedBook == null && selectedVideo == null && selectedAudio == null) {
+            GlassTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                placeholder = { Text("Buscar por título ou descrição...") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Buscar") },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { searchQuery = "" }) {
+                            Icon(Icons.Default.Clear, contentDescription = "Limpar")
+                        }
+                    }
+                },
+                singleLine = true,
+                shape = RoundedCornerShape(24.dp)
+            )
+        }
+
+        if (selectedBook == null && selectedVideo == null && recentlyViewedState.isNotEmpty() && searchQuery.isEmpty()) {
             Text(
                 "Vistos Recentemente", 
                 style = MaterialTheme.typography.titleMedium, 
@@ -130,19 +152,19 @@ fun ContentScreen() {
             modifier = Modifier.weight(1f).fillMaxWidth()
         ) {
             when (selectedTab) {
-                0 -> BooksList(selectedBook, onBookSelected = { 
+                0 -> BooksList(selectedBook, searchQuery, onBookSelected = { 
                     selectedBook = it
                     if (it != null) {
                         addRecentlyViewed(RecentlyViewedItem(it.id, it.title, it.author, it.coverUrl, ContentType.BOOK, it.isCached, it.progress))
                     }
                 })
-                1 -> AudiosList(selectedAudio, onAudioSelected = {
+                1 -> AudiosList(selectedAudio, searchQuery, onAudioSelected = {
                     selectedAudio = it
                     if (it != null) {
                         addRecentlyViewed(RecentlyViewedItem(it.id, it.title, it.artist, it.coverUrl, ContentType.AUDIO, it.isCached, it.progress))
                     }
                 })
-                2 -> VideosList(selectedVideo, onVideoSelected = {
+                2 -> VideosList(selectedVideo, searchQuery, onVideoSelected = {
                     selectedVideo = it
                     if (it != null) {
                         addRecentlyViewed(RecentlyViewedItem(it.id, it.title, it.description, it.thumbnailUrl, ContentType.VIDEO, it.isCached, it.progress))
@@ -154,8 +176,18 @@ fun ContentScreen() {
 }
 
 @Composable
-fun BooksList(selectedBook: ContentBook?, onBookSelected: (ContentBook?) -> Unit) {
+fun BooksList(selectedBook: ContentBook?, searchQuery: String, onBookSelected: (ContentBook?) -> Unit) {
     
+    val filteredBooks = remember(searchQuery, contentBooksState.toList()) {
+        if (searchQuery.isBlank()) {
+            contentBooksState
+        } else {
+            contentBooksState.filter { 
+                it.title.contains(searchQuery, ignoreCase = true) || 
+                it.author.contains(searchQuery, ignoreCase = true)
+            }
+        }
+    }
 
     if (selectedBook != null) {
         BookReader(book = selectedBook!!, onBack = { onBookSelected(null) })
@@ -164,7 +196,7 @@ fun BooksList(selectedBook: ContentBook?, onBookSelected: (ContentBook?) -> Unit
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            items(contentBooksState) { book ->
+            items(filteredBooks) { book ->
                 Card(
                     modifier = Modifier.fillMaxWidth().clickable { onBookSelected(book) },
                     
@@ -217,8 +249,19 @@ fun BookReader(book: ContentBook, onBack: () -> Unit) {
 }
 
 @Composable
-fun AudiosList(selectedAudio: ContentAudio?, onAudioSelected: (ContentAudio?) -> Unit) {
+fun AudiosList(selectedAudio: ContentAudio?, searchQuery: String, onAudioSelected: (ContentAudio?) -> Unit) {
     
+    val filteredAudios = remember(searchQuery, contentAudiosState.toList()) {
+        if (searchQuery.isBlank()) {
+            contentAudiosState
+        } else {
+            contentAudiosState.filter { 
+                it.title.contains(searchQuery, ignoreCase = true) || 
+                it.artist.contains(searchQuery, ignoreCase = true)
+            }
+        }
+    }
+
     val context = LocalContext.current
     
     val exoPlayer = remember {
@@ -247,7 +290,7 @@ fun AudiosList(selectedAudio: ContentAudio?, onAudioSelected: (ContentAudio?) ->
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            items(contentAudiosState) { audio ->
+            items(filteredAudios) { audio ->
                 Card(
                     modifier = Modifier.fillMaxWidth().clickable { onAudioSelected(audio) },
                     
@@ -297,7 +340,7 @@ fun AudiosList(selectedAudio: ContentAudio?, onAudioSelected: (ContentAudio?) ->
             Card(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
                 shape = RoundedCornerShape(24.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Row(
                     modifier = Modifier.padding(16.dp),
@@ -329,8 +372,19 @@ fun AudiosList(selectedAudio: ContentAudio?, onAudioSelected: (ContentAudio?) ->
 }
 
 @Composable
-fun VideosList(selectedVideo: ContentVideo?, onVideoSelected: (ContentVideo?) -> Unit) {
+fun VideosList(selectedVideo: ContentVideo?, searchQuery: String, onVideoSelected: (ContentVideo?) -> Unit) {
     
+    val filteredVideos = remember(searchQuery, contentVideosState.toList()) {
+        if (searchQuery.isBlank()) {
+            contentVideosState
+        } else {
+            contentVideosState.filter { 
+                it.title.contains(searchQuery, ignoreCase = true) || 
+                it.description.contains(searchQuery, ignoreCase = true)
+            }
+        }
+    }
+
     val context = LocalContext.current
     
     val exoPlayer = remember {
@@ -383,7 +437,7 @@ fun VideosList(selectedVideo: ContentVideo?, onVideoSelected: (ContentVideo?) ->
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            items(contentVideosState) { video ->
+            items(filteredVideos) { video ->
                 Card(
                     modifier = Modifier.fillMaxWidth().clickable { onVideoSelected(video) },
                     
