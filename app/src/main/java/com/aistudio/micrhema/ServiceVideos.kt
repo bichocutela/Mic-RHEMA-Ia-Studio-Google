@@ -87,31 +87,66 @@ fun ServiceVideosGallery() {
                 }
             }
             
-            val exoPlayer = remember {
-                ExoPlayer.Builder(context).build().apply {
-                    setMediaItem(MediaItem.fromUri(selectedVideo!!.videoUrl))
-                    prepare()
-                    playWhenReady = true
-                }
-            }
+            val isYouTube = selectedVideo!!.videoUrl.contains("youtube.com") || selectedVideo!!.videoUrl.contains("youtu.be")
             
-            DisposableEffect(selectedVideo) {
-                onDispose {
-                    exoPlayer.release()
-                }
-            }
-            
-            AndroidView(
-                factory = { ctx ->
-                    PlayerView(ctx).apply {
-                        player = exoPlayer
+            if (isYouTube) {
+                val embedUrl = remember(selectedVideo!!.videoUrl) {
+                    val url = selectedVideo!!.videoUrl
+                    if (url.contains("youtube.com/embed/")) url
+                    else {
+                        val videoId = when {
+                            url.contains("v=") -> url.substringAfter("v=").substringBefore("&")
+                            url.contains("youtu.be/") -> url.substringAfter("youtu.be/").substringBefore("?")
+                            url.contains("shorts/") -> url.substringAfter("shorts/").substringBefore("?")
+                            else -> ""
+                        }
+                        if (videoId.isNotEmpty()) "https://www.youtube.com/embed/$videoId?autoplay=1" else url
                     }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(16f/9f)
-                    .clip(RoundedCornerShape(16.dp))
-            )
+                }
+                
+                AndroidView(
+                    factory = { ctx ->
+                        android.webkit.WebView(ctx).apply {
+                            settings.javaScriptEnabled = true
+                            settings.domStorageEnabled = true
+                            settings.mediaPlaybackRequiresUserGesture = false
+                            webChromeClient = android.webkit.WebChromeClient()
+                            webViewClient = android.webkit.WebViewClient()
+                            loadUrl(embedUrl)
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(16f/9f)
+                        .clip(RoundedCornerShape(16.dp))
+                )
+            } else {
+                val exoPlayer = remember(selectedVideo!!.videoUrl) {
+                    ExoPlayer.Builder(context).build().apply {
+                        setMediaItem(MediaItem.fromUri(selectedVideo!!.videoUrl))
+                        prepare()
+                        playWhenReady = true
+                    }
+                }
+                
+                DisposableEffect(selectedVideo!!.videoUrl) {
+                    onDispose {
+                        exoPlayer.release()
+                    }
+                }
+                
+                AndroidView(
+                    factory = { ctx ->
+                        PlayerView(ctx).apply {
+                            player = exoPlayer
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(16f/9f)
+                        .clip(RoundedCornerShape(16.dp))
+                )
+            }
             
             Spacer(modifier = Modifier.height(16.dp))
         }
