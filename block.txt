@@ -1,0 +1,106 @@
+                                            },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(Icons.Default.Close, contentDescription = "Deletar Aula", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+    }
+            }
+        }
+    }
+}
+    if (editingCourse != null && editingChapter == null) {
+        var editTitle by remember(editingCourse) { mutableStateOf(editingCourse!!.title) }
+        var editDescription by remember(editingCourse) { mutableStateOf(editingCourse!!.description) }
+        var editTheme by remember(editingCourse) { mutableStateOf(editingCourse!!.theme) }
+        
+        AlertDialog(
+            onDismissRequest = { editingCourse = null },
+            title = { Text("Editar Curso") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GlassTextField(value = editTitle, onValueChange = { editTitle = it }, label = { Text("Título") })
+                    GlassTextField(value = editDescription, onValueChange = { editDescription = it }, label = { Text("Descrição") })
+                    GlassTextField(value = editTheme, onValueChange = { editTheme = it }, label = { Text("Tema") })
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val idx = ibrCoursesState.indexOfFirst { it.id == editingCourse!!.id }
+                    if (idx != -1) {
+                        ibrCoursesState[idx] = editingCourse!!.copy(title = editTitle, description = editDescription, theme = editTheme)
+                    }
+                    editingCourse = null
+                }) { Text("Salvar") }
+            },
+            dismissButton = { TextButton(onClick = { editingCourse = null }) { Text("Cancelar") } }
+        )
+    }
+
+    if (editingCourse != null && editingChapter != null) {
+        var editTitle by remember(editingChapter) { mutableStateOf(editingChapter!!.title) }
+        var editDescription by remember(editingChapter) { mutableStateOf(editingChapter!!.description) }
+        var editDuration by remember(editingChapter) { mutableStateOf(editingChapter!!.durationMinutes) }
+        var editVideoUrl by remember(editingChapter) { mutableStateOf(editingChapter!!.videoUrl) }
+        
+        AlertDialog(
+            onDismissRequest = {
+                editingChapter = null
+                editingCourse = null
+            },
+            title = { Text("Editar Aula") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GlassTextField(value = editTitle, onValueChange = { editTitle = it }, label = { Text("Título") })
+                    GlassTextField(value = editDescription, onValueChange = { editDescription = it }, label = { Text("Descrição") })
+                    GlassTextField(value = editDuration, onValueChange = { editDuration = it }, label = { Text("Duração (Min)") })
+                    GlassTextField(value = editVideoUrl, onValueChange = { editVideoUrl = it }, label = { Text("URL Vídeo") })
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val courseIdx = ibrCoursesState.indexOfFirst { it.id == editingCourse!!.id }
+                    if (courseIdx != -1) {
+                        val course = ibrCoursesState[courseIdx]
+                        val chapterIdx = course.chapters.indexOfFirst { it.id == editingChapter!!.id }
+                        if (chapterIdx != -1) {
+                            val updatedChapters = course.chapters.toMutableList()
+                            updatedChapters[chapterIdx] = editingChapter!!.copy(
+                                title = editTitle,
+                                description = editDescription,
+                                durationMinutes = editDuration,
+                                videoUrl = editVideoUrl
+                            )
+                            ibrCoursesState[courseIdx] = course.copy(chapters = updatedChapters)
+                        }
+                    }
+                    editingChapter = null
+                    editingCourse = null
+                }) { Text("Salvar") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    editingChapter = null
+                    editingCourse = null
+                }) { Text("Cancelar") }
+            }
+        )
+}
+
+@Composable
+fun StatusBadge(text: String, containerColor: Color, contentColor: Color) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(containerColor)
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+        contentAlignment = Alignment.Center
+    ) {

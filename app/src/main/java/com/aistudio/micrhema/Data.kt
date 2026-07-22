@@ -11,7 +11,18 @@ import androidx.compose.runtime.mutableStateOf
 object DevotionalManager {
     fun syncDevotionals(context: Context) {
         try {
-            val db = Firebase.firestore
+            // First load from local cache instantly for offline support
+            val cachedDevotionals = IbrDatabaseHelper(context).getCachedDevotionals()
+            if (cachedDevotionals.isNotEmpty()) {
+                devotionalsState.clear()
+                devotionalsState.addAll(cachedDevotionals)
+            }
+
+            if (isOfflineModeState.value) {
+                return
+            }
+
+            val db = com.google.firebase.Firebase.firestore
             db.collection("devotionals").get()
                 .addOnSuccessListener { result ->
                     val newList = mutableListOf<Devotional>()
@@ -35,15 +46,10 @@ object DevotionalManager {
                     }
                 }
                 .addOnFailureListener {
-                    // fallback to local cache
-                    val cachedDevotionals = IbrDatabaseHelper(context).getCachedDevotionals()
-                    if (cachedDevotionals.isNotEmpty()) {
-                        devotionalsState.clear()
-                        devotionalsState.addAll(cachedDevotionals)
-                    }
+                    // Cache already loaded above, do nothing
                 }
         } catch (e: Exception) {
-            Log.e("DevotionalManager", "Firestore not initialized or error", e)
+            android.util.Log.e("DevotionalManager", "Firestore not initialized or error", e)
         }
     }
 }
@@ -548,22 +554,37 @@ val ibrProgressState = mutableStateListOf<IbrProgress>()
 
 
 
-object ThemeManager {
-    private const val PREFS_NAME = "micrhema_theme_prefs"
-    private const val KEY_IS_DARK_THEME = "is_dark_theme"
+enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
-    fun isDarkTheme(context: android.content.Context): Boolean {
+object SettingsManager {
+    private const val PREFS_NAME = "micrhema_settings_prefs"
+    private const val KEY_THEME_MODE = "theme_mode"
+    private const val KEY_OFFLINE_MODE = "offline_mode"
+
+    fun getThemeMode(context: android.content.Context): ThemeMode {
         val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
-        return prefs.getBoolean(KEY_IS_DARK_THEME, false)
+        val modeStr = prefs.getString(KEY_THEME_MODE, ThemeMode.SYSTEM.name) ?: ThemeMode.SYSTEM.name
+        return try { ThemeMode.valueOf(modeStr) } catch (e: Exception) { ThemeMode.SYSTEM }
     }
 
-    fun setDarkTheme(context: android.content.Context, isDark: Boolean) {
+    fun setThemeMode(context: android.content.Context, mode: ThemeMode) {
         val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
-        prefs.edit().putBoolean(KEY_IS_DARK_THEME, isDark).apply()
+        prefs.edit().putString(KEY_THEME_MODE, mode.name).apply()
+    }
+
+    fun isOfflineMode(context: android.content.Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_OFFLINE_MODE, false)
+    }
+
+    fun setOfflineMode(context: android.content.Context, isOffline: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_OFFLINE_MODE, isOffline).apply()
     }
 }
 
-val isAppDarkTheme = androidx.compose.runtime.mutableStateOf(false)
+val currentThemeMode = androidx.compose.runtime.mutableStateOf(ThemeMode.SYSTEM)
+val isOfflineModeState = androidx.compose.runtime.mutableStateOf(false)
 
 data class ContentBook(
     val id: String,
@@ -572,7 +593,8 @@ data class ContentBook(
     val coverUrl: String,
     val contentText: String, // Mocking the epub/pdf with plain text for this prototype
     val isCached: Boolean = false,
-    val progress: Float = 0f
+    val progress: Float = 0f,
+    var lastPosition: Long = 0L
 )
 
 data class ContentAudio(
@@ -582,7 +604,8 @@ data class ContentAudio(
     val audioUrl: String,
     val coverUrl: String,
     val isCached: Boolean = false,
-    val progress: Float = 0f
+    val progress: Float = 0f,
+    var lastPosition: Long = 0L
 )
 
 data class ContentVideo(
@@ -592,12 +615,27 @@ data class ContentVideo(
     val videoUrl: String, // Can be youtube link or direct mp4
     val thumbnailUrl: String,
     val isCached: Boolean = false,
-    val progress: Float = 0f
+    val progress: Float = 0f,
+    var lastPosition: Long = 0L
+)
+
+data class AlbumPhoto(
+    val url: String,
+    val caption: String = ""
+)
+
+data class ContentPhotoAlbum(
+    val id: String,
+    val title: String,
+    val description: String,
+    val coverUrl: String? = null,
+    val photos: List<AlbumPhoto> = emptyList()
 )
 
 val contentBooksState = androidx.compose.runtime.mutableStateListOf<ContentBook>()
 val contentAudiosState = androidx.compose.runtime.mutableStateListOf<ContentAudio>()
 val contentVideosState = androidx.compose.runtime.mutableStateListOf<ContentVideo>()
+val contentAlbumsState = androidx.compose.runtime.mutableStateListOf<ContentPhotoAlbum>()
 
 fun initializeMockContent() {
     if (contentBooksState.isEmpty()) {
@@ -626,7 +664,8 @@ data class RecentlyViewedItem(
     val imageUrl: String,
     val type: ContentType,
     val isCached: Boolean = false,
-    val progress: Float = 0f
+    val progress: Float = 0f,
+    var lastPosition: Long = 0L
 )
 
 val recentlyViewedState = androidx.compose.runtime.mutableStateListOf<RecentlyViewedItem>()
@@ -636,5 +675,104 @@ fun addRecentlyViewed(item: RecentlyViewedItem) {
     recentlyViewedState.add(0, item)
     if (recentlyViewedState.size > 10) {
         recentlyViewedState.removeAt(recentlyViewedState.size - 1)
+    }
+}
+
+
+enum class TabContentType {
+    SYSTEM, PHOTOS, VIDEOS, LINKS, MIXED
+}
+
+data class AppTab(
+    val id: String,
+    val title: String,
+    val iconName: String,
+    val isPrivate: Boolean,
+    val isVisible: Boolean,
+    val showInBottomBar: Boolean,
+    val order: Int,
+    val type: TabContentType,
+    val systemRoute: String? = null
+)
+
+data class CustomTabItem(
+    val id: String,
+    val tabId: String,
+    val type: TabContentType,
+    val url: String,
+    val title: String = "",
+    val description: String = ""
+)
+
+val appTabsState = androidx.compose.runtime.mutableStateListOf<AppTab>()
+val customTabItemsState = androidx.compose.runtime.mutableStateListOf<CustomTabItem>()
+
+fun initializeTabs() {
+    if (appTabsState.isEmpty()) {
+        appTabsState.addAll(listOf(
+            AppTab("1", "Início", "Home", false, true, true, 0, TabContentType.SYSTEM, "home"),
+            AppTab("2", "Devocionais", "Book", false, true, true, 1, TabContentType.SYSTEM, "devotionals"),
+            AppTab("3", "Cultos", "Church", false, true, true, 2, TabContentType.SYSTEM, "services"),
+            AppTab("4", "Conteúdo", "LibraryBooks", false, true, true, 3, TabContentType.SYSTEM, "content"),
+            AppTab("5", "Oração", "Favorite", false, true, false, 4, TabContentType.SYSTEM, "prayer"),
+            AppTab("6", "Membro (VIP)", "People", true, true, false, 5, TabContentType.SYSTEM, "members"),
+            AppTab("7", "IBR", "Group", false, true, false, 6, TabContentType.SYSTEM, "ibr"),
+            AppTab("bible_tab", "Bíblia", "MenuBook", false, true, false, 7, TabContentType.SYSTEM, "bible"),
+            AppTab("team_tab", "Equipe", "Groups", false, true, false, 8, TabContentType.SYSTEM, "team"),
+            AppTab("8", "Sobre", "Info", false, true, false, 9, TabContentType.SYSTEM, "about"),
+            AppTab("9", "Configurações", "Settings", false, true, false, 9, TabContentType.SYSTEM, "settings"),
+            AppTab("10", "Área ADM", "Lock", true, true, false, 10, TabContentType.SYSTEM, "admin")
+        ))
+    }
+}
+
+
+data class TeamMember(
+    val id: String = "",
+    val name: String = "",
+    val role: String = "",
+    val imageUrl: String = "",
+    val order: Int = 0,
+    val category: String = "Pastoral"
+)
+
+val teamMembersState = androidx.compose.runtime.mutableStateListOf<TeamMember>(
+    TeamMember("1", "Evaldo e Denilza", "Pastor e Fundador da Igreja", "https://bf16b0ed3a.cbaul-cdnwnd.com/33d00cab3ecde9380e3cf364b55ce6c5/200000506-55fe455fe5/IMG_2580.jpeg?ph=bf16b0ed3a", 0, "Pastoral"),
+    TeamMember("2", "Pb Alessandro e Silvana", "Departamento Missões", "https://bf16b0ed3a.cbaul-cdnwnd.com/33d00cab3ecde9380e3cf364b55ce6c5/200000508-0cca70cca9/IMG_2582.jpeg?ph=bf16b0ed3a", 1, "Missões"),
+    TeamMember("3", "Dac. Rosemeiry", "Tesoureira", "https://bf16b0ed3a.cbaul-cdnwnd.com/33d00cab3ecde9380e3cf364b55ce6c5/200000494-ee984ee985/1000030995.png?ph=bf16b0ed3a", 2, "Secretaria"),
+    TeamMember("4", "Pr Alexsandro e Pra Antônia", "Pastores Auxiliar", "https://bf16b0ed3a.cbaul-cdnwnd.com/33d00cab3ecde9380e3cf364b55ce6c5/200000510-454a6454a9/IMG_2584.jpeg?ph=bf16b0ed3a", 3, "Pastoral"),
+    TeamMember("5", "Júlia", "Departamento Crianças", "https://bf16b0ed3a.cbaul-cdnwnd.com/33d00cab3ecde9380e3cf364b55ce6c5/200000498-5503255034/1000031100.png?ph=bf16b0ed3a", 4, "Infantil"),
+    TeamMember("6", "Dac. Priscila e Josineide", "", "https://bf16b0ed3a.cbaul-cdnwnd.com/33d00cab3ecde9380e3cf364b55ce6c5/200000530-d79abd79ad/IMG-20260215-WA0022.jpeg?ph=bf16b0ed3a", 5, "Secretaria"),
+    TeamMember("7", "Edimara de Andrade", "Pastora Cong. Mãe Luiza", "https://bf16b0ed3a.cbaul-cdnwnd.com/33d00cab3ecde9380e3cf364b55ce6c5/200000514-e45b9e45bb/IMG_2586.jpeg?ph=bf16b0ed3a", 6, "Pastoral"),
+    TeamMember("8", "Josineide e Lucineide", "Dirigentes do Matutino", "https://bf16b0ed3a.cbaul-cdnwnd.com/33d00cab3ecde9380e3cf364b55ce6c5/200000528-69b4a69b4c/IMG-20260210-WA0080.jpeg?ph=bf16b0ed3a", 7, "Pastoral")
+)
+
+fun loadTeamMembersFromFirebase() {
+    if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
+        try {
+            val db = Firebase.firestore
+            db.collection("team").orderBy("order").addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    android.util.Log.w("Data", "Listen team failed.", e)
+                    return@addSnapshotListener
+                }
+                if (snapshot != null && !snapshot.isEmpty) {
+                    val newList = mutableListOf<TeamMember>()
+                    for (document in snapshot.documents) {
+                        val id = document.id
+                        val name = document.getString("name") ?: ""
+                        val role = document.getString("role") ?: ""
+                        val imageUrl = document.getString("imageUrl") ?: ""
+                        val order = document.getLong("order")?.toInt() ?: 0
+                        val category = document.getString("category") ?: "Pastoral"
+                        newList.add(TeamMember(id, name, role, imageUrl, order, category))
+                    }
+                    teamMembersState.clear()
+                    teamMembersState.addAll(newList)
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("Data", "Error loading team", e)
+        }
     }
 }

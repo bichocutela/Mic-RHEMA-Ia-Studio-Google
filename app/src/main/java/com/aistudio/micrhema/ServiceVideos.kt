@@ -2,13 +2,17 @@ package com.aistudio.micrhema
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -39,6 +43,19 @@ fun ServiceVideosGallery() {
 
     LaunchedEffect(Unit) {
         try {
+            if (isOfflineModeState.value) {
+                videos = listOf(
+                    ServiceVideoModel(
+                        id = "mock_1",
+                        title = "Culto de Domingo - Família (Offline)",
+                        date = "Domingo, 10h",
+                        videoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+                        thumbnailUrl = "https://images.unsplash.com/photo-1438211331416-0be89cc621a8?w=500&q=80"
+                    )
+                )
+                isLoading = false
+                return@LaunchedEffect
+            }
             val db = FirebaseFirestore.getInstance()
             val result = db.collection("service_videos")
                 .get()
@@ -90,31 +107,8 @@ fun ServiceVideosGallery() {
             val isYouTube = selectedVideo!!.videoUrl.contains("youtube.com") || selectedVideo!!.videoUrl.contains("youtu.be")
             
             if (isYouTube) {
-                val embedUrl = remember(selectedVideo!!.videoUrl) {
-                    val url = selectedVideo!!.videoUrl
-                    if (url.contains("youtube.com/embed/")) url
-                    else {
-                        val videoId = when {
-                            url.contains("v=") -> url.substringAfter("v=").substringBefore("&")
-                            url.contains("youtu.be/") -> url.substringAfter("youtu.be/").substringBefore("?")
-                            url.contains("shorts/") -> url.substringAfter("shorts/").substringBefore("?")
-                            else -> ""
-                        }
-                        if (videoId.isNotEmpty()) "https://www.youtube.com/embed/$videoId?autoplay=1" else url
-                    }
-                }
-                
-                AndroidView(
-                    factory = { ctx ->
-                        android.webkit.WebView(ctx).apply {
-                            settings.javaScriptEnabled = true
-                            settings.domStorageEnabled = true
-                            settings.mediaPlaybackRequiresUserGesture = false
-                            webChromeClient = android.webkit.WebChromeClient()
-                            webViewClient = android.webkit.WebViewClient()
-                            loadUrl(embedUrl)
-                        }
-                    },
+                YoutubePlayer(
+                    videoUrl = selectedVideo!!.videoUrl,
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(16f/9f)
@@ -122,7 +116,7 @@ fun ServiceVideosGallery() {
                 )
             } else {
                 val exoPlayer = remember(selectedVideo!!.videoUrl) {
-                    ExoPlayer.Builder(context).build().apply {
+                    ExoPlayer.Builder(context).setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(com.aistudio.micrhema.ExoPlayerCache.getCacheDataSourceFactory(context))).build().apply {
                         setMediaItem(MediaItem.fromUri(selectedVideo!!.videoUrl))
                         prepare()
                         playWhenReady = true
@@ -135,17 +129,45 @@ fun ServiceVideosGallery() {
                     }
                 }
                 
-                AndroidView(
-                    factory = { ctx ->
-                        PlayerView(ctx).apply {
-                            player = exoPlayer
+                Box(modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(16f/9f)
+                    .clip(RoundedCornerShape(16.dp))) {
+                    
+                    AndroidView(
+                        factory = { ctx ->
+                            PlayerView(ctx).apply {
+                                player = exoPlayer
+                            }
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    
+                    // Custom Video Overlay
+                    val authorizedUser = loggedInMemberState.value?.let { it.isApproved || it.isIbr || it.isVip } ?: false
+                    if (authorizedUser) {
+                        IconButton(
+                            onClick = {
+                                DownloadHelper.downloadFile(
+                                    context = context,
+                                    url = selectedVideo!!.videoUrl,
+                                    title = selectedVideo!!.title,
+                                    fileName = "micrhema_culto_${selectedVideo!!.id}.mp4"
+                                )
+                            },
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(8.dp)
+                                .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(50))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Download,
+                                contentDescription = "Baixar Culto (Offline)",
+                                tint = Color.White
+                            )
                         }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(16f/9f)
-                        .clip(RoundedCornerShape(16.dp))
-                )
+                    }
+                }
             }
             
             Spacer(modifier = Modifier.height(16.dp))

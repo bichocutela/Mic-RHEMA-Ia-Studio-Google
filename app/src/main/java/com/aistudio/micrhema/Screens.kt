@@ -221,6 +221,7 @@ fun HomeCarousel() {
     if (carouselItemsState.isEmpty()) return
     
     var activeIndex by remember { mutableStateOf(0) }
+    var selectedCarouselItem by remember { mutableStateOf<CarouselItem?>(null) }
     
     Column(
         modifier = Modifier
@@ -277,7 +278,10 @@ fun HomeCarousel() {
                         .width(280.dp)
                         .height(150.dp)
                         .scale(animatedScale)
-                        .clickable { activeIndex = index },
+                        .clickable { 
+                            activeIndex = index 
+                            selectedCarouselItem = item
+                        },
                     shape = RoundedCornerShape(20.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.Transparent)
                 ) {
@@ -376,6 +380,64 @@ fun HomeCarousel() {
                 )
             }
         }
+    }
+
+    if (selectedCarouselItem != null) {
+        AlertDialog(
+            onDismissRequest = { selectedCarouselItem = null },
+            title = {
+                Text(
+                    text = selectedCarouselItem?.title ?: "",
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            },
+            text = {
+                Column {
+                    if (selectedCarouselItem?.imageUrl != null) {
+                        coil.compose.AsyncImage(
+                            model = selectedCarouselItem?.imageUrl,
+                            contentDescription = null,
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(150.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+                    Text(
+                        text = selectedCarouselItem?.description ?: "",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DateRange,
+                            contentDescription = "Data",
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = selectedCarouselItem?.date ?: "",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { selectedCarouselItem = null }) {
+                    Text("Fechar")
+                }
+            },
+            shape = RoundedCornerShape(16.dp),
+            containerColor = MaterialTheme.colorScheme.surface
+        )
     }
 }
 
@@ -529,7 +591,7 @@ fun HomeScreen() {
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Image(
-                            painter = painterResource(id = R.drawable.rhema_logo),
+                            painter = painterResource(id = R.drawable.logo_rhema),
                             contentDescription = "Logo MIC Rhema",
                             modifier = Modifier
                                 .size(120.dp)
@@ -733,12 +795,24 @@ fun HomeScreen() {
                         Text("A", fontSize = 24.sp, style = MaterialTheme.typography.labelSmall)
                     }
 
+                    val scrollState = rememberScrollState()
+                    val progress = if (scrollState.maxValue > 0) {
+                        scrollState.value.toFloat() / scrollState.maxValue.toFloat()
+                    } else 0f
+                    
+                    LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f, fill = false)
                     ) {
-                        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                        Column(modifier = Modifier.verticalScroll(scrollState)) {
                             Text(
                                 text = dev.content,
                                 style = MaterialTheme.typography.bodyMedium,
@@ -803,6 +877,8 @@ fun DevotionalsScreen() {
     var selectedTab by remember { mutableStateOf(0) } // 0 = Todos, 1 = Favoritos
     var bookmarkedList by remember { mutableStateOf(emptyList<Devotional>()) }
     var bookmarkedIds by remember { mutableStateOf(setOf<String>()) }
+    var showBibleReader by remember { mutableStateOf(false) }
+    var bibleReference by remember { mutableStateOf("") }
 
     fun refreshBookmarks() {
         val bookmarks = dbHelper.getAllBookmarks()
@@ -985,7 +1061,17 @@ fun DevotionalsScreen() {
                             Spacer(modifier = Modifier.height(8.dp))
                             Text("\"${dev.verse}\"", style = MaterialTheme.typography.bodyMedium, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
                             Spacer(modifier = Modifier.height(4.dp))
-                            Text(dev.verseReference, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.clickable {
+                                    bibleReference = dev.verseReference
+                                    showBibleReader = true
+                                }.padding(vertical = 4.dp)
+                            ) {
+                                Icon(Icons.Default.MenuBook, contentDescription = "Ler Bíblia", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(dev.verseReference, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                            }
                             if (dev.content.isNotBlank()) {
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(dev.content, style = MaterialTheme.typography.bodySmall)
@@ -995,6 +1081,13 @@ fun DevotionalsScreen() {
                 }
             }
         }
+    }
+    
+    if (showBibleReader) {
+        BibleReaderModal(
+            onDismiss = { showBibleReader = false },
+            initialReference = bibleReference
+        )
     }
 }
 
@@ -3024,60 +3117,79 @@ fun IbrMediaPlayerView(
                 contentAlignment = Alignment.Center
             ) {
                 if (playbackType == "video" || chapter.isYoutube) {
-                    // Video Simulation Window
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        Canvas(modifier = Modifier.fillMaxSize()) {
-                            // Draw glowing geometric stained glass pulsing
-                            val radius = 180f + (if (isPlaying) (currentSeconds % 10) * 8f else 0f)
-                            drawCircle(
-                                brush = Brush.radialGradient(
-                                    listOf(Color(0xFF3B82F6).copy(alpha = 0.4f), Color.Transparent)
-                                ),
-                                radius = radius
-                            )
+                    if (chapter.isYoutube) {
+                        YoutubePlayer(
+                            videoUrl = chapter.videoUrl,
+                            youtubeId = chapter.youtubeId,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else if (chapter.videoUrl.isNotEmpty()) {
+                        val exoPlayer = remember(chapter.videoUrl) {
+                            androidx.media3.exoplayer.ExoPlayer.Builder(context).setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(com.aistudio.micrhema.ExoPlayerCache.getCacheDataSourceFactory(context))).build().apply {
+                                setMediaItem(androidx.media3.common.MediaItem.fromUri(chapter.videoUrl))
+                                prepare()
+                                playWhenReady = true
+                            }
                         }
                         
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(16.dp),
-                            verticalArrangement = Arrangement.SpaceBetween,
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
-                                    .padding(6.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = if (chapter.isYoutube) "🔴 TRANSMISSÃO YOUTUBE" else "🔵 REPRODUZINDO VÍDEO LIBR",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = if (chapter.isYoutube) Color(0xFFE50914) else Color(0xFF3B82F6),
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "${playbackSpeed}x",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Bold
-                                )
+                        var isVideoBuffering by remember { mutableStateOf(true) }
+                        DisposableEffect(chapter.videoUrl) {
+                            val listener = object : androidx.media3.common.Player.Listener {
+                                override fun onPlaybackStateChanged(playbackState: Int) {
+                                    isVideoBuffering = playbackState == androidx.media3.common.Player.STATE_BUFFERING || playbackState == androidx.media3.common.Player.STATE_IDLE
+                                }
                             }
-                            
-                            // Visual center indicator
-                            Icon(
-                                imageVector = if (chapter.isYoutube) Icons.Default.PlayCircle else Icons.Default.MovieFilter,
-                                contentDescription = null,
-                                tint = if (chapter.isYoutube) Color(0xFFE50914) else Color.White,
-                                modifier = Modifier.size(56.dp)
+                            exoPlayer.addListener(listener)
+                            onDispose {
+                                exoPlayer.removeListener(listener)
+                                exoPlayer.release()
+                            }
+                        }
+                        
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            androidx.compose.ui.viewinterop.AndroidView(
+                                factory = { ctx ->
+                                    androidx.media3.ui.PlayerView(ctx).apply {
+                                        player = exoPlayer
+                                    }
+                                },
+                                modifier = Modifier.fillMaxSize()
                             )
+                            if (isVideoBuffering) {
+                                Box(modifier = Modifier.fillMaxSize().background(shimmerBrush()))
+                            }
+
                             
-                            Text(
-                                text = if (isPlaying) "Exibindo sinal de vídeo..." else "Pausado",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color.Gray
-                            )
+                            // Custom Video Overlay
+                            val authorizedUser = loggedInMemberState.value?.let { it.isApproved || it.isIbr || it.isVip } ?: false
+                            if (authorizedUser) {
+                                val context = LocalContext.current
+                                IconButton(
+                                    onClick = {
+                                        DownloadHelper.downloadFile(
+                                            context = context,
+                                            url = chapter.videoUrl,
+                                            title = chapter.title,
+                                            fileName = "micrhema_aula_${chapter.id}.mp4"
+                                        )
+                                    },
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(8.dp)
+                                        .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(50))
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Download,
+                                        contentDescription = "Baixar Aula (Offline)",
+                                        tint = Color.White
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        // Fallback text if no URL provided
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("URL do vídeo não configurada.", color = Color.White)
                         }
                     }
                 } else {
@@ -3440,10 +3552,24 @@ fun AboutScreen() {
     }
 }
 
+
 val isAdminLogged = mutableStateOf(false)
 
 @Composable
 fun AdminScreen() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = context.getSharedPreferences("micrhema_admin_prefs", android.content.Context.MODE_PRIVATE)
+    
+    DisposableEffect(Unit) {
+        onDispose {
+            LocalDataManager.saveAll(context)
+        }
+    }
+    
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        isAdminLogged.value = prefs.getBoolean("admin_logged", false)
+    }
+
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var loginError by remember { mutableStateOf("") }
@@ -3463,51 +3589,34 @@ fun AdminScreen() {
                 tint = MaterialTheme.colorScheme.primary
             )
             Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "Login Administrativo",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
-            )
+            Text("Área Administrativa", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Entre com suas credenciais de administrador",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(24.dp))
+            Text("Faça login para gerenciar o conteúdo", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
             
-            GlassTextField(
+            Spacer(modifier = Modifier.height(32.dp))
+            
+            OutlinedTextField(
                 value = username,
-                onValueChange = { 
-                    username = it
-                    loginError = ""
-                },
+                onValueChange = { username = it },
                 label = { Text("Usuário") },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
                 singleLine = true
             )
+            
             Spacer(modifier = Modifier.height(16.dp))
-            GlassTextField(
+            
+            OutlinedTextField(
                 value = password,
-                onValueChange = { 
-                    password = it
-                    loginError = ""
-                },
+                onValueChange = { password = it },
                 label = { Text("Senha") },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
                 singleLine = true,
-                visualTransformation = PasswordVisualTransformation()
+                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation()
             )
             
             if (loginError.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = loginError,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall
-                )
+                Text(loginError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             }
             
             Spacer(modifier = Modifier.height(24.dp))
@@ -3515,6 +3624,7 @@ fun AdminScreen() {
                 onClick = {
                     if (username.trim() == "Admin" && password == "igreja10") {
                         isAdminLogged.value = true
+                        prefs.edit().putBoolean("admin_logged", true).apply()
                     } else {
                         loginError = "Usuário ou senha incorretos!"
                     }
@@ -3526,25 +3636,51 @@ fun AdminScreen() {
             }
         }
     } else {
-        AdminPanel()
+        AdminPanel {
+            isAdminLogged.value = false
+            prefs.edit().putBoolean("admin_logged", false).apply()
+        }
     }
 }
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AdminPanel() {
+fun AdminPanel(onLogout: () -> Unit) {
     var selectedSection by remember { mutableStateOf("home") }
+    var globalSearchQuery by remember { mutableStateOf("") }
 
     Column(
         modifier = Modifier.fillMaxSize()
     ) {
+        OutlinedTextField(
+            value = globalSearchQuery,
+            onValueChange = { globalSearchQuery = it },
+            placeholder = { Text("Buscar aulas, capítulos ou conteúdos VIP...") },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Buscar") },
+            trailingIcon = { 
+                if (globalSearchQuery.isNotEmpty()) {
+                    IconButton(onClick = { globalSearchQuery = "" }) {
+                        Icon(Icons.Default.Close, contentDescription = "Limpar busca")
+                    }
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            singleLine = true,
+            shape = RoundedCornerShape(24.dp)
+        )
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(horizontal = 16.dp, vertical = 0.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            IconButton(onClick = onLogout) {
+                Icon(Icons.Default.ExitToApp, contentDescription = "Sair", tint = MaterialTheme.colorScheme.error)
+            }
             val sections = listOf(
                 "home" to "Início",
                 "devotionals" to "Devocionais",
@@ -3553,7 +3689,9 @@ fun AdminPanel() {
                 "members" to "Membros",
                 "ibr" to "Seminário IBR 🎓",
                 "content" to "Conteúdo",
-                "about" to "Sobre"
+                "team" to "Equipe",
+                "about" to "Sobre",
+                "tabs" to "Gerenciar Abas"
             )
             sections.forEach { (key, label) ->
                 FilterChip(
@@ -3571,15 +3709,21 @@ fun AdminPanel() {
                 .weight(1f)
                 .fillMaxWidth()
         ) {
-            when (selectedSection) {
-                "home" -> EditHomeSection()
-                "devotionals" -> EditDevotionalsSection()
-                "services" -> EditServicesSection()
-                "prayers" -> EditPrayersSection()
-                "members" -> EditMembersSection()
-                "ibr" -> EditIbrSection()
-                "content" -> EditContentSection()
-                "about" -> EditAboutSection()
+            if (globalSearchQuery.isNotBlank()) {
+                AdminGlobalSearchSection(globalSearchQuery)
+            } else {
+                when (selectedSection) {
+                    "home" -> EditHomeSection()
+                    "devotionals" -> EditDevotionalsSection()
+                    "services" -> EditServicesSection()
+                    "prayers" -> EditPrayersSection()
+                    "members" -> EditMembersSection()
+                    "ibr" -> EditIbrSection()
+                    "content" -> EditContentSection()
+                    "team" -> EditTeamSection()
+                    "about" -> EditAboutSection()
+                    "tabs" -> AdminTabsScreen()
+                }
             }
         }
     }
@@ -3595,7 +3739,11 @@ fun EditIbrSection() {
     var courseTitle by remember { mutableStateOf("") }
     var courseDescription by remember { mutableStateOf("") }
     
+
     // Add Chapter Form States
+    var editingCourse by remember { mutableStateOf<IbrCourse?>(null) }
+    var editingChapter by remember { mutableStateOf<IbrChapter?>(null) }
+
     var selectedCourseForChapter by remember { mutableStateOf<IbrCourse?>(null) }
     var chapterTitle by remember { mutableStateOf("") }
     var chapterDescription by remember { mutableStateOf("") }
@@ -3603,6 +3751,17 @@ fun EditIbrSection() {
     var isYoutube by remember { mutableStateOf(false) }
     var videoUrl by remember { mutableStateOf("") }
     var audioUrl by remember { mutableStateOf("") }
+    
+    // Bulk Upload States
+    class BulkUploadTask(
+        val id: String,
+        val filename: String,
+        val title: String,
+        var progress: Float = 0f,
+        var status: String = "Pendente"
+    )
+    val bulkUploadQueue = remember { mutableStateListOf<BulkUploadTask>() }
+    val coroutineScope = rememberCoroutineScope()
 
     LazyColumn(
         modifier = Modifier
@@ -3850,6 +4009,145 @@ fun EditIbrSection() {
                 }
             }
         }
+        
+        // 2.5 BULK UPLOAD CARD
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(32.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("🚀 Upload em Lote (Múltiplas Aulas)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.tertiary)
+                    
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Selecionar Curso Destino:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            ibrCoursesState.forEach { c ->
+                                FilterChip(
+                                    selected = selectedCourseForChapter?.id == c.id,
+                                    onClick = { selectedCourseForChapter = c },
+                                    label = { Text(c.title, maxLines = 1) }
+                                )
+                            }
+                        }
+                    }
+                    
+                    if (bulkUploadQueue.isEmpty()) {
+                        OutlinedButton(
+                            onClick = {
+                                if (selectedCourseForChapter == null) {
+                                    NotificationHelper.showNotification(context, "Erro", "Selecione o curso destino antes de adicionar arquivos.")
+                                    return@OutlinedButton
+                                }
+                                bulkUploadQueue.add(BulkUploadTask("t1", "aula1_introducao.mp4", "Aula 1: Introdução"))
+                                bulkUploadQueue.add(BulkUploadTask("t2", "aula2_fundamentos.mp4", "Aula 2: Fundamentos"))
+                                bulkUploadQueue.add(BulkUploadTask("t3", "aula3_avancado.mp4", "Aula 3: Avançado"))
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(24.dp)
+                        ) {
+                            Icon(Icons.Default.UploadFile, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Selecionar Arquivos Locais (Simulado)")
+                        }
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            bulkUploadQueue.forEach { task ->
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                                    shape = RoundedCornerShape(16.dp)
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                            Text(task.title, fontWeight = FontWeight.Bold)
+                                            Text(task.status, style = MaterialTheme.typography.labelSmall, color = if (task.status == "Concluído") Color(0xFF10B981) else MaterialTheme.colorScheme.primary)
+                                        }
+                                        Text(task.filename, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        LinearProgressIndicator(
+                                            progress = task.progress,
+                                            modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                                            color = if (task.status == "Concluído") Color(0xFF10B981) else MaterialTheme.colorScheme.primary,
+                                            trackColor = MaterialTheme.colorScheme.surfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                            
+                            val allDone = bulkUploadQueue.all { it.status == "Concluído" }
+                            if (!allDone) {
+                                GlassButton(
+                                    onClick = {
+                                        coroutineScope.launch {
+                                            for (task in bulkUploadQueue) {
+                                                if (task.status == "Concluído") continue
+                                                
+                                                val index = bulkUploadQueue.indexOf(task)
+                                                
+                                                val updatedTask = BulkUploadTask(task.id, task.filename, task.title, 0f, "Enviando...")
+                                                bulkUploadQueue[index] = updatedTask
+                                                
+                                                // Simulate upload progress
+                                                for (p in 1..10) {
+                                                    kotlinx.coroutines.delay(300)
+                                                    bulkUploadQueue[index] = BulkUploadTask(task.id, task.filename, task.title, p * 0.1f, "Enviando... ${p*10}%")
+                                                }
+                                                
+                                                bulkUploadQueue[index] = BulkUploadTask(task.id, task.filename, task.title, 1f, "Concluído")
+                                                
+                                                // Add chapter to course
+                                                val targetCourse = ibrCoursesState.find { it.id == selectedCourseForChapter?.id }
+                                                if (targetCourse != null) {
+                                                    val newChap = IbrChapter(
+                                                        id = "chap_${System.currentTimeMillis()}_${task.id}",
+                                                        title = task.title,
+                                                        description = "Upload em lote: ${task.filename}",
+                                                        durationMinutes = 45,
+                                                        videoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+                                                        audioUrl = "",
+                                                        isYoutube = false
+                                                    )
+                                                    val updatedChapters = targetCourse.chapters.toMutableList().apply { add(newChap) }
+                                                    val updatedCourse = targetCourse.copy(chapters = updatedChapters)
+                                                    val cIndex = ibrCoursesState.indexOf(targetCourse)
+                                                    if (cIndex != -1) {
+                                                        ibrCoursesState[cIndex] = updatedCourse
+                                                    }
+                                                    selectedCourseForChapter = updatedCourse
+                                                }
+                                            }
+                                            NotificationHelper.showNotification(context, "Sucesso", "Todos os uploads foram concluídos e adicionados ao curso.")
+                                            kotlinx.coroutines.delay(2000)
+                                            bulkUploadQueue.clear()
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary),
+                                    shape = RoundedCornerShape(24.dp)
+                                ) {
+                                    Text("Iniciar Upload em Lote", fontWeight = FontWeight.Bold, color = Color.White)
+                                }
+                            } else {
+                                GlassButton(
+                                    onClick = { bulkUploadQueue.clear() },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+                                    shape = RoundedCornerShape(24.dp)
+                                ) {
+                                    Text("Limpar Fila", fontWeight = FontWeight.Bold, color = Color.White)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         // 3. LIST OF EXISTING COURSES AND CHAPTERS
         item {
@@ -3880,8 +4178,13 @@ fun EditIbrSection() {
                                 }
                                 Text(course.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                             }
-                            IconButton(onClick = { ibrCoursesState.remove(course) }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Deletar Curso", tint = MaterialTheme.colorScheme.error)
+                            Row {
+                                IconButton(onClick = { editingCourse = course }) {
+                                    Icon(Icons.Default.Edit, contentDescription = "Editar Curso", tint = MaterialTheme.colorScheme.primary)
+                                }
+                                IconButton(onClick = { ibrCoursesState.remove(course) }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Deletar Curso", tint = MaterialTheme.colorScheme.error)
+                                }
                             }
                         }
 
@@ -3913,18 +4216,29 @@ fun EditIbrSection() {
                                             )
                                         }
                                     }
-                                    IconButton(
-                                        onClick = {
-                                            val updatedChapters = course.chapters.toMutableList().apply { remove(ch) }
-                                            val updatedCourse = course.copy(chapters = updatedChapters)
-                                            val index = ibrCoursesState.indexOf(course)
-                                            if (index != -1) {
-                                                ibrCoursesState[index] = updatedCourse
-                                            }
-                                        },
-                                        modifier = Modifier.size(24.dp)
-                                    ) {
-                                        Icon(Icons.Default.Close, contentDescription = "Deletar Aula", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+                                    Row {
+                                        IconButton(
+                                            onClick = {
+                                                editingCourse = course
+                                                editingChapter = ch
+                                            },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(Icons.Default.Edit, contentDescription = "Editar Aula", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                                        }
+                                        IconButton(
+                                            onClick = {
+                                                val updatedChapters = course.chapters.toMutableList().apply { remove(ch) }
+                                                val updatedCourse = course.copy(chapters = updatedChapters)
+                                                val index = ibrCoursesState.indexOf(course)
+                                                if (index != -1) {
+                                                    ibrCoursesState[index] = updatedCourse
+                                                }
+                                            },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(Icons.Default.Close, contentDescription = "Deletar Aula", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
+                                        }
                                     }
                                 }
                             }
@@ -3933,6 +4247,85 @@ fun EditIbrSection() {
                 }
             }
         }
+
+    }
+
+    if (editingCourse != null && editingChapter == null) {
+        var editTitle by remember(editingCourse) { mutableStateOf(editingCourse!!.title) }
+        var editDescription by remember(editingCourse) { mutableStateOf(editingCourse!!.description) }
+        var editTheme by remember(editingCourse) { mutableStateOf(editingCourse!!.theme) }
+        
+        AlertDialog(
+            onDismissRequest = { editingCourse = null },
+            title = { Text("Editar Curso") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GlassTextField(value = editTitle, onValueChange = { editTitle = it }, label = { Text("Título") })
+                    GlassTextField(value = editDescription, onValueChange = { editDescription = it }, label = { Text("Descrição") })
+                    GlassTextField(value = editTheme, onValueChange = { editTheme = it }, label = { Text("Tema") })
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val idx = ibrCoursesState.indexOfFirst { it.id == editingCourse!!.id }
+                    if (idx != -1) {
+                        ibrCoursesState[idx] = editingCourse!!.copy(title = editTitle, description = editDescription, theme = editTheme)
+                    }
+                    editingCourse = null
+                }) { Text("Salvar") }
+            },
+            dismissButton = { TextButton(onClick = { editingCourse = null }) { Text("Cancelar") } }
+        )
+    }
+
+    if (editingCourse != null && editingChapter != null) {
+        var editTitle by remember(editingChapter) { mutableStateOf(editingChapter!!.title) }
+        var editDescription by remember(editingChapter) { mutableStateOf(editingChapter!!.description) }
+        var editDuration by remember(editingChapter) { mutableStateOf(editingChapter!!.durationMinutes.toString()) }
+        var editVideoUrl by remember(editingChapter) { mutableStateOf(editingChapter!!.videoUrl) }
+        
+        AlertDialog(
+            onDismissRequest = {
+                editingChapter = null
+                editingCourse = null
+            },
+            title = { Text("Editar Aula") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    GlassTextField(value = editTitle, onValueChange = { editTitle = it }, label = { Text("Título") })
+                    GlassTextField(value = editDescription, onValueChange = { editDescription = it }, label = { Text("Descrição") })
+                    GlassTextField(value = editDuration, onValueChange = { editDuration = it }, label = { Text("Duração (Min)") })
+                    GlassTextField(value = editVideoUrl, onValueChange = { editVideoUrl = it }, label = { Text("URL Vídeo") })
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val courseIdx = ibrCoursesState.indexOfFirst { it.id == editingCourse!!.id }
+                    if (courseIdx != -1) {
+                        val course = ibrCoursesState[courseIdx]
+                        val chapterIdx = course.chapters.indexOfFirst { it.id == editingChapter!!.id }
+                        if (chapterIdx != -1) {
+                            val updatedChapters = course.chapters.toMutableList()
+                            updatedChapters[chapterIdx] = editingChapter!!.copy(
+                                title = editTitle,
+                                description = editDescription,
+                                durationMinutes = editDuration.toIntOrNull() ?: editingChapter!!.durationMinutes,
+                                videoUrl = editVideoUrl
+                            )
+                            ibrCoursesState[courseIdx] = course.copy(chapters = updatedChapters)
+                        }
+                    }
+                    editingChapter = null
+                    editingCourse = null
+                }) { Text("Salvar") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    editingChapter = null
+                    editingCourse = null
+                }) { Text("Cancelar") }
+            }
+        )
     }
 }
 
@@ -4255,7 +4648,7 @@ fun EditMembersSection() {
                 }
             }
         }
-    }
+}
 }
 
 @Composable
@@ -5030,6 +5423,69 @@ fun SettingsScreen() {
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Palette,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Aparência",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Escolha o tema do aplicativo",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        ThemeMode.values().forEach { mode ->
+                            val label = when (mode) {
+                                ThemeMode.SYSTEM -> "Sistema"
+                                ThemeMode.LIGHT -> "Claro"
+                                ThemeMode.DARK -> "Escuro"
+                            }
+                            FilterChip(
+                                selected = currentThemeMode.value == mode,
+                                onClick = {
+                                    currentThemeMode.value = mode
+                                    SettingsManager.setThemeMode(context, mode)
+                                },
+                                label = { Text(label) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        
+        item {
+            InteractiveCard(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Row(
@@ -5044,28 +5500,28 @@ fun SettingsScreen() {
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = if (isAppDarkTheme.value) Icons.Default.DarkMode else Icons.Default.LightMode,
+                                imageVector = Icons.Default.CloudOff,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary
                             )
                         }
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Tema Escuro",
+                                text = "Modo Cachê Offline",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "Mude para o tema escuro para leitura noturna",
+                                text = "Priorizar conteúdo salvo localmente para economizar dados",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         Switch(
-                            checked = isAppDarkTheme.value,
-                            onCheckedChange = { isDark ->
-                                isAppDarkTheme.value = isDark
-                                ThemeManager.setDarkTheme(context, isDark)
+                            checked = isOfflineModeState.value,
+                            onCheckedChange = { isOffline ->
+                                isOfflineModeState.value = isOffline
+                                SettingsManager.setOfflineMode(context, isOffline)
                             }
                         )
                     }
@@ -5372,8 +5828,24 @@ fun FirestoreDailyDevotional(
     }
 
     if (isLoading) {
-        Box(modifier = Modifier.fillMaxWidth().height(150.dp), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
+        Card(
+            modifier = Modifier.fillMaxWidth().height(160.dp),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    SkeletonItem(width = 24.dp, height = 24.dp, shape = RoundedCornerShape(12.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    SkeletonItem(width = 120.dp, height = 16.dp)
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                SkeletonItem(width = 220.dp, height = 24.dp)
+                Spacer(modifier = Modifier.height(8.dp))
+                SkeletonItem(width = 280.dp, height = 16.dp)
+                Spacer(modifier = Modifier.height(4.dp))
+                SkeletonItem(width = 180.dp, height = 16.dp)
+            }
         }
     } else if (hasError || devotional == null) {
         // Fallback to offline or standard daily devotional card if error or empty
@@ -5458,8 +5930,28 @@ fun DevotionalFeed() {
     }
 
     if (isLoading && devotionals.isEmpty()) {
-        Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            items(3) {
+                Card(
+                    modifier = Modifier.fillMaxWidth().height(160.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        SkeletonItem(width = 80.dp, height = 12.dp)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        SkeletonItem(width = 200.dp, height = 24.dp)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        SkeletonItem(width = 280.dp, height = 16.dp)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        SkeletonItem(width = 240.dp, height = 16.dp)
+                    }
+                }
+            }
         }
     } else if (hasError && devotionals.isEmpty()) {
         Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
@@ -5483,8 +5975,18 @@ fun DevotionalFeed() {
             }
             if (isLoadingMore) {
                 item {
-                    Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth().height(120.dp).padding(horizontal = 16.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            SkeletonItem(width = 80.dp, height = 12.dp)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            SkeletonItem(width = 200.dp, height = 20.dp)
+                            Spacer(modifier = Modifier.height(12.dp))
+                            SkeletonItem(width = 280.dp, height = 16.dp)
+                        }
                     }
                 }
             }
@@ -5555,6 +6057,118 @@ fun DevotionalFeedItem(devotional: Devotional) {
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+        }
+    }
+}
+
+@Composable
+fun AdminGlobalSearchSection(query: String) {
+    val q = query.lowercase()
+    
+    val matchedIbrCourses = ibrCoursesState.filter { 
+        it.title.lowercase().contains(q) || it.theme.lowercase().contains(q) || it.description.lowercase().contains(q) ||
+        it.chapters.any { ch -> ch.title.lowercase().contains(q) || ch.description.lowercase().contains(q) }
+    }
+    
+    val matchedBooks = contentBooksState.filter {
+        it.title.lowercase().contains(q) || it.author.lowercase().contains(q)
+    }
+    
+    val matchedAudios = contentAudiosState.filter {
+        it.title.lowercase().contains(q) || it.artist.lowercase().contains(q)
+    }
+    
+    val matchedVideos = contentVideosState.filter {
+        it.title.lowercase().contains(q) || it.description.lowercase().contains(q)
+    }
+    
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            Text("Resultados da Busca", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        }
+        
+        if (matchedIbrCourses.isEmpty() && matchedBooks.isEmpty() && matchedAudios.isEmpty() && matchedVideos.isEmpty()) {
+            item {
+                Text("Nenhum resultado encontrado para '$query'.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        
+        if (matchedIbrCourses.isNotEmpty()) {
+            item { Text("Seminário IBR (${matchedIbrCourses.size})", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) }
+            items(matchedIbrCourses) { course ->
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                ) {
+                    Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(course.title, fontWeight = FontWeight.Bold)
+                            Text(course.theme, style = MaterialTheme.typography.labelSmall)
+                            if (course.chapters.any { ch -> ch.title.lowercase().contains(q) }) {
+                                Divider(modifier = Modifier.padding(vertical = 8.dp))
+                                Text("Aulas correspondentes:", style = MaterialTheme.typography.labelSmall)
+                                course.chapters.filter { it.title.lowercase().contains(q) || it.description.lowercase().contains(q) }.forEach { ch ->
+                                    Text("• ${ch.title}", style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        if (matchedBooks.isNotEmpty()) {
+            item { Text("Livros VIP (${matchedBooks.size})", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) }
+            items(matchedBooks) { book ->
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                ) {
+                    Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(book.title, fontWeight = FontWeight.Bold)
+                            Text(book.author, style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+            }
+        }
+        
+        if (matchedAudios.isNotEmpty()) {
+            item { Text("Áudios VIP (${matchedAudios.size})", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) }
+            items(matchedAudios) { audio ->
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                ) {
+                    Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(audio.title, fontWeight = FontWeight.Bold)
+                            Text(audio.artist, style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+            }
+        }
+        
+        if (matchedVideos.isNotEmpty()) {
+            item { Text("Vídeos VIP (${matchedVideos.size})", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) }
+            items(matchedVideos) { video ->
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                ) {
+                    Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(video.title, fontWeight = FontWeight.Bold)
+                            Text(video.description, style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
             }
         }
     }
