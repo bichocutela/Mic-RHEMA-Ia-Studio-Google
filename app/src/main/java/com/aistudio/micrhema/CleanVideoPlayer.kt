@@ -47,6 +47,7 @@ fun CleanVideoPlayer(
     var isBuffering by remember { mutableStateOf(!isYouTube) }
     var currentPositionMs by remember { mutableLongStateOf(0L) }
     var durationMs by remember { mutableLongStateOf(0L) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
 
     // Custom UI States
     var controlsVisible by remember { mutableStateOf(true) }
@@ -54,24 +55,54 @@ fun CleanVideoPlayer(
     var isUserSeeking by remember { mutableStateOf(false) }
     var sliderPositionMs by remember { mutableFloatStateOf(0f) }
 
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // Validate URL on change
+    LaunchedEffect(videoUrl) {
+        errorMessage = null
+        if (videoUrl.isBlank()) {
+            errorMessage = "O link do vídeo está vazio ou inválido."
+            android.util.Log.e("CleanVideoPlayer", "Video URL is blank")
+        } else if (!videoUrl.contains("http") && extractYoutubeId(videoUrl) == null) {
+            errorMessage = "Link de vídeo não reconhecido. Forneça uma URL válida."
+            android.util.Log.e("CleanVideoPlayer", "Invalid URL format: $videoUrl")
+        }
+    }
+
+    // Show Snackbar when error occurs
+    LaunchedEffect(errorMessage) {
+        errorMessage?.let { msg ->
+            snackbarHostState.showSnackbar(
+                message = msg,
+                duration = SnackbarDuration.Long
+            )
+        }
+    }
+
     // ExoPlayer Instance (only instantiated if NOT YouTube)
     val exoPlayer = remember(videoUrl, isYouTube) {
-        if (!isYouTube) {
-            ExoPlayer.Builder(context)
-                .setMediaSourceFactory(
-                    androidx.media3.exoplayer.source.DefaultMediaSourceFactory(
-                        ExoPlayerCache.getCacheDataSourceFactory(context)
+        if (!isYouTube && videoUrl.isNotBlank()) {
+            try {
+                ExoPlayer.Builder(context)
+                    .setMediaSourceFactory(
+                        androidx.media3.exoplayer.source.DefaultMediaSourceFactory(
+                            ExoPlayerCache.getCacheDataSourceFactory(context)
+                        )
                     )
-                )
-                .build().apply {
-                    setMediaItem(MediaItem.fromUri(videoUrl))
-                    prepare()
-                    playWhenReady = true
-                }
+                    .build().apply {
+                        setMediaItem(MediaItem.fromUri(videoUrl))
+                        prepare()
+                        playWhenReady = true
+                    }
+            } catch (e: Exception) {
+                android.util.Log.e("CleanVideoPlayer", "Error initializing ExoPlayer", e)
+                errorMessage = "Falha ao inicializar o reprodutor de vídeo."
+                null
+            }
         } else null
     }
 
-    DisposableEffect(videoUrl, isYouTube) {
+    DisposableEffect(videoUrl, isYouTube, exoPlayer) {
         if (!isYouTube && exoPlayer != null) {
             val listener = object : Player.Listener {
                 override fun onIsPlayingChanged(playing: Boolean) {
@@ -82,7 +113,24 @@ fun CleanVideoPlayer(
                     isBuffering = (state == Player.STATE_BUFFERING || state == Player.STATE_IDLE)
                     if (state == Player.STATE_READY) {
                         durationMs = exoPlayer.duration.coerceAtLeast(0L)
+                        errorMessage = null
                     }
+                }
+
+                override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                    isBuffering = false
+                    isPlaying = false
+                    val detailedMsg = when (error.errorCode) {
+                        androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+                        androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ->
+                            "Erro de Conexão: Verifique sua conexão com a internet."
+                        androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS,
+                        androidx.media3.common.PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND ->
+                            "Erro 404/403: O vídeo não foi encontrado ou o acesso foi negado."
+                        else -> "Erro na reprodução: ${error.localizedMessage ?: "Não foi possível carregar esta mídia."}"
+                    }
+                    android.util.Log.e("CleanVideoPlayer", "ExoPlayer error code ${error.errorCode}: ${error.message}", error)
+                    errorMessage = detailedMsg
                 }
             }
             exoPlayer.addListener(listener)
@@ -150,7 +198,10 @@ fun CleanVideoPlayer(
                 // YouTube Embed View
                 YoutubePlayer(
                     videoUrl = videoUrl,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    onError = { err ->
+                        errorMessage = err
+                    }
                 )
             } else if (exoPlayer != null) {
                 // Direct Video ExoPlayer View
@@ -166,7 +217,7 @@ fun CleanVideoPlayer(
             }
 
             // Buffering Indicator for ExoPlayer
-            if (isBuffering && !isYouTube) {
+            if (isBuffering && !isYouTube && errorMessage == null) {
                 CircularProgressIndicator(
                     modifier = Modifier
                         .size(48.dp)
@@ -174,6 +225,79 @@ fun CleanVideoPlayer(
                     color = Color.White,
                     strokeWidth = 3.dp
                 )
+            }
+
+            // Video Error Fallback Overlay
+            if (errorMessage != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.92f))
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = "Erro de Vídeo",
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(36.dp)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Falha no Carregamento do Vídeo",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = errorMessage ?: "O link do vídeo não pôde ser reproduzido.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.85f),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = {
+                                    errorMessage = null
+                                    if (exoPlayer != null) {
+                                        exoPlayer.prepare()
+                                        exoPlayer.play()
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                            ) {
+                                Text("Tentar Novamente", fontSize = 12.sp)
+                            }
+
+                            if (videoUrl.isNotBlank() && videoUrl.contains("http")) {
+                                OutlinedButton(
+                                    onClick = {
+                                        try {
+                                            val intent = android.content.Intent(
+                                                android.content.Intent.ACTION_VIEW,
+                                                android.net.Uri.parse(videoUrl)
+                                            )
+                                            context.startActivity(intent)
+                                        } catch (e: Exception) {
+                                            e.printStackTrace()
+                                        }
+                                    },
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                                ) {
+                                    Text("Abrir no Navegador", fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             // CONTROLS OVERLAY (Clean fade in/out)
@@ -416,5 +540,13 @@ fun CleanVideoPlayer(
                 }
             }
         }
+
+        // Snackbar Host for user error feedback
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(12.dp)
+        )
     }
 }

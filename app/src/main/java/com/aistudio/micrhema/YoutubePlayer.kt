@@ -1,7 +1,10 @@
 package com.aistudio.micrhema
 
+import android.util.Log
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -32,7 +35,12 @@ fun isYoutubeUrl(url: String): Boolean {
 }
 
 @Composable
-fun YoutubePlayer(videoUrl: String, youtubeId: String = "", modifier: Modifier = Modifier) {
+fun YoutubePlayer(
+    videoUrl: String,
+    youtubeId: String = "",
+    modifier: Modifier = Modifier,
+    onError: ((String) -> Unit)? = null
+) {
     val embedUrl = remember(videoUrl, youtubeId) {
         val url = videoUrl.trim()
         val extractedId = extractYoutubeId(url) ?: youtubeId.ifEmpty { null }
@@ -58,8 +66,21 @@ fun YoutubePlayer(videoUrl: String, youtubeId: String = "", modifier: Modifier =
                 CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                 webChromeClient = WebChromeClient()
                 webViewClient = object : WebViewClient() {
-                    override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                    override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                         return false
+                    }
+
+                    override fun onReceivedError(
+                        view: WebView?,
+                        request: WebResourceRequest?,
+                        error: WebResourceError?
+                    ) {
+                        super.onReceivedError(view, request, error)
+                        if (request?.isForMainFrame == true) {
+                            val errMessage = "Erro ao carregar vídeo do YouTube: ${error?.description ?: "Sem conexão"}"
+                            Log.e("YoutubePlayer", errMessage)
+                            onError?.invoke(errMessage)
+                        }
                     }
                 }
                 setBackgroundColor(android.graphics.Color.TRANSPARENT)
@@ -93,4 +114,5 @@ fun YoutubePlayer(videoUrl: String, youtubeId: String = "", modifier: Modifier =
         modifier = modifier.fillMaxSize()
     )
 }
+
 
