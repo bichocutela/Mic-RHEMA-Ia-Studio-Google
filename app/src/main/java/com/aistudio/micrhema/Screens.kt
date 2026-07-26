@@ -590,13 +590,9 @@ fun HomeScreen() {
                         modifier = Modifier.fillMaxWidth(),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.logo_rhema),
-                            contentDescription = "Logo MIC Rhema",
-                            modifier = Modifier
-                                .size(120.dp)
-                                .padding(bottom = 16.dp)
-                        )
+                        Icon(imageVector = androidx.compose.material.icons.Icons.Default.Home, contentDescription = "Logo", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(80.dp).padding(bottom = 16.dp))
+
+
                     }
                     Text(
                         text = "Bem-vindo à MIC Rhema",

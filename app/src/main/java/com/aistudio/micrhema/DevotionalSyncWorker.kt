@@ -15,6 +15,7 @@ class DevotionalSyncWorker(
 
     override suspend fun doWork(): Result {
         try {
+            if (com.google.firebase.FirebaseApp.getApps(context).isEmpty()) return Result.success()
             val db = FirebaseFirestore.getInstance()
             val result = db.collection("devotionals")
                 .orderBy("date", Query.Direction.DESCENDING)

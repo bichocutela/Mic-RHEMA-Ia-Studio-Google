@@ -1,4 +1,6 @@
 package com.aistudio.micrhema
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -271,9 +273,10 @@ fun MainScreen() {
                     GlassTopAppBar(
                         title = {
                             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                                Image(
-                                    painter = painterResource(id = R.drawable.logo_rhema),
+                                Icon(
+                                    imageVector = androidx.compose.material.icons.Icons.Default.Home,
                                     contentDescription = "Logo",
+                                    tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(36.dp).padding(end = 8.dp)
                                 )
                                 Text(topBarTitle, color = MaterialTheme.colorScheme.onBackground, fontWeight = FontWeight.Bold)

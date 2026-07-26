@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.secrets)
+    alias(libs.plugins.google.services)
 }
 
 android {
@@ -23,6 +24,7 @@ android {
         buildConfigField("String", "FIREBASE_PROJECT_ID", "\"\"")
         buildConfigField("String", "FIREBASE_APP_ID", "\"\"")
         buildConfigField("String", "FIREBASE_API_KEY", "\"\"")
+        buildConfigField("String", "GEMINI_API_KEY", "\"\"")
     }
 
     buildTypes {
@@ -67,6 +69,7 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.firestore)
     implementation(libs.firebase.messaging)
+    implementation(libs.firebase.auth)
     implementation(libs.androidx.core.ktx)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
     implementation(libs.androidx.lifecycle.runtime.ktx)

@@ -56,6 +56,7 @@ fun ServiceVideosGallery() {
                 isLoading = false
                 return@LaunchedEffect
             }
+            if (com.google.firebase.FirebaseApp.getApps(context).isEmpty()) return@LaunchedEffect
             val db = FirebaseFirestore.getInstance()
             val result = db.collection("service_videos")
                 .get()

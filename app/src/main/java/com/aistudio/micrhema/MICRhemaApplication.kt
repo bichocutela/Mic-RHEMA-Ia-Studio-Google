@@ -7,6 +7,7 @@ import com.google.firebase.FirebaseOptions
 class MICRhemaApplication : Application() {
     override fun onCreate() {
         super.onCreate()
+        CrashHandler.init(this)
         
         if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty() && FirebaseApp.getApps(this).isEmpty()) {
             try {
