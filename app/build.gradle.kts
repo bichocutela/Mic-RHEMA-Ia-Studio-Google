@@ -6,38 +6,20 @@ plugins {
     alias(libs.plugins.secrets)
     alias(libs.plugins.google.services)
 }
-
 android {
     namespace = "com.aistudio.micrhema"
     compileSdk = 35
-
     defaultConfig {
         applicationId = "com.aistudio.micrhema.xqpq"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
-
         vectorDrawables {
             useSupportLibrary = true
         }
-        buildConfigField("String", "FIREBASE_PROJECT_ID", "\"\"")
-        buildConfigField("String", "FIREBASE_APP_ID", "\"\"")
-        buildConfigField("String", "FIREBASE_API_KEY", "\"\"")
         buildConfigField("String", "GEMINI_API_KEY", "\"\"")
     }
-
-    buildTypes {
-        release {
-            isMinifyEnabled = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
-        }
-    }
-    
-    // Explicitly set debug signing config to use rootDir debug.keystore
     signingConfigs {
         getByName("debug") {
             storeFile = file("${rootDir}/debug.keystore")
@@ -45,8 +27,23 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+        create("release") {
+            storeFile = file(System.getenv("KEYSTORE_FILE") ?: "${rootDir}/release.keystore")
+            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "android"
+            keyAlias = System.getenv("KEY_ALIAS") ?: "androidreleasekey"
+            keyPassword = System.getenv("KEY_PASSWORD") ?: "android"
+        }
     }
-    
+    buildTypes {
+        release {
+            signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
@@ -64,7 +61,6 @@ android {
         }
     }
 }
-
 dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.firestore)
@@ -91,10 +87,8 @@ dependencies {
     implementation(libs.retrofit.converter.serialization)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.okhttp)
-
     debugImplementation(libs.androidx.ui.tooling)
 }
-
 secrets {
     propertiesFileName = ".env"
     defaultPropertiesFileName = ".env.example"

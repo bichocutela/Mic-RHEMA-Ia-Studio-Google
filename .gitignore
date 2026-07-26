@@ -12,13 +12,12 @@ app/build/
 local.properties
 .env
 .env.*
+!.env.example
 .cache/
 .webdev/
-
 # Agent scripts
 *.py
 *.sh
 pt_nvi.json
-
 # Node
 node_modules/

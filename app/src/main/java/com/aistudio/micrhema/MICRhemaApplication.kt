@@ -9,17 +9,6 @@ class MICRhemaApplication : Application() {
         super.onCreate()
         CrashHandler.init(this)
         
-        if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty() && FirebaseApp.getApps(this).isEmpty()) {
-            try {
-                val options = FirebaseOptions.Builder()
-                    .setProjectId(com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID)
-                    .setApplicationId(com.aistudio.micrhema.BuildConfig.FIREBASE_APP_ID)
-                    .setApiKey(com.aistudio.micrhema.BuildConfig.FIREBASE_API_KEY)
-                    .build()
-                FirebaseApp.initializeApp(this, options)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
+        
     }
 }
