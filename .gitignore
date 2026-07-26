@@ -15,6 +15,7 @@ local.properties
 !.env.example
 .cache/
 .webdev/
+*.keystore
 # Agent scripts
 *.py
 *.sh

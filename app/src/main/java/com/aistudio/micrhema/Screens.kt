@@ -586,14 +586,6 @@ fun HomeScreen() {
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 item {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(imageVector = androidx.compose.material.icons.Icons.Default.Home, contentDescription = "Logo", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(80.dp).padding(bottom = 16.dp))
-
-
-                    }
                     Text(
                         text = "Bem-vindo à MIC Rhema",
                         style = MaterialTheme.typography.headlineMedium,
@@ -3120,68 +3112,20 @@ fun IbrMediaPlayerView(
                             modifier = Modifier.fillMaxSize()
                         )
                     } else if (chapter.videoUrl.isNotEmpty()) {
-                        val exoPlayer = remember(chapter.videoUrl) {
-                            androidx.media3.exoplayer.ExoPlayer.Builder(context).setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(com.aistudio.micrhema.ExoPlayerCache.getCacheDataSourceFactory(context))).build().apply {
-                                setMediaItem(androidx.media3.common.MediaItem.fromUri(chapter.videoUrl))
-                                prepare()
-                                playWhenReady = true
+                        val authorizedUser = loggedInMemberState.value?.let { it.isApproved || it.isIbr || it.isVip } ?: false
+                        CleanVideoPlayer(
+                            videoUrl = chapter.videoUrl,
+                            title = chapter.title,
+                            canDownload = authorizedUser,
+                            onDownload = {
+                                DownloadHelper.downloadFile(
+                                    context = context,
+                                    url = chapter.videoUrl,
+                                    title = chapter.title,
+                                    fileName = "micrhema_aula_${chapter.id}.mp4"
+                                )
                             }
-                        }
-                        
-                        var isVideoBuffering by remember { mutableStateOf(true) }
-                        DisposableEffect(chapter.videoUrl) {
-                            val listener = object : androidx.media3.common.Player.Listener {
-                                override fun onPlaybackStateChanged(playbackState: Int) {
-                                    isVideoBuffering = playbackState == androidx.media3.common.Player.STATE_BUFFERING || playbackState == androidx.media3.common.Player.STATE_IDLE
-                                }
-                            }
-                            exoPlayer.addListener(listener)
-                            onDispose {
-                                exoPlayer.removeListener(listener)
-                                exoPlayer.release()
-                            }
-                        }
-                        
-                        Box(modifier = Modifier.fillMaxSize()) {
-                            androidx.compose.ui.viewinterop.AndroidView(
-                                factory = { ctx ->
-                                    androidx.media3.ui.PlayerView(ctx).apply {
-                                        player = exoPlayer
-                                    }
-                                },
-                                modifier = Modifier.fillMaxSize()
-                            )
-                            if (isVideoBuffering) {
-                                Box(modifier = Modifier.fillMaxSize().background(shimmerBrush()))
-                            }
-
-                            
-                            // Custom Video Overlay
-                            val authorizedUser = loggedInMemberState.value?.let { it.isApproved || it.isIbr || it.isVip } ?: false
-                            if (authorizedUser) {
-                                val context = LocalContext.current
-                                IconButton(
-                                    onClick = {
-                                        DownloadHelper.downloadFile(
-                                            context = context,
-                                            url = chapter.videoUrl,
-                                            title = chapter.title,
-                                            fileName = "micrhema_aula_${chapter.id}.mp4"
-                                        )
-                                    },
-                                    modifier = Modifier
-                                        .align(Alignment.TopEnd)
-                                        .padding(8.dp)
-                                        .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(50))
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Download,
-                                        contentDescription = "Baixar Aula (Offline)",
-                                        tint = Color.White
-                                    )
-                                }
-                            }
-                        }
+                        )
                     } else {
                         // Fallback text if no URL provided
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -5047,6 +4991,12 @@ fun EditServicesSection() {
     var eventDesc by remember { mutableStateOf("") }
     var eventLoc by remember { mutableStateOf("") }
 
+    // Recorded Video Form State
+    var videoTitle by remember { mutableStateOf("") }
+    var videoDate by remember { mutableStateOf("") }
+    var videoUrl by remember { mutableStateOf("") }
+    var videoThumbnailUrl by remember { mutableStateOf("") }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
@@ -5252,7 +5202,122 @@ fun EditServicesSection() {
                         Text(event.title, fontWeight = FontWeight.Bold)
                         Text(event.date, style = MaterialTheme.typography.bodySmall)
                     }
-                    IconButton(onClick = { eventsState.remove(event) }) {
+                    IconButton(onClick = { 
+                        eventsState.remove(event)
+                        LocalDataManager.saveAll(context)
+                    }) {
+                        Icon(Icons.Default.Delete, contentDescription = "Deletar", tint = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
+        }
+
+        // 3. RECORDED CULTOS / YOUTUBE VIDEOS
+        item {
+            Divider()
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("🎥 Adicionar Culto Gravado (YouTube / MP4)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            Text("Adicione links de cultos gravados no YouTube para exibição pública para usuários aprovados.", style = MaterialTheme.typography.bodySmall)
+        }
+
+        item {
+            GlassTextField(
+                value = videoTitle,
+                onValueChange = { videoTitle = it },
+                label = { Text("Título do Culto (Ex: Culto da Vitória)") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp)
+            )
+        }
+
+        item {
+            GlassTextField(
+                value = videoDate,
+                onValueChange = { videoDate = it },
+                label = { Text("Data / Horário (Ex: Domingo, 19h)") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp)
+            )
+        }
+
+        item {
+            GlassTextField(
+                value = videoUrl,
+                onValueChange = { videoUrl = it },
+                label = { Text("Link do Vídeo (YouTube URL ou MP4)") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp)
+            )
+        }
+
+        item {
+            GlassTextField(
+                value = videoThumbnailUrl,
+                onValueChange = { videoThumbnailUrl = it },
+                label = { Text("URL da Imagem de Capa (Opcional)") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp)
+            )
+        }
+
+        item {
+            GlassButton(
+                onClick = {
+                    if (videoTitle.isNotBlank() && videoUrl.isNotBlank()) {
+                        val newVideo = ServiceVideoModel(
+                            id = System.currentTimeMillis().toString(),
+                            title = videoTitle,
+                            date = videoDate.ifBlank { "Culto Gravado" },
+                            videoUrl = videoUrl,
+                            thumbnailUrl = videoThumbnailUrl.ifBlank { "https://images.unsplash.com/photo-1438211331416-0be89cc621a8?w=500&q=80" }
+                        )
+                        serviceVideosState.add(0, newVideo)
+                        LocalDataManager.saveAll(context)
+                        
+                        NotificationHelper.showNotification(
+                            context = context,
+                            title = "Novo Culto Publicado! 📹",
+                            message = "$videoTitle está disponível para os membros."
+                        )
+
+                        videoTitle = ""
+                        videoDate = ""
+                        videoUrl = ""
+                        videoThumbnailUrl = ""
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(50.dp),
+                shape = RoundedCornerShape(24.dp)
+            ) {
+                Text("Publicar Vídeo de Culto", fontWeight = FontWeight.Bold)
+            }
+        }
+
+        item {
+            Divider()
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Cultos Gravados Cadastrados", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        }
+
+        items(serviceVideosState) { vid ->
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(vid.title, fontWeight = FontWeight.Bold)
+                        Text("${vid.date} • ${if (vid.videoUrl.contains("youtube") || vid.videoUrl.contains("youtu.be")) "YouTube" else "MP4"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                        Text(vid.videoUrl, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                    }
+                    IconButton(onClick = {
+                        serviceVideosState.remove(vid)
+                        LocalDataManager.saveAll(context)
+                    }) {
                         Icon(Icons.Default.Delete, contentDescription = "Deletar", tint = MaterialTheme.colorScheme.error)
                     }
                 }

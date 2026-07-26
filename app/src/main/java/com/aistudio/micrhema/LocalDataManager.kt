@@ -129,6 +129,15 @@ object LocalDataManager {
                 contentAlbumsState.addAll(list)
             }
 
+            // ServiceVideos
+            val serviceVidJson = prefs.getString("serviceVideosState", null)
+            if (serviceVidJson != null) {
+                val type = object : TypeToken<List<ServiceVideoModel>>() {}.type
+                val list: List<ServiceVideoModel> = gson.fromJson(serviceVidJson, type)
+                serviceVideosState.clear()
+                serviceVideosState.addAll(list)
+            }
+
             val appTabsJson = prefs.getString("appTabsState", null)
             if (appTabsJson != null) {
                 val type = object : com.google.gson.reflect.TypeToken<List<AppTab>>() {}.type
@@ -176,6 +185,7 @@ object LocalDataManager {
             editor.putString("contentAudiosState", gson.toJson(contentAudiosState.toList()))
             editor.putString("contentVideosState", gson.toJson(contentVideosState.toList()))
             editor.putString("contentAlbumsState", gson.toJson(contentAlbumsState.toList()))
+            editor.putString("serviceVideosState", gson.toJson(serviceVideosState.toList()))
             editor.putString("appTabsState", gson.toJson(appTabsState.toList()))
             
             editor.apply()

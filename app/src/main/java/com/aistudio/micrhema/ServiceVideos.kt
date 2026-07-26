@@ -37,139 +37,51 @@ data class ServiceVideoModel(
 @Composable
 fun ServiceVideosGallery() {
     val context = LocalContext.current
-    var videos by remember { mutableStateOf<List<ServiceVideoModel>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(true) }
+    var isLoading by remember { mutableStateOf(false) }
     var selectedVideo by remember { mutableStateOf<ServiceVideoModel?>(null) }
 
     LaunchedEffect(Unit) {
         try {
-            if (isOfflineModeState.value) {
-                videos = listOf(
-                    ServiceVideoModel(
-                        id = "mock_1",
-                        title = "Culto de Domingo - Família (Offline)",
-                        date = "Domingo, 10h",
-                        videoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
-                        thumbnailUrl = "https://images.unsplash.com/photo-1438211331416-0be89cc621a8?w=500&q=80"
-                    )
-                )
-                isLoading = false
-                return@LaunchedEffect
-            }
+            if (isOfflineModeState.value) return@LaunchedEffect
             if (com.google.firebase.FirebaseApp.getApps(context).isEmpty()) return@LaunchedEffect
             val db = FirebaseFirestore.getInstance()
-            val result = db.collection("service_videos")
-                .get()
-                .await()
+            val result = db.collection("service_videos").get().await()
             val fetchedVideos = result.documents.mapNotNull { doc ->
                 doc.toObject(ServiceVideoModel::class.java)?.copy(id = doc.id)
             }
-            if (fetchedVideos.isEmpty()) {
-                videos = listOf(
-                    ServiceVideoModel(
-                        id = "mock_1",
-                        title = "Culto de Domingo - Família",
-                        date = "Domingo, 10h",
-                        videoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
-                        thumbnailUrl = "https://images.unsplash.com/photo-1438211331416-0be89cc621a8?w=500&q=80"
-                    ),
-                    ServiceVideoModel(
-                        id = "mock_2",
-                        title = "Culto de Celebração",
-                        date = "Domingo, 18h",
-                        videoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
-                        thumbnailUrl = "https://images.unsplash.com/photo-1504052434569-70ad5836ab65?w=500&q=80"
-                    )
-                )
-            } else {
-                videos = fetchedVideos
+            if (fetchedVideos.isNotEmpty()) {
+                fetchedVideos.forEach { fetched ->
+                    if (serviceVideosState.none { it.id == fetched.id }) {
+                        serviceVideosState.add(fetched)
+                    }
+                }
             }
         } catch (e: Exception) {
             e.printStackTrace()
-        } finally {
-            isLoading = false
         }
     }
+
+    val videos = serviceVideosState.toList()
 
     if (selectedVideo != null) {
         // Video Player Modal or Full Section
         Column(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(selectedVideo!!.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                TextButton(onClick = { selectedVideo = null }) {
-                    Text("Fechar")
-                }
-            }
+            val authorizedUser = loggedInMemberState.value?.let { it.isApproved || it.isIbr || it.isVip } ?: false
             
-            val isYouTube = selectedVideo!!.videoUrl.contains("youtube.com") || selectedVideo!!.videoUrl.contains("youtu.be")
-            
-            if (isYouTube) {
-                YoutubePlayer(
-                    videoUrl = selectedVideo!!.videoUrl,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(16f/9f)
-                        .clip(RoundedCornerShape(16.dp))
-                )
-            } else {
-                val exoPlayer = remember(selectedVideo!!.videoUrl) {
-                    ExoPlayer.Builder(context).setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(com.aistudio.micrhema.ExoPlayerCache.getCacheDataSourceFactory(context))).build().apply {
-                        setMediaItem(MediaItem.fromUri(selectedVideo!!.videoUrl))
-                        prepare()
-                        playWhenReady = true
-                    }
-                }
-                
-                DisposableEffect(selectedVideo!!.videoUrl) {
-                    onDispose {
-                        exoPlayer.release()
-                    }
-                }
-                
-                Box(modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(16f/9f)
-                    .clip(RoundedCornerShape(16.dp))) {
-                    
-                    AndroidView(
-                        factory = { ctx ->
-                            PlayerView(ctx).apply {
-                                player = exoPlayer
-                            }
-                        },
-                        modifier = Modifier.fillMaxSize()
+            CleanVideoPlayer(
+                videoUrl = selectedVideo!!.videoUrl,
+                title = selectedVideo!!.title,
+                onClose = { selectedVideo = null },
+                canDownload = authorizedUser,
+                onDownload = {
+                    DownloadHelper.downloadFile(
+                        context = context,
+                        url = selectedVideo!!.videoUrl,
+                        title = selectedVideo!!.title,
+                        fileName = "micrhema_culto_${selectedVideo!!.id}.mp4"
                     )
-                    
-                    // Custom Video Overlay
-                    val authorizedUser = loggedInMemberState.value?.let { it.isApproved || it.isIbr || it.isVip } ?: false
-                    if (authorizedUser) {
-                        IconButton(
-                            onClick = {
-                                DownloadHelper.downloadFile(
-                                    context = context,
-                                    url = selectedVideo!!.videoUrl,
-                                    title = selectedVideo!!.title,
-                                    fileName = "micrhema_culto_${selectedVideo!!.id}.mp4"
-                                )
-                            },
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .padding(8.dp)
-                                .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(50))
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Download,
-                                contentDescription = "Baixar Culto (Offline)",
-                                tint = Color.White
-                            )
-                        }
-                    }
                 }
-            }
+            )
             
             Spacer(modifier = Modifier.height(16.dp))
         }
@@ -207,24 +119,87 @@ fun ServiceVideosGallery() {
                     items(videos) { video ->
                         Card(
                             modifier = Modifier
-                                .width(220.dp)
-                                .clickable { selectedVideo = video },
+                                .width(230.dp),
                             shape = RoundedCornerShape(16.dp),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                         ) {
                             Column {
-                                AsyncImage(
-                                    model = video.thumbnailUrl.ifEmpty { "https://images.unsplash.com/photo-1438211331416-0be89cc621a8?w=500&q=80" },
-                                    contentDescription = video.title,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(120.dp),
-                                    contentScale = ContentScale.Crop
-                                )
+                                Box {
+                                    AsyncImage(
+                                        model = video.thumbnailUrl.ifEmpty { "https://images.unsplash.com/photo-1438211331416-0be89cc621a8?w=500&q=80" },
+                                        contentDescription = video.title,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(120.dp)
+                                            .clickable { selectedVideo = video },
+                                        contentScale = ContentScale.Crop
+                                    )
+                                    Surface(
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .padding(8.dp),
+                                        shape = RoundedCornerShape(20.dp),
+                                        color = Color.Black.copy(alpha = 0.65f)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Headphones,
+                                                contentDescription = null,
+                                                tint = Color.White,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("Áudio", style = MaterialTheme.typography.labelSmall, color = Color.White)
+                                        }
+                                    }
+                                }
                                 Column(modifier = Modifier.padding(12.dp)) {
                                     Text(video.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1)
-                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Spacer(modifier = Modifier.height(2.dp))
                                     Text(video.date, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Button(
+                                            onClick = { selectedVideo = video },
+                                            modifier = Modifier.weight(1f),
+                                            contentPadding = PaddingValues(vertical = 4.dp, horizontal = 8.dp),
+                                            shape = RoundedCornerShape(8.dp)
+                                        ) {
+                                            Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("Vídeo", style = MaterialTheme.typography.labelMedium)
+                                        }
+                                        
+                                        OutlinedButton(
+                                            onClick = {
+                                                GlobalAudioPlayer.playTrack(
+                                                    context = context,
+                                                    track = AudioTrack(
+                                                        id = video.id,
+                                                        title = video.title,
+                                                        subtitle = video.date,
+                                                        audioUrl = video.videoUrl,
+                                                        coverUrl = video.thumbnailUrl,
+                                                        category = "Culto Gravado"
+                                                    )
+                                                )
+                                            },
+                                            modifier = Modifier.weight(1f),
+                                            contentPadding = PaddingValues(vertical = 4.dp, horizontal = 8.dp),
+                                            shape = RoundedCornerShape(8.dp)
+                                        ) {
+                                            Icon(Icons.Default.Headphones, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("Áudio", style = MaterialTheme.typography.labelMedium)
+                                        }
+                                    }
                                 }
                             }
                         }

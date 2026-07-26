@@ -292,21 +292,24 @@ fun MainScreen() {
                     )
                 },
                 bottomBar = {
-                    if (isCompact) {
-                        GlassNavigationBar {
-                            bottomBarItems.forEach { item ->
-                                val route = item.systemRoute ?: "custom_tab/${item.id}"
-                                NavigationBarItem(
-                                    icon = { Icon(getIconFromName(item.iconName), contentDescription = null) },
-                                    label = { Text(item.title) },
-                                    selected = currentRoute == route,
-                                    onClick = {
-                                        navController.navigate(route) {
-                                            popUpTo(navController.graph.startDestinationId)
-                                            launchSingleTop = true
+                    Column {
+                        PersistentAudioPlayerBar()
+                        if (isCompact) {
+                            GlassNavigationBar {
+                                bottomBarItems.forEach { item ->
+                                    val route = item.systemRoute ?: "custom_tab/${item.id}"
+                                    NavigationBarItem(
+                                        icon = { Icon(getIconFromName(item.iconName), contentDescription = null) },
+                                        label = { Text(item.title) },
+                                        selected = currentRoute == route,
+                                        onClick = {
+                                            navController.navigate(route) {
+                                                popUpTo(navController.graph.startDestinationId)
+                                                launchSingleTop = true
+                                            }
                                         }
-                                    }
-                                )
+                                    )
+                                }
                             }
                         }
                     }
@@ -350,6 +353,9 @@ fun MainScreen() {
                 }
             }
         }
+        }
+        if (GlobalAudioPlayer.isExpanded.value) {
+            ExpandedAudioPlayerModal()
         }
     }
 }

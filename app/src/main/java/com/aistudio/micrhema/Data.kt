@@ -636,6 +636,7 @@ val contentBooksState = androidx.compose.runtime.mutableStateListOf<ContentBook>
 val contentAudiosState = androidx.compose.runtime.mutableStateListOf<ContentAudio>()
 val contentVideosState = androidx.compose.runtime.mutableStateListOf<ContentVideo>()
 val contentAlbumsState = androidx.compose.runtime.mutableStateListOf<ContentPhotoAlbum>()
+val serviceVideosState = androidx.compose.runtime.mutableStateListOf<ServiceVideoModel>()
 
 fun initializeMockContent() {
     if (contentBooksState.isEmpty()) {
@@ -651,6 +652,26 @@ fun initializeMockContent() {
     if (contentVideosState.isEmpty()) {
         contentVideosState.add(
             ContentVideo("1", "Culto Especial de Domingo", "Mensagem sobre a graça de Deus", "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4", "https://images.unsplash.com/photo-1505764761634-1d77b57e1966?w=500&q=80", isCached = true, progress = 0.8f)
+        )
+    }
+    if (serviceVideosState.isEmpty()) {
+        serviceVideosState.add(
+            ServiceVideoModel(
+                id = "1",
+                title = "Culto de Domingo - Família",
+                date = "Domingo, 10h",
+                videoUrl = "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+                thumbnailUrl = "https://images.unsplash.com/photo-1438211331416-0be89cc621a8?w=500&q=80"
+            )
+        )
+        serviceVideosState.add(
+            ServiceVideoModel(
+                id = "2",
+                title = "Culto de Celebração e Palavra",
+                date = "Domingo, 18h",
+                videoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
+                thumbnailUrl = "https://images.unsplash.com/photo-1510915361894-db8b60106cb1?w=500&q=80"
+            )
         )
     }
 }

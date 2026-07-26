@@ -491,73 +491,35 @@ fun VideosList(selectedVideo: ContentVideo?, searchQuery: String, isLocalLoading
     }
 
     if (selectedVideo != null) {
+        val context = LocalContext.current
+        val authorizedUser = loggedInMemberState.value?.let { it.isApproved || it.isIbr || it.isVip } ?: false
         Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = { onVideoSelected(null) }) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Voltar")
+            CleanVideoPlayer(
+                videoUrl = selectedVideo!!.videoUrl,
+                title = selectedVideo!!.title,
+                onClose = { onVideoSelected(null) },
+                canDownload = authorizedUser,
+                onDownload = {
+                    DownloadHelper.downloadFile(
+                        context = context,
+                        url = selectedVideo!!.videoUrl,
+                        title = selectedVideo!!.title,
+                        fileName = "micrhema_video_${selectedVideo!!.id}.mp4"
+                    )
                 }
-                Text(selectedVideo!!.title, style = MaterialTheme.typography.titleMedium, maxLines = 1)
-            }
-            var isVideoBuffering by remember { mutableStateOf(true) }
-            DisposableEffect(exoPlayer) {
-                val listener = object : androidx.media3.common.Player.Listener {
-                    override fun onPlaybackStateChanged(playbackState: Int) {
-                        isVideoBuffering = playbackState == androidx.media3.common.Player.STATE_BUFFERING || playbackState == androidx.media3.common.Player.STATE_IDLE
-                    }
-                }
-                exoPlayer.addListener(listener)
-                onDispose {
-                    exoPlayer.removeListener(listener)
-                }
-            }
-            
-            Box(modifier = Modifier.fillMaxWidth().aspectRatio(16f/9f)) {
-                AndroidView(
-                    factory = { ctx ->
-                        PlayerView(ctx).apply {
-                            player = exoPlayer
-                        }
-                    },
-                    modifier = Modifier.fillMaxSize()
-                )
-                if (isVideoBuffering) {
-                    Box(modifier = Modifier.fillMaxSize().background(shimmerBrush()))
-                }
-
-                
-                // Custom Video Overlay
-                val authorizedUser = loggedInMemberState.value?.let { it.isApproved || it.isIbr || it.isVip } ?: false
-                if (authorizedUser) {
-                    val context = LocalContext.current
-                    IconButton(
-                        onClick = {
-                            DownloadHelper.downloadFile(
-                                context = context,
-                                url = selectedVideo!!.videoUrl,
-                                title = selectedVideo!!.title,
-                                fileName = "micrhema_video_${selectedVideo!!.id}.mp4"
-                            )
-                        },
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(8.dp)
-                            .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(50))
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Download,
-                            contentDescription = "Baixar Vídeo (Offline)",
-                            tint = Color.White
-                        )
-                    }
-                }
-            }
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = selectedVideo!!.title,
+                modifier = Modifier.padding(horizontal = 16.dp),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
             Text(
                 text = selectedVideo!!.description,
-                modifier = Modifier.padding(16.dp),
-                style = MaterialTheme.typography.bodyMedium
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     } else {
