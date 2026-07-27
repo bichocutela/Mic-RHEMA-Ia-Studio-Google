@@ -25,37 +25,18 @@ android {
     }
 
     signingConfigs {
-        val existingKeystore = listOf(
-            file("${rootDir}/release.keystore"),
-            file("${rootDir}/app/release.keystore"),
-            file("release.keystore"),
-            file("app/release.keystore"),
-            file("${rootDir}/debug.keystore"),
-            file("${rootDir}/app/debug.keystore"),
-            file("debug.keystore"),
-            file("applet/debug.keystore"),
-            file("${rootDir}/applet/debug.keystore")
-        ).firstOrNull { it.exists() } ?: file("${rootDir}/debug.keystore")
-
         getByName("debug") {
-            storeFile = existingKeystore
-            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "android"
-            keyAlias = System.getenv("KEYSTORE_ALIAS") ?: if (existingKeystore.name.contains("release")) "release" else "androiddebugkey"
-            keyPassword = System.getenv("KEY_PASSWORD") ?: "android"
-        }
-
-        create("release") {
-            storeFile = existingKeystore
-            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "android"
-            keyAlias = System.getenv("KEYSTORE_ALIAS") ?: if (existingKeystore.name.contains("release")) "release" else "androiddebugkey"
-            keyPassword = System.getenv("KEY_PASSWORD") ?: "android"
+            storeFile = file("${rootDir}/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
         }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -116,44 +97,6 @@ secrets {
     defaultPropertiesFileName = ".env.example"
 }
 
-// Ensure google-services.json and keystore are present in all possible search paths before build tasks run
-val ensureKeystoreExists = tasks.register("ensureKeystoreExists") {
-    doLast {
-        val existingKeystore = listOf(
-            file("${rootDir}/release.keystore"),
-            file("${rootDir}/app/release.keystore"),
-            file("release.keystore"),
-            file("app/release.keystore"),
-            file("${rootDir}/debug.keystore"),
-            file("${rootDir}/app/debug.keystore"),
-            file("debug.keystore"),
-            file("applet/debug.keystore"),
-            file("${rootDir}/applet/debug.keystore")
-        ).firstOrNull { it.exists() }
-
-        if (existingKeystore == null || !existingKeystore.exists()) {
-            val target = file("${rootDir}/debug.keystore")
-            try {
-                target.parentFile?.mkdirs()
-                val pb = ProcessBuilder(
-                    "keytool", "-genkeypair",
-                    "-alias", "androiddebugkey",
-                    "-keyalg", "RSA",
-                    "-keysize", "2048",
-                    "-validity", "10000",
-                    "-keypass", "android",
-                    "-keystore", target.absolutePath,
-                    "-storepass", "android",
-                    "-dname", "CN=Android Debug, O=Android, C=US"
-                )
-                pb.start().waitFor()
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-    }
-}
-
 val ensureGoogleServicesJson = tasks.register("ensureGoogleServicesJson") {
     doLast {
         val googleServicesContent = """
@@ -208,10 +151,9 @@ val ensureGoogleServicesJson = tasks.register("ensureGoogleServicesJson") {
 }
 
 tasks.matching { 
-    (it.name.contains("GoogleServices") || it.name.contains("Signing") || it.name == "preBuild") && 
-    it.name != "ensureGoogleServicesJson" && 
-    it.name != "ensureKeystoreExists" 
+    (it.name.contains("GoogleServices") || it.name == "preBuild") && 
+    it.name != "ensureGoogleServicesJson" 
 }.configureEach {
-    dependsOn(ensureGoogleServicesJson, ensureKeystoreExists)
+    dependsOn(ensureGoogleServicesJson)
 }
 
