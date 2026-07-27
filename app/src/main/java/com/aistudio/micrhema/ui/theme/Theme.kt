@@ -60,27 +60,33 @@ private val DarkColorScheme = darkColorScheme(
 
 @Composable
 fun MICRhemaTheme(
-    darkTheme: Boolean = false,
-    dynamicColor: Boolean = false, // Disabled dynamic color to force our harmonized theme
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = LightColorScheme // Force Light Scheme as requested
+    val context = LocalContext.current
+    val colorScheme = when {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        }
+        darkTheme -> DarkColorScheme
+        else -> LightColorScheme
+    }
 
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
-            var context = view.context
-            while (context is android.content.ContextWrapper) {
-                if (context is Activity) {
+            var ctx = view.context
+            while (ctx is android.content.ContextWrapper) {
+                if (ctx is Activity) {
                     break
                 }
-                context = context.baseContext
+                ctx = ctx.baseContext
             }
-            if (context is Activity) {
-                val window = context.window
-                val statusBarColor = Color(0xFFFFFDF5)
-                window.statusBarColor = statusBarColor.toArgb()
-                WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = true
+            if (ctx is Activity) {
+                val window = ctx.window
+                window.statusBarColor = colorScheme.background.toArgb()
+                WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
             }
         }
     }

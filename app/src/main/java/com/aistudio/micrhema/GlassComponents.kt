@@ -5,6 +5,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -19,7 +21,11 @@ fun GlassTopAppBar(
         title = title,
         navigationIcon = navigationIcon,
         actions = actions,
-        modifier = modifier
+        modifier = modifier,
+        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+            scrolledContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+        )
     )
 }
 
@@ -29,7 +35,8 @@ fun GlassNavigationBar(
     content: @Composable RowScope.() -> Unit
 ) {
     NavigationBar(
-        modifier = modifier,
+        modifier = modifier.clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)),
+        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
         content = content
     )
 }
@@ -47,14 +54,14 @@ fun GlassCard(
             onClick = onClick,
             modifier = modifier,
             shape = shape,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)),
             content = content
         )
     } else {
         Card(
             modifier = modifier,
             shape = shape,
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)),
             content = content
         )
     }
@@ -91,6 +98,9 @@ fun GlassTextField(
         keyboardActions = keyboardActions,
         shape = shape,
         maxLines = maxLines,
-        colors = colors ?: OutlinedTextFieldDefaults.colors()
+        colors = colors ?: OutlinedTextFieldDefaults.colors(
+            unfocusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+            focusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
+        )
     )
 }

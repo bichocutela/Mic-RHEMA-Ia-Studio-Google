@@ -181,12 +181,13 @@ fun InteractiveCard(
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.96f else 1f,
+        targetValue = if (isPressed) 0.95f else 1f,
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
         label = "card_scale"
     )
     
     val cardModifier = modifier.scale(scale)
+    val shape = RoundedCornerShape(28.dp)
     
     if (onClick != null) {
         Card(
@@ -194,7 +195,7 @@ fun InteractiveCard(
             modifier = cardModifier,
             border = border,
             colors = colors,
-            shape = RoundedCornerShape(24.dp),
+            shape = shape,
             content = {
                 Column {
                     content()
@@ -206,7 +207,7 @@ fun InteractiveCard(
             modifier = cardModifier,
             border = border,
             colors = colors,
-            shape = RoundedCornerShape(24.dp),
+            shape = shape,
             content = {
                 Column {
                     content()
