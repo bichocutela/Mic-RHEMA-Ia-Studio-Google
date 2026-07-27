@@ -24,15 +24,6 @@ android {
                                 buildConfigField("String", "GEMINI_API_KEY", "\"\"")
     }
 
-    signingConfigs {
-        getByName("debug") {
-            storeFile = file("${rootDir}/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
-        }
-    }
-
     buildTypes {
         release {
             isMinifyEnabled = false
