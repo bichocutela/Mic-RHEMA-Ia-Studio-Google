@@ -194,16 +194,7 @@ fun CleanVideoPlayer(
                     controlsVisible = !controlsVisible
                 }
         ) {
-            if (isYouTube) {
-                // YouTube Embed View
-                YoutubePlayer(
-                    videoUrl = videoUrl,
-                    modifier = Modifier.fillMaxSize(),
-                    onError = { err ->
-                        errorMessage = err
-                    }
-                )
-            } else if (exoPlayer != null) {
+            if (exoPlayer != null) {
                 // Direct Video ExoPlayer View
                 AndroidView(
                     factory = { ctx ->

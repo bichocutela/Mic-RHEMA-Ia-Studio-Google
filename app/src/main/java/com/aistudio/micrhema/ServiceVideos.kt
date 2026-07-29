@@ -131,7 +131,18 @@ fun ServiceVideosGallery() {
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .height(120.dp)
-                                            .clickable { selectedVideo = video },
+                                            .clickable {
+                                                if (isYoutubeUrl(video.videoUrl)) {
+                                                    try {
+                                                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(video.videoUrl))
+                                                        context.startActivity(intent)
+                                                    } catch(e: Exception) {
+                                                        android.widget.Toast.makeText(context, "Erro ao abrir", android.widget.Toast.LENGTH_SHORT).show()
+                                                    }
+                                                } else {
+                                                    selectedVideo = video 
+                                                }
+                                            },
                                         contentScale = ContentScale.Crop
                                     )
                                     Surface(
@@ -167,7 +178,18 @@ fun ServiceVideosGallery() {
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
                                         Button(
-                                            onClick = { selectedVideo = video },
+                                            onClick = { 
+                                                if (isYoutubeUrl(video.videoUrl)) {
+                                                    try {
+                                                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(video.videoUrl))
+                                                        context.startActivity(intent)
+                                                    } catch(e: Exception) {
+                                                        android.widget.Toast.makeText(context, "Erro ao abrir", android.widget.Toast.LENGTH_SHORT).show()
+                                                    }
+                                                } else {
+                                                    selectedVideo = video 
+                                                }
+                                            },
                                             modifier = Modifier.weight(1f),
                                             contentPadding = PaddingValues(vertical = 4.dp, horizontal = 8.dp),
                                             shape = RoundedCornerShape(8.dp)

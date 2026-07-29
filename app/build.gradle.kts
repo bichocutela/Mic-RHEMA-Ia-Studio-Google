@@ -15,8 +15,8 @@ android {
         applicationId = "com.aistudio.micrhema.xqpq"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = (System.currentTimeMillis() / 100000).toInt()
+        versionName = "1.0.${(System.currentTimeMillis() / 100000).toInt()}"
 
         vectorDrawables {
             useSupportLibrary = true

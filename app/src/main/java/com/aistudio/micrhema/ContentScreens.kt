@@ -291,7 +291,14 @@ fun BookReader(book: ContentBook, onBack: () -> Unit) {
 
 @Composable
 fun AudiosList(selectedAudio: ContentAudio?, searchQuery: String, isLocalLoading: Boolean, onAudioSelected: (ContentAudio?) -> Unit) {
-    
+    if (selectedAudio != null) {
+        ContentAudioPlayerScreen(
+            audio = selectedAudio,
+            onClose = { onAudioSelected(null) }
+        )
+        return
+    }
+
     val filteredAudios = remember(searchQuery, contentAudiosState.toList()) {
         if (searchQuery.isBlank()) {
             contentAudiosState
@@ -305,41 +312,6 @@ fun AudiosList(selectedAudio: ContentAudio?, searchQuery: String, isLocalLoading
 
     val context = LocalContext.current
     
-    val exoPlayer = remember {
-        ExoPlayer.Builder(context).setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(com.aistudio.micrhema.ExoPlayerCache.getCacheDataSourceFactory(context))).build()
-    }
-    
-    DisposableEffect(Unit) {
-        onDispose {
-            exoPlayer.release()
-        }
-    }
-    
-    LaunchedEffect(selectedAudio) {
-        if (selectedAudio != null) {
-            exoPlayer.setMediaItem(MediaItem.fromUri(selectedAudio!!.audioUrl))
-            exoPlayer.prepare()
-            if (selectedAudio!!.lastPosition > 0L) {
-                exoPlayer.seekTo(selectedAudio!!.lastPosition)
-            }
-            exoPlayer.play()
-        } else {
-            exoPlayer.stop()
-        }
-    }
-
-    LaunchedEffect(selectedAudio) {
-        if (selectedAudio != null) {
-            while(true) {
-                kotlinx.coroutines.delay(1000)
-                if (exoPlayer.isPlaying) {
-                    selectedAudio!!.lastPosition = exoPlayer.currentPosition
-                }
-            }
-        }
-    }
-
-
     Column(modifier = Modifier.fillMaxSize()) {
         if (isLocalLoading) {
             LazyColumn(
@@ -354,12 +326,12 @@ fun AudiosList(selectedAudio: ContentAudio?, searchQuery: String, isLocalLoading
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                     ) {
                         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Box(modifier = Modifier.size(60.dp).clip(RoundedCornerShape(12.dp)).background(shimmerBrush()))
+                            Box(modifier = Modifier.size(60.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)))
                             Spacer(modifier = Modifier.width(16.dp))
                             Column(modifier = Modifier.weight(1f)) {
-                                SkeletonItem(width = 180.dp, height = 20.dp)
-                                Spacer(modifier = Modifier.height(6.dp))
-                                SkeletonItem(width = 120.dp, height = 14.dp)
+                                Box(modifier = Modifier.fillMaxWidth(0.7f).height(16.dp).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f), RoundedCornerShape(4.dp)))
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Box(modifier = Modifier.fillMaxWidth(0.4f).height(12.dp).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f), RoundedCornerShape(4.dp)))
                             }
                         }
                     }
@@ -367,86 +339,49 @@ fun AudiosList(selectedAudio: ContentAudio?, searchQuery: String, isLocalLoading
             }
         } else {
             LazyColumn(
-
-            modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            items(filteredAudios) { audio ->
-                Card(
-                    modifier = Modifier.fillMaxWidth().clickable { onAudioSelected(audio) },
-                    
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (selectedAudio == audio) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
-                    )
-                ) {
-                    Column {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            AsyncImage(
-                                model = audio.coverUrl,
-                                contentDescription = "Capa",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.size(60.dp).clip(RoundedCornerShape(12.dp))
-                            )
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(audio.title, style = MaterialTheme.typography.titleMedium)
-                                Text(audio.artist, style = MaterialTheme.typography.bodySmall)
-                            }
-                            if (audio.isCached) {
-                                Icon(Icons.Default.CheckCircle, contentDescription = "Baixado", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(end = 8.dp).size(24.dp))
-                            }
-                            if (selectedAudio == audio) {
-                                Icon(Icons.Default.VolumeUp, contentDescription = "Playing", tint = MaterialTheme.colorScheme.primary)
-                            }
-                        }
-                        if (audio.progress > 0f) {
-                            LinearProgressIndicator(
-                                progress = { audio.progress },
-                                modifier = Modifier.fillMaxWidth(),
-                                color = MaterialTheme.colorScheme.primary,
-                                trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
-                            )
-                        }
-                    }
-                }
-            }
-        }
-        }
-        
-        // Mini Player
-        if (selectedAudio != null) {
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                shape = RoundedCornerShape(24.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    AsyncImage(
-                        model = selectedAudio!!.coverUrl,
-                        contentDescription = "Capa",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp))
-                    )
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(selectedAudio!!.title, style = MaterialTheme.typography.titleMedium)
-                        Text(selectedAudio!!.artist, style = MaterialTheme.typography.bodySmall)
-                    }
-                    IconButton(onClick = { 
-                        if (exoPlayer.isPlaying) exoPlayer.pause() else exoPlayer.play()
-                    }) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = "Play/Pause")
-                    }
-                    IconButton(onClick = { onAudioSelected(null) }) {
-                        Icon(Icons.Default.Close, contentDescription = "Close")
+                items(filteredAudios) { audio ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onAudioSelected(audio) },
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
+                        Column {
+                            Row(
+                                modifier = Modifier.padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                AsyncImage(
+                                    model = audio.coverUrl,
+                                    contentDescription = "Capa",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.size(60.dp).clip(RoundedCornerShape(12.dp))
+                                )
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(audio.title, style = MaterialTheme.typography.titleMedium)
+                                    Text(audio.artist, style = MaterialTheme.typography.bodySmall)
+                                }
+                                if (audio.isCached) {
+                                    Icon(Icons.Default.CheckCircle, contentDescription = "Baixado", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(end = 8.dp).size(24.dp))
+                                }
+                            }
+                            if (audio.progress > 0f) {
+                                LinearProgressIndicator(
+                                    progress = { audio.progress },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -529,8 +464,18 @@ fun VideosList(selectedVideo: ContentVideo?, searchQuery: String, isLocalLoading
         ) {
             items(filteredVideos) { video ->
                 Card(
-                    modifier = Modifier.fillMaxWidth().clickable { onVideoSelected(video) },
-                    
+                    modifier = Modifier.fillMaxWidth().clickable { 
+                        if (isYoutubeUrl(video.videoUrl)) {
+                            try {
+                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(video.videoUrl))
+                                context.startActivity(intent)
+                            } catch(e: Exception) {
+                                android.widget.Toast.makeText(context, "Erro ao abrir YouTube", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        } else {
+                            onVideoSelected(video)
+                        }
+                    },
                     shape = RoundedCornerShape(24.dp)
                 ) {
                     Column {

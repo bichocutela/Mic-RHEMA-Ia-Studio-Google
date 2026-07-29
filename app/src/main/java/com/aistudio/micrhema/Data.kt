@@ -352,6 +352,7 @@ object MemberManager {
                             val member = memberRequestsState.find { it.id == loggedInId }
                             if (member != null) {
                                 loggedInMemberState.value = member
+                loadIbrProgressFromFirestore()
                             }
                         }
                     }
@@ -419,6 +420,7 @@ object MemberManager {
             val member = memberRequestsState.find { it.id == loggedInId }
             if (member != null) {
                 loggedInMemberState.value = member
+                loadIbrProgressFromFirestore()
             }
         }
     }
@@ -433,6 +435,7 @@ object MemberManager {
     
     fun setLoggedInMember(context: android.content.Context, member: MemberRequest?) {
         loggedInMemberState.value = member
+                loadIbrProgressFromFirestore()
         val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
         if (member == null) {
             prefs.edit().remove(KEY_LOGGED_IN_ID).apply()
@@ -464,8 +467,8 @@ data class IbrCourse(
 )
 
 data class IbrProgress(
-    val courseId: String,
-    val chapterId: String,
+    val courseId: String = "",
+    val chapterId: String = "",
     val lastPositionSeconds: Int = 0,
     val totalDurationSeconds: Int = 0,
     val isCompleted: Boolean = false
@@ -595,7 +598,7 @@ data class ContentBook(
     val coverUrl: String,
     val contentText: String, // Mocking the epub/pdf with plain text for this prototype
     val isCached: Boolean = false,
-    val progress: Float = 0f,
+    var progress: Float = 0f,
     var lastPosition: Long = 0L
 )
 
@@ -606,7 +609,7 @@ data class ContentAudio(
     val audioUrl: String,
     val coverUrl: String,
     val isCached: Boolean = false,
-    val progress: Float = 0f,
+    var progress: Float = 0f,
     var lastPosition: Long = 0L
 )
 
@@ -617,7 +620,7 @@ data class ContentVideo(
     val videoUrl: String, // Can be youtube link or direct mp4
     val thumbnailUrl: String,
     val isCached: Boolean = false,
-    val progress: Float = 0f,
+    var progress: Float = 0f,
     var lastPosition: Long = 0L
 )
 
@@ -687,7 +690,7 @@ data class RecentlyViewedItem(
     val imageUrl: String,
     val type: ContentType,
     val isCached: Boolean = false,
-    val progress: Float = 0f,
+    var progress: Float = 0f,
     var lastPosition: Long = 0L
 )
 
@@ -798,4 +801,25 @@ fun loadTeamMembersFromFirebase() {
             android.util.Log.e("Data", "Error loading team", e)
         }
     }
+}
+
+fun syncIbrProgressToFirestore(progress: IbrProgress) {
+    val userId = loggedInMemberState.value?.id ?: return
+    val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+    db.collection("users").document(userId).collection("ibrProgress").document("${progress.courseId}_${progress.chapterId}")
+        .set(progress)
+        .addOnFailureListener { e -> e.printStackTrace() }
+}
+
+fun loadIbrProgressFromFirestore() {
+    val userId = loggedInMemberState.value?.id ?: return
+    val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+    db.collection("users").document(userId).collection("ibrProgress")
+        .get()
+        .addOnSuccessListener { result ->
+            val list = result.documents.mapNotNull { it.toObject(IbrProgress::class.java) }
+            ibrProgressState.clear()
+            ibrProgressState.addAll(list)
+        }
+        .addOnFailureListener { e -> e.printStackTrace() }
 }

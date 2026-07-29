@@ -60,16 +60,6 @@ object GlobalAudioPlayer {
             return
         }
 
-        try {
-            val serviceIntent = android.content.Intent(appContext, AudioService::class.java)
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                appContext.startForegroundService(serviceIntent)
-            } else {
-                appContext.startService(serviceIntent)
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
 
         val sessionToken = androidx.media3.session.SessionToken(
             appContext,

@@ -2170,6 +2170,7 @@ fun IbrScreen() {
                                 ibrProgressState.add(newProg)
                             }
                             IbrDatabaseHelper(context).saveProgress(newProg)
+                                            syncIbrProgressToFirestore(newProg)
                         }
                     }
 
@@ -2242,6 +2243,7 @@ fun IbrScreen() {
                                                     ibrProgressState.add(newProg)
                                                 }
                                                 IbrDatabaseHelper(context).saveProgress(newProg)
+                                            syncIbrProgressToFirestore(newProg)
                                                 pipCourse = null
                                                 pipChapter = null
                                             },
@@ -2329,6 +2331,7 @@ fun IbrCatalogView(
         val list = dbHelper.getAllProgress()
         ibrProgressState.clear()
         ibrProgressState.addAll(list)
+        loadIbrProgressFromFirestore()
         kotlinx.coroutines.delay(1200)
         isLocalLoading = false
     }
@@ -2742,6 +2745,25 @@ fun IbrCourseDetailView(
     onBack: () -> Unit,
     onPlayChapter: (IbrChapter, String) -> Unit
 ) {
+    val context = LocalContext.current
+    var pendingYoutubeChapterId by remember { mutableStateOf<String?>(null) }
+    var recentlyCompletedChapterId by remember { mutableStateOf<String?>(null) }
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                if (pendingYoutubeChapterId != null) {
+                    recentlyCompletedChapterId = pendingYoutubeChapterId
+                    pendingYoutubeChapterId = null
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    LaunchedEffect(recentlyCompletedChapterId) {
+        if (recentlyCompletedChapterId != null) { kotlinx.coroutines.delay(2500); recentlyCompletedChapterId = null }
+    }
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -2834,7 +2856,8 @@ fun IbrCourseDetailView(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
+                    Box {
+                        Column(modifier = Modifier.padding(16.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -2891,7 +2914,21 @@ fun IbrCourseDetailView(
                         ) {
                             if (chapter.isYoutube) {
                                 GlassButton(
-                                    onClick = { onPlayChapter(chapter, "video") },
+                                    onClick = { 
+                                        try {
+                                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(chapter.videoUrl))
+                                            context.startActivity(intent)
+                                            pendingYoutubeChapterId = chapter.id
+                                            val existingIdx = ibrProgressState.indexOfFirst { it.courseId == course.id && it.chapterId == chapter.id }
+                                            val newProg = IbrProgress(course.id, chapter.id, lastPositionSeconds = chapter.durationMinutes * 60, totalDurationSeconds = chapter.durationMinutes * 60, isCompleted = true)
+                                            if (existingIdx >= 0) ibrProgressState[existingIdx] = newProg else ibrProgressState.add(newProg)
+                                            IbrDatabaseHelper(context).saveProgress(newProg)
+                                            syncIbrProgressToFirestore(newProg)
+                                            android.widget.Toast.makeText(context, "Abrindo YouTube...", android.widget.Toast.LENGTH_SHORT).show()
+                                        } catch(e: Exception) {
+                                            android.widget.Toast.makeText(context, "Erro ao abrir YouTube", android.widget.Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
                                     modifier = Modifier.weight(1f),
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE50914)), // YouTube Red / Netflix style
                                     shape = RoundedCornerShape(10.dp)
@@ -2931,9 +2968,46 @@ fun IbrCourseDetailView(
                             }
                         }
                     }
-                }
+                    if (recentlyCompletedChapterId == chapter.id) {
+                        var visible by remember { mutableStateOf(false) }
+                        LaunchedEffect(Unit) { visible = true }
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.9f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            androidx.compose.animation.AnimatedVisibility(
+                                visible = visible,
+                                enter = androidx.compose.animation.scaleIn(
+                                    animationSpec = androidx.compose.animation.core.spring(
+                                        dampingRatio = 0.5f,
+                                        stiffness = 500f
+                                    )
+                                ) + androidx.compose.animation.fadeIn()
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = "Concluído",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(64.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        "Aula Concluída!",
+                                        color = Color.White,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } // This closes Box
             }
         }
+    }
     }
 }
 
@@ -3012,6 +3086,7 @@ fun IbrMediaPlayerView(
         }
         val dbHelper = IbrDatabaseHelper(context)
         dbHelper.saveProgress(newProgress)
+        syncIbrProgressToFirestore(newProgress)
         lastSavedSeconds = currentSecInt
     }
 
@@ -3105,14 +3180,8 @@ fun IbrMediaPlayerView(
                     .border(1.dp, Color.DarkGray, RoundedCornerShape(32.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                if (playbackType == "video" || chapter.isYoutube || isYoutubeUrl(chapter.videoUrl)) {
-                    if (chapter.isYoutube || isYoutubeUrl(chapter.videoUrl)) {
-                        YoutubePlayer(
-                            videoUrl = chapter.videoUrl,
-                            youtubeId = chapter.youtubeId,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    } else if (chapter.videoUrl.isNotEmpty()) {
+                if (playbackType == "video") {
+                    if (chapter.videoUrl.isNotEmpty()) {
                         val authorizedUser = loggedInMemberState.value?.let { it.isApproved || it.isIbr || it.isVip } ?: false
                         CleanVideoPlayer(
                             videoUrl = chapter.videoUrl,
@@ -3884,19 +3953,17 @@ fun EditIbrSection() {
                                 placeholder = { Text("https://youtube.com/watch?v=...") }
                             )
                         } else {
-                            GlassTextField(
+                            LocalUploadField(
                                 value = videoUrl,
                                 onValueChange = { videoUrl = it },
-                                label = { Text("URL do Upload do Vídeo") },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(24.dp)
+                                label = "Upload de Vídeo (URL ou Arquivo)",
+                                mimeType = "video/*"
                             )
-                            GlassTextField(
+                            LocalUploadField(
                                 value = audioUrl,
                                 onValueChange = { audioUrl = it },
-                                label = { Text("URL do Upload do Áudio (Opcional)") },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(24.dp)
+                                label = "Upload de Áudio (URL ou Arquivo)",
+                                mimeType = "audio/*"
                             )
                         }
 
@@ -5246,22 +5313,20 @@ fun EditServicesSection() {
         }
 
         item {
-            GlassTextField(
+            LocalUploadField(
                 value = videoUrl,
                 onValueChange = { videoUrl = it },
-                label = { Text("Link do Vídeo (YouTube URL ou MP4)") },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp)
+                label = "Link do Vídeo (URL ou Arquivo Local)",
+                mimeType = "video/*"
             )
         }
 
         item {
-            GlassTextField(
+            LocalUploadField(
                 value = videoThumbnailUrl,
                 onValueChange = { videoThumbnailUrl = it },
-                label = { Text("URL da Imagem de Capa (Opcional)") },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp)
+                label = "Capa (URL ou Arquivo Local - Opcional)",
+                mimeType = "image/*"
             )
         }
 
@@ -6236,6 +6301,49 @@ fun AdminGlobalSearchSection(query: String) {
                     }
                 }
             }
+        }
+    }
+}
+@Composable
+fun LocalUploadField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    mimeType: String
+) {
+    val context = LocalContext.current
+    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            try {
+                context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            onValueChange(uri.toString())
+        }
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        GlassTextField(
+            value = value,
+            onValueChange = onValueChange,
+            label = { Text(label) },
+            modifier = Modifier.weight(1f),
+            shape = RoundedCornerShape(24.dp)
+        )
+        IconButton(
+            onClick = { launcher.launch(mimeType) },
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+        ) {
+            Icon(Icons.Default.UploadFile, contentDescription = "Upload", tint = MaterialTheme.colorScheme.primary)
         }
     }
 }
