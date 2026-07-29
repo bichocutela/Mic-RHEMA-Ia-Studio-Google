@@ -1,0 +1,57 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Permite leitura pública de todos os documentos
+    match /{document=**} {
+      allow read: if true;
+    }
+
+    // Verifica se o usuário está autenticado e tem a flag isAdmin (no documento do usuário)
+    // ou se possui a claim 'isAdmin' no token do Firebase Auth
+    function isAdmin() {
+      return request.auth != null && (
+        request.auth.token.isAdmin == true ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
+      );
+    }
+    
+    // Aplicando a regra para a coleção 'conteúdo' e afins
+    match /conteudo/{document} {
+      allow write: if isAdmin();
+    }
+    match /content_books/{document} {
+      allow write: if isAdmin();
+    }
+    match /content_audios/{document} {
+      allow write: if isAdmin();
+    }
+    match /content_videos/{document} {
+      allow write: if isAdmin();
+    }
+    match /content_albums/{document} {
+      allow write: if isAdmin();
+    }
+    match /vip_books/{document} {
+      allow write: if isAdmin();
+    }
+    match /vip_audios/{document} {
+      allow write: if isAdmin();
+    }
+    match /vip_videos/{document} {
+      allow write: if isAdmin();
+    }
+    match /vip_albums/{document} {
+      allow write: if isAdmin();
+    }
+    match /devotionals/{document} {
+      allow write: if isAdmin();
+    }
+    match /services/{document} {
+      allow write: if isAdmin();
+    }
+    match /events/{document} {
+      allow write: if isAdmin();
+    }
+  }
+}

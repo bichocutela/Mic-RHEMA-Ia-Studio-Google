@@ -22,6 +22,7 @@ class AudioService : MediaSessionService() {
 
         val player = ExoPlayer.Builder(this)
             .setAudioAttributes(audioAttributes, true)
+            .setHandleAudioBecomingNoisy(true)
             .setSeekBackIncrementMs(10000)
             .setSeekForwardIncrementMs(30000)
             .setMediaSourceFactory(

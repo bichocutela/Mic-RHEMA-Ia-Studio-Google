@@ -112,13 +112,13 @@ fun PdfViewer(
         } else if (error != null) {
             Text(error!!, color = MaterialTheme.colorScheme.error)
         } else if (pdfFile != null) {
-            PdfRendererView(pdfFile!!)
+            PdfRendererView(pdfFile!!, bookUrl)
         }
     }
 }
 
 @Composable
-fun PdfRendererView(file: File) {
+fun PdfRendererView(file: File, bookUrl: String) {
     var pdfRenderer by remember { mutableStateOf<PdfRenderer?>(null) }
     var fileDescriptor by remember { mutableStateOf<ParcelFileDescriptor?>(null) }
     var pageCount by remember { mutableStateOf(0) }
@@ -137,8 +137,19 @@ fun PdfRendererView(file: File) {
         }
     }
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = context.getSharedPreferences("book_bookmarks", android.content.Context.MODE_PRIVATE)
+    val bookmarkKey = "bookmark_${bookUrl.hashCode()}"
+    val initialPage = prefs.getInt(bookmarkKey, 0)
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState(initialFirstVisibleItemIndex = initialPage)
+
+    androidx.compose.runtime.LaunchedEffect(listState.firstVisibleItemIndex) {
+        prefs.edit().putInt(bookmarkKey, listState.firstVisibleItemIndex).apply()
+    }
+
     if (pageCount > 0) {
-        LazyColumn(
+        androidx.compose.foundation.lazy.LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize().background(Color.Gray),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)

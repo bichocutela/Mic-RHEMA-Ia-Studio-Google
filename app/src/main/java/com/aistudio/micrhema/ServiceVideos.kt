@@ -27,11 +27,11 @@ import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 
 data class ServiceVideoModel(
-    val id: String = "",
-    val title: String = "",
-    val date: String = "",
-    val videoUrl: String = "",
-    val thumbnailUrl: String = ""
+    var id: String = "",
+    var title: String = "",
+    var date: String = "",
+    var videoUrl: String = "",
+    var thumbnailUrl: String = ""
 )
 
 @Composable

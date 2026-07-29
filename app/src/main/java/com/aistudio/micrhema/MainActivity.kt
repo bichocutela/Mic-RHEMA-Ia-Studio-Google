@@ -6,11 +6,14 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.*
 import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.Image
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Church
@@ -93,16 +96,36 @@ val drawerItems = listOf(
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        currentThemeMode.value = SettingsManager.getThemeMode(this)
-        isOfflineModeState.value = SettingsManager.isOfflineMode(this)
-        setContent {
-            val isDark = when (currentThemeMode.value) {
-                ThemeMode.DARK -> true
-                ThemeMode.LIGHT -> false
-                ThemeMode.SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme()
+        try {
+            currentThemeMode.value = SettingsManager.getThemeMode(this)
+            isOfflineModeState.value = SettingsManager.isOfflineMode(this)
+            setContent {
+                val isDark = when (currentThemeMode.value) {
+                    ThemeMode.DARK -> true
+                    ThemeMode.LIGHT -> false
+                    ThemeMode.SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme()
+                }
+                MICRhemaTheme(darkTheme = isDark) {
+                    val lastCrash = CrashHandler.getLastCrash(this@MainActivity)
+                    if (lastCrash != null) {
+                        androidx.compose.foundation.layout.Column(androidx.compose.ui.Modifier.fillMaxSize().verticalScroll(androidx.compose.foundation.rememberScrollState())) {
+                            androidx.compose.material3.Text("CRASH LOG:", color = androidx.compose.ui.graphics.Color.Red)
+                            androidx.compose.material3.Button(onClick = { CrashHandler.clearLastCrash(this@MainActivity) }) {
+                                androidx.compose.material3.Text("Clear")
+                            }
+                            androidx.compose.material3.Text(lastCrash)
+                        }
+                    } else {
+                        MainScreen()
+                    }
+                }
             }
-            MICRhemaTheme(darkTheme = isDark) {
-                MainScreen()
+        } catch (e: Exception) {
+            setContent {
+                androidx.compose.foundation.layout.Column(androidx.compose.ui.Modifier.fillMaxSize().verticalScroll(androidx.compose.foundation.rememberScrollState())) {
+                    androidx.compose.material3.Text("CRASH IN ONCREATE:", color = androidx.compose.ui.graphics.Color.Red)
+                    androidx.compose.material3.Text(android.util.Log.getStackTraceString(e))
+                }
             }
         }
     }
@@ -125,37 +148,6 @@ fun MainScreen() {
     }
 
     LaunchedEffect(Unit) {
-        NotificationHelper.createNotificationChannel(context)
-        try {
-            NotificationHelper.scheduleDailyReminder(context)
-        try {
-            NotificationHelper.scheduleDevotionalSync(context)
-        } catch(e: Exception) {}
-        try {
-            com.google.firebase.messaging.FirebaseMessaging.getInstance().subscribeToTopic("devotionals")
-        } catch(e: Exception) {}
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-        
-        LocalDataManager.loadAll(context)
-        if (devotionalsState.isEmpty()) {
-            loadDevotionalsFromJson(context)
-        }
-        initializeMockContent()
-        initializeTabs()
-        loadTeamMembersFromFirebase()
-        // MemberManager is already handled by LocalDataManager, but we can call it to sync from firestore
-        // MemberManager.syncFromFirestore(context) # wait, we can just let MemberManager do its thing if needed
-        MemberManager.loadMembers(context)
-        
-        launch {
-            while (true) {
-                kotlinx.coroutines.delay(5000)
-                LocalDataManager.saveAll(context)
-            }
-        }
-        
         // Initialize Firebase if keys are present (via Secrets panel/BuildConfig)
         if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty() && com.google.firebase.FirebaseApp.getApps(context).isEmpty()) {
             try {
@@ -165,12 +157,40 @@ fun MainScreen() {
                     .setApiKey(com.aistudio.micrhema.BuildConfig.FIREBASE_API_KEY)
                     .build()
                 com.google.firebase.FirebaseApp.initializeApp(context, options)
-                MemberManager.syncFromFirestore(context)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
-        } else if (com.google.firebase.FirebaseApp.getApps(context).isNotEmpty()) {
-            MemberManager.syncFromFirestore(context)
+        }
+
+        NotificationHelper.createNotificationChannel(context)
+        try {
+            NotificationHelper.scheduleDailyReminder(context)
+            try {
+                NotificationHelper.scheduleDevotionalSync(context)
+            } catch(e: Exception) {}
+            try {
+                com.google.firebase.messaging.FirebaseMessaging.getInstance().subscribeToTopic("devotionals")
+            } catch(e: Exception) {}
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        RemoteConfigManager.init()
+
+        LocalDataManager.loadAll(context)
+        if (devotionalsState.isEmpty()) {
+            loadDevotionalsFromJson(context)
+        }
+        initializeTabs()
+        loadContentFromFirebase(context)
+        loadTeamMembersFromFirebase()
+        MemberManager.syncFromFirestore(context)
+        MemberManager.loadMembers(context)
+        
+        launch {
+            while (true) {
+                kotlinx.coroutines.delay(5000)
+                LocalDataManager.saveAll(context)
+            }
         }
         
         try {
@@ -315,7 +335,42 @@ fun MainScreen() {
                     }
                 }
             ) { paddingValues ->
-            NavHost(
+            Column(modifier = Modifier.padding(paddingValues).fillMaxSize()) {
+                if (RemoteConfigManager.showWarningBanner.value && RemoteConfigManager.warningBannerText.value.isNotBlank()) {
+                    androidx.compose.material3.Surface(
+                        color = MaterialTheme.colorScheme.errorContainer,
+                        modifier = Modifier.fillMaxWidth().clickable {
+                            if (RemoteConfigManager.promoLinkUrl.value.isNotBlank()) {
+                                try {
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(RemoteConfigManager.promoLinkUrl.value))
+                                    context.startActivity(intent)
+                                } catch (e: Exception) { e.printStackTrace() }
+                            }
+                        }
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = RemoteConfigManager.warningBannerText.value,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (RemoteConfigManager.promoLinkUrl.value.isNotBlank()) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                    contentDescription = "Open Link",
+                                    tint = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            }
+                        }
+                    }
+                }
+                
+                NavHost(
                 navController = navController,
                 startDestination = Screen.Home.route,
                 modifier = Modifier.padding(paddingValues),
@@ -351,6 +406,7 @@ fun MainScreen() {
                     val tabId = backStackEntry.arguments?.getString("id")
                     CustomTabScreen(tabId)
                 }
+            }
             }
         }
         }

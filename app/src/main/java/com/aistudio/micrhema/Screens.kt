@@ -1369,7 +1369,7 @@ fun PrayerScreen() {
                                         request = request.trim(),
                                         date = "2026-07-13"
                                     )
-                                    prayerRequestsState.add(0, newReq)
+                                    addPrayerRequest(newReq)
                                     name = ""
                                     request = ""
                                     showDialog = true
@@ -1959,7 +1959,7 @@ fun MembersScreen() {
                         }
                         IconButton(
                             onClick = { 
-                                MemberManager.setLoggedInMember(context, null) 
+                                MemberManager.setLoggedInMember(context, null)
                                 NotificationHelper.showNotification(context, "Log Out", "Você saiu da área de membros.")
                             }
                         ) {
@@ -1967,7 +1967,7 @@ fun MembersScreen() {
                         }
                     }
                 }
-
+                
                 item {
                     InteractiveCard(
                         modifier = Modifier.fillMaxWidth(),
@@ -1987,45 +1987,79 @@ fun MembersScreen() {
                         }
                     }
                 }
-
-                item {
-                    Text("Mensagens Exclusivas", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                }
-
-                item {
-                    InteractiveCard(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFFD4AF37)))
-                                Text("VÍDEO PASTORAL", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = Color(0xFFD4AF37))
+                
+                if (vipCoursesState.isNotEmpty()) {
+                    item { Text("Cursos VIP Exclusivos", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+                    items(vipCoursesState) { course ->
+                        InteractiveCard(modifier = Modifier.fillMaxWidth()) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary))
+                                    Text("CURSO", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(course.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(course.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text("Como blindar sua mente nestes tempos difíceis", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text("Uma palavra especial do Pastor Presidente sobre perseverança espiritual e fé inabalável em meio às tempestades da vida moderna.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
-
-                item {
-                    InteractiveCard(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF3B82F6)))
-                                Text("DOWNLOAD PDF", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = Color(0xFF3B82F6))
+                
+                if (vipVideosState.isNotEmpty() || vipAudiosState.isNotEmpty()) {
+                    item { Text("Mensagens & Mídias Exclusivas", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+                    items(vipVideosState) { video ->
+                        InteractiveCard(modifier = Modifier.fillMaxWidth()) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFFD4AF37)))
+                                    Text("VÍDEO", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = Color(0xFFD4AF37))
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(video.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(video.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text("Guia de Discipulado Avançado 2026", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text("Baixe o material de acompanhamento para o crescimento ministerial e capacitação espiritual da igreja.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    items(vipAudiosState) { audio ->
+                        InteractiveCard(modifier = Modifier.fillMaxWidth()) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF9C27B0)))
+                                    Text("ÁUDIO", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = Color(0xFF9C27B0))
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(audio.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(audio.artist, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         }
                     }
                 }
-
+                
+                if (vipBooksState.isNotEmpty()) {
+                    item { Text("Livros e PDFs Exclusivos", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+                    items(vipBooksState) { book ->
+                        InteractiveCard(modifier = Modifier.fillMaxWidth()) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF3B82F6)))
+                                    Text("DOWNLOAD PDF", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = Color(0xFF3B82F6))
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(book.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(book.author, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+                
                 item {
                     Text("Apoio e Aconselhamento", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 }
-
+                
                 item {
                     InteractiveCard(modifier = Modifier.fillMaxWidth()) {
                         Column(modifier = Modifier.padding(16.dp)) {
@@ -3548,6 +3582,56 @@ fun AboutScreen() {
             }
         }
         item {
+            val context = LocalContext.current
+            Card(
+                modifier = Modifier.fillMaxWidth().clickable {
+                    val intent = android.content.Intent(
+                        android.content.Intent.ACTION_VIEW,
+                        android.net.Uri.parse("geo:0,0?q=Rua+Todos+os+santos,+664+-+Felipe+camarao+-+Natal/rn")
+                    )
+                    context.startActivity(intent)
+                },
+                shape = RoundedCornerShape(32.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("LOCALIZAÇÃO", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(180.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        coil.compose.AsyncImage(
+                            model = "https://images.unsplash.com/photo-1524661135-423995f22d0b?w=800&q=80",
+                            contentDescription = "Mapa da Igreja",
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.Black.copy(alpha = 0.2f))
+                        )
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = null,
+                            tint = Color.Red,
+                            modifier = Modifier.size(48.dp)
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Rua Todos os santos, 664", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Felipe Camarão - Natal/RN", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+
+        item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(32.dp)
@@ -3576,15 +3660,26 @@ fun AdminScreen() {
         }
     }
     
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        isAdminLogged.value = prefs.getBoolean("admin_logged", false)
+    val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
+    var isCheckingAuth by remember { mutableStateOf(true) }
+    
+    LaunchedEffect(Unit) {
+        if (auth.currentUser != null) {
+            isAdminLogged.value = true
+        } else {
+            isAdminLogged.value = false
+        }
+        isCheckingAuth = false
     }
 
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var loginError by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(false) }
 
-    if (!isAdminLogged.value) {
+    if (isCheckingAuth) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+    } else if (!isAdminLogged.value) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -3632,12 +3727,21 @@ fun AdminScreen() {
             Spacer(modifier = Modifier.height(24.dp))
             GlassButton(
                 onClick = {
-                    if (username.trim() == "Admin" && password == "igreja10") {
-                        isAdminLogged.value = true
-                        prefs.edit().putBoolean("admin_logged", true).apply()
-                    } else {
-                        loginError = "Usuário ou senha incorretos!"
+                    if (username.isBlank() || password.isBlank()) {
+                        loginError = "Preencha e-mail e senha"
+                        return@GlassButton
                     }
+                    isLoading = true
+                    loginError = ""
+                    auth.signInWithEmailAndPassword(username.trim(), password)
+                        .addOnCompleteListener { task ->
+                            isLoading = false
+                            if (task.isSuccessful) {
+                                isAdminLogged.value = true
+                            } else {
+                                loginError = "Falha no login: ${task.exception?.message}"
+                            }
+                        }
                 },
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 shape = RoundedCornerShape(24.dp)
@@ -3648,7 +3752,7 @@ fun AdminScreen() {
     } else {
         AdminPanel {
             isAdminLogged.value = false
-            prefs.edit().putBoolean("admin_logged", false).apply()
+            com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
         }
     }
 }
@@ -3697,7 +3801,7 @@ fun AdminPanel(onLogout: () -> Unit) {
                 "services" to "Cultos",
                 "prayers" to "Orações",
                 "members" to "Membros",
-                "ibr" to "Seminário IBR 🎓",
+                "ibr" to "Seminário IBR 🎓", "vip" to "VIP ✨",
                 "content" to "Conteúdo",
                 "team" to "Equipe",
                 "about" to "Sobre",
@@ -3729,6 +3833,7 @@ fun AdminPanel(onLogout: () -> Unit) {
                     "prayers" -> EditPrayersSection()
                     "members" -> EditMembersSection()
                     "ibr" -> EditIbrSection()
+                    "vip" -> EditVipSection()
                     "content" -> EditContentSection()
                     "team" -> EditTeamSection()
                     "about" -> EditAboutSection()
@@ -3849,7 +3954,7 @@ fun EditIbrSection() {
                                     imageUrl = "",
                                     chapters = mutableStateListOf()
                                 )
-                                ibrCoursesState.add(newCourse)
+                                addIbrCourse(newCourse)
                                 NotificationHelper.showNotification(
                                     context,
                                     "Curso Criado! 🎓",
@@ -3987,7 +4092,7 @@ fun EditIbrSection() {
                                         val updatedCourse = targetCourse.copy(chapters = updatedChapters)
                                         val index = ibrCoursesState.indexOf(targetCourse)
                                         if (index != -1) {
-                                            ibrCoursesState[index] = updatedCourse
+                                            addIbrCourse(updatedCourse)
                                         }
                                         selectedCourseForChapter = updatedCourse
                                     }
@@ -4190,7 +4295,7 @@ fun EditIbrSection() {
                                 IconButton(onClick = { editingCourse = course }) {
                                     Icon(Icons.Default.Edit, contentDescription = "Editar Curso", tint = MaterialTheme.colorScheme.primary)
                                 }
-                                IconButton(onClick = { ibrCoursesState.remove(course) }) {
+                                IconButton(onClick = { removeIbrCourse(course) }) {
                                     Icon(Icons.Default.Delete, contentDescription = "Deletar Curso", tint = MaterialTheme.colorScheme.error)
                                 }
                             }
@@ -4240,7 +4345,7 @@ fun EditIbrSection() {
                                                 val updatedCourse = course.copy(chapters = updatedChapters)
                                                 val index = ibrCoursesState.indexOf(course)
                                                 if (index != -1) {
-                                                    ibrCoursesState[index] = updatedCourse
+                                                    addIbrCourse(updatedCourse)
                                                 }
                                             },
                                             modifier = Modifier.size(24.dp)
@@ -4847,7 +4952,7 @@ fun EditHomeSection() {
                             tag = carouselTagInput,
                             imageUrl = carouselImageUri?.toString()
                         )
-                        carouselItemsState.add(newItem)
+                        addCarouselItem(newItem)
                         NotificationHelper.showNotification(
                             context = context,
                             title = if (carouselTagInput == "EVENTO") "Novo Evento! 🗓️" else "Nova Notícia! 📰",
@@ -4903,7 +5008,7 @@ fun EditHomeSection() {
                             Text(item.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
                             Text(item.description, style = MaterialTheme.typography.bodySmall, maxLines = 1, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        IconButton(onClick = { carouselItemsState.remove(item) }) {
+                        IconButton(onClick = { removeCarouselItem(item) }) {
                             Icon(Icons.Default.Delete, contentDescription = "Deletar", tint = MaterialTheme.colorScheme.error)
                         }
                     }
@@ -5040,7 +5145,7 @@ fun EditDevotionalsSection() {
                         Text(dev.title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
                         Text(dev.date, style = MaterialTheme.typography.labelSmall)
                     }
-                    IconButton(onClick = { devotionalsState.remove(dev) }) {
+                    IconButton(onClick = { removeDevotional(dev) }) {
                         Icon(Icons.Default.Delete, contentDescription = "Deletar", tint = MaterialTheme.colorScheme.error)
                     }
                 }
@@ -5126,7 +5231,7 @@ fun EditServicesSection() {
             GlassButton(
                 onClick = {
                     if (serviceTitle.isNotBlank() && serviceDay.isNotBlank() && serviceTime.isNotBlank()) {
-                        weeklyServicesState.add(
+                        addChurchService(
                             ChurchService(
                                 id = (weeklyServicesState.size + 1).toString(),
                                 day = serviceDay,
@@ -5175,7 +5280,7 @@ fun EditServicesSection() {
                         Text(service.title, fontWeight = FontWeight.Bold)
                         Text("${service.day} • ${service.time}", style = MaterialTheme.typography.bodySmall)
                     }
-                    IconButton(onClick = { weeklyServicesState.remove(service) }) {
+                    IconButton(onClick = { removeChurchService(service) }) {
                         Icon(Icons.Default.Delete, contentDescription = "Deletar", tint = MaterialTheme.colorScheme.error)
                     }
                 }
@@ -5227,7 +5332,7 @@ fun EditServicesSection() {
             GlassButton(
                 onClick = {
                     if (eventTitle.isNotBlank() && eventDate.isNotBlank()) {
-                        eventsState.add(
+                        addChurchEvent(
                             ChurchEvent(
                                 id = (eventsState.size + 1).toString(),
                                 title = eventTitle,
@@ -5275,7 +5380,7 @@ fun EditServicesSection() {
                         Text(event.date, style = MaterialTheme.typography.bodySmall)
                     }
                     IconButton(onClick = { 
-                        eventsState.remove(event)
+                        removeChurchEvent(event)
                         LocalDataManager.saveAll(context)
                     }) {
                         Icon(Icons.Default.Delete, contentDescription = "Deletar", tint = MaterialTheme.colorScheme.error)
@@ -5341,7 +5446,7 @@ fun EditServicesSection() {
                             videoUrl = videoUrl,
                             thumbnailUrl = videoThumbnailUrl.ifBlank { "https://images.unsplash.com/photo-1438211331416-0be89cc621a8?w=500&q=80" }
                         )
-                        serviceVideosState.add(0, newVideo)
+                        addServiceVideo(newVideo)
                         LocalDataManager.saveAll(context)
                         
                         NotificationHelper.showNotification(
@@ -5385,7 +5490,7 @@ fun EditServicesSection() {
                         Text(vid.videoUrl, style = MaterialTheme.typography.labelSmall, maxLines = 1)
                     }
                     IconButton(onClick = {
-                        serviceVideosState.remove(vid)
+                        removeServiceVideo(vid)
                         LocalDataManager.saveAll(context)
                     }) {
                         Icon(Icons.Default.Delete, contentDescription = "Deletar", tint = MaterialTheme.colorScheme.error)
@@ -5428,7 +5533,7 @@ fun EditPrayersSection() {
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(req.request, style = MaterialTheme.typography.bodyMedium)
                         }
-                        IconButton(onClick = { prayerRequestsState.remove(req) }) {
+                        IconButton(onClick = { removePrayerRequest(req) }) {
                             Icon(Icons.Default.Delete, contentDescription = "Deletar", tint = MaterialTheme.colorScheme.error)
                         }
                     }

@@ -37,8 +37,7 @@ fun BibleReaderModal(
     val context = LocalContext.current
 
     val versions = listOf(
-        "ARA" to "Almeida Revista e Atualizada",
-        "ARC" to "Almeida Revista e Corrigida",
+        "ACF" to "Almeida Corrigida Fiel",
         "NVI" to "Nova Versão Internacional",
         "NTLH" to "Nova Tradução na Linguagem de Hoje"
     )

@@ -102,6 +102,10 @@ fun ContentScreen() {
                                     selectedTab = 2
                                     selectedVideo = contentVideosState.find { it.id == item.id }
                                 }
+                                ContentType.ALBUM -> {
+                                    selectedTab = 3
+                                    selectedAlbum = contentAlbumsState.find { it.id == item.id }
+                                }
                             }
                         },
                         shape = RoundedCornerShape(16.dp)
@@ -192,9 +196,9 @@ fun ContentScreen() {
     }
 }
 
+@OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 @Composable
 fun BooksList(selectedBook: ContentBook?, searchQuery: String, isLocalLoading: Boolean, onBookSelected: (ContentBook?) -> Unit) {
-    
     val filteredBooks = remember(searchQuery, contentBooksState.toList()) {
         if (searchQuery.isBlank()) {
             contentBooksState
@@ -206,57 +210,81 @@ fun BooksList(selectedBook: ContentBook?, searchQuery: String, isLocalLoading: B
         }
     }
 
-
-    if (selectedBook != null) {
-        BookReader(book = selectedBook!!, onBack = { onBookSelected(null) })
-    } else if (isLocalLoading) {
-        LazyColumn(
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            items(3) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp)
+    androidx.compose.animation.SharedTransitionLayout {
+        androidx.compose.animation.AnimatedContent(
+            targetState = selectedBook,
+            label = "book_transition"
+        ) { activeBook ->
+            if (activeBook != null) {
+                BookReader(
+                    book = activeBook, 
+                    onBack = { onBookSelected(null) },
+                    
+                    animatedVisibilityScope = this@AnimatedContent
+                )
+            } else if (isLocalLoading) {
+                LazyColumn(
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(80.dp, 120.dp).clip(RoundedCornerShape(12.dp)).background(shimmerBrush()))
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            SkeletonItem(width = 200.dp, height = 24.dp)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            SkeletonItem(width = 150.dp, height = 16.dp)
+                    items(3) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(24.dp)
+                        ) {
+                            Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Box(modifier = Modifier.size(80.dp, 120.dp).clip(RoundedCornerShape(12.dp)).background(shimmerBrush()))
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    SkeletonItem(width = 200.dp, height = 24.dp)
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    SkeletonItem(width = 150.dp, height = 16.dp)
+                                }
+                            }
                         }
                     }
                 }
-            }
-        }
-    } else {
-
-        LazyColumn(
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            items(filteredBooks) { book ->
-                Card(
-                    modifier = Modifier.fillMaxWidth().clickable { onBookSelected(book) },
-                    
-                    shape = RoundedCornerShape(24.dp)
+            } else {
+                LazyColumn(
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        AsyncImage(
-                            model = book.coverUrl,
-                            contentDescription = "Capa",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.size(80.dp, 120.dp).clip(RoundedCornerShape(12.dp))
-                        )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(book.title, style = MaterialTheme.typography.titleLarge)
-                            Text(book.author, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        if (book.isCached) {
-                            Icon(Icons.Default.CheckCircle, contentDescription = "Baixado", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+                    items(filteredBooks) { book ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth().clickable { onBookSelected(book) }
+                                .sharedElement(
+                                    state = rememberSharedContentState(key = "book_card_${book.id}"),
+                                    animatedVisibilityScope = this@AnimatedContent
+                                ),
+                            shape = RoundedCornerShape(24.dp)
+                        ) {
+                            Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                                AsyncImage(
+                                    model = book.coverUrl,
+                                    contentDescription = "Capa",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.size(80.dp, 120.dp).clip(RoundedCornerShape(12.dp))
+                                        .sharedElement(
+                                            state = rememberSharedContentState(key = "book_cover_${book.id}"),
+                                            animatedVisibilityScope = this@AnimatedContent
+                                        )
+                                )
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        book.title, 
+                                        style = MaterialTheme.typography.titleLarge,
+                                        modifier = Modifier.sharedElement(
+                                            state = rememberSharedContentState(key = "book_title_${book.id}"),
+                                            animatedVisibilityScope = this@AnimatedContent
+                                        )
+                                    )
+                                    Text(book.author, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                if (book.isCached) {
+                                    Icon(Icons.Default.CheckCircle, contentDescription = "Baixado", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+                                }
+                            }
                         }
                     }
                 }
@@ -265,9 +293,14 @@ fun BooksList(selectedBook: ContentBook?, searchQuery: String, isLocalLoading: B
     }
 }
 
+
+@OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 @Composable
-fun BookReader(book: ContentBook, onBack: () -> Unit) {
-    Column(modifier = Modifier.fillMaxSize()) {
+fun androidx.compose.animation.SharedTransitionScope.BookReader(book: ContentBook, onBack: () -> Unit, animatedVisibilityScope: androidx.compose.animation.AnimatedVisibilityScope) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).sharedElement(
+        state = rememberSharedContentState(key = "book_card_${book.id}"),
+        animatedVisibilityScope = animatedVisibilityScope
+    )) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -275,7 +308,26 @@ fun BookReader(book: ContentBook, onBack: () -> Unit) {
             IconButton(onClick = onBack) {
                 Icon(Icons.Default.ArrowBack, contentDescription = "Voltar")
             }
-            Text("Lendo: ${book.title}", style = MaterialTheme.typography.titleMedium)
+            Spacer(modifier = Modifier.width(8.dp))
+            AsyncImage(
+                model = book.coverUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.size(40.dp, 60.dp).clip(RoundedCornerShape(4.dp))
+                    .sharedElement(
+                        state = rememberSharedContentState(key = "book_cover_${book.id}"),
+                        animatedVisibilityScope = animatedVisibilityScope
+                    )
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(
+                book.title, 
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.sharedElement(
+                    state = rememberSharedContentState(key = "book_title_${book.id}"),
+                    animatedVisibilityScope = animatedVisibilityScope
+                )
+            )
         }
         HorizontalDivider()
         if (book.bookUrl.isNotBlank()) {
@@ -293,16 +345,10 @@ fun BookReader(book: ContentBook, onBack: () -> Unit) {
     }
 }
 
+
+@OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 @Composable
 fun AudiosList(selectedAudio: ContentAudio?, searchQuery: String, isLocalLoading: Boolean, onAudioSelected: (ContentAudio?) -> Unit) {
-    if (selectedAudio != null) {
-        ContentAudioPlayerScreen(
-            audio = selectedAudio,
-            onClose = { onAudioSelected(null) }
-        )
-        return
-    }
-
     val filteredAudios = remember(searchQuery, contentAudiosState.toList()) {
         if (searchQuery.isBlank()) {
             contentAudiosState
@@ -316,74 +362,104 @@ fun AudiosList(selectedAudio: ContentAudio?, searchQuery: String, isLocalLoading
 
     val context = LocalContext.current
     
-    Column(modifier = Modifier.fillMaxSize()) {
-        if (isLocalLoading) {
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                items(4) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(24.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                    ) {
-                        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Box(modifier = Modifier.size(60.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)))
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Box(modifier = Modifier.fillMaxWidth(0.7f).height(16.dp).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f), RoundedCornerShape(4.dp)))
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Box(modifier = Modifier.fillMaxWidth(0.4f).height(12.dp).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f), RoundedCornerShape(4.dp)))
+    androidx.compose.animation.SharedTransitionLayout {
+        androidx.compose.animation.AnimatedContent(
+            targetState = selectedAudio,
+            label = "audio_transition"
+        ) { activeAudio ->
+            if (activeAudio != null) {
+                ContentAudioPlayerScreen(
+                    audio = activeAudio,
+                    onClose = { onAudioSelected(null) },
+                    animatedVisibilityScope = this@AnimatedContent
+                )
+            } else {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    if (isLocalLoading) {
+                        LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            items(4) {
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(24.dp),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                                ) {
+                                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Box(modifier = Modifier.size(60.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)))
+                                        Spacer(modifier = Modifier.width(16.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Box(modifier = Modifier.fillMaxWidth(0.7f).height(16.dp).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f), RoundedCornerShape(4.dp)))
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Box(modifier = Modifier.fillMaxWidth(0.4f).height(12.dp).background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f), RoundedCornerShape(4.dp)))
+                                        }
+                                    }
+                                }
                             }
                         }
-                    }
-                }
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                items(filteredAudios) { audio ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onAudioSelected(audio) },
-                        shape = RoundedCornerShape(24.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
-                    ) {
-                        Column {
-                            Row(
-                                modifier = Modifier.padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                AsyncImage(
-                                    model = audio.coverUrl,
-                                    contentDescription = "Capa",
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.size(60.dp).clip(RoundedCornerShape(12.dp))
-                                )
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(audio.title, style = MaterialTheme.typography.titleMedium)
-                                    Text(audio.artist, style = MaterialTheme.typography.bodySmall)
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            items(filteredAudios) { audio ->
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { onAudioSelected(audio) }
+                                        .sharedElement(
+                                            state = rememberSharedContentState(key = "audio_card_${audio.id}"),
+                                            animatedVisibilityScope = this@AnimatedContent
+                                        ),
+                                    shape = RoundedCornerShape(24.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                    )
+                                ) {
+                                    Column {
+                                        Row(
+                                            modifier = Modifier.padding(16.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            AsyncImage(
+                                                model = audio.coverUrl,
+                                                contentDescription = "Capa",
+                                                contentScale = ContentScale.Crop,
+                                                modifier = Modifier.size(60.dp).clip(RoundedCornerShape(12.dp))
+                                                    .sharedElement(
+                                                        state = rememberSharedContentState(key = "audio_cover_${audio.id}"),
+                                                        animatedVisibilityScope = this@AnimatedContent
+                                                    )
+                                            )
+                                            Spacer(modifier = Modifier.width(16.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    audio.title, 
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    modifier = Modifier.sharedElement(
+                                                        state = rememberSharedContentState(key = "audio_title_${audio.id}"),
+                                                        animatedVisibilityScope = this@AnimatedContent
+                                                    )
+                                                )
+                                                Text(audio.artist, style = MaterialTheme.typography.bodySmall)
+                                            }
+                                            if (audio.isCached) {
+                                                Icon(Icons.Default.CheckCircle, contentDescription = "Baixado", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(end = 8.dp).size(24.dp))
+                                            }
+                                        }
+                                        if (audio.progress > 0f) {
+                                            LinearProgressIndicator(
+                                                progress = { audio.progress },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                color = MaterialTheme.colorScheme.primary,
+                                                trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
+                                            )
+                                        }
+                                    }
                                 }
-                                if (audio.isCached) {
-                                    Icon(Icons.Default.CheckCircle, contentDescription = "Baixado", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(end = 8.dp).size(24.dp))
-                                }
-                            }
-                            if (audio.progress > 0f) {
-                                LinearProgressIndicator(
-                                    progress = { audio.progress },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    color = MaterialTheme.colorScheme.primary,
-                                    trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
-                                )
                             }
                         }
                     }
@@ -392,6 +468,7 @@ fun AudiosList(selectedAudio: ContentAudio?, searchQuery: String, isLocalLoading
         }
     }
 }
+
 
 @Composable
 fun VideosList(selectedVideo: ContentVideo?, searchQuery: String, isLocalLoading: Boolean, onVideoSelected: (ContentVideo?) -> Unit) {

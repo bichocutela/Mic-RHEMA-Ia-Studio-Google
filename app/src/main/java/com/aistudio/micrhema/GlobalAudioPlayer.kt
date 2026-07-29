@@ -75,13 +75,52 @@ object GlobalAudioPlayer {
                 playerController = controller
                 controller.addListener(object : Player.Listener {
                     override fun onIsPlayingChanged(playing: Boolean) {
+                        android.util.Log.d("ExoPlayerLog", "MediaController: onIsPlayingChanged: $playing")
                         isPlaying.value = playing
                     }
 
                     override fun onPlaybackStateChanged(state: Int) {
+                        val stateStr = when(state) {
+                            Player.STATE_IDLE -> "STATE_IDLE"
+                            Player.STATE_BUFFERING -> "STATE_BUFFERING"
+                            Player.STATE_READY -> "STATE_READY"
+                            Player.STATE_ENDED -> "STATE_ENDED"
+                            else -> "UNKNOWN"
+                        }
+                        android.util.Log.d("ExoPlayerLog", "MediaController: onPlaybackStateChanged: $stateStr")
                         isBuffering.value = (state == Player.STATE_BUFFERING)
                         if (state == Player.STATE_READY) {
-                            durationMs.value = controller.duration.coerceAtLeast(0L)
+                            val dur = controller.duration.coerceAtLeast(0L)
+                            android.util.Log.d("ExoPlayerLog", "MediaController: duration updated: $dur")
+                            durationMs.value = dur
+                        }
+                    }
+
+                    override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                        android.util.Log.e("ExoPlayerLog", "MediaController: onPlayerError: ${error.message}", error)
+                    }
+
+                    override fun onPositionDiscontinuity(
+                        oldPosition: Player.PositionInfo,
+                        newPosition: Player.PositionInfo,
+                        reason: Int
+                    ) {
+                        android.util.Log.d("ExoPlayerLog", "MediaController: onPositionDiscontinuity reason: $reason, newPos: ${newPosition.positionMs}")
+                        currentPositionMs.value = newPosition.positionMs.coerceAtLeast(0L)
+                    }
+                    
+                    override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                        super.onMediaItemTransition(mediaItem, reason)
+                        mediaItem?.mediaMetadata?.let { metadata ->
+                            if (currentTrack.value == null || (metadata.title.toString() != currentTrack.value?.title)) {
+                                currentTrack.value = AudioTrack(
+                                    id = System.currentTimeMillis().toString(),
+                                    title = metadata.title?.toString() ?: "Desconhecido",
+                                    subtitle = metadata.artist?.toString() ?: "",
+                                    audioUrl = mediaItem.localConfiguration?.uri?.toString() ?: "",
+                                    coverUrl = metadata.artworkUri?.toString() ?: ""
+                                )
+                            }
                         }
                     }
                 })
@@ -103,13 +142,52 @@ object GlobalAudioPlayer {
                     .build()
                 fallbackPlayer.addListener(object : Player.Listener {
                     override fun onIsPlayingChanged(playing: Boolean) {
+                        android.util.Log.d("ExoPlayerLog", "FallbackPlayer: onIsPlayingChanged: $playing")
                         isPlaying.value = playing
                     }
 
                     override fun onPlaybackStateChanged(state: Int) {
+                        val stateStr = when(state) {
+                            Player.STATE_IDLE -> "STATE_IDLE"
+                            Player.STATE_BUFFERING -> "STATE_BUFFERING"
+                            Player.STATE_READY -> "STATE_READY"
+                            Player.STATE_ENDED -> "STATE_ENDED"
+                            else -> "UNKNOWN"
+                        }
+                        android.util.Log.d("ExoPlayerLog", "FallbackPlayer: onPlaybackStateChanged: $stateStr")
                         isBuffering.value = (state == Player.STATE_BUFFERING)
                         if (state == Player.STATE_READY) {
-                            durationMs.value = fallbackPlayer.duration.coerceAtLeast(0L)
+                            val dur = fallbackPlayer.duration.coerceAtLeast(0L)
+                            android.util.Log.d("ExoPlayerLog", "FallbackPlayer: duration updated: $dur")
+                            durationMs.value = dur
+                        }
+                    }
+
+                    override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                        android.util.Log.e("ExoPlayerLog", "FallbackPlayer: onPlayerError: ${error.message}", error)
+                    }
+
+                    override fun onPositionDiscontinuity(
+                        oldPosition: Player.PositionInfo,
+                        newPosition: Player.PositionInfo,
+                        reason: Int
+                    ) {
+                        android.util.Log.d("ExoPlayerLog", "FallbackPlayer: onPositionDiscontinuity reason: $reason, newPos: ${newPosition.positionMs}")
+                        currentPositionMs.value = newPosition.positionMs.coerceAtLeast(0L)
+                    }
+                    
+                    override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                        super.onMediaItemTransition(mediaItem, reason)
+                        mediaItem?.mediaMetadata?.let { metadata ->
+                            if (currentTrack.value == null || (metadata.title.toString() != currentTrack.value?.title)) {
+                                currentTrack.value = AudioTrack(
+                                    id = System.currentTimeMillis().toString(),
+                                    title = metadata.title?.toString() ?: "Desconhecido",
+                                    subtitle = metadata.artist?.toString() ?: "",
+                                    audioUrl = mediaItem.localConfiguration?.uri?.toString() ?: "",
+                                    coverUrl = metadata.artworkUri?.toString() ?: ""
+                                )
+                            }
                         }
                     }
                 })
@@ -208,10 +286,9 @@ object GlobalAudioPlayer {
 
     fun updateProgress(context: Context) {
         val player = playerController ?: return
-        if (player.isPlaying) {
-            currentPositionMs.value = player.currentPosition.coerceAtLeast(0L)
-            durationMs.value = player.duration.coerceAtLeast(0L)
-        }
+        currentPositionMs.value = player.currentPosition.coerceAtLeast(0L)
+        durationMs.value = player.duration.coerceAtLeast(0L)
+        playbackSpeed.value = player.playbackParameters.speed
     }
 }
 
@@ -446,170 +523,157 @@ fun ExpandedAudioPlayerModal() {
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Vinyl / Artwork Canvas
-            Box(
-                modifier = Modifier
-                    .size(240.dp)
-                    .clip(CircleShape)
-                    .background(
-                        Brush.radialGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.primaryContainer,
-                                MaterialTheme.colorScheme.surfaceVariant
-                            )
-                        )
-                    )
-                    .rotate(if (isPlaying) rotationAnim else 0f),
-                contentAlignment = Alignment.Center
+            // Main Horizontal Layout
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                if (track.coverUrl.isNotEmpty()) {
-                    AsyncImage(
-                        model = track.coverUrl,
-                        contentDescription = track.title,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clip(CircleShape),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .size(200.dp)
-                            .clip(CircleShape)
-                            .background(Color.Black.copy(alpha = 0.85f)),
-                        contentAlignment = Alignment.Center
-                    ) {
+                // Compact Artwork
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (track.coverUrl.isNotEmpty()) {
+                        AsyncImage(
+                            model = track.coverUrl,
+                            contentDescription = track.title,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
                         Icon(
                             imageVector = Icons.Default.MusicNote,
                             contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(80.dp)
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(32.dp)
                         )
                     }
                 }
 
-                // Center vinyl hole
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surface)
-                )
-            }
+                Spacer(modifier = Modifier.width(16.dp))
 
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Title & Preletor
-            Text(
-                text = track.title,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = track.subtitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Seek Bar
-            Slider(
-                value = effectivePos.toFloat(),
-                onValueChange = {
-                    isUserSeeking = true
-                    sliderPos = it
-                },
-                onValueChangeFinished = {
-                    isUserSeeking = false
-                    GlobalAudioPlayer.seekTo(context, sliderPos.toLong())
-                },
-                valueRange = 0f..(duration.toFloat().coerceAtLeast(1f)),
-                colors = SliderDefaults.colors(
-                    thumbColor = MaterialTheme.colorScheme.primary,
-                    activeTrackColor = MaterialTheme.colorScheme.primary,
-                    inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-                ),
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = formatAudioTime(effectivePos),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = formatAudioTime(duration),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Player Controls: Rewind 10s | Play/Pause | Forward 10s
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(24.dp)
-            ) {
-                IconButton(
-                    onClick = { GlobalAudioPlayer.seekBackward(context, 10000L) },
-                    modifier = Modifier.size(48.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Replay10,
-                        contentDescription = "Voltar 10s",
-                        modifier = Modifier.size(32.dp),
-                        tint = MaterialTheme.colorScheme.onSurface
+                // Track Info & Controls
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = track.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
-                }
+                    Text(
+                        text = track.subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
 
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier
-                        .size(64.dp)
-                        .clickable { GlobalAudioPlayer.togglePlayPause(context) }
-                ) {
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                        if (isBuffering) {
-                            CircularProgressIndicator(
-                                color = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(32.dp),
-                                strokeWidth = 3.dp
-                            )
-                        } else {
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        IconButton(
+                            onClick = { GlobalAudioPlayer.seekBackward(context, 10000L) },
+                            modifier = Modifier.size(36.dp)
+                        ) {
                             Icon(
-                                imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                contentDescription = if (isPlaying) "Pausar" else "Reproduzir",
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(36.dp)
+                                imageVector = Icons.Default.Replay10,
+                                contentDescription = "Voltar 10s",
+                                modifier = Modifier.size(24.dp),
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clickable { GlobalAudioPlayer.togglePlayPause(context) }
+                        ) {
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                if (isBuffering) {
+                                    CircularProgressIndicator(
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier.size(24.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                        contentDescription = if (isPlaying) "Pausar" else "Reproduzir",
+                                        tint = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        IconButton(
+                            onClick = { GlobalAudioPlayer.seekForward(context, 10000L) },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Forward10,
+                                contentDescription = "Avançar 10s",
+                                modifier = Modifier.size(24.dp),
+                                tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
                 }
-
-                IconButton(
-                    onClick = { GlobalAudioPlayer.seekForward(context, 10000L) },
-                    modifier = Modifier.size(48.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Forward10,
-                        contentDescription = "Avançar 10s",
-                        modifier = Modifier.size(32.dp),
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Seek Bar
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = formatAudioTime(effectivePos),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.width(44.dp)
+                )
+
+                Slider(
+                    value = effectivePos.toFloat(),
+                    onValueChange = {
+                        isUserSeeking = true
+                        sliderPos = it
+                    },
+                    onValueChangeFinished = {
+                        isUserSeeking = false
+                        GlobalAudioPlayer.seekTo(context, sliderPos.toLong())
+                    },
+                    valueRange = 0f..(duration.toFloat().coerceAtLeast(1f)),
+                    colors = SliderDefaults.colors(
+                        thumbColor = MaterialTheme.colorScheme.primary,
+                        activeTrackColor = MaterialTheme.colorScheme.primary,
+                        inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                    ),
+                    modifier = Modifier.weight(1f).padding(horizontal = 4.dp)
+                )
+
+                Text(
+                    text = formatAudioTime(duration),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.width(44.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.End
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Speed Selector Chips
             Row(

@@ -206,7 +206,7 @@ fun AdminTabsScreen() {
                         order = appTabsState.size,
                         type = selectedType
                     )
-                    appTabsState.add(newTab)
+                    addAppTab(newTab)
                     showAddDialog = false
                 }, enabled = newTitle.isNotBlank()) {
                     Text("Adicionar")

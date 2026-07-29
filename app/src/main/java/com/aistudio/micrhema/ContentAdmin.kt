@@ -18,6 +18,8 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun EditContentSection() {
+    val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
+    var isUploading by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
     DisposableEffect(Unit) {
         onDispose {
@@ -41,15 +43,25 @@ fun EditContentSection() {
                 Text("Adicionar Livro", fontWeight = FontWeight.Bold)
                 var title by remember { mutableStateOf("") }
                 var author by remember { mutableStateOf("") }
+                var coverUrl by remember { mutableStateOf("") }
                 GlassTextField(value = title, onValueChange = { title = it }, label = { Text("Título do Livro") }, modifier = Modifier.fillMaxWidth())
                 GlassTextField(value = author, onValueChange = { author = it }, label = { Text("Autor (e.g. PDF/Epub Simulado)") }, modifier = Modifier.fillMaxWidth())
+                LocalUploadField(value = coverUrl, onValueChange = { coverUrl = it }, label = "Capa do Livro (URL da imagem)", mimeType = "image/*")
                 var bookUrl by remember { mutableStateOf("") }
                 LocalUploadField(value = bookUrl, onValueChange = { bookUrl = it }, label = "Arquivo do Livro (URL ou PDF/Epub)", mimeType = "*/*")
                 GlassButton(onClick = {
-                    contentBooksState.add(ContentBook(id = System.currentTimeMillis().toString(), title = title, author = author, coverUrl = "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=500&q=80", contentText = "Conteúdo do livro carregado...", bookUrl = bookUrl))
-                    title = ""
-                    author = ""
-                    bookUrl = ""
+                    if (isUploading) return@GlassButton
+                    isUploading = true
+                    coroutineScope.launch {
+                        val finalCover = if (coverUrl.isNotBlank() && !coverUrl.startsWith("http")) StorageManager.uploadFile(android.net.Uri.parse(coverUrl), "books/covers") else coverUrl.ifEmpty { "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=500&q=80" }
+                        val finalBookUrl = if (bookUrl.isNotBlank() && !bookUrl.startsWith("http")) StorageManager.uploadFile(android.net.Uri.parse(bookUrl), "books/files") else bookUrl
+                        addContentBook(ContentBook(id = System.currentTimeMillis().toString(), title = title, author = author, coverUrl = finalCover, contentText = "Conteúdo do livro carregado...", bookUrl = finalBookUrl))
+                        title = ""
+                        author = ""
+                        coverUrl = ""
+                        bookUrl = ""
+                        isUploading = false
+                    }
                 }, modifier = Modifier.padding(top = 8.dp)) {
                     Text("Salvar Livro")
                 }
@@ -66,7 +78,7 @@ fun EditContentSection() {
                     }
                     Row {
                         IconButton(onClick = { editingBook = book }) { Icon(Icons.Default.Edit, contentDescription = "Editar", tint = MaterialTheme.colorScheme.primary) }
-                        IconButton(onClick = { contentBooksState.remove(book) }) { Icon(Icons.Default.Delete, contentDescription = "Excluir", tint = MaterialTheme.colorScheme.error) }
+                        IconButton(onClick = { removeContentBook(book) }) { Icon(Icons.Default.Delete, contentDescription = "Excluir", tint = MaterialTheme.colorScheme.error) }
                     }
                 }
             }
@@ -81,14 +93,23 @@ fun EditContentSection() {
                 var audioTitle by remember { mutableStateOf("") }
                 var audioArtist by remember { mutableStateOf("") }
                 var audioUrl by remember { mutableStateOf("") }
+                var audioCover by remember { mutableStateOf("") }
                 GlassTextField(value = audioTitle, onValueChange = { audioTitle = it }, label = { Text("Título") }, modifier = Modifier.fillMaxWidth())
                 GlassTextField(value = audioArtist, onValueChange = { audioArtist = it }, label = { Text("Artista/Preletor") }, modifier = Modifier.fillMaxWidth())
                 LocalUploadField(value = audioUrl, onValueChange = { audioUrl = it }, label = "URL ou Arquivo Local MP3", mimeType = "audio/*")
                 GlassButton(onClick = {
-                    contentAudiosState.add(ContentAudio(id = System.currentTimeMillis().toString(), title = audioTitle, artist = audioArtist, audioUrl = audioUrl.ifEmpty { "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" }, coverUrl = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80"))
-                    audioTitle = ""
-                    audioArtist = ""
-                    audioUrl = ""
+                    if (isUploading) return@GlassButton
+                    isUploading = true
+                    coroutineScope.launch {
+                        val finalCoverUrl = if (audioCover.isNotBlank() && !audioCover.startsWith("http")) StorageManager.uploadFile(android.net.Uri.parse(audioCover), "audios/covers") else audioCover.ifEmpty { "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80" }
+                        val finalAudioUrl = if (audioUrl.isNotBlank() && !audioUrl.startsWith("http")) StorageManager.uploadFile(android.net.Uri.parse(audioUrl), "audios/files") else audioUrl.ifEmpty { "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" }
+                        addContentAudio(ContentAudio(id = System.currentTimeMillis().toString(), title = audioTitle, artist = audioArtist, audioUrl = finalAudioUrl, coverUrl = finalCoverUrl))
+                        audioTitle = ""
+                        audioArtist = ""
+                        audioUrl = ""
+                        audioCover = ""
+                        isUploading = false
+                    }
                 }, modifier = Modifier.padding(top = 8.dp)) {
                     Text("Salvar Áudio")
                 }
@@ -105,7 +126,7 @@ fun EditContentSection() {
                     }
                     Row {
                         IconButton(onClick = { editingAudio = audio }) { Icon(Icons.Default.Edit, contentDescription = "Editar", tint = MaterialTheme.colorScheme.primary) }
-                        IconButton(onClick = { contentAudiosState.remove(audio) }) { Icon(Icons.Default.Delete, contentDescription = "Excluir", tint = MaterialTheme.colorScheme.error) }
+                        IconButton(onClick = { removeContentAudio(audio) }) { Icon(Icons.Default.Delete, contentDescription = "Excluir", tint = MaterialTheme.colorScheme.error) }
                     }
                 }
             }
@@ -124,10 +145,16 @@ fun EditContentSection() {
                 GlassTextField(value = videoDesc, onValueChange = { videoDesc = it }, label = { Text("Descrição") }, modifier = Modifier.fillMaxWidth())
                 LocalUploadField(value = videoUrl, onValueChange = { videoUrl = it }, label = "URL ou Arquivo Local MP4", mimeType = "video/*")
                 GlassButton(onClick = {
-                    contentVideosState.add(ContentVideo(id = System.currentTimeMillis().toString(), title = videoTitle, description = videoDesc, videoUrl = videoUrl.ifEmpty { "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" }, thumbnailUrl = "https://images.unsplash.com/photo-1505764761634-1d77b57e1966?w=500&q=80"))
-                    videoTitle = ""
-                    videoDesc = ""
-                    videoUrl = ""
+                    if (isUploading) return@GlassButton
+                    isUploading = true
+                    coroutineScope.launch {
+                        val finalVideoUrl = if (videoUrl.isNotBlank() && !videoUrl.startsWith("http")) StorageManager.uploadFile(android.net.Uri.parse(videoUrl), "videos/files") else videoUrl.ifEmpty { "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" }
+                        addContentVideo(ContentVideo(id = System.currentTimeMillis().toString(), title = videoTitle, description = videoDesc, videoUrl = finalVideoUrl, thumbnailUrl = "https://images.unsplash.com/photo-1505764761634-1d77b57e1966?w=500&q=80"))
+                        videoTitle = ""
+                        videoDesc = ""
+                        videoUrl = ""
+                        isUploading = false
+                    }
                 }, modifier = Modifier.padding(top = 8.dp)) {
                     Text("Salvar Vídeo")
                 }
@@ -144,7 +171,7 @@ fun EditContentSection() {
                     }
                     Row {
                         IconButton(onClick = { editingVideo = video }) { Icon(Icons.Default.Edit, contentDescription = "Editar", tint = MaterialTheme.colorScheme.primary) }
-                        IconButton(onClick = { contentVideosState.remove(video) }) { Icon(Icons.Default.Delete, contentDescription = "Excluir", tint = MaterialTheme.colorScheme.error) }
+                        IconButton(onClick = { removeContentVideo(video) }) { Icon(Icons.Default.Delete, contentDescription = "Excluir", tint = MaterialTheme.colorScheme.error) }
                     }
                 }
             }
@@ -184,7 +211,7 @@ fun EditContentSection() {
 
                 Button(onClick = {
                     if (customCoverUri != null) {
-                        contentAlbumsState.add(ContentPhotoAlbum(id = System.currentTimeMillis().toString(), title = albumTitle, description = albumDesc, coverUrl = customCoverUri.toString(), photos = listOf(AlbumPhoto(url = customCoverUri.toString(), caption = ""))))
+                        addContentPhotoAlbum(ContentPhotoAlbum(id = System.currentTimeMillis().toString(), title = albumTitle, description = albumDesc, coverUrl = customCoverUri.toString(), photos = listOf(AlbumPhoto(url = customCoverUri.toString(), caption = ""))))
                         albumTitle = ""
                         albumDesc = ""
                         customCoverUri = null
@@ -193,7 +220,7 @@ fun EditContentSection() {
                         scope.launch {
                             val generatedCover = generatePlaceholderAlbumCover("A beautiful abstract aesthetic background suitable for a photo album cover titled '$albumTitle'. Minimalist, pastel colors.")
                             val finalCoverUrl = generatedCover ?: "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=500&q=80" // Fallback se a API não estiver configurada
-                            contentAlbumsState.add(ContentPhotoAlbum(id = System.currentTimeMillis().toString(), title = albumTitle, description = albumDesc, coverUrl = finalCoverUrl))
+                            addContentPhotoAlbum(ContentPhotoAlbum(id = System.currentTimeMillis().toString(), title = albumTitle, description = albumDesc, coverUrl = finalCoverUrl))
                             isGenerating = false
                             albumTitle = ""
                             albumDesc = ""
@@ -258,7 +285,7 @@ fun EditContentSection() {
                             
                             val idx = contentAlbumsState.indexOfFirst { it.id == albumToDelete!!.id }
                             if (idx != -1) {
-                                contentAlbumsState.removeAt(idx)
+                                removeContentPhotoAlbum(albumToDelete!!)
                             }
                             isDeleting = false
                             albumToDelete = null
@@ -278,6 +305,7 @@ fun EditContentSection() {
     if (editingBook != null) {
         var editTitle by remember(editingBook) { mutableStateOf(editingBook!!.title) }
         var editAuthor by remember(editingBook) { mutableStateOf(editingBook!!.author) }
+        var editCoverUrl by remember(editingBook) { mutableStateOf(editingBook!!.coverUrl) }
         var editContent by remember(editingBook) { mutableStateOf(editingBook!!.contentText) }
         var editBookUrl by remember(editingBook) { mutableStateOf(editingBook!!.bookUrl) }
         
@@ -288,6 +316,7 @@ fun EditContentSection() {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     GlassTextField(value = editTitle, onValueChange = { editTitle = it }, label = { Text("Título") })
                     GlassTextField(value = editAuthor, onValueChange = { editAuthor = it }, label = { Text("Autor") })
+                    LocalUploadField(value = editCoverUrl, onValueChange = { editCoverUrl = it }, label = "Capa do Livro (URL)", mimeType = "image/*")
                     GlassTextField(value = editContent, onValueChange = { editContent = it }, label = { Text("Conteúdo") })
                     LocalUploadField(value = editBookUrl, onValueChange = { editBookUrl = it }, label = "Arquivo do Livro", mimeType = "*/*")
                 }
@@ -296,7 +325,7 @@ fun EditContentSection() {
                 TextButton(onClick = {
                     val idx = contentBooksState.indexOfFirst { it.id == editingBook!!.id }
                     if (idx != -1) {
-                        contentBooksState[idx] = editingBook!!.copy(title = editTitle, author = editAuthor, contentText = editContent, bookUrl = editBookUrl)
+                        contentBooksState[idx] = editingBook!!.copy(title = editTitle, author = editAuthor, coverUrl = editCoverUrl, contentText = editContent, bookUrl = editBookUrl)
                     }
                     editingBook = null
                 }) { Text("Salvar") }
