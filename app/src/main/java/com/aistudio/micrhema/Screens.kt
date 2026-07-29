@@ -3105,8 +3105,8 @@ fun IbrMediaPlayerView(
                     .border(1.dp, Color.DarkGray, RoundedCornerShape(32.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                if (playbackType == "video" || chapter.isYoutube) {
-                    if (chapter.isYoutube) {
+                if (playbackType == "video" || chapter.isYoutube || isYoutubeUrl(chapter.videoUrl)) {
+                    if (chapter.isYoutube || isYoutubeUrl(chapter.videoUrl)) {
                         YoutubePlayer(
                             videoUrl = chapter.videoUrl,
                             youtubeId = chapter.youtubeId,
@@ -4247,11 +4247,15 @@ fun EditIbrSection() {
                         val chapterIdx = course.chapters.indexOfFirst { it.id == editingChapter!!.id }
                         if (chapterIdx != -1) {
                             val updatedChapters = course.chapters.toMutableList()
+                            val isYt = isYoutubeUrl(editVideoUrl)
+                            val ytId = extractYoutubeId(editVideoUrl) ?: ""
                             updatedChapters[chapterIdx] = editingChapter!!.copy(
                                 title = editTitle,
                                 description = editDescription,
                                 durationMinutes = editDuration.toIntOrNull() ?: editingChapter!!.durationMinutes,
-                                videoUrl = editVideoUrl
+                                videoUrl = editVideoUrl,
+                                isYoutube = isYt,
+                                youtubeId = ytId
                             )
                             ibrCoursesState[courseIdx] = course.copy(chapters = updatedChapters)
                         }

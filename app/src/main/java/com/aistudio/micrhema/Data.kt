@@ -484,7 +484,9 @@ val ibrCoursesState = mutableStateListOf<IbrCourse>(
                 title = "Aula 1: O que é Teologia?",
                 description = "Conceito, importância e o método do estudo teológico sistemático na caminhada cristã.",
                 durationMinutes = 45,
-                videoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+                videoUrl = "https://m.youtube.com/watch?v=SKsJdyi4eUE",
+                isYoutube = true,
+                youtubeId = "SKsJdyi4eUE",
                 audioUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"
             ),
             IbrChapter(

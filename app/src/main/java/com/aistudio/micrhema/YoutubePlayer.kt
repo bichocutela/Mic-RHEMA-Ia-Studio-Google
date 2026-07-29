@@ -1,36 +1,54 @@
 package com.aistudio.micrhema
 
-import android.util.Log
-import android.webkit.CookieManager
-import android.webkit.WebChromeClient
-import android.webkit.WebResourceError
-import android.webkit.WebResourceRequest
-import android.webkit.WebSettings
-import android.webkit.WebView
-import android.webkit.WebViewClient
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 fun extractYoutubeId(url: String): String? {
     if (url.isBlank()) return null
     val cleanUrl = url.trim()
+    val lowerUrl = cleanUrl.lowercase()
     return when {
-        cleanUrl.contains("v=") -> cleanUrl.substringAfter("v=").substringBefore("&").substringBefore("?").substringBefore("/").substringBefore("#")
-        cleanUrl.contains("youtu.be/") -> cleanUrl.substringAfter("youtu.be/").substringBefore("?").substringBefore("&").substringBefore("/").substringBefore("#")
-        cleanUrl.contains("youtube.com/shorts/") -> cleanUrl.substringAfter("youtube.com/shorts/").substringBefore("?").substringBefore("&").substringBefore("/").substringBefore("#")
-        cleanUrl.contains("youtube.com/live/") -> cleanUrl.substringAfter("youtube.com/live/").substringBefore("?").substringBefore("&").substringBefore("/").substringBefore("#")
-        cleanUrl.contains("youtube.com/embed/") -> cleanUrl.substringAfter("youtube.com/embed/").substringBefore("?").substringBefore("&").substringBefore("/").substringBefore("#")
-        !cleanUrl.contains("http") && !cleanUrl.contains("/") && cleanUrl.length >= 8 -> cleanUrl
+        lowerUrl.contains("v=") -> cleanUrl.substringAfter("v=").substringBefore("&").substringBefore("?").substringBefore("/").substringBefore("#")
+        lowerUrl.contains("youtu.be/") -> cleanUrl.substringAfter("youtu.be/", "youtu.be/").substringBefore("?").substringBefore("&").substringBefore("/").substringBefore("#").let { if (it.lowercase() == lowerUrl) cleanUrl.substringAfter("YOUTU.BE/") else it }
+        lowerUrl.contains("youtube.com/shorts/") -> cleanUrl.substringAfter("youtube.com/shorts/", "youtube.com/shorts/").substringBefore("?").substringBefore("&").substringBefore("/").substringBefore("#").let { if (it.lowercase() == lowerUrl) cleanUrl.substringAfter("YOUTUBE.COM/SHORTS/") else it }
+        lowerUrl.contains("youtube.com/live/") -> cleanUrl.substringAfter("youtube.com/live/", "youtube.com/live/").substringBefore("?").substringBefore("&").substringBefore("/").substringBefore("#").let { if (it.lowercase() == lowerUrl) cleanUrl.substringAfter("YOUTUBE.COM/LIVE/") else it }
+        lowerUrl.contains("youtube.com/embed/") -> cleanUrl.substringAfter("youtube.com/embed/", "youtube.com/embed/").substringBefore("?").substringBefore("&").substringBefore("/").substringBefore("#").let { if (it.lowercase() == lowerUrl) cleanUrl.substringAfter("YOUTUBE.COM/EMBED/") else it }
+        !lowerUrl.contains("http") && !lowerUrl.contains("/") && cleanUrl.length >= 8 -> cleanUrl
         else -> null
     }
 }
 
 fun isYoutubeUrl(url: String): Boolean {
     if (url.isBlank()) return false
-    val cleanUrl = url.trim()
+    val cleanUrl = url.trim().lowercase()
     return cleanUrl.contains("youtube.com") || cleanUrl.contains("youtu.be") || extractYoutubeId(cleanUrl) != null
 }
 
@@ -41,78 +59,57 @@ fun YoutubePlayer(
     modifier: Modifier = Modifier,
     onError: ((String) -> Unit)? = null
 ) {
-    val embedUrl = remember(videoUrl, youtubeId) {
-        val url = videoUrl.trim()
-        val extractedId = extractYoutubeId(url) ?: youtubeId.ifEmpty { null }
-        if (extractedId != null) {
-            "https://www.youtube.com/embed/$extractedId?autoplay=1&fs=1&rel=0&modestbranding=1&playsinline=1"
-        } else if (url.contains("youtube.com/embed/")) {
-            url
-        } else {
-            url
-        }
+    val context = LocalContext.current
+    val extractedId = remember(videoUrl, youtubeId) {
+        extractYoutubeId(videoUrl) ?: youtubeId.ifEmpty { null }
     }
 
-    AndroidView(
-        factory = { ctx ->
-            WebView(ctx).apply {
-                settings.apply {
-                    javaScriptEnabled = true
-                    domStorageEnabled = true
-                    mediaPlaybackRequiresUserGesture = false
-                    mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                    userAgentString = "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Mobile Safari/537.36"
-                }
-                CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-                webChromeClient = WebChromeClient()
-                webViewClient = object : WebViewClient() {
-                    override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                        return false
-                    }
+    if (extractedId == null) {
+        Box(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.errorContainer), contentAlignment = Alignment.Center) {
+            Text("Vídeo inválido", color = MaterialTheme.colorScheme.onErrorContainer)
+        }
+        return
+    }
 
-                    override fun onReceivedError(
-                        view: WebView?,
-                        request: WebResourceRequest?,
-                        error: WebResourceError?
-                    ) {
-                        super.onReceivedError(view, request, error)
-                        if (request?.isForMainFrame == true) {
-                            val errMessage = "Erro ao carregar vídeo do YouTube: ${error?.description ?: "Sem conexão"}"
-                            Log.e("YoutubePlayer", errMessage)
-                            onError?.invoke(errMessage)
-                        }
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xFF111116)),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.PlayArrow,
+                contentDescription = "Assistir Vídeo",
+                tint = Color.White,
+                modifier = Modifier.size(48.dp)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(
+                onClick = {
+                    try {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(videoUrl))
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        onError?.invoke("Não foi possível abrir o link do vídeo.")
                     }
-                }
-                setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) {
+                Text("Assistir Vídeo Externamente", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
-        },
-        update = { webView ->
-            val html = """
-                <!DOCTYPE html>
-                <html>
-                  <head>
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-                    <style>
-                      * { margin: 0; padding: 0; box-sizing: border-box; }
-                      body, html { width: 100%; height: 100%; background-color: #000000; overflow: hidden; }
-                      iframe { width: 100%; height: 100%; border: none; }
-                    </style>
-                  </head>
-                  <body>
-                    <iframe 
-                      id="ytplayer"
-                      type="text/html"
-                      src="$embedUrl" 
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
-                      allowfullscreen>
-                    </iframe>
-                  </body>
-                </html>
-            """.trimIndent()
-            webView.loadDataWithBaseURL("https://www.youtube.com", html, "text/html", "UTF-8", null)
-        },
-        modifier = modifier.fillMaxSize()
-    )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "O vídeo será aberto no YouTube ou no navegador.",
+                color = Color.LightGray,
+                fontSize = 12.sp,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
 }
-
-
