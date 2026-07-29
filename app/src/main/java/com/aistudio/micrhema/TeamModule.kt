@@ -129,7 +129,7 @@ fun TeamScreen() {
             items(filteredMembers, key = { it.id }) { member ->
                 TeamMemberCard(
                     member = member, 
-                    modifier = Modifier.animateItemPlacement(tween(300)),
+                    modifier = Modifier.animateItem(tween(300)),
                     onEditClick = { editingMember = member }
                 )
             }

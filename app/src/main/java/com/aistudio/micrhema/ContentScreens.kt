@@ -278,12 +278,16 @@ fun BookReader(book: ContentBook, onBack: () -> Unit) {
             Text("Lendo: ${book.title}", style = MaterialTheme.typography.titleMedium)
         }
         HorizontalDivider()
-        LazyColumn(contentPadding = PaddingValues(16.dp)) {
-            item {
-                Text(
-                    text = book.contentText,
-                    style = MaterialTheme.typography.bodyLarge
-                )
+        if (book.bookUrl.isNotBlank()) {
+            PdfViewer(bookUrl = book.bookUrl, title = book.title)
+        } else {
+            LazyColumn(contentPadding = PaddingValues(16.dp)) {
+                item {
+                    Text(
+                        text = book.contentText,
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
             }
         }
     }

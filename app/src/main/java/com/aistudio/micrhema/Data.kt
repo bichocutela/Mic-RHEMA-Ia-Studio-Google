@@ -352,7 +352,7 @@ object MemberManager {
                             val member = memberRequestsState.find { it.id == loggedInId }
                             if (member != null) {
                                 loggedInMemberState.value = member
-                loadIbrProgressFromFirestore()
+        loadIbrProgressFromFirestore()
                             }
                         }
                     }
@@ -420,7 +420,7 @@ object MemberManager {
             val member = memberRequestsState.find { it.id == loggedInId }
             if (member != null) {
                 loggedInMemberState.value = member
-                loadIbrProgressFromFirestore()
+        loadIbrProgressFromFirestore()
             }
         }
     }
@@ -435,7 +435,7 @@ object MemberManager {
     
     fun setLoggedInMember(context: android.content.Context, member: MemberRequest?) {
         loggedInMemberState.value = member
-                loadIbrProgressFromFirestore()
+        loadIbrProgressFromFirestore()
         val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
         if (member == null) {
             prefs.edit().remove(KEY_LOGGED_IN_ID).apply()
@@ -596,7 +596,8 @@ data class ContentBook(
     val title: String,
     val author: String,
     val coverUrl: String,
-    val contentText: String, // Mocking the epub/pdf with plain text for this prototype
+    val contentText: String,
+    val bookUrl: String = "",
     val isCached: Boolean = false,
     var progress: Float = 0f,
     var lastPosition: Long = 0L

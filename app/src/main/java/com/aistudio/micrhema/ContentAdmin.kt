@@ -28,6 +28,8 @@ fun EditContentSection() {
     var editingAudio by remember { mutableStateOf<ContentAudio?>(null) }
     var editingVideo by remember { mutableStateOf<ContentVideo?>(null) }
     var editingAlbum by remember { mutableStateOf<ContentPhotoAlbum?>(null) }
+    var albumToDelete by remember { mutableStateOf<ContentPhotoAlbum?>(null) }
+    var isDeleting by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("Gerenciar Conteúdos VIP", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -41,10 +43,13 @@ fun EditContentSection() {
                 var author by remember { mutableStateOf("") }
                 GlassTextField(value = title, onValueChange = { title = it }, label = { Text("Título do Livro") }, modifier = Modifier.fillMaxWidth())
                 GlassTextField(value = author, onValueChange = { author = it }, label = { Text("Autor (e.g. PDF/Epub Simulado)") }, modifier = Modifier.fillMaxWidth())
+                var bookUrl by remember { mutableStateOf("") }
+                LocalUploadField(value = bookUrl, onValueChange = { bookUrl = it }, label = "Arquivo do Livro (URL ou PDF/Epub)", mimeType = "*/*")
                 GlassButton(onClick = {
-                    contentBooksState.add(ContentBook(id = System.currentTimeMillis().toString(), title = title, author = author, coverUrl = "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=500&q=80", contentText = "Conteúdo do livro carregado..."))
+                    contentBooksState.add(ContentBook(id = System.currentTimeMillis().toString(), title = title, author = author, coverUrl = "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=500&q=80", contentText = "Conteúdo do livro carregado...", bookUrl = bookUrl))
                     title = ""
                     author = ""
+                    bookUrl = ""
                 }, modifier = Modifier.padding(top = 8.dp)) {
                     Text("Salvar Livro")
                 }
@@ -78,7 +83,7 @@ fun EditContentSection() {
                 var audioUrl by remember { mutableStateOf("") }
                 GlassTextField(value = audioTitle, onValueChange = { audioTitle = it }, label = { Text("Título") }, modifier = Modifier.fillMaxWidth())
                 GlassTextField(value = audioArtist, onValueChange = { audioArtist = it }, label = { Text("Artista/Preletor") }, modifier = Modifier.fillMaxWidth())
-                GlassTextField(value = audioUrl, onValueChange = { audioUrl = it }, label = { Text("URL do MP3") }, modifier = Modifier.fillMaxWidth())
+                LocalUploadField(value = audioUrl, onValueChange = { audioUrl = it }, label = "URL ou Arquivo Local MP3", mimeType = "audio/*")
                 GlassButton(onClick = {
                     contentAudiosState.add(ContentAudio(id = System.currentTimeMillis().toString(), title = audioTitle, artist = audioArtist, audioUrl = audioUrl.ifEmpty { "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" }, coverUrl = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80"))
                     audioTitle = ""
@@ -117,7 +122,7 @@ fun EditContentSection() {
                 var videoUrl by remember { mutableStateOf("") }
                 GlassTextField(value = videoTitle, onValueChange = { videoTitle = it }, label = { Text("Título") }, modifier = Modifier.fillMaxWidth())
                 GlassTextField(value = videoDesc, onValueChange = { videoDesc = it }, label = { Text("Descrição") }, modifier = Modifier.fillMaxWidth())
-                GlassTextField(value = videoUrl, onValueChange = { videoUrl = it }, label = { Text("URL do Vídeo (MP4/Youtube)") }, modifier = Modifier.fillMaxWidth())
+                LocalUploadField(value = videoUrl, onValueChange = { videoUrl = it }, label = "URL ou Arquivo Local MP4", mimeType = "video/*")
                 GlassButton(onClick = {
                     contentVideosState.add(ContentVideo(id = System.currentTimeMillis().toString(), title = videoTitle, description = videoDesc, videoUrl = videoUrl.ifEmpty { "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" }, thumbnailUrl = "https://images.unsplash.com/photo-1505764761634-1d77b57e1966?w=500&q=80"))
                     videoTitle = ""
@@ -144,11 +149,8 @@ fun EditContentSection() {
                 }
             }
         }
-    }
     
 
-        var albumToDelete by remember { mutableStateOf<ContentPhotoAlbum?>(null) }
-        var isDeleting by remember { mutableStateOf(false) }
 
         // ADD ALBUM
         Card(modifier = Modifier.fillMaxWidth()) {
@@ -225,6 +227,7 @@ fun EditContentSection() {
                 }
             }
         }
+    }
     if (albumToDelete != null) {
         val deleteScope = rememberCoroutineScope()
         AlertDialog(
@@ -276,6 +279,7 @@ fun EditContentSection() {
         var editTitle by remember(editingBook) { mutableStateOf(editingBook!!.title) }
         var editAuthor by remember(editingBook) { mutableStateOf(editingBook!!.author) }
         var editContent by remember(editingBook) { mutableStateOf(editingBook!!.contentText) }
+        var editBookUrl by remember(editingBook) { mutableStateOf(editingBook!!.bookUrl) }
         
         AlertDialog(
             onDismissRequest = { editingBook = null },
@@ -285,13 +289,14 @@ fun EditContentSection() {
                     GlassTextField(value = editTitle, onValueChange = { editTitle = it }, label = { Text("Título") })
                     GlassTextField(value = editAuthor, onValueChange = { editAuthor = it }, label = { Text("Autor") })
                     GlassTextField(value = editContent, onValueChange = { editContent = it }, label = { Text("Conteúdo") })
+                    LocalUploadField(value = editBookUrl, onValueChange = { editBookUrl = it }, label = "Arquivo do Livro", mimeType = "*/*")
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
                     val idx = contentBooksState.indexOfFirst { it.id == editingBook!!.id }
                     if (idx != -1) {
-                        contentBooksState[idx] = editingBook!!.copy(title = editTitle, author = editAuthor, contentText = editContent)
+                        contentBooksState[idx] = editingBook!!.copy(title = editTitle, author = editAuthor, contentText = editContent, bookUrl = editBookUrl)
                     }
                     editingBook = null
                 }) { Text("Salvar") }
@@ -312,7 +317,7 @@ fun EditContentSection() {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     GlassTextField(value = editTitle, onValueChange = { editTitle = it }, label = { Text("Título") })
                     GlassTextField(value = editArtist, onValueChange = { editArtist = it }, label = { Text("Artista") })
-                    GlassTextField(value = editUrl, onValueChange = { editUrl = it }, label = { Text("URL MP3") })
+                    LocalUploadField(value = editUrl, onValueChange = { editUrl = it }, label = "URL ou Arquivo Local MP3", mimeType = "audio/*")
                 }
             },
             confirmButton = {
@@ -340,7 +345,7 @@ fun EditContentSection() {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     GlassTextField(value = editTitle, onValueChange = { editTitle = it }, label = { Text("Título") })
                     GlassTextField(value = editDesc, onValueChange = { editDesc = it }, label = { Text("Descrição") })
-                    GlassTextField(value = editUrl, onValueChange = { editUrl = it }, label = { Text("URL Vídeo") })
+                    LocalUploadField(value = editUrl, onValueChange = { editUrl = it }, label = "URL ou Arquivo Local MP4", mimeType = "video/*")
                 }
             },
             confirmButton = {

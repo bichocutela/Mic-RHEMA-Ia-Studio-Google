@@ -100,7 +100,27 @@ class ContentAudioPlayerViewModel : ViewModel() {
         }, MoreExecutors.directExecutor())
     }
 
-    fun playAudio(audio: ContentAudio) {
+    
+    fun startDownload(context: android.content.Context, onProgress: (Float) -> Unit, onComplete: () -> Unit) {
+        val audio = _currentAudio.value ?: return
+        viewModelScope.launch {
+            val file = FileDownloader.downloadFile(
+                context = context,
+                url = audio.audioUrl,
+                fileName = "micrhema_audio_${audio.id}.mp3",
+                onProgress = onProgress
+            )
+            if (file != null) {
+                // Update the state so it knows it's cached
+                _currentAudio.value = audio.copy(isCached = true)
+                onComplete()
+            } else {
+                onProgress(-1f) // Error
+            }
+        }
+    }
+
+    fun playAudio(context: android.content.Context, audio: ContentAudio) {
         val controller = mediaController ?: return
         
         // Save previous progress if any
@@ -111,9 +131,11 @@ class ContentAudioPlayerViewModel : ViewModel() {
         
         _currentAudio.value = audio
         
-        val uri = if (audio.isCached) {
-            // Find local path if downloaded
-            audio.audioUrl // Assuming cache resolves this or it's a local file. ExoPlayerCache handles cached URLs
+        val appContext = context.applicationContext
+        val localFile = FileDownloader.getLocalFile(appContext, "micrhema_audio_${audio.id}.mp3")
+        val uri = if (localFile != null) {
+            _currentAudio.value = audio.copy(isCached = true)
+            android.net.Uri.fromFile(localFile).toString()
         } else {
             audio.audioUrl
         }

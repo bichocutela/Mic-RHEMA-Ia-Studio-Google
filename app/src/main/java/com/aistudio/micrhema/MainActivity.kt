@@ -48,7 +48,7 @@ fun getIconFromName(name: String): androidx.compose.ui.graphics.vector.ImageVect
         "Home" -> androidx.compose.material.icons.Icons.Default.Home
         "Book" -> androidx.compose.material.icons.Icons.Default.Book
         "Church" -> androidx.compose.material.icons.Icons.Default.Home
-        "LibraryBooks" -> androidx.compose.material.icons.Icons.Default.List
+        "LibraryBooks" -> androidx.compose.material.icons.Icons.Filled.List
         "Favorite" -> androidx.compose.material.icons.Icons.Default.Favorite
         "People" -> androidx.compose.material.icons.Icons.Default.Person
         "Group" -> androidx.compose.material.icons.Icons.Default.AccountCircle
@@ -211,7 +211,7 @@ fun MainScreen() {
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(16.dp)
                 )
-                Divider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+                HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
                 drawerItems.forEach { item ->
                     val route = item.systemRoute ?: "custom_tab/${item.id}"
                     NavigationDrawerItem(

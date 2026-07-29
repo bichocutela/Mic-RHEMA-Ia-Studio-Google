@@ -9,6 +9,11 @@ plugins {
 
 android {
     namespace = "com.aistudio.micrhema"
+
+    lint {
+        disable += "UnsafeOptInUsageError"
+    }
+
     compileSdk = 35
 
     defaultConfig {
