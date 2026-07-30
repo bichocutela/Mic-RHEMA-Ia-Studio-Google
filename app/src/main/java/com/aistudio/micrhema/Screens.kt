@@ -223,6 +223,21 @@ fun HomeCarousel() {
     
     var activeIndex by remember { mutableStateOf(0) }
     var selectedCarouselItem by remember { mutableStateOf<CarouselItem?>(null) }
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+
+    LaunchedEffect(carouselItemsState.size) {
+        if (carouselItemsState.size > 1) {
+            while (true) {
+                kotlinx.coroutines.delay(4000)
+                activeIndex = (activeIndex + 1) % carouselItemsState.size
+                try {
+                    listState.animateScrollToItem(activeIndex)
+                } catch (e: Exception) {
+                    // Ignore
+                }
+            }
+        }
+    }
     
     Column(
         modifier = Modifier
@@ -252,6 +267,7 @@ fun HomeCarousel() {
         
         LazyRow(
             modifier = Modifier.fillMaxWidth(),
+            state = listState,
             contentPadding = PaddingValues(horizontal = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -462,7 +478,7 @@ fun HomeScreen() {
         onRefresh = {
             isRefreshing = true
             coroutineScope.launch {
-                kotlinx.coroutines.delay(1500)
+                forceSyncEvents()
                 
                 val versesList = listOf(
                     Pair("\"Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna.\"", "João 3:16"),
@@ -1080,13 +1096,28 @@ fun DevotionalsScreen() {
     }
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun ServicesScreen() {
     var isLoading by remember { mutableStateOf(true) }
+    var isRefreshing by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
     LaunchedEffect(Unit) {
         kotlinx.coroutines.delay(1000)
         isLoading = false
     }
+    
+    androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = {
+            isRefreshing = true
+            coroutineScope.launch {
+                forceSyncEvents()
+                isRefreshing = false
+            }
+        },
+        modifier = Modifier.fillMaxSize()
+    ) {
 
     if (isLoading) {
         LazyColumn(
@@ -1214,6 +1245,7 @@ fun ServicesScreen() {
                 }
             }
         }
+    }
     }
 }
 
@@ -4835,11 +4867,29 @@ fun EditHomeSection() {
     var carouselDescriptionInput by remember { mutableStateOf("") }
     var carouselDateInput by remember { mutableStateOf("") }
     var carouselTagInput by remember { mutableStateOf("EVENTO") } // "EVENTO" ou "NOTÍCIA"
-    var carouselImageUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var carouselImageUrl by remember { mutableStateOf<String?>(null) }
+    var isUploadingCarouselImage by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     val carouselImagePicker = rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
     ) { uri: android.net.Uri? ->
-        carouselImageUri = uri
+        if (uri != null) {
+            isUploadingCarouselImage = true
+            scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                val url = StorageHelper.uploadFile(uri, "carousel_images")
+                kotlinx.coroutines.Dispatchers.Main.let {
+                    kotlinx.coroutines.withContext(it) {
+                        isUploadingCarouselImage = false
+                        if (url != null) {
+                            carouselImageUrl = url
+                            android.widget.Toast.makeText(context, "Imagem carregada!", android.widget.Toast.LENGTH_SHORT).show()
+                        } else {
+                            android.widget.Toast.makeText(context, "Falha ao carregar imagem.", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }
+        }
     }
 
     LazyColumn(
@@ -4962,14 +5012,20 @@ fun EditHomeSection() {
         }
         item {
             GlassButton(
-                onClick = { carouselImagePicker.launch("image/*") },
+                onClick = { if (!isUploadingCarouselImage) carouselImagePicker.launch("image/*") },
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 shape = RoundedCornerShape(24.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
             ) {
-                Icon(androidx.compose.material.icons.Icons.Default.Add, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(if (carouselImageUri != null) "Imagem Selecionada" else "Adicionar Imagem do Evento (Recomendado: 16:9)")
+                if (isUploadingCarouselImage) {
+                    androidx.compose.material3.CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Carregando Imagem...")
+                } else {
+                    Icon(androidx.compose.material.icons.Icons.Default.Add, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(if (carouselImageUrl != null) "Imagem Pronta" else "Adicionar Imagem do Evento (Recomendado: 16:9)")
+                }
             }
         }
         @OptIn(ExperimentalMaterial3Api::class)
@@ -5002,7 +5058,7 @@ fun EditHomeSection() {
                             description = carouselDescriptionInput,
                             date = if (carouselDateInput.isBlank()) "Hoje" else carouselDateInput,
                             tag = carouselTagInput,
-                            imageUrl = carouselImageUri?.toString()
+                            imageUrl = carouselImageUrl
                         )
                         addCarouselItem(newItem)
                         NotificationHelper.showNotification(
@@ -5013,7 +5069,7 @@ fun EditHomeSection() {
                         carouselTitleInput = ""
                         carouselDescriptionInput = ""
                         carouselDateInput = ""
-                        carouselImageUri = null
+                        carouselImageUrl = null
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(50.dp),
@@ -6469,16 +6525,33 @@ fun LocalUploadField(
     mimeType: String
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var isUploading by remember { mutableStateOf(false) }
+
     val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
     ) { uri ->
         if (uri != null) {
-            try {
-                context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            } catch (e: Exception) {
-                e.printStackTrace()
+            isUploading = true
+            scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                val folder = if (mimeType.startsWith("image")) "images" else if (mimeType.startsWith("audio")) "audios" else if (mimeType.startsWith("video")) "videos" else "files"
+                val url = StorageHelper.uploadFile(uri, folder)
+                kotlinx.coroutines.Dispatchers.Main.let {
+                    kotlinx.coroutines.withContext(it) {
+                        isUploading = false
+                        if (url != null) {
+                            onValueChange(url)
+                            android.widget.Toast.makeText(context, "Upload concluído!", android.widget.Toast.LENGTH_SHORT).show()
+                        } else {
+                            android.widget.Toast.makeText(context, "Falha no upload online. Usando local.", android.widget.Toast.LENGTH_SHORT).show()
+                            try {
+                                context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            } catch (e: Exception) {}
+                            onValueChange(uri.toString())
+                        }
+                    }
+                }
             }
-            onValueChange(uri.toString())
         }
     }
     Row(
@@ -6494,13 +6567,17 @@ fun LocalUploadField(
             shape = RoundedCornerShape(24.dp)
         )
         IconButton(
-            onClick = { launcher.launch(mimeType) },
+            onClick = { if (!isUploading) launcher.launch(mimeType) },
             modifier = Modifier
                 .size(48.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
         ) {
-            Icon(Icons.Default.UploadFile, contentDescription = "Upload", tint = MaterialTheme.colorScheme.primary)
+            if (isUploading) {
+                androidx.compose.material3.CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.primary)
+            } else {
+                Icon(Icons.Default.UploadFile, contentDescription = "Upload", tint = MaterialTheme.colorScheme.primary)
+            }
         }
     }
 }

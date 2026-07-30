@@ -272,36 +272,52 @@ fun EditVipContentSection() {
                 Text("Adicionar Álbum de Fotos", fontWeight = FontWeight.Bold)
                 var albumTitle by remember { mutableStateOf("") }
                 var albumDesc by remember { mutableStateOf("") }
-                var customCoverUri by remember { mutableStateOf<android.net.Uri?>(null) }
+                var customCoverUrl by remember { mutableStateOf<String?>(null) }
+                var isUploadingCover by remember { mutableStateOf(false) }
                 var isGenerating by remember { mutableStateOf(false) }
                 val scope = rememberCoroutineScope()
                 
                 val coverPicker = androidx.activity.compose.rememberLauncherForActivityResult(
                     contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
                 ) { uri: android.net.Uri? ->
-                    customCoverUri = uri
+                    if (uri != null) {
+                        isUploadingCover = true
+                        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                            val url = StorageHelper.uploadFile(uri, "covers")
+                            kotlinx.coroutines.Dispatchers.Main.let {
+                                kotlinx.coroutines.withContext(it) {
+                                    isUploadingCover = false
+                                    if (url != null) customCoverUrl = url
+                                }
+                            }
+                        }
+                    }
                 }
 
                 GlassTextField(value = albumTitle, onValueChange = { albumTitle = it }, label = { Text("Título do Álbum") }, modifier = Modifier.fillMaxWidth())
                 GlassTextField(value = albumDesc, onValueChange = { albumDesc = it }, label = { Text("Descrição do Álbum") }, modifier = Modifier.fillMaxWidth())
                 
                 Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Button(onClick = { coverPicker.launch("image/*") }) {
-                        Text(if (customCoverUri != null) "Capa Selecionada" else "Selecionar Capa")
+                    Button(onClick = { if (!isUploadingCover) coverPicker.launch("image/*") }) {
+                        if (isUploadingCover) {
+                            androidx.compose.material3.CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White)
+                        } else {
+                            Text(if (customCoverUrl != null) "Capa Pronta" else "Selecionar Capa")
+                        }
                     }
-                    if (customCoverUri != null) {
-                        IconButton(onClick = { customCoverUri = null }) {
+                    if (customCoverUrl != null) {
+                        IconButton(onClick = { customCoverUrl = null }) {
                             Icon(Icons.Default.Delete, contentDescription = "Remover", tint = MaterialTheme.colorScheme.error)
                         }
                     }
                 }
 
                 Button(onClick = {
-                    if (customCoverUri != null) {
-                        addContentPhotoAlbum(ContentPhotoAlbum(id = System.currentTimeMillis().toString(), title = albumTitle, description = albumDesc, coverUrl = customCoverUri.toString(), photos = listOf(AlbumPhoto(url = customCoverUri.toString(), caption = ""))))
+                    if (customCoverUrl != null) {
+                        addContentPhotoAlbum(ContentPhotoAlbum(id = System.currentTimeMillis().toString(), title = albumTitle, description = albumDesc, coverUrl = customCoverUrl!!, photos = listOf(AlbumPhoto(url = customCoverUrl!!, caption = ""))))
                         albumTitle = ""
                         albumDesc = ""
-                        customCoverUri = null
+                        customCoverUrl = null
                     } else {
                         isGenerating = true
                         scope.launch {
@@ -311,7 +327,7 @@ fun EditVipContentSection() {
                             isGenerating = false
                             albumTitle = ""
                             albumDesc = ""
-                            customCoverUri = null
+                            customCoverUrl = null
                         }
                     }
                 }, modifier = Modifier.padding(top = 8.dp), enabled = !isGenerating && albumTitle.isNotBlank()) {
@@ -481,18 +497,31 @@ fun EditVipContentSection() {
         var editDesc by remember(editingAlbum) { mutableStateOf(editingAlbum!!.description) }
         
         var photoUriInput by remember { mutableStateOf<android.net.Uri?>(null) }
+        var isUploadingPhoto by remember { mutableStateOf(false) }
+        val scope = rememberCoroutineScope()
         val photoPicker = androidx.activity.compose.rememberLauncherForActivityResult(
             contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
         ) { uri: android.net.Uri? ->
             if (uri != null) {
-                val updatedAlbum = editingAlbum!!.copy(
-                    photos = editingAlbum!!.photos + AlbumPhoto(url = uri.toString(), caption = ""),
-                    coverUrl = editingAlbum!!.coverUrl ?: uri.toString()
-                )
-                val index = vipAlbumsState.indexOfFirst { it.id == editingAlbum!!.id }
-                if (index != -1) {
-                    vipAlbumsState[index] = updatedAlbum
-                    editingAlbum = updatedAlbum
+                isUploadingPhoto = true
+                scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                    val url = StorageHelper.uploadFile(uri, "album_photos")
+                    kotlinx.coroutines.Dispatchers.Main.let {
+                        kotlinx.coroutines.withContext(it) {
+                            isUploadingPhoto = false
+                            if (url != null) {
+                                val updatedAlbum = editingAlbum!!.copy(
+                                    photos = editingAlbum!!.photos + AlbumPhoto(url = url, caption = ""),
+                                    coverUrl = editingAlbum!!.coverUrl ?: url
+                                )
+                                val index = vipAlbumsState.indexOfFirst { it.id == editingAlbum!!.id }
+                                if (index != -1) {
+                                    vipAlbumsState[index] = updatedAlbum
+                                    editingAlbum = updatedAlbum
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

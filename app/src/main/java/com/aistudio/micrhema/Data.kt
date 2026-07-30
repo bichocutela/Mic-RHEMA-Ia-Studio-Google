@@ -1,4 +1,6 @@
 package com.aistudio.micrhema
+import kotlinx.coroutines.tasks.await
+
 
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
@@ -1312,5 +1314,34 @@ fun addAppTab(item: AppTab) {
 fun removeAppTab(item: AppTab) {
     if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
         Firebase.firestore.collection("app_tabs").document(item.id).delete()
+    }
+}
+
+suspend fun forceSyncEvents() {
+    try {
+        val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+        
+        val eventsSnapshot = db.collection("events").get(com.google.firebase.firestore.Source.SERVER).await()
+        val eventsList = eventsSnapshot.documents.mapNotNull { try { it.toObject(ChurchEvent::class.java) } catch(e: Exception) { null } }
+        if (eventsList.isNotEmpty()) {
+            eventsState.clear()
+            eventsState.addAll(eventsList)
+        }
+        
+        val carouselSnapshot = db.collection("carousel_items").get(com.google.firebase.firestore.Source.SERVER).await()
+        val carouselList = carouselSnapshot.documents.mapNotNull { try { it.toObject(CarouselItem::class.java) } catch(e: Exception) { null } }
+        if (carouselList.isNotEmpty()) {
+            carouselItemsState.clear()
+            carouselItemsState.addAll(carouselList)
+        }
+        
+        val servicesSnapshot = db.collection("weekly_services").get(com.google.firebase.firestore.Source.SERVER).await()
+        val servicesList = servicesSnapshot.documents.mapNotNull { try { it.toObject(ChurchService::class.java) } catch(e: Exception) { null } }
+        if (servicesList.isNotEmpty()) {
+            weeklyServicesState.clear()
+            weeklyServicesState.addAll(servicesList)
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
     }
 }
