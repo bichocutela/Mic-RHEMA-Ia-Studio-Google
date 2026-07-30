@@ -8,6 +8,38 @@ plugins {
     alias(libs.plugins.firebase.crashlytics)
 }
 
+import java.util.Properties
+import java.io.FileInputStream
+import java.io.FileOutputStream
+
+val versionFile = rootProject.file("version.properties")
+val versionProps = Properties()
+
+if (versionFile.exists()) {
+    versionProps.load(FileInputStream(versionFile))
+} else {
+    versionProps["MAJOR"] = "2"
+    versionProps["MINOR"] = "0"
+    versionProps["PATCH"] = "1"
+    versionProps["BUILD"] = "0"
+}
+
+val isBuilding = gradle.startParameter.taskNames.any { it.contains("assemble") || it.contains("build") || it.contains("bundle") }
+
+var buildNum = versionProps["BUILD"].toString().toInt()
+if (isBuilding) {
+    buildNum++
+    versionProps["BUILD"] = buildNum.toString()
+    versionProps.store(FileOutputStream(versionFile), "Auto-incremented build number")
+}
+
+val major = versionProps["MAJOR"].toString().toInt()
+val minor = versionProps["MINOR"].toString().toInt()
+val patch = versionProps["PATCH"].toString().toInt()
+
+val appVersionCode = major * 1000000 + minor * 10000 + patch * 100 + buildNum
+val appVersionName = "${major}.${minor}.${patch}.${buildNum}"
+
 android {
     namespace = "com.aistudio.micrhema"
 
@@ -21,8 +53,8 @@ android {
         applicationId = "com.aistudio.micrhema.xqpq"
         minSdk = 26
         targetSdk = 35
-        versionCode = (System.currentTimeMillis() / 100000).toInt()
-        versionName = "1.0.${(System.currentTimeMillis() / 100000).toInt()}"
+        versionCode = appVersionCode
+        versionName = appVersionName
 
         vectorDrawables {
             useSupportLibrary = true
@@ -30,10 +62,34 @@ android {
                                 buildConfigField("String", "GEMINI_API_KEY", "\"\"")
     }
 
+    signingConfigs {
+        create("release") {
+            val keystorePropertiesFile = rootProject.file("keystore.properties")
+            if (keystorePropertiesFile.exists()) {
+                val keystoreProperties = Properties()
+                keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+            } else if (System.getenv("KEYSTORE_FILE") != null) {
+                storeFile = file(System.getenv("KEYSTORE_FILE") as String)
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("debug")
+            val keystorePropertiesFile = rootProject.file("keystore.properties")
+            if (keystorePropertiesFile.exists() || System.getenv("KEYSTORE_FILE") != null) {
+                signingConfig = signingConfigs.getByName("release")
+            } else {
+                signingConfig = signingConfigs.getByName("debug")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -157,3 +213,25 @@ tasks.matching {
     dependsOn(ensureGoogleServicesJson)
 }
 
+
+tasks.configureEach {
+    if (name == "assembleRelease" || name == "bundleRelease") {
+        doLast {
+            try {
+                val tagProcess = ProcessBuilder("git", "tag", "-a", "v${appVersionName}", "-m", "Release v${appVersionName}")
+                    .directory(rootProject.rootDir)
+                    .redirectErrorStream(true)
+                    .start()
+                tagProcess.waitFor()
+                val tagOutput = tagProcess.inputStream.bufferedReader().readText()
+                if (tagProcess.exitValue() == 0) {
+                    println("Successfully created git tag v${appVersionName}")
+                } else {
+                    println("Failed to create git tag: $tagOutput")
+                }
+            } catch (e: Exception) {
+                println("Exception while creating git tag: ${e.message}")
+            }
+        }
+    }
+}

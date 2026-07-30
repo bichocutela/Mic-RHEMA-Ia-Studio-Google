@@ -297,10 +297,9 @@ fun MainScreen() {
                     GlassTopAppBar(
                         title = {
                             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = androidx.compose.material.icons.Icons.Default.Home,
+                                androidx.compose.foundation.Image(
+                                    painter = androidx.compose.ui.res.painterResource(id = R.drawable.img_rhema_logo),
                                     contentDescription = "Logo",
-                                    tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(36.dp).padding(end = 8.dp)
                                 )
                                 Text(topBarTitle, color = MaterialTheme.colorScheme.onBackground, fontWeight = FontWeight.Bold)
