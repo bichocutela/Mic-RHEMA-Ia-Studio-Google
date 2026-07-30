@@ -4,6 +4,7 @@ import androidx.compose.foundation.rememberScrollState
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.core.view.WindowCompat
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.ui.Alignment
@@ -96,6 +97,7 @@ val drawerItems = listOf(
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
         try {
             currentThemeMode.value = SettingsManager.getThemeMode(this)
             isOfflineModeState.value = SettingsManager.isOfflineMode(this)
@@ -289,6 +291,7 @@ fun MainScreen() {
             Scaffold(
                 modifier = Modifier.weight(1f),
                 containerColor = MaterialTheme.colorScheme.background,
+                contentWindowInsets = WindowInsets(0, 0, 0, 0),
                 topBar = {
                     GlassTopAppBar(
                         title = {
@@ -312,7 +315,7 @@ fun MainScreen() {
                     )
                 },
                 bottomBar = {
-                    Column {
+                    Column(modifier = if (!isCompact) Modifier.windowInsetsPadding(WindowInsets.navigationBars) else Modifier) {
                         PersistentAudioPlayerBar()
                         if (isCompact) {
                             GlassNavigationBar {
@@ -373,7 +376,7 @@ fun MainScreen() {
                 NavHost(
                 navController = navController,
                 startDestination = Screen.Home.route,
-                modifier = Modifier.padding(paddingValues),
+                modifier = Modifier.weight(1f).fillMaxWidth(),
                 enterTransition = {
                     slideIntoContainer(androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Left, animationSpec = spring(stiffness = Spring.StiffnessLow)) + fadeIn(animationSpec = tween(300))
                 },

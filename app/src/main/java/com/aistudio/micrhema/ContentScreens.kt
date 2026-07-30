@@ -50,6 +50,7 @@ fun ContentScreen() {
     var isRefreshing by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var isLocalLoading by remember { mutableStateOf(true) }
+    val context = LocalContext.current
     LaunchedEffect(Unit) { delay(1200); isLocalLoading = false }
     val coroutineScope = rememberCoroutineScope()
 
@@ -75,7 +76,7 @@ fun ContentScreen() {
             )
         }
 
-        if (selectedBook == null && selectedVideo == null && recentlyViewedState.isNotEmpty() && searchQuery.isEmpty()) {
+        if (selectedBook == null && selectedVideo == null && selectedAudio == null && selectedAlbum == null && recentlyViewedState.isNotEmpty() && searchQuery.isEmpty()) {
             Text(
                 "Vistos Recentemente", 
                 style = MaterialTheme.typography.titleMedium, 
@@ -146,7 +147,7 @@ fun ContentScreen() {
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        if (selectedBook == null && selectedVideo == null && selectedAlbum == null) {
+        if (selectedBook == null && selectedVideo == null && selectedAudio == null && selectedAlbum == null) {
             TabRow(selectedTabIndex = selectedTab) {
                 tabs.forEachIndexed { index, title ->
                     Tab(
@@ -176,10 +177,20 @@ fun ContentScreen() {
                         addRecentlyViewed(RecentlyViewedItem(it.id, it.title, it.author, it.coverUrl, ContentType.BOOK, it.isCached, it.progress))
                     }
                 })
-                1 -> AudiosList(selectedAudio, searchQuery, isLocalLoading, onAudioSelected = {
-                    selectedAudio = it
+                1 -> AudiosList(null, searchQuery, isLocalLoading, onAudioSelected = {
                     if (it != null) {
                         addRecentlyViewed(RecentlyViewedItem(it.id, it.title, it.artist, it.coverUrl, ContentType.AUDIO, it.isCached, it.progress))
+                        GlobalAudioPlayer.playTrack(
+                            context,
+                            AudioTrack(
+                                id = it.id,
+                                title = it.title,
+                                subtitle = it.artist,
+                                audioUrl = it.audioUrl,
+                                coverUrl = it.coverUrl
+                            )
+                        )
+                        GlobalAudioPlayer.isExpanded.value = true
                     }
                 })
                 2 -> VideosList(selectedVideo, searchQuery, isLocalLoading, onVideoSelected = {
@@ -368,11 +379,8 @@ fun AudiosList(selectedAudio: ContentAudio?, searchQuery: String, isLocalLoading
             label = "audio_transition"
         ) { activeAudio ->
             if (activeAudio != null) {
-                ContentAudioPlayerScreen(
-                    audio = activeAudio,
-                    onClose = { onAudioSelected(null) },
-                    animatedVisibilityScope = this@AnimatedContent
-                )
+                // Should not happen anymore, but just in case
+                Box(modifier = Modifier.fillMaxSize())
             } else {
                 Column(modifier = Modifier.fillMaxSize()) {
                     if (isLocalLoading) {

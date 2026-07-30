@@ -85,7 +85,8 @@ fun MICRhemaTheme(
             }
             if (ctx is Activity) {
                 val window = ctx.window
-                window.statusBarColor = colorScheme.background.toArgb()
+                window.statusBarColor = android.graphics.Color.TRANSPARENT
+                window.navigationBarColor = android.graphics.Color.TRANSPARENT
                 WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
             }
         }
