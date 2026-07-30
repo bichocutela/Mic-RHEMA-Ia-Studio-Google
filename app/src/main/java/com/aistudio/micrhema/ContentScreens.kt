@@ -247,9 +247,9 @@ fun BooksList(selectedBook: ContentBook?, searchQuery: String, isLocalLoading: B
                                 Box(modifier = Modifier.size(80.dp, 120.dp).clip(RoundedCornerShape(12.dp)).background(shimmerBrush()))
                                 Spacer(modifier = Modifier.width(16.dp))
                                 Column(modifier = Modifier.weight(1f)) {
-                                    SkeletonItem(width = 200.dp, height = 24.dp)
+                                    ShimmerSkeletonItem(width = 200.dp, height = 24.dp)
                                     Spacer(modifier = Modifier.height(8.dp))
-                                    SkeletonItem(width = 150.dp, height = 16.dp)
+                                    ShimmerSkeletonItem(width = 150.dp, height = 16.dp)
                                 }
                             }
                         }

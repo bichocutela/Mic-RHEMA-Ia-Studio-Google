@@ -10,6 +10,7 @@ import android.content.Context
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 
+val userIsAdmin = mutableStateOf(false)
 object DevotionalManager {
     fun syncDevotionals(context: Context) {
         try {

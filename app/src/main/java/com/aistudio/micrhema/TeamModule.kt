@@ -304,7 +304,7 @@ fun TeamMemberCard(member: TeamMember, modifier: Modifier = Modifier, onEditClic
                     )
                 }
             }
-            if (isAdminLogged.value) {
+            if (userIsAdmin.value) {
                 IconButton(
                     onClick = onEditClick,
                     modifier = Modifier.align(Alignment.TopEnd)

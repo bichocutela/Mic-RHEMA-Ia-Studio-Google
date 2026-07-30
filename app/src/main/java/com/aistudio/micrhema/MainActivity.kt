@@ -1,4 +1,7 @@
 package com.aistudio.micrhema
+import android.content.Context
+import android.content.Intent
+import android.app.Activity
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 
@@ -39,7 +42,6 @@ import androidx.navigation.compose.rememberNavController
 import com.aistudio.micrhema.ui.theme.MICRhemaTheme
 import kotlinx.coroutines.launch
 import androidx.compose.ui.unit.dp
-import android.app.Activity
 import androidx.compose.ui.platform.LocalContext
 
 import androidx.compose.ui.platform.LocalConfiguration
@@ -93,6 +95,30 @@ val drawerItems = listOf(
     Screen.Content,
     Screen.Admin
 )
+
+
+
+fun performLogout(context: Context, navController: androidx.navigation.NavHostController? = null) {
+    userIsAdmin.value = false
+    MemberManager.setLoggedInMember(context, null)
+    try { com.google.firebase.auth.FirebaseAuth.getInstance().signOut() } catch(e: Exception) {}
+    
+    // Ensure shared preferences are wiped
+    val prefs = context.getSharedPreferences("micrhema_members_prefs", Context.MODE_PRIVATE)
+    prefs.edit().remove("logged_in_member_id").apply()
+    
+    if (navController != null) {
+        navController.navigate(Screen.Home.route) {
+            popUpTo(0) { inclusive = true }
+            launchSingleTop = true
+        }
+    } else {
+        val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+        intent?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        context.startActivity(intent)
+        (context as? Activity)?.finishAffinity()
+    }
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -250,11 +276,39 @@ fun MainScreen() {
                             unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                         ),
                         onClick = {
-                            navController.navigate(route) {
+                            if (item.title.equals("Sair", ignoreCase = true) || item.title.equals("Logout", ignoreCase = true)) {
+                                scope.launch { drawerState.close() }
+                                performLogout(context, navController)
+                            } else {
+                                navController.navigate(route) {
+                                    popUpTo(navController.graph.startDestinationId)
+                                    launchSingleTop = true
+                                }
+                                scope.launch { drawerState.close() }
+                            }
+                        },
+                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                    )
+                }
+                if (loggedInMemberState.value != null || userIsAdmin.value) {
+                    Spacer(modifier = Modifier.weight(1f))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+                    NavigationDrawerItem(
+                        icon = { Icon(androidx.compose.material.icons.Icons.Default.ExitToApp, contentDescription = "Sair") },
+                        label = { Text("Sair") },
+                        selected = false,
+                        colors = NavigationDrawerItemDefaults.colors(
+                            unselectedIconColor = MaterialTheme.colorScheme.error,
+                            unselectedTextColor = MaterialTheme.colorScheme.error
+                        ),
+                        onClick = {
+                            userIsAdmin.value = false
+                            MemberManager.setLoggedInMember(context, null)
+                            scope.launch { drawerState.close() }
+                            navController.navigate(Screen.Home.route) {
                                 popUpTo(navController.graph.startDestinationId)
                                 launchSingleTop = true
                             }
-                            scope.launch { drawerState.close() }
                         },
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                     )
@@ -279,9 +333,13 @@ fun MainScreen() {
                             label = { Text(item.title) },
                             selected = currentRoute == route,
                             onClick = {
-                                navController.navigate(route) {
-                                    popUpTo(navController.graph.startDestinationId)
-                                    launchSingleTop = true
+                                if (item.title.equals("Sair", ignoreCase = true) || item.title.equals("Logout", ignoreCase = true)) {
+                                    performLogout(context, navController)
+                                } else {
+                                    navController.navigate(route) {
+                                        popUpTo(navController.graph.startDestinationId)
+                                        launchSingleTop = true
+                                    }
                                 }
                             }
                         )

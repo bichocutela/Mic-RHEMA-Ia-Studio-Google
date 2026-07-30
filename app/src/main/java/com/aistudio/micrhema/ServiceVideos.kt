@@ -101,7 +101,7 @@ fun ServiceVideosGallery() {
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(3) {
-                        SkeletonItem(width = 200.dp, height = 120.dp, shape = RoundedCornerShape(16.dp))
+                        ShimmerSkeletonItem(width = 200.dp, height = 120.dp, shape = RoundedCornerShape(16.dp))
                     }
                 }
             } else if (videos.isEmpty()) {
