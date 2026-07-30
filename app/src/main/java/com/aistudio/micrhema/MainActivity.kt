@@ -182,6 +182,7 @@ fun MainScreen() {
         if (devotionalsState.isEmpty()) {
             loadDevotionalsFromJson(context)
         }
+        DevotionalManager.syncDevotionals(context)
         initializeTabs()
         loadContentFromFirebase(context)
         loadTeamMembersFromFirebase()
