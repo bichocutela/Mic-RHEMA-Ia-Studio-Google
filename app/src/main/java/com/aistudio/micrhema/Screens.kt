@@ -14,14 +14,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import java.util.UUID
 
-@Composable fun HomeScreen() { Box(Modifier.fillMaxSize(), Alignment.Center) { Text("Página Inicial (Em desenvolvimento)") } }
-@Composable fun DevotionalsScreen() { Box(Modifier.fillMaxSize(), Alignment.Center) { Text("Devocionais (Em desenvolvimento)") } }
-@Composable fun ServicesScreen() { Box(Modifier.fillMaxSize(), Alignment.Center) { Text("Serviços (Em desenvolvimento)") } }
-@Composable fun PrayerScreen() { Box(Modifier.fillMaxSize(), Alignment.Center) { Text("Orações (Em desenvolvimento)") } }
-@Composable fun MembersScreen() { Box(Modifier.fillMaxSize(), Alignment.Center) { Text("Membros (Em desenvolvimento)") } }
-@Composable fun IbrScreen() { Box(Modifier.fillMaxSize(), Alignment.Center) { Text("Cursos IBR (Em desenvolvimento)") } }
-@Composable fun AboutScreen() { Box(Modifier.fillMaxSize(), Alignment.Center) { Text("Sobre (Em desenvolvimento)") } }
-@Composable fun SettingsScreen() { Box(Modifier.fillMaxSize(), Alignment.Center) { Text("Configurações (Em desenvolvimento)") } }
+
+
+
+
+
+
+
+
 
 @Composable fun AdminScreen() { 
     var selectedTabIndex by remember { mutableStateOf(0) }
