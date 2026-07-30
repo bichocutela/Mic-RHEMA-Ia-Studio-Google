@@ -27,7 +27,11 @@ if (versionFile.exists()) {
 val isBuilding = gradle.startParameter.taskNames.any { it.contains("assemble") || it.contains("build") || it.contains("bundle") }
 
 var buildNum = versionProps["BUILD"].toString().toInt()
-if (isBuilding) {
+
+val githubRunNumber = System.getenv("GITHUB_RUN_NUMBER")
+if (githubRunNumber != null && githubRunNumber.isNotEmpty()) {
+    buildNum = buildNum + githubRunNumber.toInt()
+} else if (isBuilding) {
     buildNum++
     versionProps["BUILD"] = buildNum.toString()
     versionProps.store(FileOutputStream(versionFile), "Auto-incremented build number")

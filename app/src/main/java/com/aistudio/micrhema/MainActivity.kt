@@ -124,6 +124,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
+        VersionManager.checkVersion(this)
+        
         try {
             currentThemeMode.value = SettingsManager.getThemeMode(this)
             isOfflineModeState.value = SettingsManager.isOfflineMode(this)
@@ -134,6 +136,23 @@ class MainActivity : ComponentActivity() {
                     ThemeMode.SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme()
                 }
                 MICRhemaTheme(darkTheme = isDark) {
+                    if (VersionManager.showForceUpdateDialog.value) {
+                        androidx.compose.material3.AlertDialog(
+                            onDismissRequest = { },
+                            title = { androidx.compose.material3.Text("Atualização Necessária") },
+                            text = { androidx.compose.material3.Text("Uma nova versão do aplicativo está disponível e é necessária para continuar. Por favor, atualize o aplicativo.") },
+                            confirmButton = {
+                                androidx.compose.material3.Button(onClick = { VersionManager.openUpdateLink(this@MainActivity) }) {
+                                    androidx.compose.material3.Text("Atualizar")
+                                }
+                            },
+                            properties = androidx.compose.ui.window.DialogProperties(
+                                dismissOnBackPress = false,
+                                dismissOnClickOutside = false
+                            )
+                        )
+                    }
+
                     val lastCrash = CrashHandler.getLastCrash(this@MainActivity)
                     if (lastCrash != null) {
                         androidx.compose.foundation.layout.Column(androidx.compose.ui.Modifier.fillMaxSize().verticalScroll(androidx.compose.foundation.rememberScrollState())) {
