@@ -1618,11 +1618,11 @@ fun GoogleLoginPlaceholder(
                                             MemberManager.setLoggedInMember(context, target)
                                             onLoginSuccess(target)
                                             isLoggingIn = false
-                                            NotificationHelper.showNotification(
-                                                context,
-                                                "Solicitação de acesso enviada!",
-                                                "Aguarde a aprovação do administrador para $userEmail."
-                                            )
+                                            if (!target.isApproved) {
+                                                android.widget.Toast.makeText(context, "Solicitação de acesso enviada!", android.widget.Toast.LENGTH_LONG).show()
+                                            } else {
+                                                android.widget.Toast.makeText(context, "Bem-vindo(a) de volta, ${target.name}!", android.widget.Toast.LENGTH_SHORT).show()
+                                            }
                                         }
                                     },
                                 shape = RoundedCornerShape(24.dp),
@@ -1813,11 +1813,11 @@ fun GoogleLoginPlaceholder(
                                         MemberManager.setLoggedInMember(context, target)
                                         onLoginSuccess(target)
                                         isLoggingIn = false
-                                        NotificationHelper.showNotification(
-                                            context,
-                                            "Solicitação de acesso enviada!",
-                                            "Aguarde a aprovação do administrador para $customEmail."
-                                        )
+                                        if (!target.isApproved) {
+                                            android.widget.Toast.makeText(context, "Solicitação de acesso enviada!", android.widget.Toast.LENGTH_LONG).show()
+                                        } else {
+                                            android.widget.Toast.makeText(context, "Bem-vindo(a) de volta, ${target.name}!", android.widget.Toast.LENGTH_SHORT).show()
+                                        }
                                     }
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A73E8)),
@@ -3707,7 +3707,7 @@ fun AdminScreen() {
     var isCheckingAuth by remember { mutableStateOf(true) }
     
     LaunchedEffect(Unit) {
-        if (auth.currentUser != null) {
+        if (auth.currentUser != null || prefs.getBoolean("is_admin_logged_in", false)) {
             isAdminLogged.value = true
         } else {
             isAdminLogged.value = false
@@ -3779,6 +3779,7 @@ fun AdminScreen() {
                     
                     if (username.trim().equals("Admin", ignoreCase = true) && password == "igreja10") {
                         isAdminLogged.value = true
+                        prefs.edit().putBoolean("is_admin_logged_in", true).apply()
                         isLoading = false
                         return@GlassButton
                     }
@@ -3788,6 +3789,7 @@ fun AdminScreen() {
                             isLoading = false
                             if (task.isSuccessful) {
                                 isAdminLogged.value = true
+                                prefs.edit().putBoolean("is_admin_logged_in", true).apply()
                             } else {
                                 loginError = "Falha no login: ${task.exception?.message}"
                             }

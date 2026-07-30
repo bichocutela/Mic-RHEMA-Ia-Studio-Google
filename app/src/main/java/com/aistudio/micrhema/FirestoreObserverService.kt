@@ -41,7 +41,7 @@ class FirestoreObserverService : Service() {
         val notification: Notification = NotificationCompat.Builder(this, channelId)
             .setContentTitle("Sincronizando Conteúdo")
             .setContentText("Aguardando atualizações em tempo real...")
-            .setSmallIcon(android.R.drawable.ic_popup_sync)
+            .setSmallIcon(R.drawable.ic_notification)
             .build()
             
         startForeground(1001, notification)
@@ -51,18 +51,45 @@ class FirestoreObserverService : Service() {
         val db = FirebaseFirestore.getInstance()
         
         val collections = listOf(
-            "content_books" to "Livros",
-            "content_audios" to "Áudios",
-            "content_videos" to "Vídeos",
-            "content_albums" to "Álbum de Fotos",
-            "devotionals" to "Devocionais",
-            "events" to "Eventos",
-            "weekly_services" to "Programação da Igreja",
-            "prayer_requests" to "Pedidos de Oração",
-            "carousel_items" to "Destaques"
+            "content_books" to Pair("Livros", "📚"),
+            "content_audios" to Pair("Áudios", "🎧"),
+            "content_videos" to Pair("Vídeos", "🎬"),
+            "content_albums" to Pair("Álbum de Fotos", "📸"),
+            "devotionals" to Pair("Devocionais", "📖"),
+            "events" to Pair("Eventos", "📅"),
+            "weekly_services" to Pair("Programação da Igreja", "⛪"),
+            "prayer_requests" to Pair("Pedidos de Oração", "🙏"),
+            "carousel_items" to Pair("Destaques", "✨")
         )
+
+        // Listen for new members (only alert if current user is admin)
+        var isFirstMember = true
+        val memberReg = db.collection("members").addSnapshotListener { snapshot, e ->
+            if (e != null || snapshot == null) return@addSnapshotListener
+            if (!isFirstMember) {
+                val added = snapshot.documentChanges.count { it.type == DocumentChange.Type.ADDED }
+                if (added > 0) {
+                    val isAdmin = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser != null
+                    
+                    if (isAdmin) {
+                        val unapproved = snapshot.documentChanges.filter { it.type == DocumentChange.Type.ADDED && it.document.getBoolean("isApproved") == false }
+                        if (unapproved.isNotEmpty()) {
+                            NotificationHelper.showNotification(
+                                this,
+                                "👤 Novo Pedido de Acesso",
+                                "Existem ${unapproved.size} nova(s) solicitação(ões) de acesso aguardando aprovação."
+                            )
+                        }
+                    }
+                }
+            }
+            isFirstMember = false
+        }
+        listeners.add(memberReg)
         
-        for ((collection, name) in collections) {
+        for ((collection, pair) in collections) {
+            val name = pair.first
+            val emoji = pair.second
             var isFirst = true
             val reg = db.collection(collection).addSnapshotListener { snapshot, e ->
                 if (e != null || snapshot == null) return@addSnapshotListener
@@ -75,8 +102,8 @@ class FirestoreObserverService : Service() {
                     if (added > 0 || modified > 0 || removed > 0) {
                         NotificationHelper.showNotification(
                             this,
-                            "$name Atualizado",
-                            "O conteúdo foi modificado pelo administrador (Novos: $added, Editados: $modified, Removidos: $removed)"
+                            "$emoji $name Atualizado",
+                            "O conteúdo foi modificado (Novos: $added, Editados: $modified, Removidos: $removed)"
                         )
                     }
                 }
