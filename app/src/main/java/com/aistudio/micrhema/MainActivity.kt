@@ -1,7 +1,4 @@
 package com.aistudio.micrhema
-import android.content.Context
-import android.content.Intent
-import android.app.Activity
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 
@@ -42,6 +39,7 @@ import androidx.navigation.compose.rememberNavController
 import com.aistudio.micrhema.ui.theme.MICRhemaTheme
 import kotlinx.coroutines.launch
 import androidx.compose.ui.unit.dp
+import android.app.Activity
 import androidx.compose.ui.platform.LocalContext
 
 import androidx.compose.ui.platform.LocalConfiguration
@@ -65,6 +63,8 @@ fun getIconFromName(name: String): androidx.compose.ui.graphics.vector.ImageVect
         "Video" -> androidx.compose.material.icons.Icons.Default.PlayArrow
         "Photo" -> androidx.compose.material.icons.Icons.Default.Face
         "Link" -> androidx.compose.material.icons.Icons.Default.Share
+        "ConfirmationNumber" -> androidx.compose.material.icons.Icons.Default.ConfirmationNumber
+        "DateRange" -> androidx.compose.material.icons.Icons.Default.DateRange
         else -> androidx.compose.material.icons.Icons.Default.Star
     }
 }
@@ -96,40 +96,10 @@ val drawerItems = listOf(
     Screen.Admin
 )
 
-
-
-fun performLogout(context: Context, navController: androidx.navigation.NavHostController? = null) {
-    userIsAdmin.value = false
-    MemberManager.setLoggedInMember(context, null)
-    try { com.google.firebase.auth.FirebaseAuth.getInstance().signOut() } catch(e: Exception) {}
-    try { 
-        val gso = com.google.android.gms.auth.api.signin.GoogleSignInOptions.Builder(com.google.android.gms.auth.api.signin.GoogleSignInOptions.DEFAULT_SIGN_IN).build()
-        com.google.android.gms.auth.api.signin.GoogleSignIn.getClient(context, gso).signOut()
-    } catch(e: Exception) {}
-    
-    // Ensure shared preferences are wiped
-    val prefs = context.getSharedPreferences("micrhema_members_prefs", Context.MODE_PRIVATE)
-    prefs.edit().remove("logged_in_member_id").apply()
-    
-    if (navController != null) {
-        navController.navigate(Screen.Home.route) {
-            popUpTo(0) { inclusive = true }
-            launchSingleTop = true
-        }
-    } else {
-        val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)
-        intent?.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-        context.startActivity(intent)
-        (context as? Activity)?.finishAffinity()
-    }
-}
-
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
-        VersionManager.checkVersion(this)
-        
         try {
             currentThemeMode.value = SettingsManager.getThemeMode(this)
             isOfflineModeState.value = SettingsManager.isOfflineMode(this)
@@ -140,23 +110,6 @@ class MainActivity : ComponentActivity() {
                     ThemeMode.SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme()
                 }
                 MICRhemaTheme(darkTheme = isDark) {
-                    if (VersionManager.showForceUpdateDialog.value) {
-                        androidx.compose.material3.AlertDialog(
-                            onDismissRequest = { },
-                            title = { androidx.compose.material3.Text("Atualização Necessária") },
-                            text = { androidx.compose.material3.Text("Uma nova versão do aplicativo está disponível e é necessária para continuar. Por favor, atualize o aplicativo.") },
-                            confirmButton = {
-                                androidx.compose.material3.Button(onClick = { VersionManager.openUpdateLink(this@MainActivity) }) {
-                                    androidx.compose.material3.Text("Atualizar")
-                                }
-                            },
-                            properties = androidx.compose.ui.window.DialogProperties(
-                                dismissOnBackPress = false,
-                                dismissOnClickOutside = false
-                            )
-                        )
-                    }
-
                     val lastCrash = CrashHandler.getLastCrash(this@MainActivity)
                     if (lastCrash != null) {
                         androidx.compose.foundation.layout.Column(androidx.compose.ui.Modifier.fillMaxSize().verticalScroll(androidx.compose.foundation.rememberScrollState())) {
@@ -299,39 +252,11 @@ fun MainScreen() {
                             unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                         ),
                         onClick = {
-                            if (item.title.equals("Sair", ignoreCase = true) || item.title.equals("Logout", ignoreCase = true)) {
-                                scope.launch { drawerState.close() }
-                                performLogout(context, navController)
-                            } else {
-                                navController.navigate(route) {
-                                    popUpTo(navController.graph.startDestinationId)
-                                    launchSingleTop = true
-                                }
-                                scope.launch { drawerState.close() }
-                            }
-                        },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-                    )
-                }
-                if (loggedInMemberState.value != null || userIsAdmin.value) {
-                    Spacer(modifier = Modifier.weight(1f))
-                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-                    NavigationDrawerItem(
-                        icon = { Icon(androidx.compose.material.icons.Icons.Default.ExitToApp, contentDescription = "Sair") },
-                        label = { Text("Sair") },
-                        selected = false,
-                        colors = NavigationDrawerItemDefaults.colors(
-                            unselectedIconColor = MaterialTheme.colorScheme.error,
-                            unselectedTextColor = MaterialTheme.colorScheme.error
-                        ),
-                        onClick = {
-                            userIsAdmin.value = false
-                            MemberManager.setLoggedInMember(context, null)
-                            scope.launch { drawerState.close() }
-                            navController.navigate(Screen.Home.route) {
+                            navController.navigate(route) {
                                 popUpTo(navController.graph.startDestinationId)
                                 launchSingleTop = true
                             }
+                            scope.launch { drawerState.close() }
                         },
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                     )
@@ -339,50 +264,52 @@ fun MainScreen() {
             }
         }
     ) {
-        Scaffold(
-                containerColor = MaterialTheme.colorScheme.background,
-                contentWindowInsets = WindowInsets(0, 0, 0, 0),
-                topBar = {
-                    CenterAlignedTopAppBar(
-                        title = {
-                            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                                androidx.compose.foundation.Image(
-                                    painter = androidx.compose.ui.res.painterResource(id = R.drawable.img_rhema_logo),
-                                    contentDescription = "Logo",
-                                    modifier = Modifier.size(36.dp).padding(end = 8.dp)
-                                )
-                                Text(topBarTitle, color = MaterialTheme.colorScheme.onBackground, fontWeight = FontWeight.Bold)
-                            }
-                        },
-                        navigationIcon = {
-                            if (isCompact) {
-                                IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                                    Icon(Icons.Default.Menu, contentDescription = "Menu", tint = MaterialTheme.colorScheme.onBackground)
+        Row(modifier = Modifier.fillMaxSize()) {
+            if (!isCompact) {
+                NavigationRail(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    header = {
+                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                            Icon(Icons.Default.Menu, contentDescription = "Menu")
+                        }
+                    }
+                ) {
+                    bottomBarItems.forEach { item ->
+                        val route = item.systemRoute ?: "custom_tab/${item.id}"
+                        NavigationRailItem(
+                            icon = { Icon(getIconFromName(item.iconName), contentDescription = null) },
+                            label = { Text(item.title) },
+                            selected = currentRoute == route,
+                            onClick = {
+                                navController.navigate(route) {
+                                    popUpTo(navController.graph.startDestinationId)
+                                    launchSingleTop = true
                                 }
                             }
-                        }
-                    )
-                },
+                        )
+                    }
+                }
+            }
+
+            Scaffold(
+                modifier = Modifier.weight(1f),
+                containerColor = MaterialTheme.colorScheme.background,
+                contentWindowInsets = WindowInsets(0, 0, 0, 0),
                 bottomBar = {
                     Column(modifier = if (!isCompact) Modifier.windowInsetsPadding(WindowInsets.navigationBars) else Modifier) {
                         PersistentAudioPlayerBar()
                         if (isCompact) {
-                            NavigationBar {
-                                bottomBarItems.forEach { item ->
-                                    val route = item.systemRoute ?: "custom_tab/${item.id}"
-                                    NavigationBarItem(
-                                        icon = { Icon(getIconFromName(item.iconName), contentDescription = null) },
-                                        label = { Text(item.title) },
-                                        selected = currentRoute == route,
-                                        onClick = {
-                                            navController.navigate(route) {
-                                                popUpTo(navController.graph.startDestinationId)
-                                                launchSingleTop = true
-                                            }
-                                        }
-                                    )
-                                }
-                            }
+                            FloatingNavigationBar(
+                                items = bottomBarItems,
+                                currentRoute = currentRoute,
+                                onNavigate = { route ->
+                                    navController.navigate(route) {
+                                        popUpTo(navController.graph.startDestinationId)
+                                        launchSingleTop = true
+                                    }
+                                },
+                                onMenuClick = { scope.launch { drawerState.open() } }
+                            )
                         }
                     }
                 }
@@ -459,12 +386,14 @@ fun MainScreen() {
                     CustomTabScreen(tabId)
                 }
             }
-            }
         }
-
+        
         if (GlobalAudioPlayer.isExpanded.value) {
             ExpandedAudioPlayerModal()
         }
+        }
+        }
     }
 }
+
 

@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
@@ -25,7 +26,7 @@ fun BibleScreen() {
     var searchQuery by remember { mutableStateOf("") }
     var selectedBook by remember { mutableStateOf<String?>(null) }
     var selectedChapter by remember { mutableStateOf<Int?>(null) }
-    var selectedVersion by remember { mutableStateOf("ARA") }
+    var selectedVersion by remember { mutableStateOf("NTLH") }
     var showVersionDialog by remember { mutableStateOf(false) }
 
     var verses by remember { mutableStateOf<List<BibleVerse>>(emptyList()) }
@@ -35,7 +36,6 @@ fun BibleScreen() {
     val context = LocalContext.current
 
     val versions = listOf(
-        "ARA" to "Almeida Revista e Atualizada",
         "ACF" to "Almeida Corrigida Fiel",
         "NVI" to "Nova Versão Internacional",
         "NTLH" to "Nova Tradução na Linguagem de Hoje"
@@ -59,18 +59,43 @@ fun BibleScreen() {
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
         ) {
-            Text("Bíblia Sagrada", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            TextButton(onClick = { showVersionDialog = true }) {
-                Text(selectedVersion, fontWeight = FontWeight.Bold)
-                Icon(Icons.Default.Settings, contentDescription = "Versão", modifier = Modifier.size(16.dp).padding(start = 4.dp))
+            // Header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 24.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        androidx.compose.material.icons.Icons.Default.Book,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "Bíblia Sagrada",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+                TextButton(onClick = { showVersionDialog = true }) {
+                    Text(selectedVersion, fontWeight = FontWeight.Bold)
+                    Icon(Icons.Default.Settings, contentDescription = "Versão", modifier = Modifier.size(16.dp).padding(start = 4.dp))
+                }
             }
-        }
+            Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -187,5 +212,7 @@ fun BibleScreen() {
                 }
             }
         )
-    }
+}
+}
+}
 }

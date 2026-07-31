@@ -10,6 +10,7 @@ jobs:
   build:
     name: Gerar APK
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout do código
         uses: actions/checkout@v4
@@ -25,21 +26,12 @@ jobs:
         with:
           validate-wrappers: false
 
-      - name: Restaurar ou Criar chave de assinatura
+      - name: Criar chave de assinatura (release.keystore)
         run: |
-          if [ -f "release.keystore.base64" ]; then
-            base64 -d release.keystore.base64 > release.keystore
-          else
-            keytool -genkeypair -v -keystore release.keystore -storepass android -alias androidreleasekey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -storetype PKCS12 -dname "C=BR, O=Android, CN=Android Release"
-          fi
+          rm -f release.keystore
+          keytool -genkeypair -v -keystore release.keystore -storepass android -alias androidreleasekey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -storetype PKCS12 -dname "C=BR, O=Android, CN=Android Release"
 
       - name: Construir o APK
-        env:
-          KEYSTORE_FILE: ../release.keystore
-          KEYSTORE_PASSWORD: android
-          KEY_ALIAS: androidreleasekey
-          KEY_PASSWORD: android
-          GITHUB_RUN_NUMBER: ${{ github.run_number }}
         run: |
           chmod +x gradlew || true
           ./gradlew assembleRelease || gradle assembleRelease

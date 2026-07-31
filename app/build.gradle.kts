@@ -27,11 +27,7 @@ if (versionFile.exists()) {
 val isBuilding = gradle.startParameter.taskNames.any { it.contains("assemble") || it.contains("build") || it.contains("bundle") }
 
 var buildNum = versionProps["BUILD"].toString().toInt()
-
-val githubRunNumber = System.getenv("GITHUB_RUN_NUMBER")
-if (githubRunNumber != null && githubRunNumber.isNotEmpty()) {
-    buildNum = buildNum + githubRunNumber.toInt()
-} else if (isBuilding) {
+if (isBuilding) {
     buildNum++
     versionProps["BUILD"] = buildNum.toString()
     versionProps.store(FileOutputStream(versionFile), "Auto-incremented build number")
@@ -128,7 +124,6 @@ dependencies {
     implementation(libs.firebase.auth)
     implementation(libs.firebase.crashlytics)
     implementation(libs.androidx.core.ktx)
-    implementation("com.google.android.gms:play-services-auth:21.2.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)

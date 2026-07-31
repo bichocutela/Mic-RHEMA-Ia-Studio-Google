@@ -16,7 +16,7 @@ data class BibleVerse(
 
 object BibleFetcher {
     suspend fun getChapter(context: Context, book: String, chapter: Int, translation: String): List<BibleVerse> {
-        if (translation == "ARA" || translation == "NTLH" || translation == "NVI" || translation == "ACF") {
+        if (translation == "NTLH" || translation == "NVI" || translation == "ACF") {
             return LocalBibleFetcher.getChapter(context, book, chapter, translation)
         }
         
@@ -43,6 +43,7 @@ object BibleFetcher {
 
                 val urlString = "https://bible-api.com/$formattedBook+$chapter?translation=$translationParam"
                 Log.d("BibleFetcher", "Fetching from: $urlString")
+
                 val response = URL(urlString).readText()
                 val json = JSONObject(response)
                 

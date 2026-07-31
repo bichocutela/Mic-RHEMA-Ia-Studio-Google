@@ -81,19 +81,36 @@ fun TeamScreen() {
         )
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = "Nossa Equipe",
-            style = MaterialTheme.typography.headlineLarge,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 16.dp),
-            textAlign = TextAlign.Center
-        )
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 24.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Default.Person,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(28.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = "Nossa Equipe",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+            }
 
         Row(
             modifier = Modifier
@@ -138,6 +155,7 @@ fun TeamScreen() {
     }
 }
 
+}
 @Composable
 fun EditTeamSection() {
     var showAddDialog by remember { mutableStateOf(false) }
@@ -240,8 +258,8 @@ fun EditTeamSection() {
             }
         }
     }
-}
 
+}
 @Composable
 fun TeamMemberCard(member: TeamMember, modifier: Modifier = Modifier, onEditClick: () -> Unit = {}) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -304,7 +322,8 @@ fun TeamMemberCard(member: TeamMember, modifier: Modifier = Modifier, onEditClic
                     )
                 }
             }
-            if (userIsAdmin.value) {
+            val isAdminLogged = remember { mutableStateOf(com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty() && try { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser != null } catch(e: Exception) { false }) }
+            if (isAdminLogged.value) {
                 IconButton(
                     onClick = onEditClick,
                     modifier = Modifier.align(Alignment.TopEnd)

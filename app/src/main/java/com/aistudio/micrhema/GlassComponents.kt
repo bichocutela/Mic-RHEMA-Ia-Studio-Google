@@ -1,6 +1,16 @@
 package com.aistudio.micrhema
 
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.text.font.FontWeight
+import kotlinx.coroutines.launch
+
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.foundation.background
+
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -103,4 +113,190 @@ fun GlassTextField(
             focusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
         )
     )
+}
+
+@Composable
+fun LocalUploadField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    mimeType: String,
+    modifier: Modifier = Modifier
+) {
+    val isUploading = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
+
+    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri: android.net.Uri? ->
+        if (uri != null) {
+            isUploading.value = true
+            coroutineScope.launch {
+                val url = com.aistudio.micrhema.StorageHelper.uploadFile(uri, "uploads")
+                if (url != null) {
+                    onValueChange(url)
+                } else {
+                    android.widget.Toast.makeText(context, "Erro ao enviar arquivo", android.widget.Toast.LENGTH_SHORT).show()
+                }
+                isUploading.value = false
+            }
+        }
+    }
+
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        modifier = modifier.fillMaxWidth(),
+        trailingIcon = {
+            if (isUploading.value) {
+                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+            } else {
+                IconButton(onClick = { launcher.launch(mimeType) }) {
+                    Icon(Icons.Default.Add, contentDescription = "Upload")
+                }
+            }
+        },
+        shape = RoundedCornerShape(16.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            unfocusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+            focusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
+        )
+    )
+}
+
+@Composable
+fun shimmerBrush(showShimmer: Boolean = true, targetValue: Float = 1000f): androidx.compose.ui.graphics.Brush {
+    return if (showShimmer) {
+        val shimmerColors = listOf(
+            Color.LightGray.copy(alpha = 0.6f),
+            Color.LightGray.copy(alpha = 0.2f),
+            Color.LightGray.copy(alpha = 0.6f),
+        )
+        val transition = androidx.compose.animation.core.rememberInfiniteTransition()
+        val translateAnimation = transition.animateFloat(
+            initialValue = 0f,
+            targetValue = targetValue,
+            animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                animation = androidx.compose.animation.core.tween(800),
+                repeatMode = androidx.compose.animation.core.RepeatMode.Restart
+            )
+        )
+        androidx.compose.ui.graphics.Brush.linearGradient(
+            colors = shimmerColors,
+            start = androidx.compose.ui.geometry.Offset.Zero,
+            end = androidx.compose.ui.geometry.Offset(x = translateAnimation.value, y = translateAnimation.value)
+        )
+    } else {
+        androidx.compose.ui.graphics.Brush.linearGradient(
+            colors = listOf(Color.Transparent, Color.Transparent),
+            start = androidx.compose.ui.geometry.Offset.Zero,
+            end = androidx.compose.ui.geometry.Offset.Zero
+        )
+    }
+}
+
+@Composable
+fun SkeletonItem(
+    modifier: Modifier = Modifier,
+    width: androidx.compose.ui.unit.Dp = androidx.compose.ui.unit.Dp.Unspecified,
+    height: androidx.compose.ui.unit.Dp = androidx.compose.ui.unit.Dp.Unspecified,
+    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(8.dp)
+) {
+    Box(
+        modifier = modifier
+            .then(if (width != androidx.compose.ui.unit.Dp.Unspecified) Modifier.width(width) else Modifier)
+            .then(if (height != androidx.compose.ui.unit.Dp.Unspecified) Modifier.height(height) else Modifier)
+            .clip(shape)
+            .background(shimmerBrush())
+    )
+}
+
+@Composable
+fun FloatingNavigationBar(
+    items: List<com.aistudio.micrhema.AppTab>,
+    currentRoute: String?,
+    onNavigate: (String) -> Unit,
+    onMenuClick: () -> Unit
+) {
+    androidx.compose.foundation.layout.Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        androidx.compose.material3.Surface(
+            shape = RoundedCornerShape(50),
+            color = Color(0xFFDCC8B6), // Light beige from image
+            contentColor = Color(0xFF131B2E), // Dark color for icons
+            shadowElevation = 8.dp
+        ) {
+            Row(
+                modifier = Modifier
+                    .padding(horizontal = 8.dp, vertical = 8.dp)
+                    .fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Show up to 4 items from the list
+                val barItems = items.take(4)
+                
+                barItems.forEach { item ->
+                    val route = item.systemRoute ?: "custom_tab/${item.id}"
+                    val isSelected = currentRoute == route
+                    
+                    val background = if (isSelected) Color(0xFF131B2E) else Color.Transparent
+                    val contentColor = if (isSelected) Color.White else Color(0xFF131B2E)
+                    
+                    androidx.compose.material3.Surface(
+                        color = background,
+                        contentColor = contentColor,
+                        shape = RoundedCornerShape(50),
+                        modifier = Modifier.clip(RoundedCornerShape(50)).clickable { onNavigate(route) }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = if (isSelected) 16.dp else 12.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                getIconFromName(if (isSelected) item.iconName else item.iconName.replace("Border", "")), // Simplified icon handling
+                                contentDescription = item.title,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            if (isSelected) {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = item.title,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+                
+                // Menu Button
+                androidx.compose.material3.Surface(
+                    color = Color.Transparent,
+                    contentColor = Color(0xFF131B2E),
+                    shape = RoundedCornerShape(50),
+                    modifier = Modifier.clip(RoundedCornerShape(50)).clickable { onMenuClick() }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            androidx.compose.material.icons.Icons.Default.Apps,
+                            contentDescription = "Menu",
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
 }

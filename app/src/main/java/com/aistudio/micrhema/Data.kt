@@ -10,7 +10,6 @@ import android.content.Context
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 
-val userIsAdmin = mutableStateOf(false)
 object DevotionalManager {
     fun syncDevotionals(context: Context) {
         try {
@@ -1136,7 +1135,7 @@ val recentlyViewedState = androidx.compose.runtime.mutableStateListOf<RecentlyVi
 fun addRecentlyViewed(item: RecentlyViewedItem) {
     recentlyViewedState.removeAll { it.id == item.id && it.type == item.type }
     recentlyViewedState.add(0, item)
-    if (recentlyViewedState.size > 10) recentlyViewedState.removeAt(recentlyViewedState.size - 1)
+    if (recentlyViewedState.size > 10) recentlyViewedState.removeLast()
 }
 
 val appTabsState = androidx.compose.runtime.mutableStateListOf<AppTab>()
@@ -1145,17 +1144,17 @@ fun initializeTabs() {
     appTabsState.clear()
     val defaultTabs = listOf(
         AppTab("1", "Início", "Home", false, true, true, 0, TabContentType.SYSTEM, Screen.Home.route),
-        AppTab("bible_tab", "Bíblia", "MenuBook", false, true, true, 1, TabContentType.SYSTEM, Screen.Content.route),
-        AppTab("2", "Cultos", "Church", false, true, true, 2, TabContentType.SYSTEM, Screen.Services.route),
-        AppTab("3", "Devocionais", "Book", false, true, true, 3, TabContentType.SYSTEM, Screen.Devotionals.route),
-        AppTab("4", "Cursos IBR", "School", false, true, true, 4, TabContentType.SYSTEM, Screen.Ibr.route),
-        AppTab("5", "Mídia", "PlayArrow", false, true, true, 5, TabContentType.SYSTEM, Screen.Content.route),
+        AppTab("bible_tab", "Bíblia", "MenuBook", false, true, false, 1, TabContentType.SYSTEM, Screen.Content.route),
+        AppTab("2", "Cultos", "DateRange", false, true, true, 2, TabContentType.SYSTEM, Screen.Services.route),
+        AppTab("3", "Devocionais", "Book", false, true, false, 3, TabContentType.SYSTEM, Screen.Devotionals.route),
+        AppTab("4", "Cursos IBR", "School", false, true, false, 4, TabContentType.SYSTEM, Screen.Ibr.route),
+        AppTab("5", "Mídia", "PlayArrow", false, true, false, 5, TabContentType.SYSTEM, Screen.Content.route),
         AppTab("6", "Pedidos de Oração", "Favorite", false, true, true, 6, TabContentType.SYSTEM, Screen.Prayer.route),
-        AppTab("team_tab", "Equipe", "Groups", false, true, true, 7, TabContentType.SYSTEM, Screen.Team.route),
-        AppTab("7", "Membros", "Person", false, true, true, 8, TabContentType.SYSTEM, Screen.Members.route),
-        AppTab("8", "Eventos", "Event", false, true, true, 9, TabContentType.SYSTEM, Screen.About.route),
-        AppTab("9", "Ajuda", "Help", false, true, true, 10, TabContentType.SYSTEM, Screen.About.route),
-        AppTab("10", "Dízimos e Ofertas", "MonetizationOn", false, true, true, 11, TabContentType.SYSTEM, Screen.About.route)
+        AppTab("team_tab", "Equipe", "Groups", false, true, false, 7, TabContentType.SYSTEM, Screen.Team.route),
+        AppTab("7", "Membros", "Person", false, true, false, 8, TabContentType.SYSTEM, Screen.Members.route),
+        AppTab("8", "Eventos", "ConfirmationNumber", false, true, false, 9, TabContentType.SYSTEM, Screen.About.route),
+        AppTab("9", "Ajuda", "Help", false, true, false, 10, TabContentType.SYSTEM, Screen.About.route),
+        AppTab("10", "Dízimos e Ofertas", "ConfirmationNumber", false, true, true, 11, TabContentType.SYSTEM, Screen.About.route)
     )
     appTabsState.addAll(defaultTabs)
 }
