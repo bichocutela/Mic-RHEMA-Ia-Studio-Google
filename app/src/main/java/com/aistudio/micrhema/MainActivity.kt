@@ -102,6 +102,10 @@ fun performLogout(context: Context, navController: androidx.navigation.NavHostCo
     userIsAdmin.value = false
     MemberManager.setLoggedInMember(context, null)
     try { com.google.firebase.auth.FirebaseAuth.getInstance().signOut() } catch(e: Exception) {}
+    try { 
+        val gso = com.google.android.gms.auth.api.signin.GoogleSignInOptions.Builder(com.google.android.gms.auth.api.signin.GoogleSignInOptions.DEFAULT_SIGN_IN).build()
+        com.google.android.gms.auth.api.signin.GoogleSignIn.getClient(context, gso).signOut()
+    } catch(e: Exception) {}
     
     // Ensure shared preferences are wiped
     val prefs = context.getSharedPreferences("micrhema_members_prefs", Context.MODE_PRIVATE)
@@ -335,43 +339,11 @@ fun MainScreen() {
             }
         }
     ) {
-        Row(modifier = Modifier.fillMaxSize()) {
-            if (!isCompact) {
-                NavigationRail(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    header = {
-                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Icons.Default.Menu, contentDescription = "Menu")
-                        }
-                    }
-                ) {
-                    bottomBarItems.forEach { item ->
-                        val route = item.systemRoute ?: "custom_tab/${item.id}"
-                        NavigationRailItem(
-                            icon = { Icon(getIconFromName(item.iconName), contentDescription = null) },
-                            label = { Text(item.title) },
-                            selected = currentRoute == route,
-                            onClick = {
-                                if (item.title.equals("Sair", ignoreCase = true) || item.title.equals("Logout", ignoreCase = true)) {
-                                    performLogout(context, navController)
-                                } else {
-                                    navController.navigate(route) {
-                                        popUpTo(navController.graph.startDestinationId)
-                                        launchSingleTop = true
-                                    }
-                                }
-                            }
-                        )
-                    }
-                }
-            }
-
-            Scaffold(
-                modifier = Modifier.weight(1f),
+        Scaffold(
                 containerColor = MaterialTheme.colorScheme.background,
                 contentWindowInsets = WindowInsets(0, 0, 0, 0),
                 topBar = {
-                    GlassTopAppBar(
+                    CenterAlignedTopAppBar(
                         title = {
                             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                                 androidx.compose.foundation.Image(
@@ -395,7 +367,7 @@ fun MainScreen() {
                     Column(modifier = if (!isCompact) Modifier.windowInsetsPadding(WindowInsets.navigationBars) else Modifier) {
                         PersistentAudioPlayerBar()
                         if (isCompact) {
-                            GlassNavigationBar {
+                            NavigationBar {
                                 bottomBarItems.forEach { item ->
                                     val route = item.systemRoute ?: "custom_tab/${item.id}"
                                     NavigationBarItem(
@@ -489,7 +461,7 @@ fun MainScreen() {
             }
             }
         }
-        }
+
         if (GlobalAudioPlayer.isExpanded.value) {
             ExpandedAudioPlayerModal()
         }

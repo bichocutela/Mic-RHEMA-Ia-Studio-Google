@@ -25,7 +25,7 @@ import java.util.Locale
 
 // --- Home Screen ---
 @Composable
-fun HomeScreen() {
+fun OldHomeScreen() {
     val scrollState = rememberScrollState()
     val todayDevotional = devotionalsState.firstOrNull() // Simplify for now
     

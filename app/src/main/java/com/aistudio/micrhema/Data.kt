@@ -1136,7 +1136,7 @@ val recentlyViewedState = androidx.compose.runtime.mutableStateListOf<RecentlyVi
 fun addRecentlyViewed(item: RecentlyViewedItem) {
     recentlyViewedState.removeAll { it.id == item.id && it.type == item.type }
     recentlyViewedState.add(0, item)
-    if (recentlyViewedState.size > 10) recentlyViewedState.removeLast()
+    if (recentlyViewedState.size > 10) recentlyViewedState.removeAt(recentlyViewedState.size - 1)
 }
 
 val appTabsState = androidx.compose.runtime.mutableStateListOf<AppTab>()
