@@ -57,7 +57,7 @@ fun PlansScreen(onNavigateToBible: (String, Int) -> Unit = { _, _ -> }) {
 
 @Composable
 fun MainPlansScreen(onCategoryClick: (PlanCategory) -> Unit, onThemeClick: (PlanTheme) -> Unit) {
-    val randomThemes = remember { PlansData.categories.flatMap { it.themes }.shuffled().take(5) }
+    val randomThemes = remember { (if (biblePlansState.isEmpty()) PlansData.categories else biblePlansState).flatMap { it.themes }.shuffled().take(5) }
     var currentBannerIndex by remember { mutableStateOf(0) }
 
     LaunchedEffect(randomThemes) {
@@ -140,7 +140,7 @@ fun MainPlansScreen(onCategoryClick: (PlanCategory) -> Unit, onThemeClick: (Plan
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.weight(1f)
         ) {
-            items(PlansData.categories) { category ->
+            items(if (biblePlansState.isEmpty()) PlansData.categories else biblePlansState) { category ->
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()

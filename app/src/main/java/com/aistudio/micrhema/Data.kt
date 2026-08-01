@@ -1346,3 +1346,79 @@ suspend fun forceSyncEvents() {
         e.printStackTrace()
     }
 }
+
+
+val bibleNewsState = androidx.compose.runtime.mutableStateListOf<BibleNews>()
+val biblePlansState = androidx.compose.runtime.mutableStateListOf<PlanCategory>()
+
+fun syncBibleNewsAndPlans() {
+    val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+    
+    // Sync News
+    db.collection("bible_news").get().addOnSuccessListener { snapshot ->
+        if (snapshot.isEmpty) {
+            BibleNewsData.newsList.forEach { news ->
+                db.collection("bible_news").document(news.id.toString()).set(news)
+            }
+            bibleNewsState.clear()
+            bibleNewsState.addAll(BibleNewsData.newsList)
+        } else {
+            val list = snapshot.documents.mapNotNull { 
+                try { 
+                    BibleNews(
+                        id = it.getLong("id")?.toInt() ?: 0,
+                        title = it.getString("title") ?: "",
+                        content = it.getString("content") ?: "",
+                        book = it.getString("book") ?: "",
+                        chapter = it.getLong("chapter")?.toInt() ?: 0,
+                        verse = it.getLong("verse")?.toInt() ?: 0,
+                        imageUrl = it.getString("imageUrl") ?: ""
+                    )
+                } catch(e: Exception) { null } 
+            }
+            bibleNewsState.clear()
+            bibleNewsState.addAll(list.sortedBy { it.id })
+        }
+    }
+    
+    // Sync Plans
+    db.collection("bible_plans").get().addOnSuccessListener { snapshot ->
+        if (snapshot.isEmpty) {
+            PlansData.categories.forEach { cat ->
+                db.collection("bible_plans").document(cat.name).set(mapOf(
+                    "name" to cat.name,
+                    "color" to cat.color.value.toLong(),
+                    "themes" to cat.themes.map { theme ->
+                        mapOf(
+                            "title" to theme.title,
+                            "content" to theme.content,
+                            "verses" to theme.verses,
+                            "imageUrl" to theme.imageUrl
+                        )
+                    }
+                ))
+            }
+            biblePlansState.clear()
+            biblePlansState.addAll(PlansData.categories)
+        } else {
+            val list = snapshot.documents.mapNotNull { doc ->
+                try {
+                    val name = doc.getString("name") ?: ""
+                    val colorValue = doc.getLong("color") ?: 0L
+                    val themesList = doc.get("themes") as? List<Map<String, Any>> ?: emptyList()
+                    val themes = themesList.map { t ->
+                        PlanTheme(
+                            title = t["title"] as? String ?: "",
+                            content = t["content"] as? String ?: "",
+                            verses = t["verses"] as? List<String> ?: emptyList(),
+                            imageUrl = t["imageUrl"] as? String ?: ""
+                        )
+                    }
+                    PlanCategory(name, androidx.compose.ui.graphics.Color(colorValue.toULong()), themes)
+                } catch (e: Exception) { null }
+            }
+            biblePlansState.clear()
+            biblePlansState.addAll(list)
+        }
+    }
+}

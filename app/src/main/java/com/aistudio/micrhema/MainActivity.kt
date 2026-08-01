@@ -190,6 +190,7 @@ fun MainScreen() {
         initializeTabs()
         loadContentFromFirebase(context)
         loadTeamMembersFromFirebase()
+        syncBibleNewsAndPlans()
         MemberManager.syncFromFirestore(context)
         MemberManager.loadMembers(context)
         

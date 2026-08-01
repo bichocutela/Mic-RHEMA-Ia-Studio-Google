@@ -45,23 +45,6 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
             verticalArrangement = Arrangement.spacedBy(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // "Estamos ao vivo" Pill
-            Surface(
-                shape = CircleShape,
-                color = Color.Transparent,
-                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f)),
-                modifier = Modifier.clickable { }
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = "Ao Vivo", modifier = Modifier.size(16.dp))
-                    Text("Estamos ao vivo", style = MaterialTheme.typography.labelLarge)
-                }
-            }
-
             // Featured Carousel
             Card(
                 modifier = Modifier
@@ -80,22 +63,14 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
                 }
             }
 
-            // "Como você está se sentindo hoje? ♡"
-            OutlinedTextField(
-                value = "",
-                onValueChange = {},
-                placeholder = { Text("Como você está se sentindo hoje?") },
-                trailingIcon = { Icon(Icons.Outlined.FavoriteBorder, contentDescription = "Feeling") },
+            // Welcome text
+            Text(
+                text = "Seja Bem Vindo à MIC Rhema!",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.fillMaxWidth(),
-                shape = CircleShape,
-                colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedBorderColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f),
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedContainerColor = Color.Transparent,
-                    focusedContainerColor = Color.Transparent
-                ),
-                readOnly = true,
-                enabled = false
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
 
             // Quick Actions
@@ -110,12 +85,12 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
             }
 
                         // Notícias
-            val carouselNews = remember { BibleNewsData.newsList.take(12) }
+            val carouselNews = if (bibleNewsState.isEmpty()) BibleNewsData.newsList.take(12) else bibleNewsState.take(12)
             val listState = rememberLazyListState()
             
             LaunchedEffect(carouselNews) {
                 while (true) {
-                    kotlinx.coroutines.delay(7000)
+                    kotlinx.coroutines.delay(4000)
                     if (carouselNews.isNotEmpty()) {
                         val currentItem = listState.firstVisibleItemIndex
                         val nextItem = (currentItem + 1) % carouselNews.size

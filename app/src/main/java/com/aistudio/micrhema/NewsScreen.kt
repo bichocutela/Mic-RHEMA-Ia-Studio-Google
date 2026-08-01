@@ -46,7 +46,7 @@ fun NewsListScreen(onNavigateToDetail: (Int) -> Unit, onBack: () -> Unit) {
             contentPadding = PaddingValues(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            items(BibleNewsData.newsList) { news ->
+            items(if (bibleNewsState.isEmpty()) BibleNewsData.newsList else bibleNewsState) { news ->
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -88,7 +88,7 @@ fun NewsListScreen(onNavigateToDetail: (Int) -> Unit, onBack: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NewsDetailScreen(newsId: Int, onBack: () -> Unit, onNavigateToBible: (String, Int) -> Unit) {
-    val news = BibleNewsData.newsList.find { it.id == newsId } ?: return
+    val news = (if (bibleNewsState.isEmpty()) BibleNewsData.newsList else bibleNewsState).find { it.id == newsId } ?: return
 
     Scaffold(
         topBar = {
