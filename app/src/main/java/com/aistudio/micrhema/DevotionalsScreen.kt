@@ -9,6 +9,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Book
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -137,7 +139,8 @@ fun DevotionalDetailScreen(devotional: Devotional, onBack: () -> Unit) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 IconButton(onClick = onBack) {
                     Icon(
@@ -146,7 +149,29 @@ fun DevotionalDetailScreen(devotional: Devotional, onBack: () -> Unit) {
                         tint = MaterialTheme.colorScheme.onBackground
                     )
                 }
+                
+                val isFavorite = favoriteItemsState.any { it.type == "devotional" && it.reference == devotional.title }
+                IconButton(onClick = {
+                    if (isFavorite) {
+                        val fav = favoriteItemsState.find { it.type == "devotional" && it.reference == devotional.title }
+                        if (fav != null) removeFavorite(fav.id)
+                    } else {
+                        addFavorite(FavoriteItem(
+                            id = java.util.UUID.randomUUID().toString(),
+                            type = "devotional",
+                            reference = devotional.title,
+                            text = devotional.verse
+                        ))
+                    }
+                }) {
+                    Icon(
+                        if (isFavorite) Icons.Default.Favorite else Icons.Outlined.FavoriteBorder,
+                        contentDescription = "Favoritar",
+                        tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground
+                    )
+                }
             }
+
 
             Column(
                 modifier = Modifier

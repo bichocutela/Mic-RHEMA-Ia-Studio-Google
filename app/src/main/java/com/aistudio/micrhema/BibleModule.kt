@@ -13,6 +13,11 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Download
+import kotlinx.coroutines.launch
+import android.widget.Toast
+
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Remove
@@ -45,11 +50,11 @@ val chapterCounts = mapOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BibleScreen(initialBook: String? = null, initialChapter: Int? = null) {
+fun BibleScreen(initialBook: String? = null, initialChapter: Int? = null, initialVersion: String? = null) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedBook by remember { mutableStateOf<String?>(initialBook ?: "João") }
     var selectedChapter by remember { mutableStateOf<Int?>(initialChapter ?: 1) }
-    var selectedVersion by remember { mutableStateOf("NTLH") }
+    var selectedVersion by remember { mutableStateOf(initialVersion ?: "ARA") }
     var showVersionDialog by remember { mutableStateOf(false) }
     var verses by remember { mutableStateOf<List<BibleVerse>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
@@ -65,8 +70,7 @@ fun BibleScreen(initialBook: String? = null, initialChapter: Int? = null) {
     val versions = listOf(
         "ARA" to "Almeida Revista e Atualizada",
         "ACF" to "Almeida Corrigida Fiel",
-        "NVI" to "Nova Versão Internacional",
-        "NTLH" to "Nova Tradução na Linguagem de Hoje"
+        "NVI" to "Nova Versão Internacional"
     )
 
     fun fetchChapter() {
@@ -158,7 +162,13 @@ fun BibleScreen(initialBook: String? = null, initialChapter: Int? = null) {
                 }
             } else if (verses.isEmpty() && selectedBook != null && selectedChapter != null) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Capítulo não encontrado ou erro de conexão.", color = MaterialTheme.colorScheme.error)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Capítulo não encontrado ou erro de conexão.", color = MaterialTheme.colorScheme.error)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(onClick = { fetchChapter() }) {
+                            Text("Tentar novamente")
+                        }
+                    }
                 }
             } else if (selectedBook != null && selectedChapter != null) {
                 LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
@@ -244,28 +254,77 @@ fun BibleScreen(initialBook: String? = null, initialChapter: Int? = null) {
             }
         }
 
+        var downloadedVersions by remember { mutableStateOf(setOf<String>()) }
+        var downloadingVersions by remember { mutableStateOf(setOf<String>()) }
+
+        LaunchedEffect(showVersionDialog) {
+            if (showVersionDialog) {
+                val downloaded = mutableSetOf<String>()
+                for ((code, _) in versions) {
+                    if (LocalBibleFetcher.isVersionDownloaded(context, code)) {
+                        downloaded.add(code)
+                    }
+                }
+                downloadedVersions = downloaded
+            }
+        }
+
         if (showVersionDialog) {
             AlertDialog(
                 onDismissRequest = { showVersionDialog = false },
-                title = { Text("Minhas Versões") },
+                title = { Text("Versões da Bíblia") },
                 text = {
                     Column {
                         versions.forEach { (code, name) ->
+                            val isDownloaded = downloadedVersions.contains(code)
+                            val isDownloading = downloadingVersions.contains(code)
+                            
                             Row(
-                                modifier = Modifier.fillMaxWidth().clickable {
-                                    selectedVersion = code
-                                    showVersionDialog = false
-                                }.padding(vertical = 12.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(enabled = isDownloaded && !isDownloading) {
+                                        if (isDownloaded) {
+                                            selectedVersion = code
+                                            showVersionDialog = false
+                                        }
+                                    }
+                                    .padding(vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 RadioButton(
                                     selected = selectedVersion == code,
-                                    onClick = null
+                                    onClick = null,
+                                    enabled = isDownloaded && !isDownloading
                                 )
                                 Spacer(modifier = Modifier.width(16.dp))
-                                Column {
-                                    Text(code, fontWeight = FontWeight.Bold)
-                                    Text(name, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(code, fontWeight = FontWeight.Bold, color = if (isDownloaded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+                                    Text(name, style = MaterialTheme.typography.bodySmall, color = if (isDownloaded) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                                }
+                                if (!isDownloaded) {
+                                    if (isDownloading) {
+                                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                                    } else {
+                                        IconButton(onClick = {
+                                            coroutineScope.launch {
+                                                downloadingVersions = downloadingVersions + code
+                                                val url = "https://raw.githubusercontent.com/thiagobodruk/bible/master/json/pt_${code.lowercase()}.json"
+                                                val file = FileDownloader.downloadFile(context, url, "${code.lowercase()}.json", "bibles") { }
+                                                if (file != null && file.exists() && file.length() > 0) {
+                                                    downloadedVersions = downloadedVersions + code
+                                                    Toast.makeText(context, "$code baixada com sucesso!", Toast.LENGTH_SHORT).show()
+                                                    if (selectedVersion == code) {
+                                                        fetchChapter()
+                                                    }
+                                                } else {
+                                                    Toast.makeText(context, "Erro ao baixar $code.", Toast.LENGTH_SHORT).show()
+                                                }
+                                                downloadingVersions = downloadingVersions - code
+                                            }
+                                        }) {
+                                            Icon(Icons.Default.Download, contentDescription = "Baixar", tint = MaterialTheme.colorScheme.primary)
+                                        }
+                                    }
                                 }
                             }
                         }

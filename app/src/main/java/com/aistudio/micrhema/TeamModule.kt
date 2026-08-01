@@ -65,7 +65,7 @@ fun TeamScreen() {
                 if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
                     coroutineScope.launch {
                         try {
-                            Firebase.firestore.collection("team").document(newMember.id).set(newMember)
+                            Firebase.firestore.collection("equipe").document(newMember.id).set(newMember)
                         } catch (e: Exception) {
                             android.util.Log.e("TeamScreen", "Error saving", e)
                         } finally {
@@ -178,7 +178,7 @@ fun EditTeamSection() {
                 if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
                     coroutineScope.launch {
                         try {
-                            Firebase.firestore.collection("team").document(newMember.id).set(newMember)
+                            Firebase.firestore.collection("equipe").document(newMember.id).set(newMember)
                         } catch (e: Exception) {
                             android.util.Log.e("TeamAdmin", "Error saving", e)
                         } finally {
@@ -246,7 +246,7 @@ fun EditTeamSection() {
                         }
                         IconButton(onClick = {
                             if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
-                                Firebase.firestore.collection("team").document(member.id).delete()
+                                Firebase.firestore.collection("equipe").document(member.id).delete()
                             } else {
                                 teamMembersState.remove(member)
                             }

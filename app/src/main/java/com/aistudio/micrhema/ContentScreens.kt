@@ -40,6 +40,7 @@ import androidx.media3.ui.PlayerView
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
 fun ContentScreen() {
+
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("Livros", "Áudios", "Vídeos", "Fotos")
     
@@ -53,8 +54,8 @@ fun ContentScreen() {
     val context = LocalContext.current
     LaunchedEffect(Unit) { delay(1200); isLocalLoading = false }
     val coroutineScope = rememberCoroutineScope()
-
     Column(modifier = Modifier.fillMaxSize()) {
+
         if (selectedBook == null && selectedVideo == null && selectedAudio == null && selectedAlbum == null) {
             GlassTextField(
                 value = searchQuery,

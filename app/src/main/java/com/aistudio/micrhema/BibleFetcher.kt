@@ -16,7 +16,7 @@ data class BibleVerse(
 
 object BibleFetcher {
     suspend fun getChapter(context: Context, book: String, chapter: Int, translation: String): List<BibleVerse> {
-        if (translation == "NTLH" || translation == "NVI" || translation == "ACF") {
+        if (translation == "ARA" || translation == "NVI" || translation == "ACF") {
             return LocalBibleFetcher.getChapter(context, book, chapter, translation)
         }
         

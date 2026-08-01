@@ -13,6 +13,7 @@ object FileDownloader {
         context: Context,
         url: String,
         fileName: String,
+        directoryName: String = "audio_downloads",
         onProgress: (Float) -> Unit
     ): File? = withContext(Dispatchers.IO) {
         try {
@@ -24,7 +25,7 @@ object FileDownloader {
             }
 
             val fileLength = connection.contentLength
-            val directory = File(context.filesDir, "audio_downloads")
+            val directory = File(context.filesDir, directoryName)
             if (!directory.exists()) {
                 directory.mkdirs()
             }
@@ -75,8 +76,8 @@ object FileDownloader {
         }
     }
     
-    fun getLocalFile(context: Context, fileName: String): File? {
-        val directory = File(context.filesDir, "audio_downloads")
+    fun getLocalFile(context: Context, fileName: String, directoryName: String = "audio_downloads"): File? {
+        val directory = File(context.filesDir, directoryName)
         val file = File(directory, fileName)
         return if (file.exists() && file.length() > 0) file else null
     }

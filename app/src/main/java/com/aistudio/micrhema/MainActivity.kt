@@ -72,13 +72,13 @@ fun getIconFromName(name: String): androidx.compose.ui.graphics.vector.ImageVect
 
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
     object Home : Screen("home", "Início", Icons.Default.Home)
-    object Devotionals : Screen("devotionals", "Devocionais", Icons.Default.Book)
+    object Devotionals : Screen("devocionais", "Devocionais", Icons.Default.Book)
     object Services : Screen("services", "Cultos", Icons.Default.Church)
     object Prayer : Screen("prayer", "Oração", Icons.Default.Favorite)
     object Members : Screen("members", "Membro (VIP)", Icons.Default.People)
     object Ibr : Screen("ibr", "IBR", Icons.Default.Group)
     object Plans : Screen("plans", "Planos", Icons.Default.List)
-    object Team : Screen("team", "Equipe", Icons.Default.Group)
+    object Team : Screen("equipe", "Equipe", Icons.Default.Group)
     object About : Screen("about", "Sobre", Icons.Default.Info)
     object Settings : Screen("settings", "Configurações", Icons.Default.Settings)
     object Content : Screen("content", "Conteúdo", Icons.Default.LibraryBooks)
@@ -153,7 +153,17 @@ fun MainScreen() {
         // Permission handled
     }
 
+
+    LaunchedEffect(loggedInMemberState.value) {
+        if (loggedInMemberState.value != null) {
+            loadFavoritesFromFirestore()
+        } else {
+            favoriteItemsState.clear()
+        }
+    }
+
     LaunchedEffect(Unit) {
+
         // Initialize Firebase if keys are present (via Secrets panel/BuildConfig)
         if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty() && com.google.firebase.FirebaseApp.getApps(context).isEmpty()) {
             try {
@@ -175,7 +185,7 @@ fun MainScreen() {
                 NotificationHelper.scheduleDevotionalSync(context)
             } catch(e: Exception) {}
             try {
-                com.google.firebase.messaging.FirebaseMessaging.getInstance().subscribeToTopic("devotionals")
+                com.google.firebase.messaging.FirebaseMessaging.getInstance().subscribeToTopic("devocionais")
             } catch(e: Exception) {}
         } catch (e: Exception) {
             e.printStackTrace()
@@ -297,9 +307,8 @@ fun MainScreen() {
             Scaffold(
                 modifier = Modifier.weight(1f),
                 containerColor = MaterialTheme.colorScheme.background,
-                contentWindowInsets = WindowInsets(0, 0, 0, 0),
                 bottomBar = {
-                    Column(modifier = if (!isCompact) Modifier.windowInsetsPadding(WindowInsets.navigationBars) else Modifier) {
+                    Column(modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars)) {
                         PersistentAudioPlayerBar()
                         if (isCompact) {
                             FloatingNavigationBar(
@@ -317,7 +326,7 @@ fun MainScreen() {
                     }
                 }
             ) { paddingValues ->
-            Column(modifier = Modifier.padding(paddingValues).fillMaxSize()) {
+            Column(modifier = Modifier.padding(paddingValues).consumeWindowInsets(paddingValues).fillMaxSize()) {
                 if (RemoteConfigManager.showWarningBanner.value && RemoteConfigManager.warningBannerText.value.isNotBlank()) {
                     androidx.compose.material3.Surface(
                         color = MaterialTheme.colorScheme.errorContainer,
@@ -371,10 +380,12 @@ fun MainScreen() {
             ) {
                 composable(Screen.Home.route) { HomeScreen(onNavigate = { route -> navController.navigate(route) { launchSingleTop = true } }) }
                 composable(Screen.Devotionals.route) { DevotionalsScreen() }
+                composable("devotionals") { DevotionalsScreen() }
                 composable(Screen.Services.route) { ServicesScreen() }
                 composable(Screen.Prayer.route) { PrayerScreen() }
                 composable(Screen.Members.route) { MembersScreen() }
                 composable(Screen.Ibr.route) { IbrScreen() }
+                composable("equipe") { TeamScreen() }
                 composable("team") { TeamScreen() }
                 composable("plans") { PlansScreen(onNavigateToBible = { book, chap -> navController.navigate("bible?book=$book&chapter=$chap") }) }
                 composable(Screen.About.route) { AboutScreen() }
@@ -393,19 +404,21 @@ fun MainScreen() {
                     NewsDetailScreen(
                         newsId = id,
                         onBack = { navController.popBackStack() },
-                        onNavigateToBible = { book, chap -> navController.navigate("bible?book=$book&chapter=$chap") }
+                        onNavigateToBible = { book, chap, version -> navController.navigate("bible?book=$book&chapter=$chap&version=$version") }
                     )
                 }
                 composable(
-                    route = "bible?book={book}&chapter={chapter}",
+                    route = "bible?book={book}&chapter={chapter}&version={version}",
                     arguments = listOf(
                         navArgument("book") { nullable = true; defaultValue = null },
-                        navArgument("chapter") { nullable = true; defaultValue = null }
+                        navArgument("chapter") { nullable = true; defaultValue = null },
+                        navArgument("version") { nullable = true; defaultValue = null }
                     )
                 ) { backStackEntry ->
                     val book = backStackEntry.arguments?.getString("book")
                     val chapter = backStackEntry.arguments?.getString("chapter")?.toIntOrNull()
-                    BibleScreen(initialBook = book, initialChapter = chapter)
+                    val version = backStackEntry.arguments?.getString("version")?.takeIf { it.isNotBlank() }
+                    BibleScreen(initialBook = book, initialChapter = chapter, initialVersion = version)
                 }
                 composable(
                     route = "custom_tab/{id}",

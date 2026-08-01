@@ -5,6 +5,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ExitToApp
@@ -19,8 +20,12 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun MembersScreen() {
-    val context = LocalContext.current
     val loggedInMember = loggedInMemberState.value
+    if (loggedInMember == null) {
+        LoginScreen(onLoginSuccess = {})
+        return
+    }
+    val context = LocalContext.current
     var email by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
     var isLoginMode by remember { mutableStateOf(true) }
@@ -55,72 +60,22 @@ fun MembersScreen() {
                 )
             }
 
-            if (loggedInMember == null) {
+            if (!loggedInMember.isApproved) {
                 Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp)
+                        .fillMaxSize()
+                        .padding(horizontal = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
                 ) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(24.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text("Acesso VIP / IBR", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                            Spacer(modifier = Modifier.height(24.dp))
-
-                            if (!isLoginMode) {
-                                OutlinedTextField(
-                                    value = name, 
-                                    onValueChange = { name = it }, 
-                                    label = { Text("Nome") }, 
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
-                            }
-                            OutlinedTextField(
-                                value = email, 
-                                onValueChange = { email = it }, 
-                                label = { Text("E-mail") }, 
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
-                            )
-                            Spacer(modifier = Modifier.height(24.dp))
-
-                            Button(
-                                onClick = {
-                                    if (isLoginMode) {
-                                        val existing = memberRequestsState.find { it.email == email }
-                                        if (existing != null) {
-                                            MemberManager.setLoggedInMember(context, existing)
-                                        } else {
-                                            android.widget.Toast.makeText(context, "Membro não encontrado", android.widget.Toast.LENGTH_SHORT).show()
-                                        }
-                                    } else {
-                                        if (name.isNotBlank() && email.isNotBlank()) {
-                                            val newReq = MemberRequest(id = java.util.UUID.randomUUID().toString(), name = name, email = email)
-                                            memberRequestsState.add(newReq)
-                                            MemberManager.setLoggedInMember(context, newReq)
-                                        }
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = androidx.compose.foundation.shape.RoundedCornerShape(50)
-                            ) {
-                                Text(if (isLoginMode) "Entrar" else "Solicitar Acesso", modifier = Modifier.padding(vertical = 8.dp))
-                            }
-                            Spacer(modifier = Modifier.height(16.dp))
-                            TextButton(onClick = { isLoginMode = !isLoginMode }) {
-                                Text(if (isLoginMode) "Não tem conta? Solicitar Acesso" else "Já tem conta? Entrar")
-                            }
-                        }
+                    Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Solicitação Enviada", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Aguarde a aprovação do administrador para acessar os conteúdos exclusivos. Você será notificado ou poderá verificar aqui mais tarde.", textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f))
+                    Spacer(modifier = Modifier.height(24.dp))
+                    OutlinedButton(onClick = { MemberManager.setLoggedInMember(context, null) }) {
+                        Text("Sair")
                     }
                 }
             } else {
@@ -160,25 +115,69 @@ fun MembersScreen() {
                             }
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Text("Meus Favoritos", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                    Spacer(modifier = Modifier.height(12.dp))
                     
-                    Spacer(modifier = Modifier.weight(1f))
+                    if (favoriteItemsState.isEmpty()) {
+                        Text("Você ainda não adicionou nenhum devocional ou versículo aos favoritos.", color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f), style = MaterialTheme.typography.bodyMedium)
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(favoriteItemsState) { fav ->
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                                ) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(), 
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.Top
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(fav.reference, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text(fav.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                                            }
+                                            IconButton(onClick = { removeFavorite(fav.id) }) {
+                                                Icon(Icons.Default.Favorite, contentDescription = "Remover favorito", tint = MaterialTheme.colorScheme.error)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (favoriteItemsState.isEmpty()) Spacer(modifier = Modifier.weight(1f))
+                    else Spacer(modifier = Modifier.height(16.dp))
+                    
                     OutlinedButton(
                         onClick = { MemberManager.setLoggedInMember(context, null) },
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 100.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)
                     ) {
                         Icon(Icons.Default.ExitToApp, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Sair")
+                        Text("Sair da Conta")
                     }
                 }
             }
         }
     }
 }
+
 @Composable
 fun IbrScreen() {
     val loggedInMember = loggedInMemberState.value
+    if (loggedInMember == null) {
+        LoginScreen(onLoginSuccess = {})
+        return
+    }
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
@@ -187,7 +186,6 @@ fun IbrScreen() {
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Header
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -195,7 +193,7 @@ fun IbrScreen() {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    androidx.compose.material.icons.Icons.Default.CheckCircle,
+                    Icons.Default.Settings,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(28.dp)
@@ -207,13 +205,14 @@ fun IbrScreen() {
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
                 )
+                Spacer(modifier = Modifier.weight(1f))
+                val context = LocalContext.current
+                TextButton(onClick = { MemberManager.setLoggedInMember(context, null) }) {
+                    Text("Sair")
+                }
             }
 
-            if (loggedInMember == null) {
-                Column(modifier = Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    Text("Você precisa estar logado para acessar os cursos do IBR.", textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = MaterialTheme.colorScheme.onBackground)
-                }
-            } else if (!loggedInMember.isIbr) {
+            if (!loggedInMember.isIbr) {
                 Column(modifier = Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                     Text("Você não está matriculado no IBR. Procure a secretaria para mais informações.", textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = MaterialTheme.colorScheme.onBackground)
                 }
@@ -366,31 +365,77 @@ fun SettingsScreen() {
 }
 @Composable
 fun AdminScreen() {
-    var selectedTab by remember { mutableStateOf(0) }
-    val tabs = listOf("Abas", "Conteúdo", "VIP/IBR", "Equipe")
-
-    Column(modifier = Modifier.fillMaxSize()) {
-        ScrollableTabRow(
-            selectedTabIndex = selectedTab,
-            edgePadding = 8.dp,
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-        ) {
-            tabs.forEachIndexed { index, title ->
-                Tab(
-                    selected = selectedTab == index,
-                    onClick = { selectedTab = index },
-                    text = { Text(title) }
+    var isAuthenticated by remember { mutableStateOf(false) }
+    var password by remember { mutableStateOf("") }
+    var passwordError by remember { mutableStateOf(false) }
+    
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background
+    ) { paddingValues ->
+        if (!isAuthenticated) {
+            Column(
+                modifier = Modifier.fillMaxSize().padding(paddingValues).padding(16.dp),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text("Acesso Restrito - Admin", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it; passwordError = false },
+                    label = { Text("Senha") },
+                    isError = passwordError,
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation()
                 )
+                if (passwordError) {
+                    Text("Senha incorreta", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(onClick = {
+                    if (password == "igreja10") {
+                        isAuthenticated = true
+                    } else {
+                        passwordError = true
+                    }
+                }) {
+                    Text("Entrar")
+                }
             }
+            return@Scaffold
         }
 
-        Box(modifier = Modifier.fillMaxSize().weight(1f)) {
-            when (selectedTab) {
-                0 -> AdminTabsScreen()
-                1 -> EditContentSection()
-                2 -> EditVipSection()
-                3 -> EditTeamSection()
+        var selectedTab by remember { mutableStateOf(0) }
+        val tabs = listOf("Abas", "Planos", "Cultos", "Devocionais", "Conteúdo", "VIP/IBR", "Equipe", "Membros", "Sobre", "Configurações")
+
+        Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+            ScrollableTabRow(
+                selectedTabIndex = selectedTab,
+                edgePadding = 8.dp,
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+            ) {
+                tabs.forEachIndexed { index, title ->
+                    Tab(
+                        selected = selectedTab == index,
+                        onClick = { selectedTab = index },
+                        text = { Text(title) }
+                    )
+                }
+            }
+
+            Box(modifier = Modifier.fillMaxSize().weight(1f)) {
+                when (selectedTab) {
+                    0 -> AdminTabsScreen()
+                    1 -> EditPlansSection()
+                    2 -> EditServicesSection()
+                    3 -> EditDevotionalsSection()
+                    4 -> EditContentSection()
+                    5 -> EditVipSection()
+                    6 -> EditTeamSection()
+                    7 -> EditMembersSection()
+                    8 -> EditAboutSection()
+                    9 -> EditSettingsSection()
+                }
             }
         }
     }

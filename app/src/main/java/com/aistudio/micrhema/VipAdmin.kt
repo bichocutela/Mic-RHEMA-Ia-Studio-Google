@@ -25,42 +25,42 @@ import com.google.firebase.firestore.firestore
 
 fun addVipBook(item: ContentBook) {
     if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
-        Firebase.firestore.collection("vip_books").document(item.id).set(item)
+        Firebase.firestore.collection("conteudos_books").document(item.id).set(item)
     }
 }
 fun removeVipBook(item: ContentBook) {
     if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
-        Firebase.firestore.collection("vip_books").document(item.id).delete()
+        Firebase.firestore.collection("conteudos_books").document(item.id).delete()
     }
 }
 fun addVipAudio(item: ContentAudio) {
     if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
-        Firebase.firestore.collection("vip_audios").document(item.id).set(item)
+        Firebase.firestore.collection("conteudos_audios").document(item.id).set(item)
     }
 }
 fun removeVipAudio(item: ContentAudio) {
     if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
-        Firebase.firestore.collection("vip_audios").document(item.id).delete()
+        Firebase.firestore.collection("conteudos_audios").document(item.id).delete()
     }
 }
 fun addVipVideo(item: ContentVideo) {
     if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
-        Firebase.firestore.collection("vip_videos").document(item.id).set(item)
+        Firebase.firestore.collection("conteudos_videos").document(item.id).set(item)
     }
 }
 fun removeVipVideo(item: ContentVideo) {
     if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
-        Firebase.firestore.collection("vip_videos").document(item.id).delete()
+        Firebase.firestore.collection("conteudos_videos").document(item.id).delete()
     }
 }
 fun addVipAlbum(item: ContentPhotoAlbum) {
     if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
-        Firebase.firestore.collection("vip_albums").document(item.id).set(item)
+        Firebase.firestore.collection("conteudos_albums").document(item.id).set(item)
     }
 }
 fun removeVipAlbum(item: ContentPhotoAlbum) {
     if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
-        Firebase.firestore.collection("vip_albums").document(item.id).delete()
+        Firebase.firestore.collection("conteudos_albums").document(item.id).delete()
     }
 }
 fun addVipCourse(item: IbrCourse) {

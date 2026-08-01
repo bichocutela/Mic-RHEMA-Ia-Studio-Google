@@ -87,7 +87,7 @@ fun NewsListScreen(onNavigateToDetail: (Int) -> Unit, onBack: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NewsDetailScreen(newsId: Int, onBack: () -> Unit, onNavigateToBible: (String, Int) -> Unit) {
+fun NewsDetailScreen(newsId: Int, onBack: () -> Unit, onNavigateToBible: (String, Int, String?) -> Unit) {
     val news = (if (bibleNewsState.isEmpty()) BibleNewsData.newsList else bibleNewsState).find { it.id == newsId } ?: return
 
     Scaffold(
@@ -152,7 +152,7 @@ fun NewsDetailScreen(newsId: Int, onBack: () -> Unit, onNavigateToBible: (String
                     color = MaterialTheme.colorScheme.primary,
                     textDecoration = TextDecoration.Underline,
                     modifier = Modifier.clickable {
-                        onNavigateToBible(news.book, news.chapter)
+                        onNavigateToBible(news.book, news.chapter, "ARA")
                     }.padding(vertical = 8.dp)
                 )
                 

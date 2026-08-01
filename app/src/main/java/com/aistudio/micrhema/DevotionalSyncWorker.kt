@@ -17,7 +17,7 @@ class DevotionalSyncWorker(
         try {
             if (com.google.firebase.FirebaseApp.getApps(context).isEmpty()) return Result.success()
             val db = FirebaseFirestore.getInstance()
-            val result = db.collection("devotionals")
+            val result = db.collection("devocionais")
                 .orderBy("date", Query.Direction.DESCENDING)
                 .limit(1)
                 .get()

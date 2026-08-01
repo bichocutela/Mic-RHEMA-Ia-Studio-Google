@@ -1,0 +1,175 @@
+--- app/src/main/java/com/aistudio/micrhema/LoginScreen.kt
++++ app/src/main/java/com/aistudio/micrhema/LoginScreen.kt
+@@ -87,31 +87,0 @@
+-        // Tab Row
+-        Row(
+-            modifier = Modifier
+-                .fillMaxWidth()
+-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+-                .padding(4.dp),
+-            horizontalArrangement = Arrangement.Center
+-        ) {
+-            Box(
+-                modifier = Modifier
+-                    .weight(1f)
+-                    .clip(RoundedCornerShape(10.dp))
+-                    .background(if (isLoginTab) Color(0xFFDCA628) else Color.Transparent)
+-                    .clickable { isLoginTab = true }
+-                    .padding(vertical = 12.dp),
+-                contentAlignment = Alignment.Center
+-            ) {
+-                Text("Entrar com Google", color = if (isLoginTab) Color.White else MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+-            }
+-            Box(
+-                modifier = Modifier
+-                    .weight(1f)
+-                    .clip(RoundedCornerShape(10.dp))
+-                    .background(if (!isLoginTab) Color(0xFFDCA628) else Color.Transparent)
+-                    .clickable { isLoginTab = false }
+-                    .padding(vertical = 12.dp),
+-                contentAlignment = Alignment.Center
+-            ) {
+-                Text("Admin", color = if (!isLoginTab) Color.White else MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+-            }
+-        }
+@@ -130 +100 @@
+-                if (isLoginTab) {
+-                    Text("Acesso para Membros", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
+-                    Spacer(modifier = Modifier.height(12.dp))
+-                    Text("Entre com sua conta Google para acessar conteúdos exclusivos, pedir oração e acompanhar a vida da igreja.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+-                    Spacer(modifier = Modifier.height(24.dp))
+-                    
+-                    Button(
+-                        onClick = { 
+-                            isLoading = true
+-                            try {
+-                                launcher.launch(googleSignInClient.signInIntent) 
+-                            } catch (e: Exception) {
+-                                isLoading = false
+-                                android.widget.Toast.makeText(context, "Emulador não suporta Google Sign-In. Use o Modo de Teste abaixo.", android.widget.Toast.LENGTH_LONG).show()
+-                            }
+-                        },
+-                        modifier = Modifier.fillMaxWidth().height(50.dp),
+-                        shape = RoundedCornerShape(12.dp),
+-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4285F4)),
+-                        enabled = !isLoading
+-                    ) {
+-                        if (isLoading) {
+-                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+-                        } else {
+-                            Text("🔑 Entrar com Google", color = Color.White, fontWeight = FontWeight.Bold)
+-                        }
+-                    }
+-                    
+-                    Spacer(modifier = Modifier.height(16.dp))
+-                    OutlinedButton(
+-                        onClick = {
+-                            val testReq = MemberRequest(
+-                                id = "test_user_id",
+-                                name = "Usuário de Teste",
+-                                email = "teste@exemplo.com",
+-                                isApproved = true,
+-                                isVip = true,
+-                                isIbr = true
+-                            )
+-                            MemberManager.setLoggedInMember(context, testReq)
+-                            onLoginSuccess()
+-                        },
+-                        modifier = Modifier.fillMaxWidth().height(50.dp),
+-                        shape = RoundedCornerShape(12.dp)
+-                    ) {
+-                        Text("Modo de Teste (Preview)")
+-                    }
+-                    
+-                    Spacer(modifier = Modifier.height(16.dp))
+-                    Text("Após o login, solicite acesso de membro para liberar conteúdos exclusivos.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+-                } else {
+-                    Text("Acesso Restrito - Admin", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
+-                    Spacer(modifier = Modifier.height(16.dp))
+-                    OutlinedTextField(
+-                        value = password,
+-                        onValueChange = { password = it; passwordError = false },
+-                        label = { Text("Senha") },
+-                        isError = passwordError,
+-                        modifier = Modifier.fillMaxWidth(),
+-                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation()
+-                    )
+-                    if (passwordError) {
+-                        Text("Senha incorreta", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.align(Alignment.Start))
+-                    }
+-                    Spacer(modifier = Modifier.height(16.dp))
+-                    Button(
+-                        onClick = {
+-                            if (password == "igreja10") {
+-                                // Assume we have a global admin state or navigate to AdminScreen
+-                                // For now, we can just save a mock member that is Admin
+-                                val adminReq = MemberRequest(
+-                                    id = "admin", 
+-                                    name = "Administrador", 
+-                                    email = "admin@micrhema.com", 
+-                                    isApproved = true, 
+-                                    isVip = true, 
+-                                    isIbr = true
+-                                )
+-                                MemberManager.setLoggedInMember(context, adminReq)
+-                                onLoginSuccess()
+-                            } else {
+-                                passwordError = true
+-                            }
+-                        },
+-                        modifier = Modifier.fillMaxWidth().height(50.dp),
+-                        shape = RoundedCornerShape(12.dp),
+-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDCA628))
+-                    ) {
+-                        Text("Entrar", color = Color.White, fontWeight = FontWeight.Bold)
+-                    }
+-                }
++                Text("Acesso para Membros", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
++                Spacer(modifier = Modifier.height(12.dp))
++                Text("Entre com sua conta Google para acessar conteúdos exclusivos, pedir oração e acompanhar a vida da igreja.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
++                Spacer(modifier = Modifier.height(24.dp))
++                
++                Button(
++                    onClick = { 
++                        isLoading = true
++                        try {
++                            launcher.launch(googleSignInClient.signInIntent) 
++                        } catch (e: Exception) {
++                            isLoading = false
++                            android.widget.Toast.makeText(context, "Emulador não suporta Google Sign-In. Use o Modo de Teste abaixo.", android.widget.Toast.LENGTH_LONG).show()
++                        }
++                    },
++                    modifier = Modifier.fillMaxWidth().height(50.dp),
++                    shape = RoundedCornerShape(12.dp),
++                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4285F4)),
++                    enabled = !isLoading
++                ) {
++                    if (isLoading) {
++                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
++                    } else {
++                        Text("🔑 Entrar com Google", color = Color.White, fontWeight = FontWeight.Bold)
++                    }
++                }
++                
++                Spacer(modifier = Modifier.height(16.dp))
++                OutlinedButton(
++                    onClick = {
++                        val testReq = MemberRequest(
++                            id = "test_user_id",
++                            name = "Usuário de Teste",
++                            email = "teste@exemplo.com",
++                            isApproved = true,
++                            isVip = true,
++                            isIbr = true
++                        )
++                        MemberManager.setLoggedInMember(context, testReq)
++                        onLoginSuccess()
++                    },
++                    modifier = Modifier.fillMaxWidth().height(50.dp),
++                    shape = RoundedCornerShape(12.dp)
++                ) {
++                    Text("Modo de Teste (Preview)")
++                }
++                
++                Spacer(modifier = Modifier.height(16.dp))
++                Text("Após o login, solicite acesso de membro para liberar conteúdos exclusivos.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)

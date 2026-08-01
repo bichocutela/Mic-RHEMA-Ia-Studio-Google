@@ -45,7 +45,7 @@ fun ServiceVideosGallery() {
             if (isOfflineModeState.value) return@LaunchedEffect
             if (com.google.firebase.FirebaseApp.getApps(context).isEmpty()) return@LaunchedEffect
             val db = FirebaseFirestore.getInstance()
-            val result = db.collection("service_videos").get().await()
+            val result = db.collection("cultos").get().await()
             val fetchedVideos = result.documents.mapNotNull { doc ->
                 doc.toObject(ServiceVideoModel::class.java)?.copy(id = doc.id)
             }

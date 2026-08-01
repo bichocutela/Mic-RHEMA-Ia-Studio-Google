@@ -51,20 +51,20 @@ class FirestoreObserverService : Service() {
         val db = FirebaseFirestore.getInstance()
         
         val collections = listOf(
-            "content_books" to Pair("Livros", "📚"),
-            "content_audios" to Pair("Áudios", "🎧"),
-            "content_videos" to Pair("Vídeos", "🎬"),
-            "content_albums" to Pair("Álbum de Fotos", "📸"),
-            "devotionals" to Pair("Devocionais", "📖"),
+            "conteudos_books" to Pair("Livros", "📚"),
+            "conteudos_audios" to Pair("Áudios", "🎧"),
+            "conteudos_videos" to Pair("Vídeos", "🎬"),
+            "conteudos_albums" to Pair("Álbum de Fotos", "📸"),
+            "devocionais" to Pair("Devocionais", "📖"),
             "events" to Pair("Eventos", "📅"),
-            "weekly_services" to Pair("Programação da Igreja", "⛪"),
+            "cultos_agenda" to Pair("Programação da Igreja", "⛪"),
             "prayer_requests" to Pair("Pedidos de Oração", "🙏"),
             "carousel_items" to Pair("Destaques", "✨")
         )
 
         // Listen for new members (only alert if current user is admin)
         var isFirstMember = true
-        val memberReg = db.collection("members").addSnapshotListener { snapshot, e ->
+        val memberReg = db.collection("acessos_pendentes").addSnapshotListener { snapshot, e ->
             if (e != null || snapshot == null) return@addSnapshotListener
             if (!isFirstMember) {
                 val added = snapshot.documentChanges.count { it.type == DocumentChange.Type.ADDED }
