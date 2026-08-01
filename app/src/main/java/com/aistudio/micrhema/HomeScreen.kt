@@ -3,6 +3,7 @@ package com.aistudio.micrhema
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -29,7 +30,7 @@ import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen() {
+fun HomeScreen(onNavigate: (String) -> Unit = {}) {
     val scrollState = rememberScrollState()
 
     Scaffold(
@@ -102,82 +103,78 @@ fun HomeScreen() {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                QuickActionItem(icon = Icons.Outlined.Book, label = "Bíblia")
-                QuickActionItem(icon = Icons.Outlined.Add, label = "Pedido de\noração")
-                QuickActionItem(icon = Icons.Outlined.FavoriteBorder, label = "Envolva-se")
-                QuickActionItem(icon = Icons.Outlined.DateRange, label = "Horários")
+                QuickActionItem(icon = Icons.Outlined.Book, label = "Bíblia", onClick = { onNavigate("bible") })
+                QuickActionItem(icon = Icons.Outlined.Add, label = "Pedido de\noração", onClick = { onNavigate("prayer") })
+                QuickActionItem(icon = Icons.Outlined.FavoriteBorder, label = "Planos", onClick = { onNavigate("plans") })
+                QuickActionItem(icon = Icons.Outlined.DateRange, label = "Horários", onClick = { onNavigate("services") })
             }
 
-            // Notícias
-            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Notícias", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("Ver todos", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f))
-                }
-                
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    val newsList = listOf(
-                        Triple("Evangelismo digital", "Todos temos a missão de evangelizar", "https://images.unsplash.com/photo-1438283173091-5dbf5c5a3206?auto=format&fit=crop&q=80&w=400"),
-                        Triple("Louvem ao senhor", "Muitos cristãos, em todo mundo, todos os dias", "https://images.unsplash.com/photo-1504052434569-70ad5836ab65?auto=format&fit=crop&q=80&w=400"),
-                        Triple("Na Califórnia, 6.000 são batizados", "Evento patrocinado Oceans Church", "https://images.unsplash.com/photo-1529070538774-1843cb3265df?auto=format&fit=crop&q=80&w=400")
-                    )
-                    items(newsList) { item ->
-                        NewsCard(
-                            title = item.first,
-                            subtitle = item.second,
-                            imageUrl = item.third
-                        )
+                        // Notícias
+            val carouselNews = remember { BibleNewsData.newsList.take(12) }
+            val listState = rememberLazyListState()
+            
+            LaunchedEffect(carouselNews) {
+                while (true) {
+                    kotlinx.coroutines.delay(7000)
+                    if (carouselNews.isNotEmpty()) {
+                        val currentItem = listState.firstVisibleItemIndex
+                        val nextItem = (currentItem + 1) % carouselNews.size
+                        listState.animateScrollToItem(nextItem)
                     }
                 }
             }
-            
-            // Videos
+
             Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Videos", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Notícias Bíblicas", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Ver todos", 
+                        style = MaterialTheme.typography.labelLarge, 
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.clickable { onNavigate("news_list") }
+                    )
                 }
                 
                 LazyRow(
+                    state = listState,
+                    contentPadding = PaddingValues(horizontal = 20.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    val videoList = listOf(
-                        "Siga a Estrela! Bp. Henrique",
-                        "Pregação Domingo de Manhã"
-                    )
-                    items(videoList) { title ->
+                    items(carouselNews) { news ->
                         Card(
                             modifier = Modifier
-                                .width(240.dp)
-                                .height(140.dp),
-                            shape = RoundedCornerShape(12.dp)
+                                .width(280.dp)
+                                .clickable { onNavigate("news_detail/${news.id}") },
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                         ) {
-                            Box(modifier = Modifier.fillMaxSize()) {
+                            Column {
                                 AsyncImage(
-                                    model = "https://images.unsplash.com/photo-1470229722913-7c090be5c913?auto=format&fit=crop&q=80&w=400",
-                                    contentDescription = "Video",
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                                Box(
+                                    model = news.imageUrl,
+                                    contentDescription = news.title,
                                     modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(12.dp),
-                                    contentAlignment = Alignment.BottomStart
-                                ) {
+                                        .fillMaxWidth()
+                                        .height(140.dp),
+                                    contentScale = ContentScale.Crop
+                                )
+                                Column(modifier = Modifier.padding(12.dp)) {
                                     Text(
-                                        title,
-                                        color = Color.White,
-                                        style = MaterialTheme.typography.labelLarge,
+                                        text = news.title,
+                                        fontWeight = FontWeight.Bold,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 2,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "${news.book} ${news.chapter}:${news.verse}",
+                                        color = MaterialTheme.colorScheme.primary,
+                                        style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
@@ -186,14 +183,13 @@ fun HomeScreen() {
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(40.dp))
+                Spacer(modifier = Modifier.height(40.dp))
         }
     }
 }
 
 @Composable
-fun QuickActionItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String) {
+fun QuickActionItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit = {}) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -203,7 +199,7 @@ fun QuickActionItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label
             shape = CircleShape,
             color = Color.Transparent,
             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f)),
-            modifier = Modifier.size(56.dp)
+            modifier = Modifier.size(56.dp).clickable { onClick() }
         ) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                 Icon(imageVector = icon, contentDescription = label, modifier = Modifier.size(24.dp))

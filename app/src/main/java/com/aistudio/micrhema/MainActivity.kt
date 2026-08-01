@@ -39,6 +39,7 @@ import androidx.navigation.compose.rememberNavController
 import com.aistudio.micrhema.ui.theme.MICRhemaTheme
 import kotlinx.coroutines.launch
 import androidx.compose.ui.unit.dp
+import androidx.navigation.navArgument
 import android.app.Activity
 import androidx.compose.ui.platform.LocalContext
 
@@ -76,6 +77,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     object Prayer : Screen("prayer", "Oração", Icons.Default.Favorite)
     object Members : Screen("members", "Membro (VIP)", Icons.Default.People)
     object Ibr : Screen("ibr", "IBR", Icons.Default.Group)
+    object Plans : Screen("plans", "Planos", Icons.Default.List)
     object Team : Screen("team", "Equipe", Icons.Default.Group)
     object About : Screen("about", "Sobre", Icons.Default.Info)
     object Settings : Screen("settings", "Configurações", Icons.Default.Settings)
@@ -219,7 +221,7 @@ fun MainScreen() {
 
     navController.addOnDestinationChangedListener { _, destination, _ ->
         currentRoute = destination.route ?: Screen.Home.route
-        val foundTab = appTabsState.find { (it.systemRoute ?: "custom_tab/${it.id}") == currentRoute }
+        val foundTab = appTabsState.find { (if (it.id == "bible_tab") "bible" else (it.systemRoute ?: "custom_tab/${it.id}")) == currentRoute }
         topBarTitle = foundTab?.title ?: "MIC Rhema"
     }
 
@@ -238,7 +240,7 @@ fun MainScreen() {
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
                 drawerItems.forEach { item ->
-                    val route = item.systemRoute ?: "custom_tab/${item.id}"
+                    val route = if (item.id == "bible_tab") "bible" else (item.systemRoute ?: "custom_tab/${item.id}")
                     NavigationDrawerItem(
                         icon = { Icon(getIconFromName(item.iconName), contentDescription = null) },
                         label = { Text(item.title) },
@@ -275,7 +277,7 @@ fun MainScreen() {
                     }
                 ) {
                     bottomBarItems.forEach { item ->
-                        val route = item.systemRoute ?: "custom_tab/${item.id}"
+                        val route = if (item.id == "bible_tab") "bible" else (item.systemRoute ?: "custom_tab/${item.id}")
                         NavigationRailItem(
                             icon = { Icon(getIconFromName(item.iconName), contentDescription = null) },
                             label = { Text(item.title) },
@@ -366,18 +368,44 @@ fun MainScreen() {
                     slideOutOfContainer(androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Right, animationSpec = spring(stiffness = Spring.StiffnessLow)) + fadeOut(animationSpec = tween(300))
                 }
             ) {
-                composable(Screen.Home.route) { HomeScreen() }
+                composable(Screen.Home.route) { HomeScreen(onNavigate = { route -> navController.navigate(route) { launchSingleTop = true } }) }
                 composable(Screen.Devotionals.route) { DevotionalsScreen() }
                 composable(Screen.Services.route) { ServicesScreen() }
                 composable(Screen.Prayer.route) { PrayerScreen() }
                 composable(Screen.Members.route) { MembersScreen() }
                 composable(Screen.Ibr.route) { IbrScreen() }
                 composable("team") { TeamScreen() }
+                composable("plans") { PlansScreen(onNavigateToBible = { book, chap -> navController.navigate("bible?book=$book&chapter=$chap") }) }
                 composable(Screen.About.route) { AboutScreen() }
                 composable(Screen.Settings.route) { SettingsScreen() }
                 composable(Screen.Content.route) { ContentScreen() }
                 composable(Screen.Admin.route) { AdminScreen() }
-                composable("bible") { BibleScreen() }
+                composable("news_list") { NewsListScreen(
+                    onNavigateToDetail = { id -> navController.navigate("news_detail/$id") },
+                    onBack = { navController.popBackStack() }
+                ) }
+                composable(
+                    route = "news_detail/{id}",
+                    arguments = listOf(navArgument("id") { type = androidx.navigation.NavType.IntType })
+                ) { backStackEntry ->
+                    val id = backStackEntry.arguments?.getInt("id") ?: return@composable
+                    NewsDetailScreen(
+                        newsId = id,
+                        onBack = { navController.popBackStack() },
+                        onNavigateToBible = { book, chap -> navController.navigate("bible?book=$book&chapter=$chap") }
+                    )
+                }
+                composable(
+                    route = "bible?book={book}&chapter={chapter}",
+                    arguments = listOf(
+                        navArgument("book") { nullable = true; defaultValue = null },
+                        navArgument("chapter") { nullable = true; defaultValue = null }
+                    )
+                ) { backStackEntry ->
+                    val book = backStackEntry.arguments?.getString("book")
+                    val chapter = backStackEntry.arguments?.getString("chapter")?.toIntOrNull()
+                    BibleScreen(initialBook = book, initialChapter = chapter)
+                }
                 composable(
                     route = "custom_tab/{id}",
                     arguments = listOf(androidx.navigation.navArgument("id") { type = androidx.navigation.NavType.StringType })

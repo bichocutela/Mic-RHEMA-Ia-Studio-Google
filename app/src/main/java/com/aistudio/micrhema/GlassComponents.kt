@@ -243,7 +243,7 @@ fun FloatingNavigationBar(
                 val barItems = items.take(4)
                 
                 barItems.forEach { item ->
-                    val route = item.systemRoute ?: "custom_tab/${item.id}"
+                    val route = if (item.id == "bible_tab") "bible" else (item.systemRoute ?: "custom_tab/${item.id}")
                     val isSelected = currentRoute == route
                     
                     val background = if (isSelected) Color(0xFF131B2E) else Color.Transparent

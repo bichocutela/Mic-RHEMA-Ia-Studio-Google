@@ -146,7 +146,7 @@ object LocalDataManager {
                 appTabsState.addAll(list)
                 
                 // Add Bible tab if it doesn't exist (migration)
-                if (appTabsState.none { it.systemRoute == "bible" }) {
+                if (appTabsState.none { it.id == "bible_tab" || it.systemRoute == "bible" }) {
                     val ibrIdx = appTabsState.indexOfFirst { it.systemRoute == "ibr" }
                     val insertIdx = if (ibrIdx != -1) ibrIdx + 1 else appTabsState.size
                     appTabsState.add(insertIdx, AppTab("bible_tab", "Bíblia", "MenuBook", false, true, false, insertIdx, TabContentType.SYSTEM, "bible"))
