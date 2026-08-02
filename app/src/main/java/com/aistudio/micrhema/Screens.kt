@@ -405,7 +405,7 @@ fun AdminScreen() {
         }
 
         var selectedTab by remember { mutableStateOf(0) }
-        val tabs = listOf("Abas", "Planos", "Cultos", "Devocionais", "Conteúdo", "VIP/IBR", "Equipe", "Membros", "Sobre", "Configurações")
+        val tabs = listOf("Abas", "Planos", "Cultos", "Devocionais", "Conteúdo", "VIP/IBR", "Equipe", "Membros", "Sobre", "Destaques", "Configurações")
 
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
             ScrollableTabRow(
@@ -434,7 +434,8 @@ fun AdminScreen() {
                     6 -> EditTeamSection()
                     7 -> EditMembersSection()
                     8 -> EditAboutSection()
-                    9 -> EditSettingsSection()
+                    9 -> EditBannersSection()
+                    10 -> EditSettingsSection()
                 }
             }
         }

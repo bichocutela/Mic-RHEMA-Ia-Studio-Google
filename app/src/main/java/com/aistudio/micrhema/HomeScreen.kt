@@ -49,20 +49,43 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Featured Carousel
+            val bannerState = rememberLazyListState()
+            LaunchedEffect(homeBannersState.size) {
+                if (homeBannersState.size > 1) {
+                    while (true) {
+                        kotlinx.coroutines.delay(4000)
+                        val nextItem = (bannerState.firstVisibleItemIndex + 1) % homeBannersState.size
+                        bannerState.animateScrollToItem(nextItem)
+                    }
+                }
+            }
+
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(200.dp),
+                    .aspectRatio(16f / 9f),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             ) {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    AsyncImage(
-                        model = "https://images.unsplash.com/photo-1544427920-c49ccfb85579?auto=format&fit=crop&q=80&w=800", // Worship/Event placeholder
-                        contentDescription = "Destaque",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                if (homeBannersState.isNotEmpty()) {
+                    LazyRow(
+                        state = bannerState,
+                        modifier = Modifier.fillMaxSize(),
+                        userScrollEnabled = true
+                    ) {
+                        items(homeBannersState) { url ->
+                            AsyncImage(
+                                model = url,
+                                contentDescription = "Destaque",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillParentMaxSize()
+                            )
+                        }
+                    }
+                } else {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
                 }
             }
 

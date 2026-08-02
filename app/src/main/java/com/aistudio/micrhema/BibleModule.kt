@@ -254,20 +254,6 @@ fun BibleScreen(initialBook: String? = null, initialChapter: Int? = null, initia
             }
         }
 
-        var downloadedVersions by remember { mutableStateOf(setOf<String>()) }
-        var downloadingVersions by remember { mutableStateOf(setOf<String>()) }
-
-        LaunchedEffect(showVersionDialog) {
-            if (showVersionDialog) {
-                val downloaded = mutableSetOf<String>()
-                for ((code, _) in versions) {
-                    if (LocalBibleFetcher.isVersionDownloaded(context, code)) {
-                        downloaded.add(code)
-                    }
-                }
-                downloadedVersions = downloaded
-            }
-        }
 
         if (showVersionDialog) {
             AlertDialog(
@@ -276,55 +262,24 @@ fun BibleScreen(initialBook: String? = null, initialChapter: Int? = null, initia
                 text = {
                     Column {
                         versions.forEach { (code, name) ->
-                            val isDownloaded = downloadedVersions.contains(code)
-                            val isDownloading = downloadingVersions.contains(code)
-                            
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable(enabled = isDownloaded && !isDownloading) {
-                                        if (isDownloaded) {
-                                            selectedVersion = code
-                                            showVersionDialog = false
-                                        }
+                                    .clickable {
+                                        selectedVersion = code
+                                        showVersionDialog = false
                                     }
                                     .padding(vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 RadioButton(
                                     selected = selectedVersion == code,
-                                    onClick = null,
-                                    enabled = isDownloaded && !isDownloading
+                                    onClick = null
                                 )
                                 Spacer(modifier = Modifier.width(16.dp))
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(code, fontWeight = FontWeight.Bold, color = if (isDownloaded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
-                                    Text(name, style = MaterialTheme.typography.bodySmall, color = if (isDownloaded) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
-                                }
-                                if (!isDownloaded) {
-                                    if (isDownloading) {
-                                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                                    } else {
-                                        IconButton(onClick = {
-                                            coroutineScope.launch {
-                                                downloadingVersions = downloadingVersions + code
-                                                val url = "https://raw.githubusercontent.com/thiagobodruk/bible/master/json/pt_${code.lowercase()}.json"
-                                                val file = FileDownloader.downloadFile(context, url, "${code.lowercase()}.json", "bibles") { }
-                                                if (file != null && file.exists() && file.length() > 0) {
-                                                    downloadedVersions = downloadedVersions + code
-                                                    Toast.makeText(context, "$code baixada com sucesso!", Toast.LENGTH_SHORT).show()
-                                                    if (selectedVersion == code) {
-                                                        fetchChapter()
-                                                    }
-                                                } else {
-                                                    Toast.makeText(context, "Erro ao baixar $code.", Toast.LENGTH_SHORT).show()
-                                                }
-                                                downloadingVersions = downloadingVersions - code
-                                            }
-                                        }) {
-                                            Icon(Icons.Default.Download, contentDescription = "Baixar", tint = MaterialTheme.colorScheme.primary)
-                                        }
-                                    }
+                                    Text(code, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                    Text(name, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
                         }
@@ -339,3 +294,4 @@ fun BibleScreen(initialBook: String? = null, initialChapter: Int? = null, initia
         }
     }
 }
+

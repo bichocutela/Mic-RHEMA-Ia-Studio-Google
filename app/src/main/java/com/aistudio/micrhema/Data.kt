@@ -942,12 +942,23 @@ fun loadContentFromFirebase(context: Context) {
             
             db.collection("app_tabs").addSnapshotListener { snapshot, e ->
                 if (e != null || snapshot == null) return@addSnapshotListener
-                val list = snapshot.documents.mapNotNull { try { it.toObject(AppTab::class.java) } catch(e: Exception) { null } }
+                var list = snapshot.documents.mapNotNull { try { it.toObject(AppTab::class.java) } catch(e: Exception) { null } }
+                
+                // Migrate incorrectly saved tabs if any
+                list = list.map { tab ->
+                    when (tab.id) {
+                        "8" -> tab.copy(systemRoute = Screen.About.route)
+                        "9" -> tab.copy(systemRoute = Screen.About.route)
+                        "10" -> tab.copy(systemRoute = Screen.Donations.route)
+                        else -> tab
+                    }
+                }
+                
                 appTabsState.clear()
                 if (list.isNotEmpty()) {
                     appTabsState.addAll(list.sortedBy { it.order })
                     // Ensure all 10 default tabs are present
-                    val defaultTabIds = listOf("1", "2", "3", "4", "5", "6", "7", "bible_tab", "team_tab", "8", "9", "10")
+                    val defaultTabIds = listOf("1", "2", "3", "4", "5", "6", "7", "bible_tab", "team_tab", "8", "9", "10", "admin_tab")
                     if (appTabsState.size < defaultTabIds.size) {
                         initializeTabs()
                     }
@@ -1077,9 +1088,9 @@ fun initializeTabs() {
         AppTab("plans_tab", "Planos", "List", false, true, true, 7, TabContentType.SYSTEM, "plans"),
         AppTab("team_tab", "Equipe", "Groups", false, true, false, 8, TabContentType.SYSTEM, Screen.Team.route),
         AppTab("7", "Membros", "Person", false, true, false, 8, TabContentType.SYSTEM, Screen.Members.route),
-        AppTab("8", "Eventos", "ConfirmationNumber", false, true, false, 9, TabContentType.SYSTEM, Screen.About.route),
-        AppTab("9", "Ajuda", "Help", false, true, false, 10, TabContentType.SYSTEM, Screen.About.route),
-        AppTab("10", "Dízimos e Ofertas", "ConfirmationNumber", false, true, true, 11, TabContentType.SYSTEM, Screen.About.route)
+        AppTab("8", "Sobre", "Info", false, true, false, 9, TabContentType.SYSTEM, Screen.About.route),
+        AppTab("10", "Dízimos e Ofertas", "VolunteerActivism", false, true, true, 10, TabContentType.SYSTEM, Screen.Donations.route),
+        AppTab("admin_tab", "Área ADM", "Lock", false, true, false, 11, TabContentType.SYSTEM, Screen.Admin.route)
     )
     appTabsState.addAll(defaultTabs)
 }
@@ -1399,4 +1410,24 @@ fun removeFavorite(itemId: String) {
     val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
     db.collection("users").document(userId).collection("favorites").document(itemId)
         .delete()
+}
+
+
+val homeBannersState = androidx.compose.runtime.mutableStateListOf<String>("https://images.unsplash.com/photo-1544427920-c49ccfb85579?auto=format&fit=crop&q=80&w=800")
+
+fun loadBannersFromFirestore() {
+    val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+    db.collection("settings").document("home_banners").addSnapshotListener { snapshot, e ->
+        if (e != null || snapshot == null || !snapshot.exists()) return@addSnapshotListener
+        val list = snapshot.get("urls") as? List<String>
+        if (list != null && list.isNotEmpty()) {
+            homeBannersState.clear()
+            homeBannersState.addAll(list)
+        }
+    }
+}
+
+fun saveBannersToFirestore(urls: List<String>) {
+    val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+    db.collection("settings").document("home_banners").set(mapOf("urls" to urls))
 }

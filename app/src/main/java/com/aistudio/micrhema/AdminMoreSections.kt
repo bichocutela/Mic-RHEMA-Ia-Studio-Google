@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -361,3 +362,82 @@ fun EditSettingsSection() {
     }
 }
 
+
+
+// BANNERS
+@Composable
+fun EditBannersSection() {
+    var banners by remember { mutableStateOf(homeBannersState.toList()) }
+    var newUrl by remember { mutableStateOf("") }
+    var saving by remember { mutableStateOf(false) }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Text("Gerenciar Banners (Destaques)", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text("Adicione até 5 imagens no formato 16:9 para a tela inicial.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f))
+        Spacer(Modifier.height(16.dp))
+        
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            itemsIndexed(banners) { index, url ->
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        coil.compose.AsyncImage(
+                            model = url,
+                            contentDescription = null,
+                            modifier = Modifier.size(100.dp, 56.dp),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("Banner ${index + 1}", modifier = Modifier.weight(1f))
+                        IconButton(onClick = {
+                            banners = banners.toMutableList().apply { removeAt(index) }
+                        }) {
+                            Icon(androidx.compose.material.icons.Icons.Default.Delete, contentDescription = "Remover", tint = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+            }
+        }
+        
+        if (banners.size < 5) {
+            Spacer(Modifier.height(16.dp))
+            OutlinedTextField(
+                value = newUrl,
+                onValueChange = { newUrl = it },
+                label = { Text("URL da Imagem") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(8.dp))
+            Button(
+                onClick = {
+                    if (newUrl.isNotBlank()) {
+                        banners = banners + newUrl
+                        newUrl = ""
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Adicionar Banner")
+            }
+        }
+        
+        Spacer(Modifier.height(16.dp))
+        Button(
+            onClick = {
+                saving = true
+                saveBannersToFirestore(banners)
+                saving = false
+            },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !saving
+        ) {
+            Text("Salvar Alterações")
+        }
+        Spacer(Modifier.height(32.dp))
+    }
+}

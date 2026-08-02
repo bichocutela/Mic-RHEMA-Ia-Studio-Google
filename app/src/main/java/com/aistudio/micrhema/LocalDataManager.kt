@@ -141,7 +141,18 @@ object LocalDataManager {
             val appTabsJson = prefs.getString("appTabsState", null)
             if (appTabsJson != null) {
                 val type = object : com.google.gson.reflect.TypeToken<List<AppTab>>() {}.type
-                val list: List<AppTab> = gson.fromJson(appTabsJson, type)
+                var list: List<AppTab> = gson.fromJson(appTabsJson, type)
+                
+                // Migrate incorrectly saved tabs if any
+                list = list.map { tab ->
+                    when (tab.id) {
+                        "8" -> tab.copy(systemRoute = Screen.About.route)
+                        "9" -> tab.copy(systemRoute = Screen.About.route)
+                        "10" -> tab.copy(systemRoute = Screen.Donations.route)
+                        else -> tab
+                    }
+                }
+                
                 appTabsState.clear()
                 appTabsState.addAll(list)
                 
@@ -154,6 +165,14 @@ object LocalDataManager {
                     appTabsState.forEachIndexed { index, tab ->
                         val updated = tab.copy(order = index)
                         appTabsState[index] = updated
+                    }
+                }
+                
+                // Add Admin tab if it doesn't exist (migration)
+                if (appTabsState.none { it.id == "admin_tab" || it.systemRoute == Screen.Admin.route }) {
+                    appTabsState.add(AppTab("admin_tab", "Área ADM", "Lock", false, true, false, appTabsState.size, TabContentType.SYSTEM, Screen.Admin.route))
+                    appTabsState.forEachIndexed { index, tab ->
+                        appTabsState[index] = tab.copy(order = index)
                     }
                 }
             }

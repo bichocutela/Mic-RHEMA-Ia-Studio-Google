@@ -20,6 +20,9 @@ import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Church
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.Help
+import androidx.compose.material.icons.filled.VolunteerActivism
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Lock
@@ -80,6 +83,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     object Plans : Screen("plans", "Planos", Icons.Default.List)
     object Team : Screen("equipe", "Equipe", Icons.Default.Group)
     object About : Screen("about", "Sobre", Icons.Default.Info)
+    object Donations : Screen("donations", "Dízimos e Ofertas", Icons.Default.VolunteerActivism)
     object Settings : Screen("settings", "Configurações", Icons.Default.Settings)
     object Content : Screen("content", "Conteúdo", Icons.Default.LibraryBooks)
     object Admin : Screen("admin", "Área ADM", Icons.Default.Lock)
@@ -93,6 +97,7 @@ val drawerItems = listOf(
     Screen.Members,
     Screen.Ibr,
     Screen.About,
+    Screen.Donations,
     Screen.Settings,
     Screen.Content,
     Screen.Admin
@@ -200,6 +205,7 @@ fun MainScreen() {
         initializeTabs()
         loadContentFromFirebase(context)
         loadTeamMembersFromFirebase()
+        loadBannersFromFirestore()
         syncBibleNewsAndPlans()
         MemberManager.syncFromFirestore(context)
         MemberManager.loadMembers(context)
@@ -389,6 +395,7 @@ fun MainScreen() {
                 composable("team") { TeamScreen() }
                 composable("plans") { PlansScreen(onNavigateToBible = { book, chap -> navController.navigate("bible?book=$book&chapter=$chap") }) }
                 composable(Screen.About.route) { AboutScreen() }
+                composable(Screen.Donations.route) { DonationsScreen() }
                 composable(Screen.Settings.route) { SettingsScreen() }
                 composable(Screen.Content.route) { ContentScreen() }
                 composable(Screen.Admin.route) { AdminScreen() }

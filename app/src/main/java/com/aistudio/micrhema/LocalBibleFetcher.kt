@@ -24,44 +24,40 @@ object LocalBibleFetcher {
             .replace("ç", "c")
     }
 
+
     private suspend fun getCache(context: Context, version: String): JSONArray? = withContext(Dispatchers.IO) {
+        val fileName = when (version) {
+            "ARA" -> "pt_aa.json"
+            "ACF" -> "pt_acf.json"
+            "NVI" -> "pt_nvi.json"
+            else -> return@withContext null
+        }
+        
         when (version) {
             "ARA" -> {
                 if (araCache == null) {
-                    val stream = context.assets.open("bibles/ara.json")
+                    val stream = context.assets.open("bibles/$fileName")
                     var jsonString = InputStreamReader(stream, "UTF-8").readText()
-                    if (jsonString.startsWith("\uFEFF")) {
-                        jsonString = jsonString.substring(1)
-                    }
+                    if (jsonString.startsWith("﻿")) jsonString = jsonString.substring(1)
                     araCache = JSONArray(jsonString)
                 }
                 araCache
             }
             "NVI" -> {
                 if (nviCache == null) {
-                    val file = File(File(context.filesDir, "bibles"), "nvi.json")
-                    if (file.exists()) {
-                        val stream = FileInputStream(file)
-                        var jsonString = InputStreamReader(stream, "UTF-8").readText()
-                        if (jsonString.startsWith("\uFEFF")) {
-                            jsonString = jsonString.substring(1)
-                        }
-                        nviCache = JSONArray(jsonString)
-                    }
+                    val stream = context.assets.open("bibles/$fileName")
+                    var jsonString = InputStreamReader(stream, "UTF-8").readText()
+                    if (jsonString.startsWith("﻿")) jsonString = jsonString.substring(1)
+                    nviCache = JSONArray(jsonString)
                 }
                 nviCache
             }
             "ACF" -> {
                 if (acfCache == null) {
-                    val file = File(File(context.filesDir, "bibles"), "acf.json")
-                    if (file.exists()) {
-                        val stream = FileInputStream(file)
-                        var jsonString = InputStreamReader(stream, "UTF-8").readText()
-                        if (jsonString.startsWith("\uFEFF")) {
-                            jsonString = jsonString.substring(1)
-                        }
-                        acfCache = JSONArray(jsonString)
-                    }
+                    val stream = context.assets.open("bibles/$fileName")
+                    var jsonString = InputStreamReader(stream, "UTF-8").readText()
+                    if (jsonString.startsWith("﻿")) jsonString = jsonString.substring(1)
+                    acfCache = JSONArray(jsonString)
                 }
                 acfCache
             }
@@ -70,10 +66,10 @@ object LocalBibleFetcher {
     }
 
     suspend fun isVersionDownloaded(context: Context, version: String): Boolean {
-        if (version == "ARA") return true
-        val file = File(File(context.filesDir, "bibles"), "${version.lowercase()}.json")
-        return file.exists()
+        // Agora todas vêm pré-embarcadas nos assets
+        return true
     }
+
 
     suspend fun getChapter(context: Context, book: String, chapter: Int, version: String): List<BibleVerse> {
         return withContext(Dispatchers.IO) {
