@@ -135,7 +135,7 @@ fun LocalUploadField(
             isUploading.value = true
             coroutineScope.launch {
                 uploadProgress.floatValue = 0f
-                val url = com.aistudio.micrhema.StorageHelper.uploadFile(uri, "uploads") { progress ->
+                val url = com.aistudio.micrhema.StorageHelper.uploadFile(context, uri, "uploads") { progress ->
                     uploadProgress.floatValue = progress
                 }
                 if (url != null) {

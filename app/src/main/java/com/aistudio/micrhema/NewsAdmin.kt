@@ -20,6 +20,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditNewsSection() {
+    val context = androidx.compose.ui.platform.LocalContext.current
     var showDialog by remember { mutableStateOf(false) }
     var editingNews by remember { mutableStateOf<BibleNews?>(null) }
     
@@ -76,7 +77,7 @@ fun EditNewsSection() {
                 isUploading = true
                 scope.launch {
                     uploadProgress = 0f
-                    val uploadedUrl = StorageManager.uploadFile(uri, "news") { progress ->
+                    val uploadedUrl = StorageManager.uploadFile(context, uri, "news") { progress ->
                         uploadProgress = progress
                     }
                     if (uploadedUrl.isNotEmpty()) {

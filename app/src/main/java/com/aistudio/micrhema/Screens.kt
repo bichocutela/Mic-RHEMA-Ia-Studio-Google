@@ -464,6 +464,12 @@ fun AdminScreen() {
                         onClick = {
                             if (password == "igreja10") {
                                 isAuthenticated = true
+                                try {
+                                    val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
+                                    if (auth.currentUser == null) {
+                                        auth.signInAnonymously()
+                                    }
+                                } catch(e: Exception) {}
                             } else {
                                 passwordError = true
                             }

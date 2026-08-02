@@ -159,6 +159,7 @@ fun TeamScreen() {
 }
 @Composable
 fun EditTeamSection() {
+    val context = androidx.compose.ui.platform.LocalContext.current
     var showAddDialog by remember { mutableStateOf(false) }
     var editingMember by remember { mutableStateOf<TeamMember?>(null) }
     val coroutineScope = rememberCoroutineScope()
@@ -342,6 +343,7 @@ fun TeamMemberDialog(
     onDismiss: () -> Unit,
     onSave: (TeamMember) -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     var name by remember(member) { mutableStateOf(member?.name ?: "") }
     var role by remember(member) { mutableStateOf(member?.role ?: "") }
     var category by remember(member) { mutableStateOf(member?.category ?: "Geral") }
@@ -359,7 +361,7 @@ fun TeamMemberDialog(
             isUploading = true
             uploadProgress = 0f
             scope.launch {
-                val uploadedUrl = StorageManager.uploadFile(uri, "equipe") { progress ->
+                val uploadedUrl = StorageManager.uploadFile(context, uri, "equipe") { progress ->
                     uploadProgress = progress
                 }
                 if (uploadedUrl.isNotEmpty()) {

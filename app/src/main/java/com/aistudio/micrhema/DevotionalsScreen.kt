@@ -16,6 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
@@ -23,7 +24,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun DevotionalsScreen() {
     var selectedDevotional by remember { mutableStateOf<Devotional?>(null) }
-
+    
     if (selectedDevotional != null) {
         DevotionalDetailScreen(
             devotional = selectedDevotional!!,
@@ -59,7 +60,7 @@ fun DevotionalsScreen() {
                         color = MaterialTheme.colorScheme.onBackground
                     )
                 }
-
+                
                 if (devotionalsState.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text("Nenhum devocional encontrado.", color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f))
@@ -91,33 +92,43 @@ fun DevotionalCard(devotional: Devotional, onClick: () -> Unit) {
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = devotional.title,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+        Column {
+            if (devotional.mediaUrl.isNotBlank()) {
+                coil.compose.AsyncImage(
+                    model = devotional.mediaUrl,
+                    contentDescription = null,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier.fillMaxWidth().height(200.dp)
                 )
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = devotional.date,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = devotional.verse,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-            )
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = devotional.title,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = devotional.date,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = devotional.verse,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }
@@ -171,13 +182,21 @@ fun DevotionalDetailScreen(devotional: Devotional, onBack: () -> Unit) {
                     )
                 }
             }
-
-
+            
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp)
             ) {
+                if (devotional.mediaUrl.isNotBlank()) {
+                    coil.compose.AsyncImage(
+                        model = devotional.mediaUrl,
+                        contentDescription = null,
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier.fillMaxWidth().height(250.dp).clip(RoundedCornerShape(16.dp))
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
                 Text(
                     text = devotional.title,
                     style = MaterialTheme.typography.headlineLarge,

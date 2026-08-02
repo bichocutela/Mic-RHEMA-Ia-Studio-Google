@@ -8,7 +8,7 @@ import kotlinx.coroutines.tasks.await
 import java.util.UUID
 
 object StorageHelper {
-    suspend fun uploadFile(uri: Uri, path: String, onProgress: ((Float) -> Unit)? = null): String? {
+    suspend fun uploadFile(context: android.content.Context, uri: Uri, path: String, onProgress: ((Float) -> Unit)? = null): String? {
         // If it's already an http or https URL, just return it
         if (uri.scheme == "http" || uri.scheme == "https") return uri.toString()
         
@@ -16,7 +16,6 @@ object StorageHelper {
             val storageRef = FirebaseStorage.getInstance().reference
             val fileRef = storageRef.child("${path}/${UUID.randomUUID()}")
             
-            val context = Firebase.app.applicationContext
             val inputStream = context.contentResolver.openInputStream(uri)
             val uploadTask = if (inputStream != null) {
                 fileRef.putStream(inputStream)
@@ -35,6 +34,7 @@ object StorageHelper {
             fileRef.downloadUrl.await().toString()
         } catch (e: Exception) {
             e.printStackTrace()
+            android.util.Log.e("StorageHelper", "Upload failed", e)
             null
         }
     }

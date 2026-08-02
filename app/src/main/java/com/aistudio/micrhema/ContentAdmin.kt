@@ -55,8 +55,8 @@ fun EditContentSection() {
                     isUploading = true
                     coroutineScope.launch {
                         uploadProgress = 0f
-                        val finalCover = if (coverUrl.isNotBlank() && !coverUrl.startsWith("http")) StorageManager.uploadFile(android.net.Uri.parse(coverUrl), "books/covers") { progress -> uploadProgress = progress / 2f } else coverUrl.ifEmpty { "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=500&q=80" }
-                        val finalBookUrl = if (bookUrl.isNotBlank() && !bookUrl.startsWith("http")) StorageManager.uploadFile(android.net.Uri.parse(bookUrl), "books/files") { progress -> uploadProgress = 0.5f + (progress / 2f) } else bookUrl
+                        val finalCover = if (coverUrl.isNotBlank() && !coverUrl.startsWith("http")) StorageManager.uploadFile(context, android.net.Uri.parse(coverUrl), "books/covers") { progress -> uploadProgress = progress / 2f } else coverUrl.ifEmpty { "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=500&q=80" }
+                        val finalBookUrl = if (bookUrl.isNotBlank() && !bookUrl.startsWith("http")) StorageManager.uploadFile(context, android.net.Uri.parse(bookUrl), "books/files") { progress -> uploadProgress = 0.5f + (progress / 2f) } else bookUrl
                         addContentBook(ContentBook(id = System.currentTimeMillis().toString(), title = title, author = author, coverUrl = finalCover, contentText = "Conteúdo do livro carregado...", bookUrl = finalBookUrl))
                         title = ""
                         author = ""
@@ -110,8 +110,8 @@ fun EditContentSection() {
                     isUploading = true
                     coroutineScope.launch {
                         uploadProgress = 0f
-                        val finalCoverUrl = if (audioCover.isNotBlank() && !audioCover.startsWith("http")) StorageManager.uploadFile(android.net.Uri.parse(audioCover), "audios/covers") { progress -> uploadProgress = progress / 2f } else audioCover.ifEmpty { "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80" }
-                        val finalAudioUrl = if (audioUrl.isNotBlank() && !audioUrl.startsWith("http")) StorageManager.uploadFile(android.net.Uri.parse(audioUrl), "audios/files") { progress -> uploadProgress = 0.5f + (progress / 2f) } else audioUrl.ifEmpty { "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" }
+                        val finalCoverUrl = if (audioCover.isNotBlank() && !audioCover.startsWith("http")) StorageManager.uploadFile(context, android.net.Uri.parse(audioCover), "audios/covers") { progress -> uploadProgress = progress / 2f } else audioCover.ifEmpty { "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80" }
+                        val finalAudioUrl = if (audioUrl.isNotBlank() && !audioUrl.startsWith("http")) StorageManager.uploadFile(context, android.net.Uri.parse(audioUrl), "audios/files") { progress -> uploadProgress = 0.5f + (progress / 2f) } else audioUrl.ifEmpty { "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" }
                         addContentAudio(ContentAudio(id = System.currentTimeMillis().toString(), title = audioTitle, artist = audioArtist, audioUrl = finalAudioUrl, coverUrl = finalCoverUrl))
                         audioTitle = ""
                         audioArtist = ""
@@ -164,7 +164,7 @@ fun EditContentSection() {
                     isUploading = true
                     coroutineScope.launch {
                         uploadProgress = 0f
-                        val finalVideoUrl = if (videoUrl.isNotBlank() && !videoUrl.startsWith("http")) StorageManager.uploadFile(android.net.Uri.parse(videoUrl), "videos/files") { progress -> uploadProgress = progress } else videoUrl.ifEmpty { "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" }
+                        val finalVideoUrl = if (videoUrl.isNotBlank() && !videoUrl.startsWith("http")) StorageManager.uploadFile(context, android.net.Uri.parse(videoUrl), "videos/files") { progress -> uploadProgress = progress } else videoUrl.ifEmpty { "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" }
                         addContentVideo(ContentVideo(id = System.currentTimeMillis().toString(), title = videoTitle, description = videoDesc, videoUrl = finalVideoUrl, thumbnailUrl = "https://images.unsplash.com/photo-1505764761634-1d77b57e1966?w=500&q=80"))
                         videoTitle = ""
                         videoDesc = ""
@@ -220,7 +220,7 @@ fun EditContentSection() {
                         isUploadingCover = true
                         scope.launch(kotlinx.coroutines.Dispatchers.IO) {
                             coverProgress = 0f
-                            val url = StorageHelper.uploadFile(uri, "covers") { progress -> coverProgress = progress }
+                            val url = StorageHelper.uploadFile(context, uri, "covers") { progress -> coverProgress = progress }
                             kotlinx.coroutines.Dispatchers.Main.let {
                                 kotlinx.coroutines.withContext(it) {
                                     isUploadingCover = false
@@ -444,7 +444,7 @@ fun EditContentSection() {
                 isUploadingPhoto = true
                 scope.launch(kotlinx.coroutines.Dispatchers.IO) {
                     photoProgress = 0f
-                    val url = StorageHelper.uploadFile(uri, "album_photos") { progress -> photoProgress = progress }
+                    val url = StorageHelper.uploadFile(context, uri, "album_photos") { progress -> photoProgress = progress }
                     kotlinx.coroutines.Dispatchers.Main.let {
                         kotlinx.coroutines.withContext(it) {
                             isUploadingPhoto = false

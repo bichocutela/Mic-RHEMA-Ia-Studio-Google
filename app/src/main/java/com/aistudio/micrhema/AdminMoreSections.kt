@@ -368,6 +368,7 @@ fun EditSettingsSection() {
 // BANNERS
 @Composable
 fun EditBannersSection() {
+    val context = androidx.compose.ui.platform.LocalContext.current
     var banners by remember { mutableStateOf(homeBannersState.toList()) }
     var newUrl by remember { mutableStateOf("") }
     var saving by remember { mutableStateOf(false) }
@@ -382,7 +383,7 @@ fun EditBannersSection() {
             isUploading = true
             scope.launch {
                 uploadProgress = 0f
-                val uploadedUrl = StorageManager.uploadFile(uri, "banners") { progress ->
+                val uploadedUrl = StorageManager.uploadFile(context, uri, "banners") { progress ->
                     uploadProgress = progress
                 }
                 if (uploadedUrl.isNotEmpty()) {
