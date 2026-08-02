@@ -168,6 +168,23 @@ fun MainScreen() {
     }
 
     LaunchedEffect(Unit) {
+        // Enforce cleanup on the UI side directly
+        val toDelete = appTabsState.filter { it.title.contains("Ajuda", ignoreCase = true) || it.title.contains("Eventos", ignoreCase = true) || it.id == "9" || it.id == "eventos_tab" || it.id == "ajuda_tab" || it.id == "events_tab" || it.id == "help_tab" }
+        appTabsState.removeAll(toDelete)
+        
+        val sobreIdx = appTabsState.indexOfFirst { it.id == "8" }
+        if (sobreIdx != -1) {
+            appTabsState[sobreIdx] = appTabsState[sobreIdx].copy(isVisible = true, title = "Sobre", iconName = "Info", systemRoute = Screen.About.route)
+        } else {
+            appTabsState.add(AppTab("8", "Sobre", "Info", false, true, false, 9, TabContentType.SYSTEM, Screen.About.route))
+        }
+        
+        val adminIdx = appTabsState.indexOfFirst { it.id == "admin_tab" }
+        if (adminIdx != -1) {
+            appTabsState[adminIdx] = appTabsState[adminIdx].copy(isVisible = true)
+        } else {
+            appTabsState.add(AppTab("admin_tab", "Área ADM", "Lock", false, true, false, 11, TabContentType.SYSTEM, Screen.Admin.route))
+        }
 
         // Initialize Firebase if keys are present (via Secrets panel/BuildConfig)
         if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty() && com.google.firebase.FirebaseApp.getApps(context).isEmpty()) {

@@ -38,11 +38,15 @@ fun EditMembersSection() {
                             Checkbox(
                                 checked = member.isApproved,
                                 onCheckedChange = { 
-                                    member.isApproved = it 
-                                    MemberManager.saveToFirestore(member,
-                                        onSuccess = { Toast.makeText(context, if(it) "Acesso aprovado para ${member.name}" else "Acesso removido para ${member.name}", Toast.LENGTH_SHORT).show() },
-                                        onFailure = { Toast.makeText(context, "Erro ao atualizar acesso", Toast.LENGTH_SHORT).show() }
-                                    )
+                                    val index = memberRequestsState.indexOf(member)
+                                    if (index != -1) {
+                                        val updated = member.copy(isApproved = it)
+                                        memberRequestsState[index] = updated
+                                        MemberManager.saveToFirestore(updated,
+                                            onSuccess = { Toast.makeText(context, if(it) "Acesso aprovado para ${member.name}" else "Acesso removido para ${member.name}", Toast.LENGTH_SHORT).show() },
+                                            onFailure = { Toast.makeText(context, "Erro ao atualizar acesso", Toast.LENGTH_SHORT).show() }
+                                        )
+                                    }
                                 }
                             )
                             Text("Aprovado")
@@ -52,11 +56,15 @@ fun EditMembersSection() {
                             Checkbox(
                                 checked = member.isVip,
                                 onCheckedChange = { 
-                                    member.isVip = it 
-                                    MemberManager.saveToFirestore(member,
-                                        onSuccess = { Toast.makeText(context, if(it) "Acesso VIP aprovado para ${member.name}" else "Acesso VIP removido para ${member.name}", Toast.LENGTH_SHORT).show() },
-                                        onFailure = { Toast.makeText(context, "Erro ao atualizar acesso", Toast.LENGTH_SHORT).show() }
-                                    )
+                                    val index = memberRequestsState.indexOf(member)
+                                    if (index != -1) {
+                                        val updated = member.copy(isVip = it)
+                                        memberRequestsState[index] = updated
+                                        MemberManager.saveToFirestore(updated,
+                                            onSuccess = { Toast.makeText(context, if(it) "Acesso VIP aprovado para ${member.name}" else "Acesso VIP removido para ${member.name}", Toast.LENGTH_SHORT).show() },
+                                            onFailure = { Toast.makeText(context, "Erro ao atualizar acesso", Toast.LENGTH_SHORT).show() }
+                                        )
+                                    }
                                 }
                             )
                             Text("VIP")
@@ -66,11 +74,15 @@ fun EditMembersSection() {
                             Checkbox(
                                 checked = member.isIbr,
                                 onCheckedChange = { 
-                                    member.isIbr = it 
-                                    MemberManager.saveToFirestore(member,
-                                        onSuccess = { Toast.makeText(context, if(it) "Acesso IBR aprovado para ${member.name}" else "Acesso IBR removido para ${member.name}", Toast.LENGTH_SHORT).show() },
-                                        onFailure = { Toast.makeText(context, "Erro ao atualizar acesso", Toast.LENGTH_SHORT).show() }
-                                    )
+                                    val index = memberRequestsState.indexOf(member)
+                                    if (index != -1) {
+                                        val updated = member.copy(isIbr = it)
+                                        memberRequestsState[index] = updated
+                                        MemberManager.saveToFirestore(updated,
+                                            onSuccess = { Toast.makeText(context, if(it) "Acesso IBR aprovado para ${member.name}" else "Acesso IBR removido para ${member.name}", Toast.LENGTH_SHORT).show() },
+                                            onFailure = { Toast.makeText(context, "Erro ao atualizar acesso", Toast.LENGTH_SHORT).show() }
+                                        )
+                                    }
                                 }
                             )
                             Text("IBR")

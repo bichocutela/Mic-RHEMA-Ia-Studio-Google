@@ -25,35 +25,32 @@ object DevotionalManager {
             }
 
             val db = com.google.firebase.Firebase.firestore
-            db.collection("devocionais").get()
-                .addOnSuccessListener { result ->
-                    val newList = mutableListOf<Devotional>()
-                    for (document in result) {
-                        val id = document.id
-                        val title = document.getString("title") ?: ""
-                        val date = document.getString("date") ?: ""
-                        val verse = document.getString("verse") ?: ""
-                        val verseReference = document.getString("verseReference") ?: ""
-                        val textContent = document.getString("content") ?: ""
-                        val likes = document.getLong("likes")?.toInt() ?: 0
-                        newList.add(Devotional(id, title, date, verse, verseReference, textContent, likes))
-                    }
-                    if (newList.isNotEmpty()) {
-                        newList.sortByDescending { it.date }
-                        devotionalsState.clear()
-                        devotionalsState.addAll(newList)
+            db.collection("devocionais").addSnapshotListener { snapshot, e ->
+                if (e != null || snapshot == null) return@addSnapshotListener
+                val newList = mutableListOf<Devotional>()
+                for (document in snapshot.documents) {
+                    val id = document.id
+                    val title = document.getString("title") ?: ""
+                    val date = document.getString("date") ?: ""
+                    val verse = document.getString("verse") ?: ""
+                    val verseReference = document.getString("verseReference") ?: ""
+                    val textContent = document.getString("content") ?: ""
+                    val likes = document.getLong("likes")?.toInt() ?: 0
+                    newList.add(Devotional(id, title, date, verse, verseReference, textContent, likes))
+                }
+                if (newList.isNotEmpty()) {
+                    newList.sortByDescending { it.date }
+                    devotionalsState.clear()
+                    devotionalsState.addAll(newList)
                         
-                        val dbHelper = IbrDatabaseHelper(context)
-                        dbHelper.saveCachedDevotionals(newList)
-                    } else if (devotionalsState.isNotEmpty()) {
-                        devotionalsState.forEach {
-                            db.collection("devocionais").document(it.id).set(it)
-                        }
+                    val dbHelper = IbrDatabaseHelper(context)
+                    dbHelper.saveCachedDevotionals(newList)
+                } else if (devotionalsState.isNotEmpty()) {
+                    devotionalsState.forEach {
+                        db.collection("devocionais").document(it.id).set(it)
                     }
                 }
-                .addOnFailureListener {
-                    // Cache already loaded above, do nothing
-                }
+            }
         } catch (e: Exception) {
             android.util.Log.e("DevotionalManager", "Firestore not initialized or error", e)
         }
@@ -392,52 +389,57 @@ object MemberManager {
             }
             
             db.collection("vip_courses").addSnapshotListener { snapshot, e ->
-                if (e != null || snapshot == null) return@addSnapshotListener
-                val list = snapshot.documents.mapNotNull { try { it.toObject(IbrCourse::class.java) } catch(e: Exception) { null } }
-                if (list.isNotEmpty()) {
-                    vipCoursesState.clear()
-                    vipCoursesState.addAll(list)
-                } else if (vipCoursesState.isNotEmpty()) {
-                    vipCoursesState.forEach {
-                        db.collection("vip_courses").document(it.id).set(it)
+            if (e != null || snapshot == null) return@addSnapshotListener
+            val list = snapshot.documents.mapNotNull { try { it.toObject(IbrCourse::class.java) } catch(e: Exception) { null } }
+            if (list.isNotEmpty()) {
+                vipCoursesState.clear()
+                vipCoursesState.addAll(list)
+            } else if (vipCoursesState.isNotEmpty()) {
+                vipCoursesState.forEach {
+                    db.collection("vip_courses").document(it.id).set(it)
+                }
+            }
+        }
+        
+        db.collection("settings").document("about").addSnapshotListener { snapshot, e ->
+            if (e != null || snapshot == null || !snapshot.exists()) return@addSnapshotListener
+            pastorNameState.value = snapshot.getString("pastorName") ?: pastorNameState.value
+            pastorTitleState.value = snapshot.getString("pastorTitle") ?: pastorTitleState.value
+            missionTaglineState.value = snapshot.getString("missionTagline") ?: missionTaglineState.value
+            rhemaMeaningState.value = snapshot.getString("rhemaMeaning") ?: rhemaMeaningState.value
+        }
+        
+        db.collection("acessos_pendentes").addSnapshotListener { snapshot, e ->
+            if (e != null || snapshot == null) return@addSnapshotListener
+            val newList = mutableListOf<MemberRequest>()
+            for (document in snapshot.documents) {
+                val id = document.id
+                val name = document.getString("name") ?: ""
+                val email = document.getString("email") ?: ""
+                val isApproved = document.getBoolean("isApproved") ?: false
+                val isVip = document.getBoolean("isVip") ?: false
+                val isIbr = document.getBoolean("isIbr") ?: false
+                newList.add(MemberRequest(id, name, email, isApproved, isVip, isIbr))
+            }
+            if (newList.isNotEmpty()) {
+                memberRequestsState.clear()
+                memberRequestsState.addAll(newList)
+                saveMembers(context)
+                
+                val loggedInId = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+                    .getString(KEY_LOGGED_IN_ID, "") ?: ""
+                if (loggedInId.isNotEmpty()) {
+                    val member = memberRequestsState.find { it.id == loggedInId }
+                    if (member != null) {
+                        loggedInMemberState.value = member
+                        loadIbrProgressFromFirestore()
                     }
                 }
             }
-
-            db.collection("acessos_pendentes").get()
-                .addOnSuccessListener { result ->
-                    val newList = mutableListOf<MemberRequest>()
-                    for (document in result) {
-                        val id = document.id
-                        val name = document.getString("name") ?: ""
-                        val email = document.getString("email") ?: ""
-                        val isApproved = document.getBoolean("isApproved") ?: false
-                        val isVip = document.getBoolean("isVip") ?: false
-                        val isIbr = document.getBoolean("isIbr") ?: false
-                        newList.add(MemberRequest(id, name, email, isApproved, isVip, isIbr))
-                    }
-                    if (newList.isNotEmpty()) {
-                        memberRequestsState.clear()
-                        memberRequestsState.addAll(newList)
-                        saveMembers(context)
-                        
-                        val loggedInId = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
-                            .getString(KEY_LOGGED_IN_ID, "") ?: ""
-                        if (loggedInId.isNotEmpty()) {
-                            val member = memberRequestsState.find { it.id == loggedInId }
-                            if (member != null) {
-                                loggedInMemberState.value = member
-        loadIbrProgressFromFirestore()
-                            }
-                        }
-                    }
-                }
-                .addOnFailureListener { exception ->
-                    Log.e("MemberManager", "Error getting documents: ", exception)
-                }
-        } catch (e: Exception) {
-            Log.e("MemberManager", "Firestore not initialized or error", e)
         }
+    } catch (e: Exception) {
+        android.util.Log.e("MemberManager", "Firestore not initialized or error", e)
+    }
     }
 
     fun deleteFromFirestore(member: MemberRequest) {
@@ -817,204 +819,71 @@ fun loadContentFromFirebase(context: Context) {
             }
             
             db.collection("vip_courses").addSnapshotListener { snapshot, e ->
-                if (e != null || snapshot == null) return@addSnapshotListener
-                val list = snapshot.documents.mapNotNull { try { it.toObject(IbrCourse::class.java) } catch(e: Exception) { null } }
-                if (list.isNotEmpty()) {
-                    vipCoursesState.clear()
-                    vipCoursesState.addAll(list)
-                } else if (vipCoursesState.isNotEmpty()) {
-                    vipCoursesState.forEach {
-                        db.collection("vip_courses").document(it.id).set(it)
-                    }
+            if (e != null || snapshot == null) return@addSnapshotListener
+            val list = snapshot.documents.mapNotNull { try { it.toObject(IbrCourse::class.java) } catch(e: Exception) { null } }
+            if (list.isNotEmpty()) {
+                vipCoursesState.clear()
+                vipCoursesState.addAll(list)
+            } else if (vipCoursesState.isNotEmpty()) {
+                vipCoursesState.forEach {
+                    db.collection("vip_courses").document(it.id).set(it)
                 }
             }
-
-            
-            db.collection("conteudos_books").addSnapshotListener { snapshot, e ->
-                if (e != null || snapshot == null) return@addSnapshotListener
-                val list = snapshot.documents.mapNotNull { try { it.toObject(ContentBook::class.java) } catch(e: Exception) { null } }
-                if (list.isNotEmpty()) {
-                    contentBooksState.clear()
-                    contentBooksState.addAll(list)
-                } else if (contentBooksState.isNotEmpty()) {
-                    contentBooksState.forEach { db.collection("conteudos_books").document(it.id).set(it) }
-                }
-            }
-            
-            db.collection("conteudos_audios").addSnapshotListener { snapshot, e ->
-                if (e != null || snapshot == null) return@addSnapshotListener
-                val list = snapshot.documents.mapNotNull { try { it.toObject(ContentAudio::class.java) } catch(e: Exception) { null } }
-                if (list.isNotEmpty()) {
-                    contentAudiosState.clear()
-                    contentAudiosState.addAll(list)
-                } else if (contentAudiosState.isNotEmpty()) {
-                    contentAudiosState.forEach { db.collection("conteudos_audios").document(it.id).set(it) }
-                }
-            }
-            
-            db.collection("conteudos_videos").addSnapshotListener { snapshot, e ->
-                if (e != null || snapshot == null) return@addSnapshotListener
-                val list = snapshot.documents.mapNotNull { try { it.toObject(ContentVideo::class.java) } catch(e: Exception) { null } }
-                if (list.isNotEmpty()) {
-                    contentVideosState.clear()
-                    contentVideosState.addAll(list)
-                } else if (contentVideosState.isNotEmpty()) {
-                    contentVideosState.forEach { db.collection("conteudos_videos").document(it.id).set(it) }
-                }
-            }
-            
-            db.collection("conteudos_albums").addSnapshotListener { snapshot, e ->
-                if (e != null || snapshot == null) return@addSnapshotListener
-                val list = snapshot.documents.mapNotNull { try { it.toObject(ContentPhotoAlbum::class.java) } catch(e: Exception) { null } }
-                if (list.isNotEmpty()) {
-                    contentAlbumsState.clear()
-                    contentAlbumsState.addAll(list)
-                } else if (contentAlbumsState.isNotEmpty()) {
-                    contentAlbumsState.forEach { db.collection("conteudos_albums").document(it.id).set(it) }
-                }
-            }
-            
-            db.collection("devocionais").addSnapshotListener { snapshot, e ->
-                if (e != null || snapshot == null) return@addSnapshotListener
-                val list = snapshot.documents.mapNotNull { doc ->
-                    val id = doc.id
-                    val title = doc.getString("title") ?: ""
-                    val date = doc.getString("date") ?: ""
-                    val verse = doc.getString("verse") ?: ""
-                    val verseRef = doc.getString("verseReference") ?: ""
-                    val contentText = doc.getString("content") ?: ""
-                    val likes = doc.getLong("likes")?.toInt() ?: 0
-                    Devotional(id, title, date, verse, verseRef, contentText, likes)
-                }
-                if (list.isNotEmpty()) {
-                    devotionalsState.clear()
-                    devotionalsState.addAll(list.sortedByDescending { it.date })
-                } else if (devotionalsState.isNotEmpty()) {
-                    devotionalsState.forEach { 
-                        db.collection("devocionais").document(it.id).set(it)
-                    }
-                }
-            }
-            
-            db.collection("cultos_agenda").addSnapshotListener { snapshot, e ->
-                if (e != null || snapshot == null) return@addSnapshotListener
-                val list = snapshot.documents.mapNotNull { try { it.toObject(ChurchService::class.java) } catch(e: Exception) { null } }
-                if (list.isNotEmpty()) {
-                    weeklyServicesState.clear()
-                    weeklyServicesState.addAll(list)
-                } else if (weeklyServicesState.isNotEmpty()) {
-                    weeklyServicesState.forEach { addChurchService(it) }
-                }
-            }
-            
-            db.collection("events").addSnapshotListener { snapshot, e ->
-                if (e != null || snapshot == null) return@addSnapshotListener
-                val list = snapshot.documents.mapNotNull { try { it.toObject(ChurchEvent::class.java) } catch(e: Exception) { null } }
-                if (list.isNotEmpty()) {
-                    eventsState.clear()
-                    eventsState.addAll(list)
-                } else if (eventsState.isNotEmpty()) {
-                    eventsState.forEach { addChurchEvent(it) }
-                }
-            }
-            
-            db.collection("carousel_items").addSnapshotListener { snapshot, e ->
-                if (e != null || snapshot == null) return@addSnapshotListener
-                val list = snapshot.documents.mapNotNull { try { it.toObject(CarouselItem::class.java) } catch(e: Exception) { null } }
-                if (list.isNotEmpty()) {
-                    carouselItemsState.clear()
-                    carouselItemsState.addAll(list)
-                } else if (carouselItemsState.isNotEmpty()) {
-                    carouselItemsState.forEach { addCarouselItem(it) }
-                }
-            }
-            
-            db.collection("prayer_requests").addSnapshotListener { snapshot, e ->
-                if (e != null || snapshot == null) return@addSnapshotListener
-                val list = snapshot.documents.mapNotNull { try { it.toObject(PrayerRequest::class.java) } catch(e: Exception) { null } }
-                if (list.isNotEmpty()) {
-                    prayerRequestsState.clear()
-                    prayerRequestsState.addAll(list.sortedByDescending { it.date })
-                } else if (prayerRequestsState.isNotEmpty()) {
-                    prayerRequestsState.forEach { addPrayerRequest(it) }
-                }
-            }
-            
-            db.collection("app_tabs").addSnapshotListener { snapshot, e ->
-                if (e != null || snapshot == null) return@addSnapshotListener
-                var list = snapshot.documents.mapNotNull { try { it.toObject(AppTab::class.java) } catch(e: Exception) { null } }
-                
-                // Migrate incorrectly saved tabs if any
-                list = list.map { tab ->
-                    when (tab.id) {
-                        "8" -> tab.copy(systemRoute = Screen.About.route)
-                        "9" -> tab.copy(systemRoute = Screen.About.route)
-                        "10" -> tab.copy(systemRoute = Screen.Donations.route)
-                        else -> tab
-                    }
-                }
-                
-                appTabsState.clear()
-                if (list.isNotEmpty()) {
-                    appTabsState.addAll(list.sortedBy { it.order })
-                    // Ensure all 10 default tabs are present
-                    val defaultTabIds = listOf("1", "2", "3", "4", "5", "6", "7", "bible_tab", "team_tab", "8", "9", "10", "admin_tab")
-                    if (appTabsState.size < defaultTabIds.size) {
-                        initializeTabs()
-                    }
-                } else if (appTabsState.isEmpty()) {
-                    initializeTabs()
-                }
-                if (appTabsState.isNotEmpty() && list.isEmpty()) {
-                    appTabsState.forEach { addAppTab(it) }
-                }
-            }
-            
-            db.collection("ibr_courses").addSnapshotListener { snapshot, e ->
-                if (e != null || snapshot == null) return@addSnapshotListener
-                val list = snapshot.documents.mapNotNull { try { it.toObject(IbrCourse::class.java) } catch(e: Exception) { null } }
-                if (list.isNotEmpty()) {
-                    ibrCoursesState.clear()
-                    ibrCoursesState.addAll(list)
-                } else if (ibrCoursesState.isNotEmpty()) {
-                    ibrCoursesState.forEach {
-                        db.collection("ibr_courses").document(it.id).set(it)
-                    }
-                }
-            }
-            
-            db.collection("cultos").addSnapshotListener { snapshot, e ->
-                if (e != null || snapshot == null) return@addSnapshotListener
-                val list = snapshot.documents.mapNotNull { try { it.toObject(ServiceVideoModel::class.java) } catch(e: Exception) { null } }
-                if (list.isNotEmpty()) {
-                    serviceVideosState.clear()
-                    serviceVideosState.addAll(list)
-                } else if (serviceVideosState.isNotEmpty()) {
-                    serviceVideosState.forEach {
-                        db.collection("cultos").document(it.id).set(it)
-                    }
-                }
-            }
-            
-            db.collection("equipe").orderBy("order").addSnapshotListener { snapshot, e ->
-                if (e != null || snapshot == null) return@addSnapshotListener
-                val list = snapshot.documents.mapNotNull { try { it.toObject(TeamMember::class.java) } catch(e: Exception) { null } }
-                if (list.isNotEmpty()) {
-                    teamMembersState.clear()
-                    teamMembersState.addAll(list)
-                } else if (teamMembersState.isNotEmpty()) {
-                    teamMembersState.forEach {
-                        db.collection("equipe").document(it.id).set(it)
-                    }
-                }
-            }
-
-        } catch (e: Exception) {
-            e.printStackTrace()
         }
+        
+        db.collection("settings").document("about").addSnapshotListener { snapshot, e ->
+            if (e != null || snapshot == null || !snapshot.exists()) return@addSnapshotListener
+            pastorNameState.value = snapshot.getString("pastorName") ?: pastorNameState.value
+            pastorTitleState.value = snapshot.getString("pastorTitle") ?: pastorTitleState.value
+            missionTaglineState.value = snapshot.getString("missionTagline") ?: missionTaglineState.value
+            rhemaMeaningState.value = snapshot.getString("rhemaMeaning") ?: rhemaMeaningState.value
+        }
+        
+        db.collection("app_tabs").addSnapshotListener { snapshot, e ->
+            if (e != null || snapshot == null) return@addSnapshotListener
+            val list = snapshot.documents.mapNotNull { try { it.toObject(AppTab::class.java) } catch(ex: Exception) { null } }
+            if (list.isNotEmpty()) {
+                appTabsState.clear()
+                appTabsState.addAll(list.sortedBy { it.order })
+            } else if (appTabsState.isNotEmpty()) {
+                appTabsState.forEach {
+                    db.collection("app_tabs").document(it.id).set(it)
+                }
+            }
+        }
+        
+        db.collection("equipe").orderBy("order").addSnapshotListener { snapshot, e ->
+            if (e != null || snapshot == null) return@addSnapshotListener
+            val list = snapshot.documents.mapNotNull { try { it.toObject(TeamMember::class.java) } catch(ex: Exception) { null } }
+            if (list.isNotEmpty()) {
+                teamMembersState.clear()
+                teamMembersState.addAll(list)
+            } else if (teamMembersState.isNotEmpty()) {
+                teamMembersState.forEach {
+                    db.collection("equipe").document(it.id).set(it)
+                }
+            }
+        }
+        
+        db.collection("cultos_agenda").addSnapshotListener { snapshot, e ->
+            if (e != null || snapshot == null) return@addSnapshotListener
+            val list = snapshot.documents.mapNotNull { try { it.toObject(ChurchService::class.java) } catch(ex: Exception) { null } }
+            if (list.isNotEmpty()) {
+                weeklyServicesState.clear()
+                weeklyServicesState.addAll(list)
+            } else if (weeklyServicesState.isNotEmpty()) {
+                weeklyServicesState.forEach {
+                    db.collection("cultos_agenda").document(it.id).set(it)
+                }
+            }
+        }
+        
+    } catch (e: Exception) {
+        android.util.Log.e("Data", "Firestore not initialized or error", e)
     }
 }
 
+}
 
 data class TeamMember(
     var id: String = "",
@@ -1030,7 +899,16 @@ data class TeamMember(
     var isApproved: Boolean = true
 )
 
-val teamMembersState = androidx.compose.runtime.mutableStateListOf<TeamMember>()
+val teamMembersState = androidx.compose.runtime.mutableStateListOf<TeamMember>(
+    TeamMember(id = "team_1", name = "Evaldo e Denilza", role = "Pastores", category = "Pastoral", order = 1, imageUrl = "https://bf16b0ed3a.cbaul-cdnwnd.com/33d00cab3ecde9380e3cf364b55ce6c5/200000506-55fe455fe5/IMG_2580.jpeg?ph=bf16b0ed3a"),
+    TeamMember(id = "team_2", name = "Pb Alessandro e Silvana", role = "Presbíteros", category = "Pastoral", order = 2, imageUrl = "https://bf16b0ed3a.cbaul-cdnwnd.com/33d00cab3ecde9380e3cf364b55ce6c5/200000508-0cca70cca9/IMG_2582.jpeg?ph=bf16b0ed3a"),
+    TeamMember(id = "team_3", name = "Dac. Rosemeiry", role = "Diaconisa", category = "Diaconato", order = 3, imageUrl = "https://bf16b0ed3a.cbaul-cdnwnd.com/33d00cab3ecde9380e3cf364b55ce6c5/200000494-ee984ee985/1000030995.png?ph=bf16b0ed3a"),
+    TeamMember(id = "team_4", name = "Pr Alexsandro e Pra Antônia", role = "Pastores", category = "Pastoral", order = 4, imageUrl = "https://bf16b0ed3a.cbaul-cdnwnd.com/33d00cab3ecde9380e3cf364b55ce6c5/200000510-454a6454a9/IMG_2584.jpeg?ph=bf16b0ed3a"),
+    TeamMember(id = "team_5", name = "Júlia", role = "Líder de Jovens", category = "Liderança", order = 5, imageUrl = "https://bf16b0ed3a.cbaul-cdnwnd.com/33d00cab3ecde9380e3cf364b55ce6c5/200000498-5503255034/1000031100.png?ph=bf16b0ed3a"),
+    TeamMember(id = "team_6", name = "Dac. Priscila e Josineide", role = "Dirigentes do circulo de Oração", category = "Liderança", order = 6, imageUrl = "https://bf16b0ed3a.cbaul-cdnwnd.com/33d00cab3ecde9380e3cf364b55ce6c5/200000530-d79abd79ad/IMG-20260215-WA0022.jpeg?ph=bf16b0ed3a"),
+    TeamMember(id = "team_7", name = "Edimara de Andrade", role = "Líder", category = "Liderança", order = 7, imageUrl = "https://bf16b0ed3a.cbaul-cdnwnd.com/33d00cab3ecde9380e3cf364b55ce6c5/200000514-e45b9e45bb/IMG_2586.jpeg?ph=bf16b0ed3a"),
+    TeamMember(id = "team_8", name = "Josineide e Lucineide", role = "Líderes", category = "Liderança", order = 8, imageUrl = "https://bf16b0ed3a.cbaul-cdnwnd.com/33d00cab3ecde9380e3cf364b55ce6c5/200000528-69b4a69b4c/IMG-20260210-WA0080.jpeg?ph=bf16b0ed3a")
+)
 
 
 
@@ -1087,10 +965,10 @@ fun initializeTabs() {
         AppTab("6", "Pedidos de Oração", "Favorite", false, true, true, 6, TabContentType.SYSTEM, Screen.Prayer.route),
         AppTab("plans_tab", "Planos", "List", false, true, true, 7, TabContentType.SYSTEM, "plans"),
         AppTab("team_tab", "Equipe", "Groups", false, true, false, 8, TabContentType.SYSTEM, Screen.Team.route),
-        AppTab("7", "Membros", "Person", false, true, false, 8, TabContentType.SYSTEM, Screen.Members.route),
-        AppTab("8", "Sobre", "Info", false, true, false, 9, TabContentType.SYSTEM, Screen.About.route),
-        AppTab("10", "Dízimos e Ofertas", "VolunteerActivism", false, true, true, 10, TabContentType.SYSTEM, Screen.Donations.route),
-        AppTab("admin_tab", "Área ADM", "Lock", false, true, false, 11, TabContentType.SYSTEM, Screen.Admin.route)
+        AppTab("7", "Membros", "Person", false, true, false, 9, TabContentType.SYSTEM, Screen.Members.route),
+        AppTab("8", "Sobre", "Info", false, true, false, 10, TabContentType.SYSTEM, Screen.About.route),
+        AppTab("10", "Dízimos e Ofertas", "VolunteerActivism", false, true, true, 11, TabContentType.SYSTEM, Screen.Donations.route),
+        AppTab("admin_tab", "Área ADM", "Lock", false, true, false, 12, TabContentType.SYSTEM, Screen.Admin.route)
     )
     appTabsState.addAll(defaultTabs)
 }
@@ -1112,13 +990,12 @@ fun loadIbrProgressFromFirestore() {
     val userId = loggedInMemberState.value?.id ?: return
     val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
     db.collection("users").document(userId).collection("ibrProgress")
-        .get()
-        .addOnSuccessListener { result ->
-            val list = result.documents.mapNotNull { try { it.toObject(IbrProgress::class.java) } catch(e: Exception) { null } }
+        .addSnapshotListener { snapshot, e ->
+            if (e != null || snapshot == null) return@addSnapshotListener
+            val list = snapshot.documents.mapNotNull { try { it.toObject(IbrProgress::class.java) } catch(ex: Exception) { null } }
             ibrProgressState.clear()
             ibrProgressState.addAll(list)
         }
-        .addOnFailureListener { e -> e.printStackTrace() }
 }
 
 fun addContentBook(item: ContentBook) {
@@ -1209,6 +1086,18 @@ fun removeChurchService(item: ChurchService) {
     }
 }
 
+fun removeBibleNews(item: BibleNews) {
+    if (isOfflineModeState.value) return
+    val db = com.google.firebase.Firebase.firestore
+    db.collection("bible_news").document(item.id.toString()).delete()
+}
+
+fun addBibleNews(item: BibleNews) {
+    if (isOfflineModeState.value) return
+    val db = com.google.firebase.Firebase.firestore
+    db.collection("bible_news").document(item.id.toString()).set(item)
+}
+
 fun addChurchEvent(item: ChurchEvent) {
     if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
         Firebase.firestore.collection("events").document(item.id).set(item)
@@ -1296,7 +1185,8 @@ fun syncBibleNewsAndPlans() {
     val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
     
     // Sync News
-    db.collection("bible_news").get().addOnSuccessListener { snapshot ->
+    db.collection("bible_news").addSnapshotListener { snapshot, e ->
+        if (e != null || snapshot == null) return@addSnapshotListener
         if (snapshot.isEmpty) {
             BibleNewsData.newsList.forEach { news ->
                 db.collection("bible_news").document(news.id.toString()).set(news)
@@ -1315,7 +1205,7 @@ fun syncBibleNewsAndPlans() {
                         verse = it.getLong("verse")?.toInt() ?: 0,
                         imageUrl = it.getString("imageUrl") ?: ""
                     )
-                } catch(e: Exception) { null } 
+                } catch(ex: Exception) { null } 
             }
             bibleNewsState.clear()
             bibleNewsState.addAll(list.sortedBy { it.id })
@@ -1323,7 +1213,8 @@ fun syncBibleNewsAndPlans() {
     }
     
     // Sync Plans
-    db.collection("bible_plans").get().addOnSuccessListener { snapshot ->
+    db.collection("bible_plans").addSnapshotListener { snapshot, e ->
+        if (e != null || snapshot == null) return@addSnapshotListener
         if (snapshot.isEmpty) {
             PlansData.categories.forEach { cat ->
                 db.collection("bible_plans").document(cat.name).set(mapOf(
@@ -1356,7 +1247,7 @@ fun syncBibleNewsAndPlans() {
                         )
                     }
                     PlanCategory(name, androidx.compose.ui.graphics.Color(colorValue.toULong()), themes)
-                } catch (e: Exception) { null }
+                } catch (ex: Exception) { null }
             }
             biblePlansState.clear()
             biblePlansState.addAll(list)

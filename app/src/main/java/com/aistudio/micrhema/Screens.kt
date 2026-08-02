@@ -1,4 +1,11 @@
 package com.aistudio.micrhema
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.background
+
+import androidx.compose.ui.unit.sp
+
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -369,73 +376,140 @@ fun AdminScreen() {
     var password by remember { mutableStateOf("") }
     var passwordError by remember { mutableStateOf(false) }
     
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background
-    ) { paddingValues ->
-        if (!isAuthenticated) {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(paddingValues).padding(16.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text("Acesso Restrito - Admin", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(16.dp))
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it; passwordError = false },
-                    label = { Text("Senha") },
-                    isError = passwordError,
-                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation()
-                )
-                if (passwordError) {
-                    Text("Senha incorreta", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-                Button(onClick = {
-                    if (password == "igreja10") {
-                        isAuthenticated = true
-                    } else {
-                        passwordError = true
+    var adminFontScale by remember { mutableFloatStateOf(1f) }
+    
+    val adminColors = darkColorScheme(
+        primary = androidx.compose.ui.graphics.Color(0xFF8C9EFF),
+        secondary = androidx.compose.ui.graphics.Color(0xFFFF8A80),
+        background = androidx.compose.ui.graphics.Color(0xFF1E1E2C),
+        surface = androidx.compose.ui.graphics.Color(0xFF2D2D44),
+        surfaceVariant = androidx.compose.ui.graphics.Color(0xFF3B3B5A),
+        onPrimary = androidx.compose.ui.graphics.Color.White,
+        onSecondary = androidx.compose.ui.graphics.Color.White,
+        onBackground = androidx.compose.ui.graphics.Color(0xFFE0E0E0),
+        onSurface = androidx.compose.ui.graphics.Color(0xFFE0E0E0),
+        onSurfaceVariant = androidx.compose.ui.graphics.Color(0xFFB0B0C0)
+    )
+    
+    val baseTypography = MaterialTheme.typography
+    val adminTypography = Typography(
+        displayLarge = baseTypography.displayLarge.copy(fontSize = baseTypography.displayLarge.fontSize * adminFontScale),
+        displayMedium = baseTypography.displayMedium.copy(fontSize = baseTypography.displayMedium.fontSize * adminFontScale),
+        displaySmall = baseTypography.displaySmall.copy(fontSize = baseTypography.displaySmall.fontSize * adminFontScale),
+        headlineLarge = baseTypography.headlineLarge.copy(fontSize = baseTypography.headlineLarge.fontSize * adminFontScale),
+        headlineMedium = baseTypography.headlineMedium.copy(fontSize = baseTypography.headlineMedium.fontSize * adminFontScale),
+        headlineSmall = baseTypography.headlineSmall.copy(fontSize = baseTypography.headlineSmall.fontSize * adminFontScale),
+        titleLarge = baseTypography.titleLarge.copy(fontSize = baseTypography.titleLarge.fontSize * adminFontScale),
+        titleMedium = baseTypography.titleMedium.copy(fontSize = baseTypography.titleMedium.fontSize * adminFontScale),
+        titleSmall = baseTypography.titleSmall.copy(fontSize = baseTypography.titleSmall.fontSize * adminFontScale),
+        bodyLarge = baseTypography.bodyLarge.copy(fontSize = baseTypography.bodyLarge.fontSize * adminFontScale),
+        bodyMedium = baseTypography.bodyMedium.copy(fontSize = baseTypography.bodyMedium.fontSize * adminFontScale),
+        bodySmall = baseTypography.bodySmall.copy(fontSize = baseTypography.bodySmall.fontSize * adminFontScale),
+        labelLarge = baseTypography.labelLarge.copy(fontSize = baseTypography.labelLarge.fontSize * adminFontScale),
+        labelMedium = baseTypography.labelMedium.copy(fontSize = baseTypography.labelMedium.fontSize * adminFontScale),
+        labelSmall = baseTypography.labelSmall.copy(fontSize = baseTypography.labelSmall.fontSize * adminFontScale)
+    )
+
+    MaterialTheme(
+        colorScheme = adminColors,
+        typography = adminTypography
+    ) {
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
+            topBar = {
+                if (isAuthenticated) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant).padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Painel Administrativo", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { if (adminFontScale > 0.8f) adminFontScale -= 0.1f }) {
+                                Icon(Icons.Filled.Clear, contentDescription = "Diminuir Fonte", tint = MaterialTheme.colorScheme.onSurface)
+                            }
+                            Text("Aa", fontSize = 16.sp * adminFontScale, color = MaterialTheme.colorScheme.onSurface)
+                            IconButton(onClick = { if (adminFontScale < 1.5f) adminFontScale += 0.1f }) {
+                                Icon(Icons.Filled.Add, contentDescription = "Aumentar Fonte", tint = MaterialTheme.colorScheme.onSurface)
+                            }
+                        }
                     }
-                }) {
-                    Text("Entrar")
                 }
             }
-            return@Scaffold
-        }
-
-        var selectedTab by remember { mutableStateOf(0) }
-        val tabs = listOf("Abas", "Planos", "Cultos", "Devocionais", "Conteúdo", "VIP/IBR", "Equipe", "Membros", "Sobre", "Destaques", "Configurações")
-
-        Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            ScrollableTabRow(
-                selectedTabIndex = selectedTab,
-                edgePadding = 8.dp,
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-            ) {
-                tabs.forEachIndexed { index, title ->
-                    Tab(
-                        selected = selectedTab == index,
-                        onClick = { selectedTab = index },
-                        text = { Text(title) }
+        ) { paddingValues ->
+            if (!isAuthenticated) {
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(paddingValues).padding(16.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("Acesso Restrito - Admin", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it; passwordError = false },
+                        label = { Text("Senha") },
+                        isError = passwordError,
+                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     )
+                    if (passwordError) {
+                        Text("Senha incorreta", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = {
+                            if (password == "igreja10") {
+                                isAuthenticated = true
+                            } else {
+                                passwordError = true
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Text("Entrar")
+                    }
                 }
+                return@Scaffold
             }
 
-            Box(modifier = Modifier.fillMaxSize().weight(1f)) {
-                when (selectedTab) {
-                    0 -> AdminTabsScreen()
-                    1 -> EditPlansSection()
-                    2 -> EditServicesSection()
-                    3 -> EditDevotionalsSection()
-                    4 -> EditContentSection()
-                    5 -> EditVipSection()
-                    6 -> EditTeamSection()
-                    7 -> EditMembersSection()
-                    8 -> EditAboutSection()
-                    9 -> EditBannersSection()
-                    10 -> EditSettingsSection()
+            var selectedTab by remember { mutableStateOf(0) }
+            val tabs = listOf("Abas", "Planos", "Cultos", "Devocionais", "Notícias", "Conteúdo", "VIP/IBR", "Equipe", "Membros", "Sobre", "Destaques", "Configurações")
+
+            Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+                ScrollableTabRow(
+                    selectedTabIndex = selectedTab,
+                    edgePadding = 8.dp,
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.primary
+                ) {
+                    tabs.forEachIndexed { index, title ->
+                        Tab(
+                            selected = selectedTab == index,
+                            onClick = { selectedTab = index },
+                            text = { Text(title, fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Normal) }
+                        )
+                    }
+                }
+
+                Box(modifier = Modifier.fillMaxSize().weight(1f)) {
+                    when (selectedTab) {
+                        0 -> AdminTabsScreen()
+                        1 -> EditPlansSection()
+                        2 -> EditServicesSection()
+                        3 -> EditDevotionalsSection()
+                        4 -> EditNewsSection()
+                        5 -> EditContentSection()
+                        6 -> EditVipSection()
+                        7 -> EditTeamSection()
+                        8 -> EditMembersSection()
+                        9 -> EditAboutSection()
+                        10 -> EditBannersSection()
+                        11 -> EditSettingsSection()
+                    }
                 }
             }
         }

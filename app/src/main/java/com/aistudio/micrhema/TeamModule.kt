@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -347,6 +348,28 @@ fun TeamMemberDialog(
     var imageUrl by remember(member) { mutableStateOf(member?.imageUrl ?: "") }
     var orderText by remember(member) { mutableStateOf(member?.order?.toString() ?: teamMembersState.size.toString()) }
     var isLoading by remember { mutableStateOf(false) }
+    var isUploading by remember { mutableStateOf(false) }
+    var uploadProgress by remember { mutableFloatStateOf(0f) }
+    val scope = rememberCoroutineScope()
+    
+    val imagePickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri: android.net.Uri? ->
+        if (uri != null) {
+            isUploading = true
+            uploadProgress = 0f
+            scope.launch {
+                val uploadedUrl = StorageManager.uploadFile(uri, "equipe") { progress ->
+                    uploadProgress = progress
+                }
+                if (uploadedUrl.isNotEmpty()) {
+                    imageUrl = uploadedUrl
+                }
+                isUploading = false
+            }
+        }
+    }
+
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -374,11 +397,21 @@ fun TeamMemberDialog(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
+                
                 OutlinedTextField(
                     value = imageUrl,
                     onValueChange = { imageUrl = it },
                     label = { Text("URL da Foto") },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    trailingIcon = {
+                        if (isUploading) {
+                            CircularProgressIndicator(progress = { uploadProgress }, modifier = Modifier.size(24.dp))
+                        } else {
+                            IconButton(onClick = { imagePickerLauncher.launch("image/*") }) {
+                                Icon(Icons.Default.Add, contentDescription = "Upload Image")
+                            }
+                        }
+                    }
                 )
                 OutlinedTextField(
                     value = orderText,
@@ -391,7 +424,7 @@ fun TeamMemberDialog(
         },
         confirmButton = {
             Button(
-                enabled = name.isNotBlank() && !isLoading,
+                enabled = name.isNotBlank() && !isLoading && !isUploading,
                 onClick = {
                     isLoading = true
                     val order = orderText.toIntOrNull() ?: 0

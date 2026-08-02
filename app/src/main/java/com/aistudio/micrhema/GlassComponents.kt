@@ -124,6 +124,7 @@ fun LocalUploadField(
     modifier: Modifier = Modifier
 ) {
     val isUploading = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    val uploadProgress = androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
     val context = androidx.compose.ui.platform.LocalContext.current
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
 
@@ -133,7 +134,10 @@ fun LocalUploadField(
         if (uri != null) {
             isUploading.value = true
             coroutineScope.launch {
-                val url = com.aistudio.micrhema.StorageHelper.uploadFile(uri, "uploads")
+                uploadProgress.floatValue = 0f
+                val url = com.aistudio.micrhema.StorageHelper.uploadFile(uri, "uploads") { progress ->
+                    uploadProgress.floatValue = progress
+                }
                 if (url != null) {
                     onValueChange(url)
                 } else {

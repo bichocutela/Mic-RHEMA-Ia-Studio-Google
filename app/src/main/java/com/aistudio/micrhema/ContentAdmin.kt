@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 fun EditContentSection() {
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
     var isUploading by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var uploadProgress by androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
     val context = androidx.compose.ui.platform.LocalContext.current
     DisposableEffect(Unit) {
         onDispose {
@@ -53,8 +54,9 @@ fun EditContentSection() {
                     if (isUploading) return@GlassButton
                     isUploading = true
                     coroutineScope.launch {
-                        val finalCover = if (coverUrl.isNotBlank() && !coverUrl.startsWith("http")) StorageManager.uploadFile(android.net.Uri.parse(coverUrl), "books/covers") else coverUrl.ifEmpty { "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=500&q=80" }
-                        val finalBookUrl = if (bookUrl.isNotBlank() && !bookUrl.startsWith("http")) StorageManager.uploadFile(android.net.Uri.parse(bookUrl), "books/files") else bookUrl
+                        uploadProgress = 0f
+                        val finalCover = if (coverUrl.isNotBlank() && !coverUrl.startsWith("http")) StorageManager.uploadFile(android.net.Uri.parse(coverUrl), "books/covers") { progress -> uploadProgress = progress / 2f } else coverUrl.ifEmpty { "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=500&q=80" }
+                        val finalBookUrl = if (bookUrl.isNotBlank() && !bookUrl.startsWith("http")) StorageManager.uploadFile(android.net.Uri.parse(bookUrl), "books/files") { progress -> uploadProgress = 0.5f + (progress / 2f) } else bookUrl
                         addContentBook(ContentBook(id = System.currentTimeMillis().toString(), title = title, author = author, coverUrl = finalCover, contentText = "Conteúdo do livro carregado...", bookUrl = finalBookUrl))
                         title = ""
                         author = ""
@@ -63,7 +65,13 @@ fun EditContentSection() {
                         isUploading = false
                     }
                 }, modifier = Modifier.padding(top = 8.dp)) {
-                    Text("Salvar Livro")
+                    if (isUploading) {
+                        Text("Enviando... ${(uploadProgress * 100).toInt()}%")
+                        Spacer(modifier = Modifier.width(8.dp))
+                        androidx.compose.material3.CircularProgressIndicator(progress = { uploadProgress }, modifier = Modifier.size(16.dp), color = Color.White)
+                    } else {
+                        Text("Salvar Livro")
+                    }
                 }
             }
         }
@@ -101,8 +109,9 @@ fun EditContentSection() {
                     if (isUploading) return@GlassButton
                     isUploading = true
                     coroutineScope.launch {
-                        val finalCoverUrl = if (audioCover.isNotBlank() && !audioCover.startsWith("http")) StorageManager.uploadFile(android.net.Uri.parse(audioCover), "audios/covers") else audioCover.ifEmpty { "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80" }
-                        val finalAudioUrl = if (audioUrl.isNotBlank() && !audioUrl.startsWith("http")) StorageManager.uploadFile(android.net.Uri.parse(audioUrl), "audios/files") else audioUrl.ifEmpty { "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" }
+                        uploadProgress = 0f
+                        val finalCoverUrl = if (audioCover.isNotBlank() && !audioCover.startsWith("http")) StorageManager.uploadFile(android.net.Uri.parse(audioCover), "audios/covers") { progress -> uploadProgress = progress / 2f } else audioCover.ifEmpty { "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80" }
+                        val finalAudioUrl = if (audioUrl.isNotBlank() && !audioUrl.startsWith("http")) StorageManager.uploadFile(android.net.Uri.parse(audioUrl), "audios/files") { progress -> uploadProgress = 0.5f + (progress / 2f) } else audioUrl.ifEmpty { "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" }
                         addContentAudio(ContentAudio(id = System.currentTimeMillis().toString(), title = audioTitle, artist = audioArtist, audioUrl = finalAudioUrl, coverUrl = finalCoverUrl))
                         audioTitle = ""
                         audioArtist = ""
@@ -111,7 +120,13 @@ fun EditContentSection() {
                         isUploading = false
                     }
                 }, modifier = Modifier.padding(top = 8.dp)) {
-                    Text("Salvar Áudio")
+                    if (isUploading) {
+                        Text("Enviando... ${(uploadProgress * 100).toInt()}%")
+                        Spacer(modifier = Modifier.width(8.dp))
+                        androidx.compose.material3.CircularProgressIndicator(progress = { uploadProgress }, modifier = Modifier.size(16.dp), color = Color.White)
+                    } else {
+                        Text("Salvar Áudio")
+                    }
                 }
             }
         }
@@ -148,7 +163,8 @@ fun EditContentSection() {
                     if (isUploading) return@GlassButton
                     isUploading = true
                     coroutineScope.launch {
-                        val finalVideoUrl = if (videoUrl.isNotBlank() && !videoUrl.startsWith("http")) StorageManager.uploadFile(android.net.Uri.parse(videoUrl), "videos/files") else videoUrl.ifEmpty { "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" }
+                        uploadProgress = 0f
+                        val finalVideoUrl = if (videoUrl.isNotBlank() && !videoUrl.startsWith("http")) StorageManager.uploadFile(android.net.Uri.parse(videoUrl), "videos/files") { progress -> uploadProgress = progress } else videoUrl.ifEmpty { "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" }
                         addContentVideo(ContentVideo(id = System.currentTimeMillis().toString(), title = videoTitle, description = videoDesc, videoUrl = finalVideoUrl, thumbnailUrl = "https://images.unsplash.com/photo-1505764761634-1d77b57e1966?w=500&q=80"))
                         videoTitle = ""
                         videoDesc = ""
@@ -156,7 +172,13 @@ fun EditContentSection() {
                         isUploading = false
                     }
                 }, modifier = Modifier.padding(top = 8.dp)) {
-                    Text("Salvar Vídeo")
+                    if (isUploading) {
+                        Text("Enviando... ${(uploadProgress * 100).toInt()}%")
+                        Spacer(modifier = Modifier.width(8.dp))
+                        androidx.compose.material3.CircularProgressIndicator(progress = { uploadProgress }, modifier = Modifier.size(16.dp), color = Color.White)
+                    } else {
+                        Text("Salvar Vídeo")
+                    }
                 }
             }
         }
@@ -187,6 +209,7 @@ fun EditContentSection() {
                 var albumDesc by remember { mutableStateOf("") }
                 var customCoverUrl by remember { mutableStateOf<String?>(null) }
                 var isUploadingCover by remember { mutableStateOf(false) }
+                var coverProgress by remember { mutableFloatStateOf(0f) }
                 var isGenerating by remember { mutableStateOf(false) }
                 val scope = rememberCoroutineScope()
                 
@@ -196,7 +219,8 @@ fun EditContentSection() {
                     if (uri != null) {
                         isUploadingCover = true
                         scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                            val url = StorageHelper.uploadFile(uri, "covers")
+                            coverProgress = 0f
+                            val url = StorageHelper.uploadFile(uri, "covers") { progress -> coverProgress = progress }
                             kotlinx.coroutines.Dispatchers.Main.let {
                                 kotlinx.coroutines.withContext(it) {
                                     isUploadingCover = false
@@ -411,6 +435,7 @@ fun EditContentSection() {
         
         var photoUriInput by remember { mutableStateOf<android.net.Uri?>(null) }
         var isUploadingPhoto by remember { mutableStateOf(false) }
+        var photoProgress by remember { mutableFloatStateOf(0f) }
         val scope = rememberCoroutineScope()
         val photoPicker = androidx.activity.compose.rememberLauncherForActivityResult(
             contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
@@ -418,7 +443,8 @@ fun EditContentSection() {
             if (uri != null) {
                 isUploadingPhoto = true
                 scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                    val url = StorageHelper.uploadFile(uri, "album_photos")
+                    photoProgress = 0f
+                    val url = StorageHelper.uploadFile(uri, "album_photos") { progress -> photoProgress = progress }
                     kotlinx.coroutines.Dispatchers.Main.let {
                         kotlinx.coroutines.withContext(it) {
                             isUploadingPhoto = false

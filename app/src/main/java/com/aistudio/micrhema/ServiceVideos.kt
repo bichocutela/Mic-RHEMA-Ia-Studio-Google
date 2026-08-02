@@ -41,24 +41,7 @@ fun ServiceVideosGallery() {
     var selectedVideo by remember { mutableStateOf<ServiceVideoModel?>(null) }
 
     LaunchedEffect(Unit) {
-        try {
-            if (isOfflineModeState.value) return@LaunchedEffect
-            if (com.google.firebase.FirebaseApp.getApps(context).isEmpty()) return@LaunchedEffect
-            val db = FirebaseFirestore.getInstance()
-            val result = db.collection("cultos").get().await()
-            val fetchedVideos = result.documents.mapNotNull { doc ->
-                doc.toObject(ServiceVideoModel::class.java)?.copy(id = doc.id)
-            }
-            if (fetchedVideos.isNotEmpty()) {
-                fetchedVideos.forEach { fetched ->
-                    if (serviceVideosState.none { it.id == fetched.id }) {
-                        serviceVideosState.add(fetched)
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        // Data is now synchronized instantly via loadContentFromFirebase() in Data.kt
     }
 
     val videos = serviceVideosState.toList()

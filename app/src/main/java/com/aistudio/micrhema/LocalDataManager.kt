@@ -141,40 +141,38 @@ object LocalDataManager {
             val appTabsJson = prefs.getString("appTabsState", null)
             if (appTabsJson != null) {
                 val type = object : com.google.gson.reflect.TypeToken<List<AppTab>>() {}.type
-                var list: List<AppTab> = gson.fromJson(appTabsJson, type)
+                var list: List<AppTab> = gson.fromJson(appTabsJson, type) ?: emptyList()
                 
-                // Migrate incorrectly saved tabs if any
-                list = list.map { tab ->
-                    when (tab.id) {
-                        "8" -> tab.copy(systemRoute = Screen.About.route)
-                        "9" -> tab.copy(systemRoute = Screen.About.route)
-                        "10" -> tab.copy(systemRoute = Screen.Donations.route)
-                        else -> tab
+                // Force remove any unwanted tabs with more aggressive filtering
+                val unwanted = listOf("9", "eventos_tab", "ajuda_tab", "events_tab", "help_tab")
+                list = list.filter { it.id !in unwanted && !it.title.contains("Eventos", ignoreCase = true) && !it.title.contains("Ajuda", ignoreCase = true) }
+                
+                val expectedTabs = listOf(
+                    AppTab("1", "Início", "Home", false, true, true, 0, TabContentType.SYSTEM, Screen.Home.route),
+                    AppTab("bible_tab", "Bíblia", "MenuBook", false, true, false, 1, TabContentType.SYSTEM, "bible"),
+                    AppTab("2", "Cultos", "DateRange", false, true, true, 2, TabContentType.SYSTEM, Screen.Services.route),
+                    AppTab("3", "Devocionais", "Book", false, true, false, 3, TabContentType.SYSTEM, Screen.Devotionals.route),
+                    AppTab("4", "Cursos IBR", "School", false, true, false, 4, TabContentType.SYSTEM, Screen.Ibr.route),
+                    AppTab("5", "Mídia", "PlayArrow", false, true, false, 5, TabContentType.SYSTEM, Screen.Content.route),
+                    AppTab("6", "Pedidos de Oração", "Favorite", false, true, true, 6, TabContentType.SYSTEM, Screen.Prayer.route),
+                    AppTab("plans_tab", "Planos", "List", false, true, true, 7, TabContentType.SYSTEM, "plans"),
+                    AppTab("team_tab", "Equipe", "Groups", false, true, false, 8, TabContentType.SYSTEM, Screen.Team.route),
+                    AppTab("7", "Membros", "Person", false, true, false, 9, TabContentType.SYSTEM, Screen.Members.route),
+                    AppTab("8", "Sobre", "Info", false, true, false, 10, TabContentType.SYSTEM, Screen.About.route),
+                    AppTab("10", "Dízimos e Ofertas", "VolunteerActivism", false, true, true, 11, TabContentType.SYSTEM, Screen.Donations.route),
+                    AppTab("admin_tab", "Área ADM", "Lock", false, true, false, 12, TabContentType.SYSTEM, Screen.Admin.route)
+                )
+                
+                expectedTabs.forEach { expected ->
+                    val existing = list.find { it.id == expected.id }
+                    if (existing == null || existing.systemRoute != expected.systemRoute || existing.title != expected.title || (expected.id == "8" && !existing.isVisible) || (expected.id == "admin_tab" && !existing.isVisible)) {
+                        val merged = existing?.copy(title = expected.title, systemRoute = expected.systemRoute, iconName = expected.iconName, isVisible = if (expected.id == "8" || expected.id == "admin_tab") true else existing.isVisible) ?: expected
+                        list = list.filter { it.id != expected.id } + merged
                     }
                 }
                 
                 appTabsState.clear()
-                appTabsState.addAll(list)
-                
-                // Add Bible tab if it doesn't exist (migration)
-                if (appTabsState.none { it.id == "bible_tab" || it.systemRoute == "bible" }) {
-                    val ibrIdx = appTabsState.indexOfFirst { it.systemRoute == "ibr" }
-                    val insertIdx = if (ibrIdx != -1) ibrIdx + 1 else appTabsState.size
-                    appTabsState.add(insertIdx, AppTab("bible_tab", "Bíblia", "MenuBook", false, true, false, insertIdx, TabContentType.SYSTEM, "bible"))
-                    // Reorder
-                    appTabsState.forEachIndexed { index, tab ->
-                        val updated = tab.copy(order = index)
-                        appTabsState[index] = updated
-                    }
-                }
-                
-                // Add Admin tab if it doesn't exist (migration)
-                if (appTabsState.none { it.id == "admin_tab" || it.systemRoute == Screen.Admin.route }) {
-                    appTabsState.add(AppTab("admin_tab", "Área ADM", "Lock", false, true, false, appTabsState.size, TabContentType.SYSTEM, Screen.Admin.route))
-                    appTabsState.forEachIndexed { index, tab ->
-                        appTabsState[index] = tab.copy(order = index)
-                    }
-                }
+                appTabsState.addAll(list.sortedBy { it.order })
             }
         } catch (e: Exception) {
             Log.e("LocalDataManager", "Error loading data", e)

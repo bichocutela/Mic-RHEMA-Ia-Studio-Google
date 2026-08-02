@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
 
@@ -370,6 +371,27 @@ fun EditBannersSection() {
     var banners by remember { mutableStateOf(homeBannersState.toList()) }
     var newUrl by remember { mutableStateOf("") }
     var saving by remember { mutableStateOf(false) }
+    var isUploading by remember { mutableStateOf(false) }
+    var uploadProgress by remember { mutableFloatStateOf(0f) }
+    val scope = rememberCoroutineScope()
+    
+    val imagePickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri: android.net.Uri? ->
+        if (uri != null) {
+            isUploading = true
+            scope.launch {
+                uploadProgress = 0f
+                val uploadedUrl = StorageManager.uploadFile(uri, "banners") { progress ->
+                    uploadProgress = progress
+                }
+                if (uploadedUrl.isNotEmpty()) {
+                    banners = banners + uploadedUrl
+                }
+                isUploading = false
+            }
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("Gerenciar Banners (Destaques)", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -413,16 +435,34 @@ fun EditBannersSection() {
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(Modifier.height(8.dp))
-            Button(
-                onClick = {
-                    if (newUrl.isNotBlank()) {
-                        banners = banners + newUrl
-                        newUrl = ""
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = {
+                        if (newUrl.isNotBlank()) {
+                            banners = banners + newUrl
+                            newUrl = ""
+                        }
+                    },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Adicionar URL")
+                }
+                
+                Button(
+                    onClick = {
+                        imagePickerLauncher.launch("image/*")
+                    },
+                    modifier = Modifier.weight(1f),
+                    enabled = !isUploading
+                ) {
+                    if (isUploading) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
+                    } else {
+                        Icon(androidx.compose.material.icons.Icons.Default.Add, contentDescription = "Imagem")
+                        Spacer(Modifier.width(4.dp))
+                        Text("Galeria")
                     }
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Adicionar Banner")
+                }
             }
         }
         
@@ -434,10 +474,11 @@ fun EditBannersSection() {
                 saving = false
             },
             modifier = Modifier.fillMaxWidth(),
-            enabled = !saving
+            enabled = !saving && !isUploading
         ) {
             Text("Salvar Alterações")
         }
         Spacer(Modifier.height(32.dp))
     }
 }
+

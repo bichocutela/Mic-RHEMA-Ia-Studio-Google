@@ -114,6 +114,7 @@ fun EditVipSection() {
 fun EditVipContentSection() {
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
     var isUploading by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var uploadProgress by androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
     val context = androidx.compose.ui.platform.LocalContext.current
     DisposableEffect(Unit) {
         onDispose {
@@ -147,8 +148,9 @@ fun EditVipContentSection() {
                     if (isUploading) return@GlassButton
                     isUploading = true
                     coroutineScope.launch {
-                        val finalCover = if (coverUrl.isNotBlank() && !coverUrl.startsWith("http")) StorageManager.uploadFile(android.net.Uri.parse(coverUrl), "books/covers") else coverUrl.ifEmpty { "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=500&q=80" }
-                        val finalBookUrl = if (bookUrl.isNotBlank() && !bookUrl.startsWith("http")) StorageManager.uploadFile(android.net.Uri.parse(bookUrl), "books/files") else bookUrl
+                        uploadProgress = 0f
+                        val finalCover = if (coverUrl.isNotBlank() && !coverUrl.startsWith("http")) StorageManager.uploadFile(android.net.Uri.parse(coverUrl), "books/covers") { progress -> uploadProgress = progress / 2f } else coverUrl.ifEmpty { "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=500&q=80" }
+                        val finalBookUrl = if (bookUrl.isNotBlank() && !bookUrl.startsWith("http")) StorageManager.uploadFile(android.net.Uri.parse(bookUrl), "books/files") { progress -> uploadProgress = 0.5f + (progress / 2f) } else bookUrl
                         addVipBook(ContentBook(id = System.currentTimeMillis().toString(), title = title, author = author, coverUrl = finalCover, contentText = "Conteúdo do livro carregado...", bookUrl = finalBookUrl))
                         title = ""
                         author = ""
@@ -235,7 +237,8 @@ fun EditVipContentSection() {
                     if (isUploading) return@GlassButton
                     isUploading = true
                     coroutineScope.launch {
-                        val finalVideoUrl = if (videoUrl.isNotBlank() && !videoUrl.startsWith("http")) StorageManager.uploadFile(android.net.Uri.parse(videoUrl), "videos/files") else videoUrl.ifEmpty { "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" }
+                        uploadProgress = 0f
+                        val finalVideoUrl = if (videoUrl.isNotBlank() && !videoUrl.startsWith("http")) StorageManager.uploadFile(android.net.Uri.parse(videoUrl), "videos/files") { progress -> uploadProgress = progress } else videoUrl.ifEmpty { "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" }
                         addVipVideo(ContentVideo(id = System.currentTimeMillis().toString(), title = videoTitle, description = videoDesc, videoUrl = finalVideoUrl, thumbnailUrl = "https://images.unsplash.com/photo-1505764761634-1d77b57e1966?w=500&q=80"))
                         videoTitle = ""
                         videoDesc = ""
@@ -274,6 +277,7 @@ fun EditVipContentSection() {
                 var albumDesc by remember { mutableStateOf("") }
                 var customCoverUrl by remember { mutableStateOf<String?>(null) }
                 var isUploadingCover by remember { mutableStateOf(false) }
+                var coverProgress by remember { mutableFloatStateOf(0f) }
                 var isGenerating by remember { mutableStateOf(false) }
                 val scope = rememberCoroutineScope()
                 
@@ -283,7 +287,8 @@ fun EditVipContentSection() {
                     if (uri != null) {
                         isUploadingCover = true
                         scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                            val url = StorageHelper.uploadFile(uri, "covers")
+                            coverProgress = 0f
+                            val url = StorageHelper.uploadFile(uri, "covers") { progress -> coverProgress = progress }
                             kotlinx.coroutines.Dispatchers.Main.let {
                                 kotlinx.coroutines.withContext(it) {
                                     isUploadingCover = false
@@ -498,6 +503,7 @@ fun EditVipContentSection() {
         
         var photoUriInput by remember { mutableStateOf<android.net.Uri?>(null) }
         var isUploadingPhoto by remember { mutableStateOf(false) }
+        var photoProgress by remember { mutableFloatStateOf(0f) }
         val scope = rememberCoroutineScope()
         val photoPicker = androidx.activity.compose.rememberLauncherForActivityResult(
             contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
@@ -505,7 +511,8 @@ fun EditVipContentSection() {
             if (uri != null) {
                 isUploadingPhoto = true
                 scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                    val url = StorageHelper.uploadFile(uri, "album_photos")
+                    photoProgress = 0f
+                    val url = StorageHelper.uploadFile(uri, "album_photos") { progress -> photoProgress = progress }
                     kotlinx.coroutines.Dispatchers.Main.let {
                         kotlinx.coroutines.withContext(it) {
                             isUploadingPhoto = false
