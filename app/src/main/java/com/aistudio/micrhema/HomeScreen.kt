@@ -111,7 +111,7 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
             }
 
             if (devotionalsState.isNotEmpty()) {
-                val todayDevotional = devotionalsState.sortedByDescending { it.date }.first()
+                val todayDevotional = devotionalsState.sortedByDescending { it.timestamp }.first()
                 Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Text("Devocional Diário", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     DevotionalCard(devotional = todayDevotional) {

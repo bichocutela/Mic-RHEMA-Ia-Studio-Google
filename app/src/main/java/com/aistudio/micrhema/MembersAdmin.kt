@@ -23,14 +23,14 @@ fun EditMembersSection() {
         Text("Gerenciar Membros (VIP/IBR)", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 16.dp))
         
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(memberRequestsState) { member ->
+            items(items = memberRequestsState, key = { it.id }) { member ->
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(member.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                        Text(member.email, style = MaterialTheme.typography.bodyMedium)
+                        Text(member.phone, style = MaterialTheme.typography.bodyMedium)
                         
                         Spacer(modifier = Modifier.height(8.dp))
                         
@@ -38,13 +38,13 @@ fun EditMembersSection() {
                             Checkbox(
                                 checked = member.isApproved,
                                 onCheckedChange = { 
-                                    val index = memberRequestsState.indexOf(member)
+                                    val index = memberRequestsState.indexOfFirst { it.id == member.id }
                                     if (index != -1) {
                                         val updated = member.copy(isApproved = it)
                                         memberRequestsState[index] = updated
-                                        MemberManager.saveToFirestore(updated,
+                                        MemberManager.saveToFirestore(context, updated,
                                             onSuccess = { Toast.makeText(context, if(it) "Acesso aprovado para ${member.name}" else "Acesso removido para ${member.name}", Toast.LENGTH_SHORT).show() },
-                                            onFailure = { Toast.makeText(context, "Erro ao atualizar acesso", Toast.LENGTH_SHORT).show() }
+                                            onFailure = { Toast.makeText(context, "Erro: ${it.message}", Toast.LENGTH_LONG).show() }
                                         )
                                     }
                                 }
@@ -56,13 +56,13 @@ fun EditMembersSection() {
                             Checkbox(
                                 checked = member.isVip,
                                 onCheckedChange = { 
-                                    val index = memberRequestsState.indexOf(member)
+                                    val index = memberRequestsState.indexOfFirst { it.id == member.id }
                                     if (index != -1) {
                                         val updated = member.copy(isVip = it)
                                         memberRequestsState[index] = updated
-                                        MemberManager.saveToFirestore(updated,
+                                        MemberManager.saveToFirestore(context, updated,
                                             onSuccess = { Toast.makeText(context, if(it) "Acesso VIP aprovado para ${member.name}" else "Acesso VIP removido para ${member.name}", Toast.LENGTH_SHORT).show() },
-                                            onFailure = { Toast.makeText(context, "Erro ao atualizar acesso", Toast.LENGTH_SHORT).show() }
+                                            onFailure = { Toast.makeText(context, "Erro: ${it.message}", Toast.LENGTH_LONG).show() }
                                         )
                                     }
                                 }
@@ -74,13 +74,13 @@ fun EditMembersSection() {
                             Checkbox(
                                 checked = member.isIbr,
                                 onCheckedChange = { 
-                                    val index = memberRequestsState.indexOf(member)
+                                    val index = memberRequestsState.indexOfFirst { it.id == member.id }
                                     if (index != -1) {
                                         val updated = member.copy(isIbr = it)
                                         memberRequestsState[index] = updated
-                                        MemberManager.saveToFirestore(updated,
+                                        MemberManager.saveToFirestore(context, updated,
                                             onSuccess = { Toast.makeText(context, if(it) "Acesso IBR aprovado para ${member.name}" else "Acesso IBR removido para ${member.name}", Toast.LENGTH_SHORT).show() },
-                                            onFailure = { Toast.makeText(context, "Erro ao atualizar acesso", Toast.LENGTH_SHORT).show() }
+                                            onFailure = { Toast.makeText(context, "Erro: ${it.message}", Toast.LENGTH_LONG).show() }
                                         )
                                     }
                                 }
@@ -90,7 +90,7 @@ fun EditMembersSection() {
                         
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                             IconButton(onClick = { 
-                                MemberManager.deleteFromFirestore(member)
+                                MemberManager.deleteFromFirestore(context, member); MemberManager.saveMembers(context)
                                 memberRequestsState.remove(member)
                             }) {
                                 Icon(Icons.Default.Delete, contentDescription = "Deletar", tint = MaterialTheme.colorScheme.error)

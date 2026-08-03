@@ -36,10 +36,12 @@ object DevotionalManager {
                     val verseReference = document.getString("verseReference") ?: ""
                     val textContent = document.getString("content") ?: ""
                     val likes = document.getLong("likes")?.toInt() ?: 0
-                    newList.add(Devotional(id, title, date, verse, verseReference, textContent, likes))
+                    val mediaUrl = document.getString("mediaUrl") ?: ""
+                    val timestamp = document.getLong("timestamp") ?: 0L
+                    newList.add(Devotional(id, title, date, verse, verseReference, textContent, likes, "devocional", mediaUrl, true, timestamp))
                 }
                 if (newList.isNotEmpty()) {
-                    newList.sortByDescending { it.date }
+                    newList.sortByDescending { it.timestamp }
                     devotionalsState.clear()
                     devotionalsState.addAll(newList)
                         
@@ -111,7 +113,8 @@ data class Devotional(
     var likes: Int = 0,
     var type: String = "devocional",
     var mediaUrl: String = "",
-    var isApproved: Boolean = true
+    var isApproved: Boolean = true,
+    var timestamp: Long = System.currentTimeMillis()
 )
 
 data class ChurchService(
@@ -296,7 +299,7 @@ val rhemaMeaningState = mutableStateOf("Rhema é a palavra revelada de Deus, fal
 data class MemberRequest(
     var id: String = "",
     var name: String = "",
-    var email: String = "",
+    var phone: String = "",
     var isApproved: Boolean = false,
     var isVip: Boolean = false,
     var isIbr: Boolean = false,
@@ -310,7 +313,7 @@ val memberRequestsState = mutableStateListOf<MemberRequest>(
     MemberRequest(
         id = "1",
         name = "Carlos Oliveira",
-        email = "carlos.oliveira@gmail.com",
+        phone = "11999999999",
         isApproved = true,
         isVip = true,
         isIbr = false
@@ -318,7 +321,7 @@ val memberRequestsState = mutableStateListOf<MemberRequest>(
     MemberRequest(
         id = "2",
         name = "Ana Costa",
-        email = "ana.costa@gmail.com",
+        phone = "11888888888",
         isApproved = true,
         isVip = false,
         isIbr = true
@@ -326,7 +329,7 @@ val memberRequestsState = mutableStateListOf<MemberRequest>(
     MemberRequest(
         id = "3",
         name = "Marcos Souza",
-        email = "marcos.souza@gmail.com",
+        phone = "11777777777",
         isApproved = false,
         isVip = false,
         isIbr = false
@@ -415,11 +418,11 @@ object MemberManager {
             for (document in snapshot.documents) {
                 val id = document.id
                 val name = document.getString("name") ?: ""
-                val email = document.getString("email") ?: ""
+                val phone = document.getString("phone") ?: ""
                 val isApproved = document.getBoolean("isApproved") ?: false
                 val isVip = document.getBoolean("isVip") ?: false
                 val isIbr = document.getBoolean("isIbr") ?: false
-                newList.add(MemberRequest(id, name, email, isApproved, isVip, isIbr))
+                newList.add(MemberRequest(id, name, phone, isApproved, isVip, isIbr))
             }
             if (newList.isNotEmpty()) {
                 memberRequestsState.clear()
@@ -442,7 +445,8 @@ object MemberManager {
     }
     }
 
-    fun deleteFromFirestore(member: MemberRequest) {
+    fun deleteFromFirestore(context: android.content.Context, member: MemberRequest) {
+        if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isEmpty()) return
         try {
             val db = Firebase.firestore
             db.collection("acessos_pendentes").document(member.id).delete()
@@ -451,13 +455,18 @@ object MemberManager {
         }
     }
 
-    fun saveToFirestore(member: MemberRequest, onSuccess: () -> Unit = {}, onFailure: (Exception) -> Unit = {}) {
+    fun saveToFirestore(context: android.content.Context, member: MemberRequest, onSuccess: () -> Unit = {}, onFailure: (Exception) -> Unit = {}) {
+        saveMembers(context)
+        if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isEmpty()) {
+            onSuccess()
+            return
+        }
         try {
             val db = Firebase.firestore
 
             val memberMap = hashMapOf(
                 "name" to member.name,
-                "email" to member.email,
+                "phone" to member.phone,
                 "isApproved" to member.isApproved,
                 "isVip" to member.isVip,
                 "isIbr" to member.isIbr
@@ -487,7 +496,7 @@ object MemberManager {
                     MemberRequest(
                         id = parts[0],
                         name = parts[1],
-                        email = parts[2],
+                        phone = parts[2],
                         isApproved = parts[3].toBoolean(),
                         isVip = parts[4].toBoolean(),
                         isIbr = parts[5].toBoolean()
@@ -513,7 +522,7 @@ object MemberManager {
     fun saveMembers(context: android.content.Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
         val serialized = memberRequestsState.joinToString("||") {
-            "${it.id}|${it.name}|${it.email}|${it.isApproved}|${it.isVip}|${it.isIbr}"
+            "${it.id}|${it.name}|${it.phone}|${it.isApproved}|${it.isVip}|${it.isIbr}"
         }
         prefs.edit().putString(KEY_MEMBERS, serialized).apply()
     }
@@ -526,6 +535,7 @@ object MemberManager {
             prefs.edit().remove(KEY_LOGGED_IN_ID).apply()
         } else {
             prefs.edit().putString(KEY_LOGGED_IN_ID, member.id).apply()
+            UserSettingsManager.loadSettings(context)
         }
     }
 }
@@ -967,8 +977,9 @@ fun initializeTabs() {
         AppTab("team_tab", "Equipe", "Groups", false, true, false, 8, TabContentType.SYSTEM, Screen.Team.route),
         AppTab("7", "Membros", "Person", false, true, false, 9, TabContentType.SYSTEM, Screen.Members.route),
         AppTab("8", "Sobre", "Info", false, true, false, 10, TabContentType.SYSTEM, Screen.About.route),
-        AppTab("10", "Dízimos e Ofertas", "VolunteerActivism", false, true, true, 11, TabContentType.SYSTEM, Screen.Donations.route),
-        AppTab("admin_tab", "Área ADM", "Lock", false, true, false, 12, TabContentType.SYSTEM, Screen.Admin.route)
+        AppTab("settings_tab", "Configurações", "Settings", false, true, false, 11, TabContentType.SYSTEM, Screen.Settings.route),
+        AppTab("10", "Dízimos e Ofertas", "VolunteerActivism", false, true, true, 12, TabContentType.SYSTEM, Screen.Donations.route),
+        AppTab("admin_tab", "Área ADM", "Lock", false, true, false, 13, TabContentType.SYSTEM, Screen.Admin.route)
     )
     appTabsState.addAll(defaultTabs)
 }

@@ -33,7 +33,7 @@ fun MembersScreen() {
         return
     }
     val context = LocalContext.current
-    var email by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
     var isLoginMode by remember { mutableStateOf(true) }
 
@@ -99,7 +99,7 @@ fun MembersScreen() {
                         Column(modifier = Modifier.padding(24.dp)) {
                             Text("Olá, ${loggedInMember.name}!", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                             Spacer(modifier = Modifier.height(4.dp))
-                            Text(loggedInMember.email, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(loggedInMember.phone, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(modifier = Modifier.height(16.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 if (loggedInMember.isVip) AssistChip(onClick = {}, label = { Text("VIP") }, leadingIcon = { Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp)) })
@@ -255,124 +255,10 @@ fun IbrScreen() {
     }
 }
 @Composable
-fun SettingsScreen() {
-    val context = LocalContext.current
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            // Header
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 24.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    androidx.compose.material.icons.Icons.Default.Settings,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(28.dp)
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = "Configurações",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-            }
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(24.dp)
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Aparência", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
-                    
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                    ) {
-                        Column(modifier = Modifier.padding(20.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Modo Escuro (Manual)", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
-                                Switch(
-                                    checked = currentThemeMode.value == ThemeMode.DARK,
-                                    onCheckedChange = { isDark ->
-                                        val newMode = if (isDark) ThemeMode.DARK else ThemeMode.LIGHT
-                                        currentThemeMode.value = newMode
-                                        SettingsManager.setThemeMode(context, newMode)
-                                    }
-                                )
-                            }
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Seguir padrão do sistema", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
-                                Switch(
-                                    checked = currentThemeMode.value == ThemeMode.SYSTEM,
-                                    onCheckedChange = { isSystem ->
-                                        val newMode = if (isSystem) ThemeMode.SYSTEM else ThemeMode.LIGHT
-                                        currentThemeMode.value = newMode
-                                        SettingsManager.setThemeMode(context, newMode)
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-                
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Rede e Dados", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
-                    
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                    ) {
-                        Column(modifier = Modifier.padding(20.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Modo Offline", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
-                                Switch(
-                                    checked = isOfflineModeState.value,
-                                    onCheckedChange = { isOffline ->
-                                        isOfflineModeState.value = isOffline
-                                        SettingsManager.setOfflineMode(context, isOffline)
-                                    }
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text("Força o uso de dados cacheados localmente.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(100.dp))
-            }
-        }
-    }
-}
-@Composable
 fun AdminScreen() {
-    var isAuthenticated by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = context.getSharedPreferences("micrhema_admin_prefs", android.content.Context.MODE_PRIVATE)
+    var isAuthenticated by remember { mutableStateOf(prefs.getBoolean("is_admin_authenticated", false)) }
     var password by remember { mutableStateOf("") }
     var passwordError by remember { mutableStateOf(false) }
     
@@ -432,6 +318,12 @@ fun AdminScreen() {
                             IconButton(onClick = { if (adminFontScale < 1.5f) adminFontScale += 0.1f }) {
                                 Icon(Icons.Filled.Add, contentDescription = "Aumentar Fonte", tint = MaterialTheme.colorScheme.onSurface)
                             }
+                            IconButton(onClick = { 
+                                isAuthenticated = false 
+                                prefs.edit().putBoolean("is_admin_authenticated", false).apply()
+                            }) {
+                                Icon(androidx.compose.material.icons.Icons.Default.ExitToApp, contentDescription = "Sair", tint = MaterialTheme.colorScheme.error)
+                            }
                         }
                     }
                 }
@@ -464,6 +356,7 @@ fun AdminScreen() {
                         onClick = {
                             if (password == "igreja10") {
                                 isAuthenticated = true
+                                prefs.edit().putBoolean("is_admin_authenticated", true).apply()
                                 try {
                                     val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
                                     if (auth.currentUser == null) {

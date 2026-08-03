@@ -1,23 +1,8 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    
-    // Permite leitura pública de qualquer arquivo
     match /{allPaths=**} {
       allow read: if true;
-    }
-
-    // Permite envio de arquivos apenas para administradores (usuários logados)
-    match /books/{allPaths=**} {
-      allow write: if request.auth != null;
-    }
-    match /audios/{allPaths=**} {
-      allow write: if request.auth != null;
-    }
-    match /videos/{allPaths=**} {
-      allow write: if request.auth != null;
-    }
-    match /photos/{allPaths=**} {
       allow write: if request.auth != null;
     }
   }

@@ -71,7 +71,7 @@ fun DevotionalsScreen() {
                         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 100.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        items(devotionalsState.sortedByDescending { it.date }) { devotional ->
+                        items(devotionalsState.sortedByDescending { it.timestamp }) { devotional ->
                             DevotionalCard(devotional = devotional) {
                                 selectedDevotional = devotional
                             }

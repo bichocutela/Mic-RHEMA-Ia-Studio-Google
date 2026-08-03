@@ -285,7 +285,16 @@ fun EditDevotionalsSection() {
             confirmButton = {
                 TextButton(onClick = {
                     if (title.isNotEmpty()) {
-                        val newDev = Devotional(editingDevotional?.id ?: java.util.UUID.randomUUID().toString(), title, date, verse, ref, content, editingDevotional?.likes ?: 0)
+                        val newDev = Devotional(
+                            id = editingDevotional?.id ?: java.util.UUID.randomUUID().toString(),
+                            title = title,
+                            date = date,
+                            verse = verse,
+                            verseReference = ref,
+                            content = content,
+                            likes = editingDevotional?.likes ?: 0,
+                            timestamp = editingDevotional?.timestamp ?: System.currentTimeMillis()
+                        )
                         if (editingDevotional != null) {
                             val idx = devotionalsState.indexOf(editingDevotional)
                             if (idx >= 0) devotionalsState[idx] = newDev
