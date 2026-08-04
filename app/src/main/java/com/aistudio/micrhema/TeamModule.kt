@@ -431,7 +431,7 @@ fun TeamMemberDialog(
                     isLoading = true
                     val order = orderText.toIntOrNull() ?: 0
                     val id = member?.id ?: UUID.randomUUID().toString()
-                    val newMember = TeamMember(id, name, role, imageUrl, order, category)
+                    val newMember = TeamMember(id, name, role, convertGoogleDriveUrl(imageUrl), order, category)
                     onSave(newMember)
                 }
             ) {

@@ -127,7 +127,7 @@ fun EditNewsSection() {
                             book = book,
                             chapter = chapter.toIntOrNull() ?: 0,
                             verse = verse.toIntOrNull() ?: 0,
-                            imageUrl = imageUrl
+                            imageUrl = convertGoogleDriveUrl(imageUrl)
                         )
                         
                         if (editingNews != null) {

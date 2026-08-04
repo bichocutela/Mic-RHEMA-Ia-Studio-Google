@@ -55,7 +55,7 @@ fun PdfViewer(
                     val fileName = "book_${bookUrl.hashCode()}.pdf"
                     val cachedFile = File(context.cacheDir, fileName)
                     if (!cachedFile.exists()) {
-                        val connection = URL(bookUrl).openConnection() as HttpURLConnection
+                        val connection = URL(convertGoogleDriveUrl(bookUrl)).openConnection() as HttpURLConnection
                         connection.connect()
                         if (connection.responseCode == HttpURLConnection.HTTP_OK) {
                             val input = connection.inputStream

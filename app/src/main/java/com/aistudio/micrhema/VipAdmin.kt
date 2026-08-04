@@ -79,7 +79,7 @@ fun EditVipSection() {
             FilterChip(
                 selected = vipTab == "midia",
                 onClick = { vipTab = "midia" },
-                label = { Text("Mídia VIP") }
+                label = { Text("Conteúdo VIP") }
             )
             FilterChip(
                 selected = vipTab == "cursos",
@@ -128,7 +128,7 @@ fun EditVipContentSection() {
     var isDeleting by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("VIP - Mídia Geral", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text("VIP - Conteúdo Geral", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Text("Adicione e edite livros, áudios e vídeos para os membros VIP e IBR.", style = MaterialTheme.typography.bodyMedium)
         
         // ADD BOOK
@@ -148,8 +148,8 @@ fun EditVipContentSection() {
                     isUploading = true
                     coroutineScope.launch {
                         uploadProgress = 0f
-                        val finalCover = if (coverUrl.isNotBlank() && !coverUrl.startsWith("http")) StorageManager.uploadFile(context, android.net.Uri.parse(coverUrl), "books/covers") { progress -> uploadProgress = progress / 2f } else coverUrl.ifEmpty { "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=500&q=80" }
-                        val finalBookUrl = if (bookUrl.isNotBlank() && !bookUrl.startsWith("http")) StorageManager.uploadFile(context, android.net.Uri.parse(bookUrl), "books/files") { progress -> uploadProgress = 0.5f + (progress / 2f) } else bookUrl
+                        val finalCover = if (coverUrl.isNotBlank() && !coverUrl.startsWith("http")) StorageManager.uploadFile(context, android.net.Uri.parse(coverUrl), "books/covers") { progress -> uploadProgress = progress / 2f } else convertGoogleDriveUrl(coverUrl).ifEmpty { "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=500&q=80" }
+                        val finalBookUrl = if (bookUrl.isNotBlank() && !bookUrl.startsWith("http")) StorageManager.uploadFile(context, android.net.Uri.parse(bookUrl), "books/files") { progress -> uploadProgress = 0.5f + (progress / 2f) } else convertGoogleDriveUrl(bookUrl)
                         addVipBook(ContentBook(id = System.currentTimeMillis().toString(), title = title, author = author, coverUrl = finalCover, contentText = "Conteúdo do livro carregado...", bookUrl = finalBookUrl))
                         title = ""
                         author = ""
@@ -237,7 +237,7 @@ fun EditVipContentSection() {
                     isUploading = true
                     coroutineScope.launch {
                         uploadProgress = 0f
-                        val finalVideoUrl = if (videoUrl.isNotBlank() && !videoUrl.startsWith("http")) StorageManager.uploadFile(context, android.net.Uri.parse(videoUrl), "videos/files") { progress -> uploadProgress = progress } else videoUrl.ifEmpty { "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" }
+                        val finalVideoUrl = if (videoUrl.isNotBlank() && !videoUrl.startsWith("http")) StorageManager.uploadFile(context, android.net.Uri.parse(videoUrl), "videos/files") { progress -> uploadProgress = progress } else convertGoogleDriveUrl(videoUrl).ifEmpty { "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" }
                         addVipVideo(ContentVideo(id = System.currentTimeMillis().toString(), title = videoTitle, description = videoDesc, videoUrl = finalVideoUrl, thumbnailUrl = "https://images.unsplash.com/photo-1505764761634-1d77b57e1966?w=500&q=80"))
                         videoTitle = ""
                         videoDesc = ""
@@ -432,7 +432,7 @@ fun EditVipContentSection() {
                 TextButton(onClick = {
                     val idx = vipBooksState.indexOfFirst { it.id == editingBook!!.id }
                     if (idx != -1) {
-                        vipBooksState[idx] = editingBook!!.copy(title = editTitle, author = editAuthor, coverUrl = editCoverUrl, contentText = editContent, bookUrl = editBookUrl)
+                        vipBooksState[idx] = editingBook!!.copy(title = editTitle, author = editAuthor, coverUrl = convertGoogleDriveUrl(editCoverUrl), contentText = editContent, bookUrl = convertGoogleDriveUrl(editBookUrl))
                     }
                     editingBook = null
                 }) { Text("Salvar") }

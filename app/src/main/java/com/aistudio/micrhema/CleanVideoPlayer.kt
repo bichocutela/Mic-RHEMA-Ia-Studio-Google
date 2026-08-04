@@ -90,7 +90,7 @@ fun CleanVideoPlayer(
                         )
                     )
                     .build().apply {
-                        setMediaItem(MediaItem.fromUri(videoUrl))
+                        setMediaItem(MediaItem.fromUri(convertGoogleDriveUrl(videoUrl)))
                         prepare()
                         playWhenReady = true
                     }

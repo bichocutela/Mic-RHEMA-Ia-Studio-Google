@@ -436,8 +436,7 @@ fun EditBannersSection() {
             }
         }
         
-        if (banners.size < 5) {
-            Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(16.dp))
             OutlinedTextField(
                 value = newUrl,
                 onValueChange = { newUrl = it },
@@ -449,7 +448,7 @@ fun EditBannersSection() {
                 Button(
                     onClick = {
                         if (newUrl.isNotBlank()) {
-                            banners = banners + newUrl
+                            banners = banners + convertGoogleDriveUrl(newUrl)
                             newUrl = ""
                         }
                     },
@@ -474,7 +473,6 @@ fun EditBannersSection() {
                     }
                 }
             }
-        }
         
         Spacer(Modifier.height(16.dp))
         Button(
