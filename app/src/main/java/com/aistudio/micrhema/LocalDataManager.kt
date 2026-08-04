@@ -12,6 +12,7 @@ object LocalDataManager {
     fun loadAll(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val gson = Gson()
+        adminAuthenticatedState.value = prefs.getBoolean("isAdminAuth", false)
         
         try {
             // Pastor Name
@@ -183,6 +184,7 @@ object LocalDataManager {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val editor = prefs.edit()
         val gson = Gson()
+        editor.putBoolean("isAdminAuth", adminAuthenticatedState.value)
         
         try {
             editor.putString("pastorNameState", pastorNameState.value)

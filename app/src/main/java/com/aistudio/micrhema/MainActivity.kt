@@ -416,7 +416,30 @@ fun MainScreen() {
                 composable(Screen.Services.route) { ServicesScreen() }
                 composable(Screen.Prayer.route) { PrayerScreen() }
                 composable(Screen.Members.route) { MembersScreen() }
-                composable(Screen.Ibr.route) { IbrScreen() }
+                composable(Screen.Ibr.route) { 
+                    IbrMainScreen(
+                        onNavigateToCourse = { courseId -> navController.navigate("ibr_course/$courseId") }
+                    ) 
+                }
+                
+                composable("ibr_course/{courseId}") { backStackEntry ->
+                    val courseId = backStackEntry.arguments?.getString("courseId") ?: return@composable
+                    IbrCourseScreen(
+                        courseId = courseId,
+                        onBack = { navController.popBackStack() },
+                        onNavigateToText = { cid, chid -> navController.navigate("ibr_text/$cid/$chid") }
+                    )
+                }
+                
+                composable("ibr_text/{courseId}/{chapterId}") { backStackEntry ->
+                    val courseId = backStackEntry.arguments?.getString("courseId") ?: return@composable
+                    val chapterId = backStackEntry.arguments?.getString("chapterId") ?: return@composable
+                    IbrTextScreen(
+                        courseId = courseId,
+                        chapterId = chapterId,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
                 composable("equipe") { TeamScreen() }
                 composable("team") { TeamScreen() }
                 composable("plans") { PlansScreen(onNavigateToBible = { book, chap -> navController.navigate("bible?book=$book&chapter=$chap") }) }

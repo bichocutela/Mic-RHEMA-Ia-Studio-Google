@@ -300,9 +300,13 @@ data class MemberRequest(
     var id: String = "",
     var name: String = "",
     var phone: String = "",
+    var email: String = "",
     var isApproved: Boolean = false,
     var isVip: Boolean = false,
     var isIbr: Boolean = false,
+    var isAdmin: Boolean = false,
+    var ibrCertificateUrl: String = "",
+    var status: String = "pendente",
     var title: String = "",
     var type: String = "acesso",
     var content: String = "",
@@ -337,6 +341,7 @@ val memberRequestsState = mutableStateListOf<MemberRequest>(
 )
 
 val loggedInMemberState = mutableStateOf<MemberRequest?>(null)
+val adminAuthenticatedState = androidx.compose.runtime.mutableStateOf(false)
 
 object MemberManager {
     private const val PREFS_NAME = "micrhema_members_prefs"
@@ -422,7 +427,18 @@ object MemberManager {
                 val isApproved = document.getBoolean("isApproved") ?: false
                 val isVip = document.getBoolean("isVip") ?: false
                 val isIbr = document.getBoolean("isIbr") ?: false
-                newList.add(MemberRequest(id, name, phone, isApproved, isVip, isIbr))
+                val email = document.getString("email") ?: ""
+                val isAdmin = document.getBoolean("isAdmin") ?: false
+                newList.add(MemberRequest(
+                    id = id, 
+                    name = name, 
+                    phone = phone, 
+                    email = email,
+                    isApproved = isApproved, 
+                    isVip = isVip, 
+                    isIbr = isIbr,
+                    isAdmin = isAdmin
+                ))
             }
             if (newList.isNotEmpty()) {
                 memberRequestsState.clear()
@@ -467,9 +483,13 @@ object MemberManager {
             val memberMap = hashMapOf(
                 "name" to member.name,
                 "phone" to member.phone,
+                "email" to member.email,
                 "isApproved" to member.isApproved,
                 "isVip" to member.isVip,
-                "isIbr" to member.isIbr
+                "isIbr" to member.isIbr,
+                "isAdmin" to member.isAdmin,
+                "ibrCertificateUrl" to member.ibrCertificateUrl,
+                "status" to (if (member.isApproved || member.isVip || member.isIbr) "aprovado" else "pendente")
             )
             db.collection("acessos_pendentes").document(member.id).set(memberMap)
                 .addOnSuccessListener { 
@@ -499,7 +519,10 @@ object MemberManager {
                         phone = parts[2],
                         isApproved = parts[3].toBoolean(),
                         isVip = parts[4].toBoolean(),
-                        isIbr = parts[5].toBoolean()
+                        isIbr = parts[5].toBoolean(),
+                        email = if (parts.size >= 7) parts[6] else "",
+                        isAdmin = if (parts.size >= 8) parts[7].toBoolean() else false,
+                        ibrCertificateUrl = if (parts.size >= 9) parts[8] else ""
                     )
                 } else null
             }
@@ -522,7 +545,7 @@ object MemberManager {
     fun saveMembers(context: android.content.Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
         val serialized = memberRequestsState.joinToString("||") {
-            "${it.id}|${it.name}|${it.phone}|${it.isApproved}|${it.isVip}|${it.isIbr}"
+            "${it.id}|${it.name}|${it.phone}|${it.isApproved}|${it.isVip}|${it.isIbr}|${it.email}|${it.isAdmin}|${it.ibrCertificateUrl}"
         }
         prefs.edit().putString(KEY_MEMBERS, serialized).apply()
     }
@@ -546,8 +569,10 @@ data class IbrChapter(
     var title: String = "",
     var description: String = "",
     var durationMinutes: Int = 0,
+    var type: String = "VIDEO", // VIDEO, AUDIO, TEXT
     var videoUrl: String = "", // URL to video stream or YouTube
     var audioUrl: String = "", // URL to audio stream
+    var textContent: String = "", // For TEXT type
     var isYoutube: Boolean = false,
     var youtubeId: String = "" // if Youtube link
 )
@@ -926,6 +951,14 @@ enum class TabContentType {
     SYSTEM, WEBVIEW, EXTERNAL, NATIVE, PHOTOS, VIDEOS, LINKS, MIXED
 }
 
+data class CustomTabContent(
+    var id: String = "",
+    var title: String = "",
+    var subtitle: String = "",
+    var fileUrl: String = "",
+    var type: String = "" // "PDF", "VIDEO", "PHOTO", "MUSIC"
+)
+
 data class AppTab(
     var id: String = "",
     var title: String = "",
@@ -936,7 +969,8 @@ data class AppTab(
     var order: Int = 0,
     var type: TabContentType = TabContentType.SYSTEM,
     var systemRoute: String? = null,
-    var webUrl: String = ""
+    var webUrl: String = "",
+    var customContents: List<CustomTabContent> = emptyList()
 )
 
 enum class ContentType {
@@ -958,7 +992,7 @@ val recentlyViewedState = androidx.compose.runtime.mutableStateListOf<RecentlyVi
 fun addRecentlyViewed(item: RecentlyViewedItem) {
     recentlyViewedState.removeAll { it.id == item.id && it.type == item.type }
     recentlyViewedState.add(0, item)
-    if (recentlyViewedState.size > 10) recentlyViewedState.removeLast()
+    if (recentlyViewedState.size > 10) recentlyViewedState.removeAt(recentlyViewedState.lastIndex)
 }
 
 val appTabsState = androidx.compose.runtime.mutableStateListOf<AppTab>()

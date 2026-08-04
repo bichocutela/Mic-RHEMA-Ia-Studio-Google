@@ -26,7 +26,7 @@ import coil.compose.AsyncImage
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NewsListScreen(onNavigateToDetail: (Int) -> Unit, onBack: () -> Unit) {
-    Scaffold(
+    Scaffold(modifier = Modifier.padding(bottom = 80.dp),
         topBar = {
             TopAppBar(
                 title = { Text("Notícias Bíblicas", fontWeight = FontWeight.Bold) },
@@ -39,6 +39,7 @@ fun NewsListScreen(onNavigateToDetail: (Int) -> Unit, onBack: () -> Unit) {
             )
         }
     ) { paddingValues ->
+        val unused = paddingValues
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -90,7 +91,7 @@ fun NewsListScreen(onNavigateToDetail: (Int) -> Unit, onBack: () -> Unit) {
 fun NewsDetailScreen(newsId: Int, onBack: () -> Unit, onNavigateToBible: (String, Int, String?) -> Unit) {
     val news = (if (bibleNewsState.isEmpty()) BibleNewsData.newsList else bibleNewsState).find { it.id == newsId } ?: return
 
-    Scaffold(
+    Scaffold(modifier = Modifier.padding(bottom = 80.dp),
         topBar = {
             TopAppBar(
                 title = {},
@@ -103,6 +104,7 @@ fun NewsDetailScreen(newsId: Int, onBack: () -> Unit, onNavigateToBible: (String
             )
         }
     ) { paddingValues ->
+        val unused = paddingValues
         Column(
             modifier = Modifier
                 .fillMaxSize()

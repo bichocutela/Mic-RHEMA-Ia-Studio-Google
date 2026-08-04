@@ -77,7 +77,7 @@ fun removeVipCourse(item: IbrCourse) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditVipSection() {
-    var vipTab by remember { mutableStateOf("midia") } // midia or cursos
+    var vipTab by remember { mutableStateOf("midia") } // midia or cursos or certificados
     
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -87,20 +87,27 @@ fun EditVipSection() {
             FilterChip(
                 selected = vipTab == "midia",
                 onClick = { vipTab = "midia" },
-                label = { Text("Mídia (Livros, Áudios...)") }
+                label = { Text("Mídia VIP") }
             )
             FilterChip(
                 selected = vipTab == "cursos",
                 onClick = { vipTab = "cursos" },
-                label = { Text("Cursos") }
+                label = { Text("Módulos IBR") }
+            )
+            FilterChip(
+                selected = vipTab == "certificados",
+                onClick = { vipTab = "certificados" },
+                label = { Text("Certificados IBR") }
             )
         }
         
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             if (vipTab == "midia") {
                 EditVipContentSection()
-            } else {
+            } else if (vipTab == "cursos") {
                 EditVipIbrSection()
+            } else {
+                EditIbrCertificatesSection()
             }
         }
     }
@@ -625,9 +632,11 @@ fun EditVipIbrSection() {
     var chapterTitle by remember { mutableStateOf("") }
     var chapterDescription by remember { mutableStateOf("") }
     var chapterDuration by remember { mutableStateOf("30") }
+    var chapterType by remember { mutableStateOf("VIDEO") } // VIDEO, AUDIO, TEXT
     var isYoutube by remember { mutableStateOf(false) }
     var videoUrl by remember { mutableStateOf("") }
     var audioUrl by remember { mutableStateOf("") }
+    var textContent by remember { mutableStateOf("") }
     
     // Bulk Upload States
     class BulkUploadTask(
@@ -843,8 +852,10 @@ fun EditVipIbrSection() {
                                         title = chapterTitle,
                                         description = chapterDescription,
                                         durationMinutes = duration,
+                                        type = chapterType,
                                         videoUrl = videoUrl,
                                         audioUrl = audioUrl,
+                                        textContent = textContent,
                                         isYoutube = isYoutube
                                     )
                                     // Add to the selected course chapters list
@@ -946,7 +957,7 @@ fun EditVipIbrSection() {
                                         }
                                         Text(task.filename, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         LinearProgressIndicator(
-                                            progress = task.progress,
+                                            progress = { task.progress },
                                             modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
                                             color = if (task.status == "Concluído") Color(0xFF10B981) else MaterialTheme.colorScheme.primary,
                                             trackColor = MaterialTheme.colorScheme.surfaceVariant
@@ -984,8 +995,10 @@ fun EditVipIbrSection() {
                                                         title = task.title,
                                                         description = "Upload em lote: ${task.filename}",
                                                         durationMinutes = 45,
+                                                        type = "VIDEO",
                                                         videoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
                                                         audioUrl = "",
+                                                        textContent = "",
                                                         isYoutube = false
                                                     )
                                                     val updatedChapters = targetCourse.chapters.toMutableList().apply { add(newChap) }
@@ -1203,6 +1216,127 @@ fun EditVipIbrSection() {
                     editingChapter = null
                     editingCourse = null
                 }) { Text("Cancelar") }
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EditIbrCertificatesSection() {
+    val context = LocalContext.current
+    var uploadCertificateForUser by remember { mutableStateOf<MemberRequest?>(null) }
+    var uploadUrl by remember { mutableStateOf("") }
+    
+    val totalIbrCourses = ibrCoursesState.size
+    
+    val eligibleUsers = memberRequestsState.filter { member -> 
+        if (!member.isIbr) return@filter false
+        if (totalIbrCourses == 0) return@filter false
+        
+        var completedCoursesCount = 0
+        ibrCoursesState.forEach { course ->
+            var allChaptersCompleted = true
+            course.chapters.forEach { chapter ->
+                val p = ibrProgressState.find { it.courseId == course.id && it.chapterId == chapter.id }
+                if (p == null || !p.isCompleted) {
+                    allChaptersCompleted = false
+                }
+            }
+            if (allChaptersCompleted && course.chapters.isNotEmpty()) {
+                completedCoursesCount++
+            }
+        }
+        
+        completedCoursesCount == totalIbrCourses
+    }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Text("Gerenciar Certificados IBR", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(8.dp))
+        Text("Alunos que concluíram 100% do IBR ($totalIbrCourses módulos).", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (eligibleUsers.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("Nenhum aluno atingiu 100% de conclusão.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
+            }
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(eligibleUsers) { member ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Column {
+                                    Text(member.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                                    Text(member.email.ifEmpty { "Sem e-mail" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                if (member.ibrCertificateUrl.isNotEmpty()) {
+                                    Icon(Icons.Default.Verified, contentDescription = "Certificado Enviado", tint = Color(0xFF4CAF50))
+                                } else {
+                                    Icon(Icons.Default.PendingActions, contentDescription = "Pendente", tint = MaterialTheme.colorScheme.error)
+                                }
+                            }
+                            
+                            Spacer(modifier = Modifier.height(12.dp))
+                            
+                            if (member.ibrCertificateUrl.isNotEmpty()) {
+                                Text("Certificado enviado:", style = MaterialTheme.typography.labelSmall)
+                                Text(member.ibrCertificateUrl, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
+                            
+                            Button(onClick = { 
+                                uploadCertificateForUser = member 
+                                uploadUrl = member.ibrCertificateUrl
+                            }, modifier = Modifier.fillMaxWidth()) {
+                                Text(if (member.ibrCertificateUrl.isEmpty()) "Fazer Upload do Certificado" else "Alterar Certificado")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    if (uploadCertificateForUser != null) {
+        AlertDialog(
+            onDismissRequest = { uploadCertificateForUser = null },
+            title = { Text("Certificado para ${uploadCertificateForUser!!.name}") },
+            text = {
+                Column {
+                    LocalUploadField(
+                        value = uploadUrl,
+                        onValueChange = { uploadUrl = it },
+                        label = "Upload PDF ou Imagem",
+                        mimeType = "*/*"
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val updatedMember = uploadCertificateForUser!!.copy(ibrCertificateUrl = uploadUrl)
+                    val index = memberRequestsState.indexOfFirst { it.id == updatedMember.id }
+                    if (index != -1) {
+                        memberRequestsState[index] = updatedMember
+                        MemberManager.saveToFirestore(context, updatedMember, 
+                            onSuccess = { 
+                                android.widget.Toast.makeText(context, "Certificado salvo!", android.widget.Toast.LENGTH_SHORT).show() 
+                            }
+                        )
+                    }
+                    uploadCertificateForUser = null
+                }) {
+                    Text("Salvar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { uploadCertificateForUser = null }) {
+                    Text("Cancelar")
+                }
             }
         )
     }

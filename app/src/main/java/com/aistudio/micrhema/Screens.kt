@@ -179,88 +179,16 @@ fun MembersScreen() {
 }
 
 @Composable
-fun IbrScreen() {
-    val loggedInMember = loggedInMemberState.value
-    if (loggedInMember == null) {
-        LoginScreen(onLoginSuccess = {})
-        return
-    }
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 24.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    Icons.Default.Settings,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(28.dp)
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = "Cursos IBR",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                val context = LocalContext.current
-                TextButton(onClick = { MemberManager.setLoggedInMember(context, null) }) {
-                    Text("Sair")
-                }
-            }
-
-            if (!loggedInMember.isIbr) {
-                Column(modifier = Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    Text("Você não está matriculado no IBR. Procure a secretaria para mais informações.", textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = MaterialTheme.colorScheme.onBackground)
-                }
-            } else {
-                if (ibrCoursesState.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Nenhum curso disponível.", color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f))
-                    }
-                } else {
-                    LazyColumn(
-                        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 100.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        items(ibrCoursesState) { course ->
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                            ) {
-                                Column(modifier = Modifier.padding(20.dp)) {
-                                    Text(course.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(course.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Spacer(modifier = Modifier.height(16.dp))
-                                    Text("${course.chapters.size} aulas", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-@Composable
 fun AdminScreen() {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val prefs = context.getSharedPreferences("micrhema_admin_prefs", android.content.Context.MODE_PRIVATE)
-    var isAuthenticated by remember { mutableStateOf(prefs.getBoolean("is_admin_authenticated", false)) }
-    var password by remember { mutableStateOf("") }
-    var passwordError by remember { mutableStateOf(false) }
+    val loggedIn = loggedInMemberState.value
+    var isAuthenticated by adminAuthenticatedState
+    
+    LaunchedEffect(loggedIn) {
+        if (loggedIn?.isAdmin == true) {
+            isAuthenticated = true
+        }
+    }
     
     var adminFontScale by remember { mutableFloatStateOf(1f) }
     
@@ -320,7 +248,6 @@ fun AdminScreen() {
                             }
                             IconButton(onClick = { 
                                 isAuthenticated = false 
-                                prefs.edit().putBoolean("is_admin_authenticated", false).apply()
                             }) {
                                 Icon(androidx.compose.material.icons.Icons.Default.ExitToApp, contentDescription = "Sair", tint = MaterialTheme.colorScheme.error)
                             }
@@ -330,45 +257,38 @@ fun AdminScreen() {
             }
         ) { paddingValues ->
             if (!isAuthenticated) {
+                var password by remember { mutableStateOf("") }
+                var error by remember { mutableStateOf("") }
                 Column(
                     modifier = Modifier.fillMaxSize().padding(paddingValues).padding(16.dp),
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text("Acesso Restrito - Admin", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Text("Acesso Restrito", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Digite a senha de administrador:", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(modifier = Modifier.height(16.dp))
                     OutlinedTextField(
                         value = password,
-                        onValueChange = { password = it; passwordError = false },
+                        onValueChange = { password = it; error = "" },
                         label = { Text("Senha") },
-                        isError = passwordError,
                         visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password),
+                        singleLine = true,
+                        isError = error.isNotEmpty(),
+                        modifier = Modifier.fillMaxWidth(0.8f)
                     )
-                    if (passwordError) {
-                        Text("Senha incorreta", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    if (error.isNotEmpty()) {
+                        Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     }
                     Spacer(modifier = Modifier.height(16.dp))
-                    Button(
-                        onClick = {
-                            if (password == "igreja10") {
-                                isAuthenticated = true
-                                prefs.edit().putBoolean("is_admin_authenticated", true).apply()
-                                try {
-                                    val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
-                                    if (auth.currentUser == null) {
-                                        auth.signInAnonymously()
-                                    }
-                                } catch(e: Exception) {}
-                            } else {
-                                passwordError = true
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                    ) {
+                    Button(onClick = {
+                        if (password == "igreja10" || loggedIn?.isAdmin == true) {
+                            isAuthenticated = true
+                        } else {
+                            error = "Senha incorreta"
+                        }
+                    }, modifier = Modifier.fillMaxWidth(0.8f)) {
                         Text("Entrar")
                     }
                 }

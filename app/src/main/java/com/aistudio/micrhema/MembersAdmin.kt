@@ -29,8 +29,17 @@ fun EditMembersSection() {
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text(member.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                        Text(member.phone, style = MaterialTheme.typography.bodyMedium)
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Column {
+                                Text(member.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                                Text(member.phone, style = MaterialTheme.typography.bodyMedium)
+                            }
+                            if (member.isApproved || member.isVip || member.isIbr) {
+                                Text("Aprovado", style = MaterialTheme.typography.labelSmall, color = androidx.compose.ui.graphics.Color(0xFF4CAF50))
+                            } else {
+                                Text("Pendente", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                            }
+                        }
                         
                         Spacer(modifier = Modifier.height(8.dp))
                         
@@ -86,6 +95,24 @@ fun EditMembersSection() {
                                 }
                             )
                             Text("IBR")
+                            
+                            Spacer(modifier = Modifier.width(16.dp))
+                            
+                            Checkbox(
+                                checked = member.isAdmin,
+                                onCheckedChange = { 
+                                    val index = memberRequestsState.indexOfFirst { it.id == member.id }
+                                    if (index != -1) {
+                                        val updated = member.copy(isAdmin = it)
+                                        memberRequestsState[index] = updated
+                                        MemberManager.saveToFirestore(context, updated,
+                                            onSuccess = { Toast.makeText(context, if(it) "Acesso Admin aprovado para ${member.name}" else "Acesso Admin removido para ${member.name}", Toast.LENGTH_SHORT).show() },
+                                            onFailure = { Toast.makeText(context, "Erro: ${it.message}", Toast.LENGTH_LONG).show() }
+                                        )
+                                    }
+                                }
+                            )
+                            Text("Admin")
                         }
                         
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {

@@ -38,7 +38,7 @@ object LocalBibleFetcher {
                 if (araCache == null) {
                     val stream = context.assets.open("bibles/$fileName")
                     var jsonString = InputStreamReader(stream, "UTF-8").readText()
-                    if (jsonString.startsWith("﻿")) jsonString = jsonString.substring(1)
+                    if (jsonString.startsWith("\uFEFF")) jsonString = jsonString.substring(1)
                     araCache = JSONArray(jsonString)
                 }
                 araCache
@@ -47,7 +47,7 @@ object LocalBibleFetcher {
                 if (nviCache == null) {
                     val stream = context.assets.open("bibles/$fileName")
                     var jsonString = InputStreamReader(stream, "UTF-8").readText()
-                    if (jsonString.startsWith("﻿")) jsonString = jsonString.substring(1)
+                    if (jsonString.startsWith("\uFEFF")) jsonString = jsonString.substring(1)
                     nviCache = JSONArray(jsonString)
                 }
                 nviCache
@@ -56,7 +56,7 @@ object LocalBibleFetcher {
                 if (acfCache == null) {
                     val stream = context.assets.open("bibles/$fileName")
                     var jsonString = InputStreamReader(stream, "UTF-8").readText()
-                    if (jsonString.startsWith("﻿")) jsonString = jsonString.substring(1)
+                    if (jsonString.startsWith("\uFEFF")) jsonString = jsonString.substring(1)
                     acfCache = JSONArray(jsonString)
                 }
                 acfCache
@@ -83,7 +83,7 @@ object LocalBibleFetcher {
                     val bookObj = jsonArr.getJSONObject(i)
                     val name = bookObj.getString("name")
                     val normName = removeAccents(name)
-                    if (normName == normBook || (normBook == "lamentacoes" && normName.startsWith("lamentacoes"))) {
+                    if (normName == normBook || (normBook == "lamentacoes" && normName.startsWith("lamenta"))) {
                         val chaptersArr = bookObj.getJSONArray("chapters")
                         if (chapter - 1 < chaptersArr.length()) {
                             val verseArray = chaptersArr.getJSONArray(chapter - 1)

@@ -182,6 +182,7 @@ fun CategoryScreen(category: PlanCategory, onBack: () -> Unit, onThemeClick: (Pl
             )
         }
     ) { paddingValues ->
+        val unused = paddingValues
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -246,6 +247,7 @@ fun ThemeDetailScreen(theme: PlanTheme, onBack: () -> Unit, onGoToVerse: (String
             )
         }
     ) { paddingValues ->
+        val unused = paddingValues
         Column(
             modifier = Modifier
                 .fillMaxSize()

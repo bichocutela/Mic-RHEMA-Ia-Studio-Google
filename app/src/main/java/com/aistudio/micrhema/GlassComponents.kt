@@ -18,6 +18,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.unit.sp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -155,7 +157,10 @@ fun LocalUploadField(
         modifier = modifier.fillMaxWidth(),
         trailingIcon = {
             if (isUploading.value) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                Box(contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(progress = { uploadProgress.floatValue }, modifier = Modifier.size(32.dp), strokeWidth = 2.dp)
+                    Text("${(uploadProgress.floatValue * 100).toInt()}%", fontSize = 10.sp)
+                }
             } else {
                 IconButton(onClick = { launcher.launch(mimeType) }) {
                     Icon(Icons.Default.Add, contentDescription = "Upload")

@@ -13,6 +13,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
@@ -27,7 +29,9 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
+            .padding(24.dp)
+            .imePadding()
+            .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(modifier = Modifier.height(32.dp))
@@ -39,9 +43,9 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
         Spacer(modifier = Modifier.height(16.dp))
         Text("MIC Rhema", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text("Ministério Igreja de Cristo Rhema", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        
+                
         Spacer(modifier = Modifier.height(32.dp))
-        
+                
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
@@ -55,7 +59,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Text("Preencha os dados abaixo para solicitar ou recuperar seu acesso às abas restritas.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(modifier = Modifier.height(24.dp))
-                
+                                
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
@@ -65,9 +69,9 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp)
                 )
-                
+                                
                 Spacer(modifier = Modifier.height(16.dp))
-                
+                                
                 OutlinedTextField(
                     value = phone,
                     onValueChange = { phone = it },
@@ -77,9 +81,9 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp)
                 )
-                
+                                
                 Spacer(modifier = Modifier.height(24.dp))
-                
+                                
                 Button(
                     onClick = { 
                         if (name.isBlank() || phone.isBlank()) {
@@ -87,7 +91,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                             return@Button
                         }
                         isLoading = true
-                        
+                                                
                         val existing = memberRequestsState.find { it.phone.replace(Regex("[^0-9]"), "") == phone.replace(Regex("[^0-9]"), "") }
                         if (existing != null) {
                             MemberManager.setLoggedInMember(context, existing)
@@ -107,7 +111,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                             MemberManager.setLoggedInMember(context, newReq)
                             android.widget.Toast.makeText(context, "Solicitação Enviada", android.widget.Toast.LENGTH_LONG).show()
                         }
-                        
+                                                
                         isLoading = false
                         onLoginSuccess()
                     },
@@ -122,7 +126,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                         Text("Enviar Solicitação", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
-                
+                                
                 Spacer(modifier = Modifier.height(16.dp))
                 Text("Após enviar, aguarde a aprovação do administrador para acessar os conteúdos.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
             }
