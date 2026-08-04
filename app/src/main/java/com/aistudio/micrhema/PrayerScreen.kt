@@ -153,6 +153,7 @@ fun PrayerScreen() {
                                 isLoading = true
                                 val newReq = PrayerRequest(id = java.util.UUID.randomUUID().toString(), name = name, request = request, date = "Hoje")
                                 prayerRequestsState.add(0, newReq)
+                                addPrayerRequest(newReq)
                                 // If connected to firestore, could save it here
                                 Toast.makeText(context, "Pedido enviado com sucesso!", Toast.LENGTH_SHORT).show()
                                 name = ""

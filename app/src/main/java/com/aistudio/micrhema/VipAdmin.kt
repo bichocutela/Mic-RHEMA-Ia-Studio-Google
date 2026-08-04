@@ -25,54 +25,46 @@ import com.google.firebase.firestore.firestore
 
 fun addVipBook(item: ContentBook) {
     if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
-        Firebase.firestore.collection("conteudos_books").document(item.id).set(item)
+        Firebase.firestore.collection("vip_books").document(item.id).set(item)
     }
 }
 fun removeVipBook(item: ContentBook) {
     if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
-        Firebase.firestore.collection("conteudos_books").document(item.id).delete()
+        Firebase.firestore.collection("vip_books").document(item.id).delete()
     }
 }
 fun addVipAudio(item: ContentAudio) {
     if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
-        Firebase.firestore.collection("conteudos_audios").document(item.id).set(item)
+        Firebase.firestore.collection("vip_audios").document(item.id).set(item)
     }
 }
 fun removeVipAudio(item: ContentAudio) {
     if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
-        Firebase.firestore.collection("conteudos_audios").document(item.id).delete()
+        Firebase.firestore.collection("vip_audios").document(item.id).delete()
     }
 }
 fun addVipVideo(item: ContentVideo) {
     if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
-        Firebase.firestore.collection("conteudos_videos").document(item.id).set(item)
+        Firebase.firestore.collection("vip_videos").document(item.id).set(item)
     }
 }
 fun removeVipVideo(item: ContentVideo) {
     if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
-        Firebase.firestore.collection("conteudos_videos").document(item.id).delete()
+        Firebase.firestore.collection("vip_videos").document(item.id).delete()
     }
 }
 fun addVipAlbum(item: ContentPhotoAlbum) {
     if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
-        Firebase.firestore.collection("conteudos_albums").document(item.id).set(item)
+        Firebase.firestore.collection("vip_albums").document(item.id).set(item)
     }
 }
 fun removeVipAlbum(item: ContentPhotoAlbum) {
     if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
-        Firebase.firestore.collection("conteudos_albums").document(item.id).delete()
+        Firebase.firestore.collection("vip_albums").document(item.id).delete()
     }
 }
-fun addVipCourse(item: IbrCourse) {
-    if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
-        Firebase.firestore.collection("vip_courses").document(item.id).set(item)
-    }
-}
-fun removeVipCourse(item: IbrCourse) {
-    if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
-        Firebase.firestore.collection("vip_courses").document(item.id).delete()
-    }
-}
+
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -725,7 +717,7 @@ fun EditVipIbrSection() {
                                     imageUrl = "",
                                     chapters = mutableStateListOf()
                                 )
-                                addVipCourse(newCourse)
+                                addIbrCourse(newCourse)
                                 NotificationHelper.showNotification(
                                     context,
                                     "Curso Criado! 🎓",
@@ -747,12 +739,12 @@ fun EditVipIbrSection() {
         }
 
         // Initialize selected course if empty
-        if (selectedCourseForChapter == null && vipCoursesState.isNotEmpty()) {
-            selectedCourseForChapter = vipCoursesState.first()
+        if (selectedCourseForChapter == null && ibrCoursesState.isNotEmpty()) {
+            selectedCourseForChapter = ibrCoursesState.first()
         }
 
         // 2. ADD CHAPTER CARD (Only shown if courses exist)
-        if (vipCoursesState.isNotEmpty()) {
+        if (ibrCoursesState.isNotEmpty()) {
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -771,7 +763,7 @@ fun EditVipIbrSection() {
                                     .horizontalScroll(rememberScrollState()),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                vipCoursesState.forEach { c ->
+                                ibrCoursesState.forEach { c ->
                                     FilterChip(
                                         selected = selectedCourseForChapter?.id == c.id,
                                         onClick = { selectedCourseForChapter = c },
@@ -859,13 +851,13 @@ fun EditVipIbrSection() {
                                         isYoutube = isYoutube
                                     )
                                     // Add to the selected course chapters list
-                                    val targetCourse = vipCoursesState.find { it.id == selectedCourseForChapter!!.id }
+                                    val targetCourse = ibrCoursesState.find { it.id == selectedCourseForChapter!!.id }
                                     if (targetCourse != null) {
                                         val updatedChapters = targetCourse.chapters.toMutableList().apply { add(newChapter) }
                                         val updatedCourse = targetCourse.copy(chapters = updatedChapters)
-                                        val index = vipCoursesState.indexOf(targetCourse)
+                                        val index = ibrCoursesState.indexOf(targetCourse)
                                         if (index != -1) {
-                                            addVipCourse(updatedCourse)
+                                            addIbrCourse(updatedCourse)
                                         }
                                         selectedCourseForChapter = updatedCourse
                                     }
@@ -914,7 +906,7 @@ fun EditVipIbrSection() {
                                 .horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            vipCoursesState.forEach { c ->
+                            ibrCoursesState.forEach { c ->
                                 FilterChip(
                                     selected = selectedCourseForChapter?.id == c.id,
                                     onClick = { selectedCourseForChapter = c },
@@ -988,7 +980,7 @@ fun EditVipIbrSection() {
                                                 bulkUploadQueue[index] = BulkUploadTask(task.id, task.filename, task.title, 1f, "Concluído")
                                                 
                                                 // Add chapter to course
-                                                val targetCourse = vipCoursesState.find { it.id == selectedCourseForChapter?.id }
+                                                val targetCourse = ibrCoursesState.find { it.id == selectedCourseForChapter?.id }
                                                 if (targetCourse != null) {
                                                     val newChap = IbrChapter(
                                                         id = "chap_${System.currentTimeMillis()}_${task.id}",
@@ -1003,9 +995,9 @@ fun EditVipIbrSection() {
                                                     )
                                                     val updatedChapters = targetCourse.chapters.toMutableList().apply { add(newChap) }
                                                     val updatedCourse = targetCourse.copy(chapters = updatedChapters)
-                                                    val cIndex = vipCoursesState.indexOf(targetCourse)
+                                                    val cIndex = ibrCoursesState.indexOf(targetCourse)
                                                     if (cIndex != -1) {
-                                                        vipCoursesState[cIndex] = updatedCourse
+                                                        ibrCoursesState[cIndex] = updatedCourse
                                                     }
                                                     selectedCourseForChapter = updatedCourse
                                                 }
@@ -1042,12 +1034,12 @@ fun EditVipIbrSection() {
             Text("📚 Cursos e Aulas Ativas", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         }
 
-        if (vipCoursesState.isEmpty()) {
+        if (ibrCoursesState.isEmpty()) {
             item {
                 Text("Nenhum curso ou aula cadastrado ainda.", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
             }
         } else {
-            items(vipCoursesState) { course ->
+            items(ibrCoursesState) { course ->
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(32.dp),
@@ -1070,7 +1062,7 @@ fun EditVipIbrSection() {
                                 IconButton(onClick = { editingCourse = course }) {
                                     Icon(Icons.Default.Edit, contentDescription = "Editar Curso", tint = MaterialTheme.colorScheme.primary)
                                 }
-                                IconButton(onClick = { removeVipCourse(course) }) {
+                                IconButton(onClick = { removeIbrCourse(course) }) {
                                     Icon(Icons.Default.Delete, contentDescription = "Deletar Curso", tint = MaterialTheme.colorScheme.error)
                                 }
                             }
@@ -1118,9 +1110,9 @@ fun EditVipIbrSection() {
                                             onClick = {
                                                 val updatedChapters = course.chapters.toMutableList().apply { remove(ch) }
                                                 val updatedCourse = course.copy(chapters = updatedChapters)
-                                                val index = vipCoursesState.indexOf(course)
+                                                val index = ibrCoursesState.indexOf(course)
                                                 if (index != -1) {
-                                                    addVipCourse(updatedCourse)
+                                                    addIbrCourse(updatedCourse)
                                                 }
                                             },
                                             modifier = Modifier.size(24.dp)
@@ -1155,9 +1147,9 @@ fun EditVipIbrSection() {
             },
             confirmButton = {
                 TextButton(onClick = {
-                    val idx = vipCoursesState.indexOfFirst { it.id == editingCourse!!.id }
+                    val idx = ibrCoursesState.indexOfFirst { it.id == editingCourse!!.id }
                     if (idx != -1) {
-                        vipCoursesState[idx] = editingCourse!!.copy(title = editTitle, description = editDescription, theme = editTheme)
+                        ibrCoursesState[idx] = editingCourse!!.copy(title = editTitle, description = editDescription, theme = editTheme)
                     }
                     editingCourse = null
                 }) { Text("Salvar") }
@@ -1188,9 +1180,9 @@ fun EditVipIbrSection() {
             },
             confirmButton = {
                 TextButton(onClick = {
-                    val courseIdx = vipCoursesState.indexOfFirst { it.id == editingCourse!!.id }
+                    val courseIdx = ibrCoursesState.indexOfFirst { it.id == editingCourse!!.id }
                     if (courseIdx != -1) {
-                        val course = vipCoursesState[courseIdx]
+                        val course = ibrCoursesState[courseIdx]
                         val chapterIdx = course.chapters.indexOfFirst { it.id == editingChapter!!.id }
                         if (chapterIdx != -1) {
                             val updatedChapters = course.chapters.toMutableList()
@@ -1204,7 +1196,7 @@ fun EditVipIbrSection() {
                                 isYoutube = isYt,
                                 youtubeId = ytId
                             )
-                            vipCoursesState[courseIdx] = course.copy(chapters = updatedChapters)
+                            ibrCoursesState[courseIdx] = course.copy(chapters = updatedChapters)
                         }
                     }
                     editingChapter = null

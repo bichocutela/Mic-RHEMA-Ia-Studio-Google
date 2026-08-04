@@ -351,116 +351,50 @@ object MemberManager {
     fun syncFromFirestore(context: android.content.Context) {
         try {
             val db = Firebase.firestore
-
-            db.collection("conteudos_books").addSnapshotListener { snapshot, e ->
+            db.collection("acessos_pendentes").addSnapshotListener { snapshot, e ->
                 if (e != null || snapshot == null) return@addSnapshotListener
-                val list = snapshot.documents.mapNotNull { try { it.toObject(ContentBook::class.java) } catch(e: Exception) { null } }
-                if (list.isNotEmpty()) {
-                    vipBooksState.clear()
-                    vipBooksState.addAll(list)
-                } else if (vipBooksState.isNotEmpty()) {
-                    vipBooksState.forEach { db.collection("conteudos_books").document(it.id).set(it) }
+                val newList = mutableListOf<MemberRequest>()
+                for (document in snapshot.documents) {
+                    val id = document.id
+                    val name = document.getString("name") ?: ""
+                    val phone = document.getString("phone") ?: ""
+                    val isApproved = document.getBoolean("isApproved") ?: false
+                    val isVip = document.getBoolean("isVip") ?: false
+                    val isIbr = document.getBoolean("isIbr") ?: false
+                    val email = document.getString("email") ?: ""
+                    val isAdmin = document.getBoolean("isAdmin") ?: false
+                    newList.add(MemberRequest(
+                        id = id, 
+                        name = name, 
+                        phone = phone, 
+                        email = email,
+                        isApproved = isApproved, 
+                        isVip = isVip, 
+                        isIbr = isIbr,
+                        isAdmin = isAdmin
+                    ))
                 }
-            }
-            
-            db.collection("conteudos_audios").addSnapshotListener { snapshot, e ->
-                if (e != null || snapshot == null) return@addSnapshotListener
-                val list = snapshot.documents.mapNotNull { try { it.toObject(ContentAudio::class.java) } catch(e: Exception) { null } }
-                if (list.isNotEmpty()) {
-                    vipAudiosState.clear()
-                    vipAudiosState.addAll(list)
-                } else if (vipAudiosState.isNotEmpty()) {
-                    vipAudiosState.forEach { db.collection("conteudos_audios").document(it.id).set(it) }
-                }
-            }
-            
-            db.collection("conteudos_videos").addSnapshotListener { snapshot, e ->
-                if (e != null || snapshot == null) return@addSnapshotListener
-                val list = snapshot.documents.mapNotNull { try { it.toObject(ContentVideo::class.java) } catch(e: Exception) { null } }
-                if (list.isNotEmpty()) {
-                    vipVideosState.clear()
-                    vipVideosState.addAll(list)
-                } else if (vipVideosState.isNotEmpty()) {
-                    vipVideosState.forEach { db.collection("conteudos_videos").document(it.id).set(it) }
-                }
-            }
-            
-            db.collection("conteudos_albums").addSnapshotListener { snapshot, e ->
-                if (e != null || snapshot == null) return@addSnapshotListener
-                val list = snapshot.documents.mapNotNull { try { it.toObject(ContentPhotoAlbum::class.java) } catch(e: Exception) { null } }
-                if (list.isNotEmpty()) {
-                    vipAlbumsState.clear()
-                    vipAlbumsState.addAll(list)
-                } else if (vipAlbumsState.isNotEmpty()) {
-                    vipAlbumsState.forEach { db.collection("conteudos_albums").document(it.id).set(it) }
-                }
-            }
-            
-            db.collection("vip_courses").addSnapshotListener { snapshot, e ->
-            if (e != null || snapshot == null) return@addSnapshotListener
-            val list = snapshot.documents.mapNotNull { try { it.toObject(IbrCourse::class.java) } catch(e: Exception) { null } }
-            if (list.isNotEmpty()) {
-                vipCoursesState.clear()
-                vipCoursesState.addAll(list)
-            } else if (vipCoursesState.isNotEmpty()) {
-                vipCoursesState.forEach {
-                    db.collection("vip_courses").document(it.id).set(it)
-                }
-            }
-        }
-        
-        db.collection("settings").document("about").addSnapshotListener { snapshot, e ->
-            if (e != null || snapshot == null || !snapshot.exists()) return@addSnapshotListener
-            pastorNameState.value = snapshot.getString("pastorName") ?: pastorNameState.value
-            pastorTitleState.value = snapshot.getString("pastorTitle") ?: pastorTitleState.value
-            missionTaglineState.value = snapshot.getString("missionTagline") ?: missionTaglineState.value
-            rhemaMeaningState.value = snapshot.getString("rhemaMeaning") ?: rhemaMeaningState.value
-        }
-        
-        db.collection("acessos_pendentes").addSnapshotListener { snapshot, e ->
-            if (e != null || snapshot == null) return@addSnapshotListener
-            val newList = mutableListOf<MemberRequest>()
-            for (document in snapshot.documents) {
-                val id = document.id
-                val name = document.getString("name") ?: ""
-                val phone = document.getString("phone") ?: ""
-                val isApproved = document.getBoolean("isApproved") ?: false
-                val isVip = document.getBoolean("isVip") ?: false
-                val isIbr = document.getBoolean("isIbr") ?: false
-                val email = document.getString("email") ?: ""
-                val isAdmin = document.getBoolean("isAdmin") ?: false
-                newList.add(MemberRequest(
-                    id = id, 
-                    name = name, 
-                    phone = phone, 
-                    email = email,
-                    isApproved = isApproved, 
-                    isVip = isVip, 
-                    isIbr = isIbr,
-                    isAdmin = isAdmin
-                ))
-            }
-            if (newList.isNotEmpty()) {
-                memberRequestsState.clear()
-                memberRequestsState.addAll(newList)
-                saveMembers(context)
-                
-                val loggedInId = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
-                    .getString(KEY_LOGGED_IN_ID, "") ?: ""
-                if (loggedInId.isNotEmpty()) {
-                    val member = memberRequestsState.find { it.id == loggedInId }
-                    if (member != null) {
-                        loggedInMemberState.value = member
-                        loadIbrProgressFromFirestore()
+                if (newList.isNotEmpty()) {
+                    memberRequestsState.clear()
+                    memberRequestsState.addAll(newList)
+                    saveMembers(context)
+                    
+                    val loggedInId = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+                        .getString(KEY_LOGGED_IN_ID, "") ?: ""
+                    if (loggedInId.isNotEmpty()) {
+                        val member = memberRequestsState.find { it.id == loggedInId }
+                        if (member != null) {
+                            loggedInMemberState.value = member
+                            loadIbrProgressFromFirestore()
+                        }
                     }
                 }
             }
+        } catch (e: Exception) {
+            android.util.Log.e("MemberManager", "Firestore not initialized or error", e)
         }
-    } catch (e: Exception) {
-        android.util.Log.e("MemberManager", "Firestore not initialized or error", e)
     }
-    }
-
+    
     fun deleteFromFirestore(context: android.content.Context, member: MemberRequest) {
         if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isEmpty()) return
         try {
@@ -809,50 +743,89 @@ fun loadContentFromFirebase(context: Context) {
         try {
             val db = Firebase.firestore
 
+            // FREE CONTENT
             db.collection("conteudos_books").addSnapshotListener { snapshot, e ->
                 if (e != null || snapshot == null) return@addSnapshotListener
-                val list = snapshot.documents.mapNotNull { try { it.toObject(ContentBook::class.java) } catch(e: Exception) { null } }
+                val list = snapshot.documents.mapNotNull { try { it.toObject(ContentBook::class.java) } catch(ex: Exception) { null } }
+                if (list.isNotEmpty()) {
+                    contentBooksState.clear()
+                    contentBooksState.addAll(list)
+                } else if (contentBooksState.isNotEmpty()) {
+                    contentBooksState.forEach { db.collection("conteudos_books").document(it.id).set(it) }
+                }
+            }
+            db.collection("conteudos_audios").addSnapshotListener { snapshot, e ->
+                if (e != null || snapshot == null) return@addSnapshotListener
+                val list = snapshot.documents.mapNotNull { try { it.toObject(ContentAudio::class.java) } catch(ex: Exception) { null } }
+                if (list.isNotEmpty()) {
+                    contentAudiosState.clear()
+                    contentAudiosState.addAll(list)
+                } else if (contentAudiosState.isNotEmpty()) {
+                    contentAudiosState.forEach { db.collection("conteudos_audios").document(it.id).set(it) }
+                }
+            }
+            db.collection("conteudos_videos").addSnapshotListener { snapshot, e ->
+                if (e != null || snapshot == null) return@addSnapshotListener
+                val list = snapshot.documents.mapNotNull { try { it.toObject(ContentVideo::class.java) } catch(ex: Exception) { null } }
+                if (list.isNotEmpty()) {
+                    contentVideosState.clear()
+                    contentVideosState.addAll(list)
+                } else if (contentVideosState.isNotEmpty()) {
+                    contentVideosState.forEach { db.collection("conteudos_videos").document(it.id).set(it) }
+                }
+            }
+            db.collection("conteudos_albums").addSnapshotListener { snapshot, e ->
+                if (e != null || snapshot == null) return@addSnapshotListener
+                val list = snapshot.documents.mapNotNull { try { it.toObject(ContentPhotoAlbum::class.java) } catch(ex: Exception) { null } }
+                if (list.isNotEmpty()) {
+                    contentAlbumsState.clear()
+                    contentAlbumsState.addAll(list)
+                } else if (contentAlbumsState.isNotEmpty()) {
+                    contentAlbumsState.forEach { db.collection("conteudos_albums").document(it.id).set(it) }
+                }
+            }
+            
+            // VIP CONTENT
+            db.collection("vip_books").addSnapshotListener { snapshot, e ->
+                if (e != null || snapshot == null) return@addSnapshotListener
+                val list = snapshot.documents.mapNotNull { try { it.toObject(ContentBook::class.java) } catch(ex: Exception) { null } }
                 if (list.isNotEmpty()) {
                     vipBooksState.clear()
                     vipBooksState.addAll(list)
                 } else if (vipBooksState.isNotEmpty()) {
-                    vipBooksState.forEach { db.collection("conteudos_books").document(it.id).set(it) }
+                    vipBooksState.forEach { db.collection("vip_books").document(it.id).set(it) }
                 }
             }
-            
-            db.collection("conteudos_audios").addSnapshotListener { snapshot, e ->
+            db.collection("vip_audios").addSnapshotListener { snapshot, e ->
                 if (e != null || snapshot == null) return@addSnapshotListener
-                val list = snapshot.documents.mapNotNull { try { it.toObject(ContentAudio::class.java) } catch(e: Exception) { null } }
+                val list = snapshot.documents.mapNotNull { try { it.toObject(ContentAudio::class.java) } catch(ex: Exception) { null } }
                 if (list.isNotEmpty()) {
                     vipAudiosState.clear()
                     vipAudiosState.addAll(list)
                 } else if (vipAudiosState.isNotEmpty()) {
-                    vipAudiosState.forEach { db.collection("conteudos_audios").document(it.id).set(it) }
+                    vipAudiosState.forEach { db.collection("vip_audios").document(it.id).set(it) }
                 }
             }
-            
-            db.collection("conteudos_videos").addSnapshotListener { snapshot, e ->
+            db.collection("vip_videos").addSnapshotListener { snapshot, e ->
                 if (e != null || snapshot == null) return@addSnapshotListener
-                val list = snapshot.documents.mapNotNull { try { it.toObject(ContentVideo::class.java) } catch(e: Exception) { null } }
+                val list = snapshot.documents.mapNotNull { try { it.toObject(ContentVideo::class.java) } catch(ex: Exception) { null } }
                 if (list.isNotEmpty()) {
                     vipVideosState.clear()
                     vipVideosState.addAll(list)
                 } else if (vipVideosState.isNotEmpty()) {
-                    vipVideosState.forEach { db.collection("conteudos_videos").document(it.id).set(it) }
+                    vipVideosState.forEach { db.collection("vip_videos").document(it.id).set(it) }
                 }
             }
-            
-            db.collection("conteudos_albums").addSnapshotListener { snapshot, e ->
+            db.collection("vip_albums").addSnapshotListener { snapshot, e ->
                 if (e != null || snapshot == null) return@addSnapshotListener
-                val list = snapshot.documents.mapNotNull { try { it.toObject(ContentPhotoAlbum::class.java) } catch(e: Exception) { null } }
+                val list = snapshot.documents.mapNotNull { try { it.toObject(ContentPhotoAlbum::class.java) } catch(ex: Exception) { null } }
                 if (list.isNotEmpty()) {
                     vipAlbumsState.clear()
                     vipAlbumsState.addAll(list)
                 } else if (vipAlbumsState.isNotEmpty()) {
-                    vipAlbumsState.forEach { db.collection("conteudos_albums").document(it.id).set(it) }
+                    vipAlbumsState.forEach { db.collection("vip_albums").document(it.id).set(it) }
                 }
             }
-            
             db.collection("vip_courses").addSnapshotListener { snapshot, e ->
             if (e != null || snapshot == null) return@addSnapshotListener
             val list = snapshot.documents.mapNotNull { try { it.toObject(IbrCourse::class.java) } catch(e: Exception) { null } }
@@ -910,6 +883,72 @@ fun loadContentFromFirebase(context: Context) {
                 weeklyServicesState.forEach {
                     db.collection("cultos_agenda").document(it.id).set(it)
                 }
+            }
+        }
+        
+        db.collection("devocionais").addSnapshotListener { snapshot, e ->
+            if (e != null || snapshot == null) return@addSnapshotListener
+            val list = snapshot.documents.mapNotNull { try { it.toObject(Devotional::class.java) } catch(ex: Exception) { null } }
+            if (list.isNotEmpty()) {
+                devotionalsState.clear()
+                devotionalsState.addAll(list)
+            } else if (devotionalsState.isNotEmpty()) {
+                devotionalsState.forEach { db.collection("devocionais").document(it.id).set(it) }
+            }
+        }
+        
+        db.collection("events").addSnapshotListener { snapshot, e ->
+            if (e != null || snapshot == null) return@addSnapshotListener
+            val list = snapshot.documents.mapNotNull { try { it.toObject(ChurchEvent::class.java) } catch(ex: Exception) { null } }
+            if (list.isNotEmpty()) {
+                eventsState.clear()
+                eventsState.addAll(list)
+            } else if (eventsState.isNotEmpty()) {
+                eventsState.forEach { db.collection("events").document(it.id).set(it) }
+            }
+        }
+        
+        db.collection("carousel_items").addSnapshotListener { snapshot, e ->
+            if (e != null || snapshot == null) return@addSnapshotListener
+            val list = snapshot.documents.mapNotNull { try { it.toObject(CarouselItem::class.java) } catch(ex: Exception) { null } }
+            if (list.isNotEmpty()) {
+                carouselItemsState.clear()
+                carouselItemsState.addAll(list)
+            } else if (carouselItemsState.isNotEmpty()) {
+                carouselItemsState.forEach { db.collection("carousel_items").document(it.id).set(it) }
+            }
+        }
+        
+        db.collection("prayer_requests").addSnapshotListener { snapshot, e ->
+            if (e != null || snapshot == null) return@addSnapshotListener
+            val list = snapshot.documents.mapNotNull { try { it.toObject(PrayerRequest::class.java) } catch(ex: Exception) { null } }
+            if (list.isNotEmpty()) {
+                prayerRequestsState.clear()
+                prayerRequestsState.addAll(list)
+            } else if (prayerRequestsState.isNotEmpty()) {
+                prayerRequestsState.forEach { db.collection("prayer_requests").document(it.id).set(it) }
+            }
+        }
+        
+        db.collection("ibr_courses").addSnapshotListener { snapshot, e ->
+            if (e != null || snapshot == null) return@addSnapshotListener
+            val list = snapshot.documents.mapNotNull { try { it.toObject(IbrCourse::class.java) } catch(ex: Exception) { null } }
+            if (list.isNotEmpty()) {
+                ibrCoursesState.clear()
+                ibrCoursesState.addAll(list)
+            } else if (ibrCoursesState.isNotEmpty()) {
+                ibrCoursesState.forEach { db.collection("ibr_courses").document(it.id).set(it) }
+            }
+        }
+        
+        db.collection("cultos").addSnapshotListener { snapshot, e ->
+            if (e != null || snapshot == null) return@addSnapshotListener
+            val list = snapshot.documents.mapNotNull { try { it.toObject(ServiceVideoModel::class.java) } catch(ex: Exception) { null } }
+            if (list.isNotEmpty()) {
+                serviceVideosState.clear()
+                serviceVideosState.addAll(list)
+            } else if (serviceVideosState.isNotEmpty()) {
+                serviceVideosState.forEach { db.collection("cultos").document(it.id).set(it) }
             }
         }
         

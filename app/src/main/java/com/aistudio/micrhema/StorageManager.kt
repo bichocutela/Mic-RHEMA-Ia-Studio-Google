@@ -1,43 +1,81 @@
 package com.aistudio.micrhema
 
 import android.net.Uri
-import com.google.firebase.Firebase
-import com.google.firebase.app
-import com.google.firebase.storage.storage
-import kotlinx.coroutines.tasks.await
-import java.util.UUID
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.asRequestBody
+import java.io.File
+import java.io.FileOutputStream
+import java.util.concurrent.TimeUnit
 
 object StorageManager {
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(120, TimeUnit.SECONDS)
+        .writeTimeout(120, TimeUnit.SECONDS)
+        .readTimeout(120, TimeUnit.SECONDS)
+        .build()
+
     suspend fun uploadFile(context: android.content.Context, uri: Uri, path: String, onProgress: ((Float) -> Unit)? = null): String {
-        // If it's already an http or https URL, just return it
         if (uri.scheme == "http" || uri.scheme == "https") return uri.toString()
         
-        val storageRef = Firebase.storage.reference
-        val fileName = "${UUID.randomUUID()}_${uri.lastPathSegment ?: "file"}"
-        val fileRef = storageRef.child("$path/$fileName")
-        
-        return try {
-            val inputStream = context.contentResolver.openInputStream(uri)
-            val uploadTask = if (inputStream != null) {
-                fileRef.putStream(inputStream)
-            } else {
-                fileRef.putFile(uri)
-            }
-            
-            if (onProgress != null) {
-                uploadTask.addOnProgressListener { taskSnapshot ->
-                    val progress = (100.0 * taskSnapshot.bytesTransferred) / taskSnapshot.totalByteCount
-                    onProgress(progress.toFloat() / 100f)
+        return withContext(Dispatchers.IO) {
+            var tempFile: File? = null
+            try {
+                // Using Catbox free API to bypass Firebase Storage billing requirements
+                tempFile = File(context.cacheDir, "upload_temp_${System.currentTimeMillis()}")
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    FileOutputStream(tempFile).use { output ->
+                        input.copyTo(output)
+                    }
                 }
+                
+                if (tempFile == null || !tempFile.exists()) return@withContext ""
+
+                val mimeType = context.contentResolver.getType(uri) ?: "application/octet-stream"
+                // Adding an extension to the file so it has the right format
+                var extension = ""
+                when {
+                    mimeType.startsWith("image/jpeg") -> extension = ".jpg"
+                    mimeType.startsWith("image/png") -> extension = ".png"
+                    mimeType.startsWith("video/mp4") -> extension = ".mp4"
+                    mimeType.startsWith("audio/mpeg") -> extension = ".mp3"
+                    mimeType.startsWith("application/pdf") -> extension = ".pdf"
+                }
+                val uploadFile = if (extension.isNotEmpty()) File(tempFile.absolutePath + extension).also { tempFile.renameTo(it) } else tempFile
+
+                val requestBody = MultipartBody.Builder()
+                    .setType(MultipartBody.FORM)
+                    .addFormDataPart("reqtype", "fileupload")
+                    .addFormDataPart("fileToUpload", uploadFile.name, uploadFile.asRequestBody(mimeType.toMediaTypeOrNull()))
+                    .build()
+                
+                onProgress?.invoke(0.3f)
+                
+                val request = Request.Builder()
+                    .url("https://catbox.moe/user/api.php")
+                    .post(requestBody)
+                    .build()
+                
+                val response = client.newCall(request).execute()
+                val responseBody = response.body?.string()
+                
+                uploadFile.delete()
+                
+                if (response.isSuccessful && !responseBody.isNullOrEmpty()) {
+                    onProgress?.invoke(1.0f)
+                    responseBody
+                } else {
+                    ""
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                android.util.Log.e("StorageManager", "Upload failed", e)
+                ""
             }
-            
-            uploadTask.await()
-            val downloadUrl = fileRef.downloadUrl.await()
-            downloadUrl.toString()
-        } catch (e: Exception) {
-            e.printStackTrace()
-            android.util.Log.e("StorageManager", "Upload failed", e)
-            ""
         }
     }
 }
