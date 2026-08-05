@@ -229,7 +229,7 @@ fun MainScreen() {
         if (devotionalsState.isEmpty()) {
             loadDevotionalsFromJson(context)
         }
-        DevotionalManager.syncDevotionals(context)
+        DevotionalManager.syncDevotionals(context, kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main))
         initializeTabs()
         loadContentFromFirebase(context)
         loadTeamMembersFromFirebase()

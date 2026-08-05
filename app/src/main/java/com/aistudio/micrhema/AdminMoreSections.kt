@@ -228,6 +228,8 @@ fun EditServicesSection() {
 // DEVOTIONALS
 @Composable
 fun EditDevotionalsSection() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
     var showDialog by remember { mutableStateOf(false) }
     var editingDevotional by remember { mutableStateOf<Devotional?>(null) }
     
@@ -252,7 +254,16 @@ fun EditDevotionalsSection() {
                             Text(dev.title, fontWeight = FontWeight.Bold)
                             Text(dev.date, style = MaterialTheme.typography.bodySmall)
                         }
-                        IconButton(onClick = { removeDevotional(dev); devotionalsState.remove(dev) }) {
+                        IconButton(onClick = { 
+                            scope.launch {
+                                val res = DevotionalRepository.deleteDevotional(dev.id)
+                                if (res.isSuccess) {
+                                    android.widget.Toast.makeText(context, "Removido", android.widget.Toast.LENGTH_SHORT).show()
+                                } else {
+                                    android.widget.Toast.makeText(context, "Erro ao remover", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }) {
                             Icon(Icons.Default.Delete, contentDescription = "Deletar", tint = MaterialTheme.colorScheme.error)
                         }
                     }
@@ -296,14 +307,16 @@ fun EditDevotionalsSection() {
                             mediaUrl = mediaUrl,
                             timestamp = editingDevotional?.timestamp ?: System.currentTimeMillis()
                         )
-                        if (editingDevotional != null) {
-                            val idx = devotionalsState.indexOf(editingDevotional)
-                            if (idx >= 0) devotionalsState[idx] = newDev
-                        } else {
-                            devotionalsState.add(newDev)
+                        scope.launch {
+                            val res = DevotionalRepository.addDevotional(newDev)
+                            if (res.isSuccess) {
+                                android.widget.Toast.makeText(context, "Devocional salvo!", android.widget.Toast.LENGTH_SHORT).show()
+                                showDialog = false
+                                forceRefreshData()
+                            } else {
+                                android.widget.Toast.makeText(context, "Erro ao salvar. Verifique as regras do Firestore ou sua conexão.", android.widget.Toast.LENGTH_LONG).show()
+                            }
                         }
-                        addDevotional(newDev)
-                        showDialog = false
                     }
                 }) { Text("Salvar") }
             },

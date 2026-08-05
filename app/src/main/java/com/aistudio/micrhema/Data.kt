@@ -13,44 +13,28 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 
 object DevotionalManager {
-    fun syncDevotionals(context: Context) {
+    fun syncDevotionals(context: Context, scope: kotlinx.coroutines.CoroutineScope) {
         try {
-            // First load from local cache instantly for offline support
             val cachedDevotionals = IbrDatabaseHelper(context).getCachedDevotionals()
             if (cachedDevotionals.isNotEmpty()) {
                 devotionalsState.clear()
                 devotionalsState.addAll(cachedDevotionals)
             }
-            if (isOfflineModeState.value) {
-                return
-            }
-            val db = com.google.firebase.Firebase.firestore
-            db.collection("devocionais").addSnapshotListener { snapshot, e ->
-                if (e != null || snapshot == null) return@addSnapshotListener
-                val newList = mutableListOf<Devotional>()
-                for (document in snapshot.documents) {
-                    val id = document.id
-                    val title = document.getString("title") ?: ""
-                    val date = document.getString("date") ?: ""
-                    val verse = document.getString("verse") ?: ""
-                    val verseReference = document.getString("verseReference") ?: ""
-                    val textContent = document.getString("content") ?: ""
-                    val likes = document.getLong("likes")?.toInt() ?: 0
-                    val mediaUrl = document.getString("mediaUrl") ?: ""
-                    val timestamp = document.getLong("timestamp") ?: 0L
-                    newList.add(Devotional(id, title, date, verse, verseReference, textContent, likes, "devocional", mediaUrl, true, timestamp))
-                }
-                if (newList.isNotEmpty()) {
-                    newList.sortByDescending { it.timestamp }
-                    devotionalsState.clear()
-                    devotionalsState.addAll(newList)
-                    
-                    val dbHelper = IbrDatabaseHelper(context)
-                    dbHelper.saveCachedDevotionals(newList)
+            if (isOfflineModeState.value) return
+            
+            scope.launch {
+                DevotionalRepository.getDevotionalsFlow().collect { newList ->
+                    if (newList.isNotEmpty()) {
+                        val sorted = newList.sortedByDescending { it.timestamp }
+                        devotionalsState.clear()
+                        devotionalsState.addAll(sorted)
+                        
+                        IbrDatabaseHelper(context).saveCachedDevotionals(sorted)
+                    }
                 }
             }
         } catch (e: Exception) {
-            android.util.Log.e("DevotionalManager", "Firestore not initialized or error", e)
+            android.util.Log.e("DevotionalManager", "Firestore error", e)
         }
     }
 }
@@ -1054,14 +1038,29 @@ fun removeServiceVideo(item: ServiceVideoModel) {
     }
 }
 
-fun addDevotional(item: Devotional) {
+fun addDevotional(context: android.content.Context, item: Devotional) {
     if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
         Firebase.firestore.collection("devocionais").document(item.id).set(item)
+            .addOnSuccessListener {
+                android.widget.Toast.makeText(context, "Devocional salvo com sucesso!", android.widget.Toast.LENGTH_SHORT).show()
+                // Update timestamp for GlobalStateManager
+                Firebase.firestore.collection("settings").document("sync_trigger").set(mapOf("timestamp" to System.currentTimeMillis()))
+            }
+            .addOnFailureListener { e ->
+                android.widget.Toast.makeText(context, "Erro ao salvar: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+            }
     }
 }
-fun removeDevotional(item: Devotional) {
+fun removeDevotional(context: android.content.Context, item: Devotional) {
     if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
         Firebase.firestore.collection("devocionais").document(item.id).delete()
+            .addOnSuccessListener {
+                android.widget.Toast.makeText(context, "Removido com sucesso!", android.widget.Toast.LENGTH_SHORT).show()
+                Firebase.firestore.collection("settings").document("sync_trigger").set(mapOf("timestamp" to System.currentTimeMillis()))
+            }
+            .addOnFailureListener { e ->
+                android.widget.Toast.makeText(context, "Erro ao remover: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+            }
     }
 }
 

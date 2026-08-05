@@ -11,14 +11,20 @@ class DevotionalReminderWorker(
 ) : CoroutineWorker(context, workerParams) {
 
     override suspend fun doWork(): Result {
-        // Ensure data is loaded if running in background without activity
-        if (devotionalsState.isEmpty()) {
-            loadDevotionalsFromJson(context)
+        val prefs = context.getSharedPreferences("micrhema_prefs", Context.MODE_PRIVATE)
+        val devJson = prefs.getString("devotionalsState", null)
+        val gson = com.google.gson.Gson()
+        
+        val devotionals = if (devJson != null) {
+            val type = object : com.google.gson.reflect.TypeToken<List<Devotional>>() {}.type
+            gson.fromJson<List<Devotional>>(devJson, type)
+        } else {
+            emptyList()
         }
         
         val dayOfYear = Calendar.getInstance().get(Calendar.DAY_OF_YEAR)
-        val todayDevotional = if (devotionalsState.isNotEmpty()) {
-            devotionalsState[dayOfYear % devotionalsState.size]
+        val todayDevotional = if (devotionals.isNotEmpty()) {
+            devotionals[dayOfYear % devotionals.size]
         } else {
             null
         }

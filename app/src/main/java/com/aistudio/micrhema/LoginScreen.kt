@@ -146,9 +146,24 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                                         onLoginSuccess()
                                     }
                                 }
-                                .addOnFailureListener {
+                                .addOnFailureListener { e ->
+                                    // Se falhar o get() por regra de segurança (não pode ler todos),
+                                    // tentamos criar um novo direto
+                                    val newReq = MemberRequest(
+                                        id = java.util.UUID.randomUUID().toString(),
+                                        name = name.trim(),
+                                        phone = phone.trim(),
+                                        isApproved = false,
+                                        isVip = false,
+                                        isIbr = false
+                                    )
+                                    memberRequestsState.add(newReq)
+                                    MemberManager.saveMembers(context)
+                                    MemberManager.saveToFirestore(context, newReq)
+                                    MemberManager.setLoggedInMember(context, newReq)
+                                    android.widget.Toast.makeText(context, "Solicitação Enviada", android.widget.Toast.LENGTH_LONG).show()
                                     isLoading = false
-                                    android.widget.Toast.makeText(context, "Erro ao verificar acesso", android.widget.Toast.LENGTH_SHORT).show()
+                                    onLoginSuccess()
                                 }
                         } else {
                             val existing = memberRequestsState.find { it.phone.replace(Regex("[^0-9]"), "") == cleanPhone }

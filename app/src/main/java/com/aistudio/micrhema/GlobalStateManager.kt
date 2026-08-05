@@ -49,13 +49,8 @@ object GlobalStateManager {
         
         Log.d("GlobalStateManager", "Initializing real-time Firestore listeners to propagate changes across instances.")
 
-        db.collection("devocionais").addSnapshotListener { snapshot, e ->
-            if (e != null || snapshot == null) return@addSnapshotListener
-            val list = snapshot.documents.mapNotNull { try { it.toObject(Devotional::class.java) } catch(ex: Exception) { null } }
-            _devotionals.value = list
-            devotionalsState.clear()
-            devotionalsState.addAll(list)
-        }
+        // devocionais are managed by DevotionalManager.syncDevotionals()
+
 
         db.collection("cultos_agenda").addSnapshotListener { snapshot, e ->
             if (e != null || snapshot == null) return@addSnapshotListener
