@@ -441,25 +441,34 @@ object MemberManager {
         val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
         val serialized = prefs.getString(KEY_MEMBERS, "") ?: ""
         if (serialized.isNotEmpty()) {
-            val list = serialized.split("||").mapNotNull {
-                val parts = it.split("|")
-                if (parts.size >= 6) {
-                    MemberRequest(
-                        id = parts[0],
-                        name = parts[1],
-                        phone = parts[2],
-                        isApproved = parts[3].toBoolean(),
-                        isVip = parts[4].toBoolean(),
-                        isIbr = parts[5].toBoolean(),
-                        email = if (parts.size >= 7) parts[6] else "",
-                        isAdmin = if (parts.size >= 8) parts[7].toBoolean() else false,
-                        ibrCertificateUrl = if (parts.size >= 9) parts[8] else ""
+            try {
+                val jsonArray = org.json.JSONArray(serialized)
+                val list = mutableListOf<MemberRequest>()
+                for (i in 0 until jsonArray.length()) {
+                    val obj = jsonArray.getJSONObject(i)
+                    list.add(
+                        MemberRequest(
+                            id = obj.optString("id", ""),
+                            name = obj.optString("name", ""),
+                            phone = obj.optString("phone", ""),
+                            email = obj.optString("email", ""),
+                            isApproved = obj.optBoolean("isApproved", false),
+                            isVip = obj.optBoolean("isVip", false),
+                            isIbr = obj.optBoolean("isIbr", false),
+                            isAdmin = obj.optBoolean("isAdmin", false),
+                            ibrCertificateUrl = obj.optString("ibrCertificateUrl", "")
+                        )
                     )
-                } else null
-            }
-            if (list.isNotEmpty()) {
+                }
+                if (list.isNotEmpty()) {
+                    memberRequestsState.clear()
+                    memberRequestsState.addAll(list)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                // Se der erro no formato antigo, limpa para não mostrar lixo
+                prefs.edit().remove(KEY_MEMBERS).apply()
                 memberRequestsState.clear()
-                memberRequestsState.addAll(list)
             }
         }
         
@@ -475,10 +484,25 @@ object MemberManager {
 
     fun saveMembers(context: android.content.Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
-        val serialized = memberRequestsState.joinToString("||") {
-            "${it.id}|${it.name}|${it.phone}|${it.isApproved}|${it.isVip}|${it.isIbr}|${it.email}|${it.isAdmin}|${it.ibrCertificateUrl}"
+        try {
+            val jsonArray = org.json.JSONArray()
+            memberRequestsState.forEach { member ->
+                val obj = org.json.JSONObject()
+                obj.put("id", member.id)
+                obj.put("name", member.name)
+                obj.put("phone", member.phone)
+                obj.put("email", member.email)
+                obj.put("isApproved", member.isApproved)
+                obj.put("isVip", member.isVip)
+                obj.put("isIbr", member.isIbr)
+                obj.put("isAdmin", member.isAdmin)
+                obj.put("ibrCertificateUrl", member.ibrCertificateUrl)
+                jsonArray.put(obj)
+            }
+            prefs.edit().putString(KEY_MEMBERS, jsonArray.toString()).apply()
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
-        prefs.edit().putString(KEY_MEMBERS, serialized).apply()
     }
     
     fun setLoggedInMember(context: android.content.Context, member: MemberRequest?) {

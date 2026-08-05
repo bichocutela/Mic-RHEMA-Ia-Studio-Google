@@ -41,6 +41,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.aistudio.micrhema.ui.theme.MICRhemaTheme
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import androidx.compose.ui.unit.dp
 import androidx.navigation.navArgument
 import android.app.Activity
@@ -235,8 +236,15 @@ fun MainScreen() {
         loadBannersFromFirestore()
         loadDonationsFromFirestore()
         syncBibleNewsAndPlans()
-        MemberManager.syncFromFirestore(context)
         MemberManager.loadMembers(context)
+        MemberManager.syncFromFirestore(context)
+        
+        // Force refresh from Firestore on app open
+        kotlinx.coroutines.GlobalScope.launch {
+            try {
+                com.google.firebase.firestore.FirebaseFirestore.getInstance().enableNetwork().await()
+            } catch(e: Exception) {}
+        }
         
         launch {
             while (true) {

@@ -103,25 +103,25 @@ object UserSettingsManager {
     private fun syncFromFirestore(context: Context) {
         val member = loggedInMemberState.value
         if (member != null && BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
-            FirebaseFirestore.getInstance().collection("user_settings").document(member.id).get()
-                .addOnSuccessListener { doc ->
-                    if (doc.exists()) {
-                        val settings = doc.toObject(UserSettings::class.java)
-                        if (settings != null) {
-                            currentSettingsState.value = settings
-                            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                            prefs.edit().putString(KEY_SETTINGS, Gson().toJson(settings)).apply()
-                            
-                            val mode = when (settings.themeModeOption) {
-                                ThemeModeOption.LIGHT -> ThemeMode.LIGHT
-                                ThemeModeOption.DARK -> ThemeMode.DARK
-                                ThemeModeOption.SYSTEM -> ThemeMode.SYSTEM
-                            }
-                            SettingsManager.setThemeMode(context, mode)
-                            currentThemeMode.value = mode
+            FirebaseFirestore.getInstance().collection("user_settings").document(member.id).addSnapshotListener { doc, e ->
+                if (e != null || doc == null) return@addSnapshotListener
+                if (doc.exists()) {
+                    val settings = doc.toObject(UserSettings::class.java)
+                    if (settings != null) {
+                        currentSettingsState.value = settings
+                        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                        prefs.edit().putString(KEY_SETTINGS, Gson().toJson(settings)).apply()
+                        
+                        val mode = when (settings.themeModeOption) {
+                            ThemeModeOption.LIGHT -> ThemeMode.LIGHT
+                            ThemeModeOption.DARK -> ThemeMode.DARK
+                            ThemeModeOption.SYSTEM -> ThemeMode.SYSTEM
                         }
+                        SettingsManager.setThemeMode(context, mode)
+                        currentThemeMode.value = mode
                     }
                 }
+            }
         }
     }
 }

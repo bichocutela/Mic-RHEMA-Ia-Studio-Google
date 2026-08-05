@@ -53,7 +53,7 @@ fun EditMembersSection() {
                                         memberRequestsState[index] = updated
                                         MemberManager.saveToFirestore(context, updated,
                                             onSuccess = { Toast.makeText(context, if(it) "Acesso aprovado para ${member.name}" else "Acesso removido para ${member.name}", Toast.LENGTH_SHORT).show() },
-                                            onFailure = { Toast.makeText(context, "Erro: ${it.message}", Toast.LENGTH_LONG).show() }
+                                            onFailure = { memberRequestsState[index] = member; Toast.makeText(context, "Erro: ${it.message}\n\nVerifique as regras de segurança (Rules) do seu Firebase Firestore.", Toast.LENGTH_LONG).show() }
                                         )
                                     }
                                 }
@@ -71,7 +71,7 @@ fun EditMembersSection() {
                                         memberRequestsState[index] = updated
                                         MemberManager.saveToFirestore(context, updated,
                                             onSuccess = { Toast.makeText(context, if(it) "Acesso VIP aprovado para ${member.name}" else "Acesso VIP removido para ${member.name}", Toast.LENGTH_SHORT).show() },
-                                            onFailure = { Toast.makeText(context, "Erro: ${it.message}", Toast.LENGTH_LONG).show() }
+                                            onFailure = { memberRequestsState[index] = member; Toast.makeText(context, "Erro: ${it.message}\n\nVerifique as regras de segurança (Rules) do seu Firebase Firestore.", Toast.LENGTH_LONG).show() }
                                         )
                                     }
                                 }
@@ -89,7 +89,7 @@ fun EditMembersSection() {
                                         memberRequestsState[index] = updated
                                         MemberManager.saveToFirestore(context, updated,
                                             onSuccess = { Toast.makeText(context, if(it) "Acesso IBR aprovado para ${member.name}" else "Acesso IBR removido para ${member.name}", Toast.LENGTH_SHORT).show() },
-                                            onFailure = { Toast.makeText(context, "Erro: ${it.message}", Toast.LENGTH_LONG).show() }
+                                            onFailure = { memberRequestsState[index] = member; Toast.makeText(context, "Erro: ${it.message}\n\nVerifique as regras de segurança (Rules) do seu Firebase Firestore.", Toast.LENGTH_LONG).show() }
                                         )
                                     }
                                 }
@@ -107,7 +107,7 @@ fun EditMembersSection() {
                                         memberRequestsState[index] = updated
                                         MemberManager.saveToFirestore(context, updated,
                                             onSuccess = { Toast.makeText(context, if(it) "Acesso Admin aprovado para ${member.name}" else "Acesso Admin removido para ${member.name}", Toast.LENGTH_SHORT).show() },
-                                            onFailure = { Toast.makeText(context, "Erro: ${it.message}", Toast.LENGTH_LONG).show() }
+                                            onFailure = { memberRequestsState[index] = member; Toast.makeText(context, "Erro: ${it.message}\n\nVerifique as regras de segurança (Rules) do seu Firebase Firestore.", Toast.LENGTH_LONG).show() }
                                         )
                                     }
                                 }

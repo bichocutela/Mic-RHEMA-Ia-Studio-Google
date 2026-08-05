@@ -67,7 +67,11 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                     placeholder = { Text("Ex: João Silva") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(12.dp),
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words,
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Text
+                    )
                 )
                                 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -79,7 +83,10 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                     placeholder = { Text("Ex: 11999999999") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(12.dp),
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone
+                    )
                 )
                                 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -92,28 +99,80 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                         }
                         isLoading = true
                                                 
-                        val existing = memberRequestsState.find { it.phone.replace(Regex("[^0-9]"), "") == phone.replace(Regex("[^0-9]"), "") }
-                        if (existing != null) {
-                            MemberManager.setLoggedInMember(context, existing)
-                            android.widget.Toast.makeText(context, "Acesso recuperado!", android.widget.Toast.LENGTH_SHORT).show()
+                        val cleanPhone = phone.replace(Regex("[^0-9]"), "")
+                        
+                        if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
+                            com.google.firebase.firestore.FirebaseFirestore.getInstance().collection("acessos_pendentes")
+                                .get()
+                                .addOnSuccessListener { snapshot ->
+                                    var existingDoc: MemberRequest? = null
+                                    for (doc in snapshot.documents) {
+                                        val docPhone = doc.getString("phone")?.replace(Regex("[^0-9]"), "") ?: ""
+                                        if (docPhone == cleanPhone) {
+                                            existingDoc = MemberRequest(
+                                                id = doc.id,
+                                                name = doc.getString("name") ?: "",
+                                                phone = doc.getString("phone") ?: "",
+                                                email = doc.getString("email") ?: "",
+                                                isApproved = doc.getBoolean("isApproved") ?: false,
+                                                isVip = doc.getBoolean("isVip") ?: false,
+                                                isIbr = doc.getBoolean("isIbr") ?: false,
+                                                isAdmin = doc.getBoolean("isAdmin") ?: false
+                                            )
+                                            break
+                                        }
+                                    }
+                                    
+                                    if (existingDoc != null) {
+                                        MemberManager.setLoggedInMember(context, existingDoc)
+                                        android.widget.Toast.makeText(context, "Acesso recuperado!", android.widget.Toast.LENGTH_SHORT).show()
+                                        isLoading = false
+                                        onLoginSuccess()
+                                    } else {
+                                        val newReq = MemberRequest(
+                                            id = java.util.UUID.randomUUID().toString(),
+                                            name = name.trim(),
+                                            phone = phone.trim(),
+                                            isApproved = false,
+                                            isVip = false,
+                                            isIbr = false
+                                        )
+                                        memberRequestsState.add(newReq)
+                                        MemberManager.saveMembers(context)
+                                        MemberManager.saveToFirestore(context, newReq)
+                                        MemberManager.setLoggedInMember(context, newReq)
+                                        android.widget.Toast.makeText(context, "Solicitação Enviada", android.widget.Toast.LENGTH_LONG).show()
+                                        isLoading = false
+                                        onLoginSuccess()
+                                    }
+                                }
+                                .addOnFailureListener {
+                                    isLoading = false
+                                    android.widget.Toast.makeText(context, "Erro ao verificar acesso", android.widget.Toast.LENGTH_SHORT).show()
+                                }
                         } else {
-                            val newReq = MemberRequest(
-                                id = java.util.UUID.randomUUID().toString(),
-                                name = name.trim(),
-                                phone = phone.trim(),
-                                isApproved = false,
-                                isVip = false,
-                                isIbr = false
-                            )
-                            memberRequestsState.add(newReq)
-                            MemberManager.saveMembers(context)
-                            MemberManager.saveToFirestore(context, newReq)
-                            MemberManager.setLoggedInMember(context, newReq)
-                            android.widget.Toast.makeText(context, "Solicitação Enviada", android.widget.Toast.LENGTH_LONG).show()
+                            val existing = memberRequestsState.find { it.phone.replace(Regex("[^0-9]"), "") == cleanPhone }
+                            if (existing != null) {
+                                MemberManager.setLoggedInMember(context, existing)
+                                android.widget.Toast.makeText(context, "Acesso recuperado!", android.widget.Toast.LENGTH_SHORT).show()
+                            } else {
+                                val newReq = MemberRequest(
+                                    id = java.util.UUID.randomUUID().toString(),
+                                    name = name.trim(),
+                                    phone = phone.trim(),
+                                    isApproved = false,
+                                    isVip = false,
+                                    isIbr = false
+                                )
+                                memberRequestsState.add(newReq)
+                                MemberManager.saveMembers(context)
+                                MemberManager.saveToFirestore(context, newReq)
+                                MemberManager.setLoggedInMember(context, newReq)
+                                android.widget.Toast.makeText(context, "Solicitação Enviada", android.widget.Toast.LENGTH_LONG).show()
+                            }
+                            isLoading = false
+                            onLoginSuccess()
                         }
-                                                
-                        isLoading = false
-                        onLoginSuccess()
                     },
                     modifier = Modifier.fillMaxWidth().height(50.dp),
                     shape = RoundedCornerShape(12.dp),
