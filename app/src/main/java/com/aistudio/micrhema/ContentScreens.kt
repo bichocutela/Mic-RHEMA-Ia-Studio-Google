@@ -165,7 +165,7 @@ fun ContentScreen() {
             onRefresh = {
                 isRefreshing = true
                 coroutineScope.launch {
-                    delay(1500)
+                    forceRefreshData()
                     isRefreshing = false
                 }
             },

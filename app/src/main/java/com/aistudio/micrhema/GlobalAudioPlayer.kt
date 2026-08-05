@@ -221,7 +221,7 @@ object GlobalAudioPlayer {
                 .build()
 
             val mediaItem = MediaItem.Builder()
-                .setUri(track.audioUrl)
+                .setUri(convertGoogleDriveUrl(track.audioUrl))
                 .setMediaMetadata(mediaMetadata)
                 .build()
 

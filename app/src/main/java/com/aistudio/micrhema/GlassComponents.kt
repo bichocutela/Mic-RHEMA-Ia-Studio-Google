@@ -154,6 +154,7 @@ fun LocalUploadField(
         value = value,
         onValueChange = onValueChange,
         label = { Text(label) },
+        placeholder = { Text("Cole URL do Google Drive ou clique na pasta ➡️") },
         modifier = modifier.fillMaxWidth(),
         trailingIcon = {
             if (isUploading.value) {
@@ -249,7 +250,7 @@ fun FloatingNavigationBar(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Show up to 4 items from the list
-                val barItems = items.take(4)
+                val barItems = items
                 
                 barItems.forEach { item ->
                     val route = if (item.id == "bible_tab") "bible" else (item.systemRoute ?: "custom_tab/${item.id}")

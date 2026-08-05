@@ -14,6 +14,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import com.aistudio.micrhema.AccentColor
+import com.aistudio.micrhema.currentSettingsState
 import androidx.core.view.WindowCompat
 
 private val LightColorScheme = lightColorScheme(
@@ -61,17 +63,32 @@ private val DarkColorScheme = darkColorScheme(
 @Composable
 fun MICRhemaTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
-    val colorScheme = when {
+    val accent = currentSettingsState.value.accentColor
+    val baseColorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
         darkTheme -> DarkColorScheme
         else -> LightColorScheme
     }
+    
+    val primaryColor = when (accent) {
+        AccentColor.BLUE -> Color(0xFF3B82F6)
+        AccentColor.GREEN -> Color(0xFF10B981)
+        AccentColor.PURPLE -> Color(0xFF8B5CF6)
+        AccentColor.GOLD -> Color(0xFFD4AF37)
+        AccentColor.WHITE -> if (darkTheme) Color.White else Color.Black
+    }
+    
+    val colorScheme = baseColorScheme.copy(
+        primary = primaryColor,
+        secondary = primaryColor,
+        onPrimary = if (accent == AccentColor.WHITE && darkTheme) Color.Black else Color.White
+    )
 
     val view = LocalView.current
     if (!view.isInEditMode) {

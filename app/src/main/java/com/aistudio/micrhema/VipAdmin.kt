@@ -130,6 +130,55 @@ fun EditVipContentSection() {
     Column(modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("VIP - Conteúdo Geral", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Text("Adicione e edite livros, áudios e vídeos para os membros VIP e IBR.", style = MaterialTheme.typography.bodyMedium)
+        // SMART IMPORTER
+        var smartUrl by remember { mutableStateOf("") }
+        var isSmartLoading by remember { mutableStateOf(false) }
+        var smartMessage by remember { mutableStateOf("") }
+        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Smart Import Google Drive 🚀", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                Text("Cole um link do Google Drive. O sistema detectará automaticamente se é Livro (PDF), Áudio (MP3), Vídeo (MP4) ou Imagem.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 8.dp))
+                GlassTextField(value = smartUrl, onValueChange = { smartUrl = it }, label = { Text("Link do Google Drive") }, modifier = Modifier.fillMaxWidth())
+                if (isSmartLoading) {
+                    CircularProgressIndicator(modifier = Modifier.padding(top = 8.dp).size(24.dp))
+                } else {
+                    GlassButton(onClick = {
+                        if (smartUrl.isBlank()) return@GlassButton
+                        isSmartLoading = true
+                        smartMessage = ""
+                        coroutineScope.launch {
+                            val type = GoogleDriveService.identifyFileType(smartUrl)
+                            isSmartLoading = false
+                            when (type) {
+                                GoogleDriveService.FileType.PDF -> {
+                                    smartMessage = "Livro PDF detectado e adicionado!"
+                                    addVipBook(ContentBook(id = System.currentTimeMillis().toString(), title = "Novo Livro Importado", author = "Desconhecido", coverUrl = "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=500&q=80", contentText = "", bookUrl = GoogleDriveService.getDirectDownloadLink(smartUrl)))
+                                }
+                                GoogleDriveService.FileType.AUDIO -> {
+                                    smartMessage = "Áudio detectado e adicionado!"
+                                    addVipAudio(ContentAudio(id = System.currentTimeMillis().toString(), title = "Novo Áudio Importado", artist = "Desconhecido", audioUrl = GoogleDriveService.getDirectDownloadLink(smartUrl), coverUrl = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80"))
+                                }
+                                GoogleDriveService.FileType.VIDEO -> {
+                                    smartMessage = "Vídeo detectado e adicionado!"
+                                    val finalThumb = getYoutubeThumbnailUrl(smartUrl) ?: "https://images.unsplash.com/photo-1505764761634-1d77b57e1966?w=500&q=80"
+                                    addVipVideo(ContentVideo(id = System.currentTimeMillis().toString(), title = "Novo Vídeo Importado", description = "", videoUrl = GoogleDriveService.getDirectDownloadLink(smartUrl), thumbnailUrl = finalThumb))
+                                }
+                                else -> {
+                                    smartMessage = "Tipo de arquivo não suportado ou link inválido."
+                                }
+                            }
+                            smartUrl = ""
+                        }
+                    }, modifier = Modifier.padding(top = 8.dp)) {
+                        Text("Identificar e Adicionar")
+                    }
+                }
+                if (smartMessage.isNotEmpty()) {
+                    Text(smartMessage, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
+                }
+            }
+        }
+
         
         // ADD BOOK
         Card(modifier = Modifier.fillMaxWidth()) {
@@ -193,7 +242,7 @@ fun EditVipContentSection() {
                 GlassTextField(value = audioArtist, onValueChange = { audioArtist = it }, label = { Text("Artista/Preletor") }, modifier = Modifier.fillMaxWidth())
                 LocalUploadField(value = audioUrl, onValueChange = { audioUrl = it }, label = "URL ou Arquivo Local MP3", mimeType = "audio/*")
                 GlassButton(onClick = {
-                    addVipAudio(ContentAudio(id = System.currentTimeMillis().toString(), title = audioTitle, artist = audioArtist, audioUrl = audioUrl.ifEmpty { "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" }, coverUrl = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80"))
+                    addVipAudio(ContentAudio(id = System.currentTimeMillis().toString(), title = audioTitle, artist = audioArtist, audioUrl = convertGoogleDriveUrl(audioUrl).ifEmpty { "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" }, coverUrl = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80"))
                     audioTitle = ""
                     audioArtist = ""
                     audioUrl = ""
@@ -238,7 +287,8 @@ fun EditVipContentSection() {
                     coroutineScope.launch {
                         uploadProgress = 0f
                         val finalVideoUrl = if (videoUrl.isNotBlank() && !videoUrl.startsWith("http")) StorageManager.uploadFile(context, android.net.Uri.parse(videoUrl), "videos/files") { progress -> uploadProgress = progress } else convertGoogleDriveUrl(videoUrl).ifEmpty { "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" }
-                        addVipVideo(ContentVideo(id = System.currentTimeMillis().toString(), title = videoTitle, description = videoDesc, videoUrl = finalVideoUrl, thumbnailUrl = "https://images.unsplash.com/photo-1505764761634-1d77b57e1966?w=500&q=80"))
+                        val finalThumb = getYoutubeThumbnailUrl(finalVideoUrl) ?: "https://images.unsplash.com/photo-1505764761634-1d77b57e1966?w=500&q=80"
+                        addVipVideo(ContentVideo(id = System.currentTimeMillis().toString(), title = videoTitle, description = videoDesc, videoUrl = finalVideoUrl, thumbnailUrl = finalThumb))
                         videoTitle = ""
                         videoDesc = ""
                         videoUrl = ""
@@ -432,7 +482,8 @@ fun EditVipContentSection() {
                 TextButton(onClick = {
                     val idx = vipBooksState.indexOfFirst { it.id == editingBook!!.id }
                     if (idx != -1) {
-                        vipBooksState[idx] = editingBook!!.copy(title = editTitle, author = editAuthor, coverUrl = convertGoogleDriveUrl(editCoverUrl), contentText = editContent, bookUrl = convertGoogleDriveUrl(editBookUrl))
+                        val updated = editingBook!!.copy(title = editTitle, author = editAuthor, coverUrl = convertGoogleDriveUrl(editCoverUrl), contentText = editContent, bookUrl = convertGoogleDriveUrl(editBookUrl))
+                        addVipBook(updated)
                     }
                     editingBook = null
                 }) { Text("Salvar") }
@@ -460,7 +511,8 @@ fun EditVipContentSection() {
                 TextButton(onClick = {
                     val idx = vipAudiosState.indexOfFirst { it.id == editingAudio!!.id }
                     if (idx != -1) {
-                        vipAudiosState[idx] = editingAudio!!.copy(title = editTitle, artist = editArtist, audioUrl = editUrl)
+                        val updated = editingAudio!!.copy(title = editTitle, artist = editArtist, audioUrl = editUrl)
+                        addVipAudio(updated)
                     }
                     editingAudio = null
                 }) { Text("Salvar") }
@@ -488,7 +540,8 @@ fun EditVipContentSection() {
                 TextButton(onClick = {
                     val idx = vipVideosState.indexOfFirst { it.id == editingVideo!!.id }
                     if (idx != -1) {
-                        vipVideosState[idx] = editingVideo!!.copy(title = editTitle, description = editDesc, videoUrl = editUrl)
+                        val updated = editingVideo!!.copy(title = editTitle, description = editDesc, videoUrl = editUrl)
+                        addVipVideo(updated)
                     }
                     editingVideo = null
                 }) { Text("Salvar") }
@@ -523,6 +576,8 @@ fun EditVipContentSection() {
                                 val index = vipAlbumsState.indexOfFirst { it.id == editingAlbum!!.id }
                                 if (index != -1) {
                                     vipAlbumsState[index] = updatedAlbum
+                                            addVipAlbum(updatedAlbum)
+                                            addVipAlbum(updatedAlbum)
                                     editingAlbum = updatedAlbum
                                 }
                             }
@@ -565,6 +620,8 @@ fun EditVipContentSection() {
                                         val index = vipAlbumsState.indexOfFirst { it.id == editingAlbum!!.id }
                                         if (index != -1) {
                                             vipAlbumsState[index] = updatedAlbum
+                                            addVipAlbum(updatedAlbum)
+                                            addVipAlbum(updatedAlbum)
                                             editingAlbum = updatedAlbum
                                         }
                                     },
@@ -578,6 +635,8 @@ fun EditVipContentSection() {
                                     val index = vipAlbumsState.indexOfFirst { it.id == editingAlbum!!.id }
                                     if (index != -1) {
                                         vipAlbumsState[index] = updatedAlbum
+                                            addVipAlbum(updatedAlbum)
+                                            addVipAlbum(updatedAlbum)
                                         editingAlbum = updatedAlbum
                                     }
                                 }) {
@@ -592,7 +651,9 @@ fun EditVipContentSection() {
                 TextButton(onClick = {
                     val index = vipAlbumsState.indexOfFirst { it.id == editingAlbum!!.id }
                     if (index != -1) {
-                        vipAlbumsState[index] = editingAlbum!!.copy(title = editTitle, description = editDesc)
+                        val updated = editingAlbum!!.copy(title = editTitle, description = editDesc)
+                        vipAlbumsState[index] = updated
+                        addVipAlbum(updated)
                     }
                     editingAlbum = null
                 }) { Text("Salvar") }
@@ -1149,7 +1210,8 @@ fun EditVipIbrSection() {
                 TextButton(onClick = {
                     val idx = ibrCoursesState.indexOfFirst { it.id == editingCourse!!.id }
                     if (idx != -1) {
-                        ibrCoursesState[idx] = editingCourse!!.copy(title = editTitle, description = editDescription, theme = editTheme)
+                        val updated = editingCourse!!.copy(title = editTitle, description = editDescription, theme = editTheme)
+                        addIbrCourse(updated)
                     }
                     editingCourse = null
                 }) { Text("Salvar") }

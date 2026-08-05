@@ -20,3 +20,8 @@ fun isYoutubeUrl(url: String): Boolean {
     val cleanUrl = url.trim().lowercase()
     return cleanUrl.contains("youtube.com") || cleanUrl.contains("youtu.be") || extractYoutubeId(cleanUrl) != null
 }
+
+fun getYoutubeThumbnailUrl(url: String): String? {
+    val id = extractYoutubeId(url)
+    return if (id != null) "https://img.youtube.com/vi/$id/maxresdefault.jpg" else null
+}

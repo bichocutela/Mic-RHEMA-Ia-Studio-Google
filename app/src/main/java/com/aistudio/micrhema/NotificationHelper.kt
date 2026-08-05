@@ -50,6 +50,17 @@ object NotificationHelper {
     }
 
     
+    fun scheduleServiceAlert(context: Context) {
+        val syncRequest = androidx.work.PeriodicWorkRequestBuilder<ServiceAlertWorker>(4, TimeUnit.HOURS)
+            .build()
+            
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            "ServiceAlertWorker",
+            androidx.work.ExistingPeriodicWorkPolicy.KEEP,
+            syncRequest
+        )
+    }
+
     fun scheduleDevotionalSync(context: Context) {
         val syncRequest = androidx.work.PeriodicWorkRequestBuilder<DevotionalSyncWorker>(1, TimeUnit.HOURS)
             .build()

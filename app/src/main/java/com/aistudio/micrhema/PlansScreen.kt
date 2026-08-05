@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,9 +56,10 @@ fun PlansScreen(onNavigateToBible: (String, Int) -> Unit = { _, _ -> }) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainPlansScreen(onCategoryClick: (PlanCategory) -> Unit, onThemeClick: (PlanTheme) -> Unit) {
-    val randomThemes = remember { (if (biblePlansState.isEmpty()) PlansData.categories else biblePlansState).flatMap { it.themes }.shuffled().take(5) }
+    val randomThemes = remember { (if (biblePlansState.isEmpty()) PlansData.categories else biblePlansState).flatMap { it.themes }.shuffled() }
     var currentBannerIndex by remember { mutableStateOf(0) }
 
     LaunchedEffect(randomThemes) {
@@ -67,6 +69,20 @@ fun MainPlansScreen(onCategoryClick: (PlanCategory) -> Unit, onThemeClick: (Plan
         }
     }
 
+    var isRefreshing by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+    
+    androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = {
+            coroutineScope.launch {
+                isRefreshing = true
+                forceRefreshData()
+                isRefreshing = false
+            }
+        },
+        modifier = Modifier.fillMaxSize()
+    ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -164,6 +180,7 @@ fun MainPlansScreen(onCategoryClick: (PlanCategory) -> Unit, onThemeClick: (Plan
             item { Spacer(modifier = Modifier.height(80.dp)) }
         }
     }
+    } // PullToRefreshBox
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

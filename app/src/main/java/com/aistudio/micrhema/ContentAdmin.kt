@@ -165,7 +165,8 @@ fun EditContentSection() {
                     coroutineScope.launch {
                         uploadProgress = 0f
                         val finalVideoUrl = if (videoUrl.isNotBlank() && !videoUrl.startsWith("http")) StorageManager.uploadFile(context, android.net.Uri.parse(videoUrl), "videos/files") { progress -> uploadProgress = progress } else convertGoogleDriveUrl(videoUrl).ifEmpty { "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" }
-                        addContentVideo(ContentVideo(id = System.currentTimeMillis().toString(), title = videoTitle, description = videoDesc, videoUrl = finalVideoUrl, thumbnailUrl = "https://images.unsplash.com/photo-1505764761634-1d77b57e1966?w=500&q=80"))
+                        val finalThumb = getYoutubeThumbnailUrl(finalVideoUrl) ?: "https://images.unsplash.com/photo-1505764761634-1d77b57e1966?w=500&q=80"
+                        addContentVideo(ContentVideo(id = System.currentTimeMillis().toString(), title = videoTitle, description = videoDesc, videoUrl = finalVideoUrl, thumbnailUrl = finalThumb))
                         videoTitle = ""
                         videoDesc = ""
                         videoUrl = ""
@@ -365,7 +366,8 @@ fun EditContentSection() {
                 TextButton(onClick = {
                     val idx = contentBooksState.indexOfFirst { it.id == editingBook!!.id }
                     if (idx != -1) {
-                        contentBooksState[idx] = editingBook!!.copy(title = editTitle, author = editAuthor, coverUrl = convertGoogleDriveUrl(editCoverUrl), contentText = editContent, bookUrl = convertGoogleDriveUrl(editBookUrl))
+                        val updated = editingBook!!.copy(title = editTitle, author = editAuthor, coverUrl = convertGoogleDriveUrl(editCoverUrl), contentText = editContent, bookUrl = convertGoogleDriveUrl(editBookUrl))
+                        addContentBook(updated)
                     }
                     editingBook = null
                 }) { Text("Salvar") }
@@ -393,7 +395,8 @@ fun EditContentSection() {
                 TextButton(onClick = {
                     val idx = contentAudiosState.indexOfFirst { it.id == editingAudio!!.id }
                     if (idx != -1) {
-                        contentAudiosState[idx] = editingAudio!!.copy(title = editTitle, artist = editArtist, audioUrl = editUrl)
+                        val updated = editingAudio!!.copy(title = editTitle, artist = editArtist, audioUrl = editUrl)
+                        addContentAudio(updated)
                     }
                     editingAudio = null
                 }) { Text("Salvar") }
@@ -421,7 +424,8 @@ fun EditContentSection() {
                 TextButton(onClick = {
                     val idx = contentVideosState.indexOfFirst { it.id == editingVideo!!.id }
                     if (idx != -1) {
-                        contentVideosState[idx] = editingVideo!!.copy(title = editTitle, description = editDesc, videoUrl = editUrl)
+                        val updated = editingVideo!!.copy(title = editTitle, description = editDesc, videoUrl = editUrl)
+                        addContentVideo(updated)
                     }
                     editingVideo = null
                 }) { Text("Salvar") }
@@ -456,6 +460,7 @@ fun EditContentSection() {
                                 val index = contentAlbumsState.indexOfFirst { it.id == editingAlbum!!.id }
                                 if (index != -1) {
                                     contentAlbumsState[index] = updatedAlbum
+                                            addContentPhotoAlbum(updatedAlbum)
                                     editingAlbum = updatedAlbum
                                 }
                             }
@@ -498,6 +503,7 @@ fun EditContentSection() {
                                         val index = contentAlbumsState.indexOfFirst { it.id == editingAlbum!!.id }
                                         if (index != -1) {
                                             contentAlbumsState[index] = updatedAlbum
+                                            addContentPhotoAlbum(updatedAlbum)
                                             editingAlbum = updatedAlbum
                                         }
                                     },
@@ -511,6 +517,7 @@ fun EditContentSection() {
                                     val index = contentAlbumsState.indexOfFirst { it.id == editingAlbum!!.id }
                                     if (index != -1) {
                                         contentAlbumsState[index] = updatedAlbum
+                                            addContentPhotoAlbum(updatedAlbum)
                                         editingAlbum = updatedAlbum
                                     }
                                 }) {
@@ -525,7 +532,9 @@ fun EditContentSection() {
                 TextButton(onClick = {
                     val index = contentAlbumsState.indexOfFirst { it.id == editingAlbum!!.id }
                     if (index != -1) {
-                        contentAlbumsState[index] = editingAlbum!!.copy(title = editTitle, description = editDesc)
+                        val updated = editingAlbum!!.copy(title = editTitle, description = editDesc)
+                        contentAlbumsState[index] = updated
+                        addContentPhotoAlbum(updated)
                     }
                     editingAlbum = null
                 }) { Text("Salvar") }

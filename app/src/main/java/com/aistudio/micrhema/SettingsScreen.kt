@@ -74,12 +74,16 @@ fun SettingsScreen() {
                     updateSettings(settings.copy(fontSizeIndex = it.toInt())) 
                 }
                 
-                SettingsDropdown("Tema", settings.themeModeOption.name, listOf(ThemeModeOption.SYSTEM.name, ThemeModeOption.LIGHT.name, ThemeModeOption.DARK.name)) {
-                    updateSettings(settings.copy(themeModeOption = ThemeModeOption.valueOf(it)))
+                val themeNames = mapOf(ThemeModeOption.SYSTEM.name to "Sistema", ThemeModeOption.LIGHT.name to "Claro", ThemeModeOption.DARK.name to "Escuro")
+                SettingsDropdown("Tema", themeNames[settings.themeModeOption.name] ?: "Sistema", themeNames.values.toList()) { sel ->
+                    val key = themeNames.entries.firstOrNull { it.value == sel }?.key ?: ThemeModeOption.SYSTEM.name
+                    updateSettings(settings.copy(themeModeOption = ThemeModeOption.valueOf(key)))
                 }
                 
-                SettingsDropdown("Cor de destaque", settings.accentColor.name, AccentColor.values().map { it.name }) {
-                    updateSettings(settings.copy(accentColor = AccentColor.valueOf(it)))
+                val colorNames = mapOf(AccentColor.BLUE.name to "Azul", AccentColor.GREEN.name to "Verde", AccentColor.PURPLE.name to "Roxo", AccentColor.GOLD.name to "Dourado", AccentColor.WHITE.name to "Branco/Preto")
+                SettingsDropdown("Cor de destaque", colorNames[settings.accentColor.name] ?: "Azul", colorNames.values.toList()) { sel ->
+                    val key = colorNames.entries.firstOrNull { it.value == sel }?.key ?: AccentColor.BLUE.name
+                    updateSettings(settings.copy(accentColor = AccentColor.valueOf(key)))
                 }
 
                 if (loggedInMember != null) {

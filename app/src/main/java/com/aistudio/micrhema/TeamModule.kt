@@ -75,7 +75,6 @@ fun TeamScreen() {
                     }
                 } else {
                     val idx = teamMembersState.indexOfFirst { it.id == newMember.id }
-                    if (idx >= 0) teamMembersState[idx] = newMember else teamMembersState.add(newMember)
                     editingMember = null
                 }
             }
@@ -189,12 +188,7 @@ fun EditTeamSection() {
                         }
                     }
                 } else {
-                    if (editingMember != null) {
-                        val idx = teamMembersState.indexOfFirst { it.id == newMember.id }
-                        if (idx >= 0) teamMembersState[idx] = newMember
-                    } else {
-                        teamMembersState.add(newMember)
-                    }
+                    
                     showAddDialog = false
                     editingMember = null
                 }
@@ -250,7 +244,7 @@ fun EditTeamSection() {
                             if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
                                 Firebase.firestore.collection("equipe").document(member.id).delete()
                             } else {
-                                teamMembersState.remove(member)
+                                
                             }
                         }) {
                             Icon(Icons.Default.Delete, contentDescription = "Excluir", tint = MaterialTheme.colorScheme.error)

@@ -20,6 +20,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 
@@ -39,7 +40,20 @@ fun NewsListScreen(onNavigateToDetail: (Int) -> Unit, onBack: () -> Unit) {
             )
         }
     ) { paddingValues ->
-        val unused = paddingValues
+        var isRefreshing by remember { mutableStateOf(false) }
+        val coroutineScope = rememberCoroutineScope()
+        
+        androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = {
+                coroutineScope.launch {
+                    isRefreshing = true
+                    forceRefreshData()
+                    isRefreshing = false
+                }
+            },
+            modifier = Modifier.padding(paddingValues).fillMaxSize()
+        ) {
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -83,6 +97,7 @@ fun NewsListScreen(onNavigateToDetail: (Int) -> Unit, onBack: () -> Unit) {
                 }
             }
         }
+        } // end PullToRefreshBox
     }
 }
 

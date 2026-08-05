@@ -92,7 +92,9 @@ fun AdminTabsScreen() {
                                 onCheckedChange = { checked ->
                                     val idx = appTabsState.indexOfFirst { it.id == tab.id }
                                     if (idx != -1) {
-                                        appTabsState[idx] = tab.copy(showInBottomBar = checked)
+                                        val updated = tab.copy(showInBottomBar = checked)
+                                        appTabsState[idx] = updated
+                                        addAppTab(updated)
                                     }
                                 }
                             )
@@ -103,7 +105,9 @@ fun AdminTabsScreen() {
                                 onCheckedChange = { checked ->
                                     val idx = appTabsState.indexOfFirst { it.id == tab.id }
                                     if (idx != -1) {
-                                        appTabsState[idx] = tab.copy(isVisible = checked)
+                                        val updated = tab.copy(isVisible = checked)
+                                        appTabsState[idx] = updated
+                                        addAppTab(updated)
                                     }
                                 }
                             )
@@ -111,6 +115,7 @@ fun AdminTabsScreen() {
                             if (tab.systemRoute == null) {
                                 IconButton(onClick = {
                                     appTabsState.removeIf { it.id == tab.id }
+                                    removeAppTab(tab)
                                 }) {
                                     Icon(Icons.Default.Delete, contentDescription = "Remover", tint = MaterialTheme.colorScheme.error)
                                 }

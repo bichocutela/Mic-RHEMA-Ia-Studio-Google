@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,13 +32,26 @@ fun DevotionalsScreen() {
             onBack = { selectedDevotional = null }
         )
     } else {
+        var isRefreshing by remember { mutableStateOf(false) }
+        val coroutineScope = rememberCoroutineScope()
+        
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background
         ) { paddingValues ->
+            androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = {
+                    coroutineScope.launch {
+                        isRefreshing = true
+                        forceRefreshData()
+                        isRefreshing = false
+                    }
+                },
+                modifier = Modifier.padding(paddingValues).fillMaxSize()
+            ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues)
             ) {
                 // Header
                 Row(
@@ -79,6 +93,7 @@ fun DevotionalsScreen() {
                     }
                 }
             }
+            } // end PullToRefreshBox
         }
     }
 }
@@ -92,14 +107,24 @@ fun DevotionalCard(devotional: Devotional, onClick: () -> Unit) {
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
+        val context = androidx.compose.ui.platform.LocalContext.current
         Column {
             if (devotional.mediaUrl.isNotBlank()) {
-                coil.compose.AsyncImage(
-                    model = devotional.mediaUrl,
-                    contentDescription = null,
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                    modifier = Modifier.fillMaxWidth().height(200.dp)
-                )
+                val isYt = isYoutubeUrl(devotional.mediaUrl)
+                val thumb = if (isYt) getYoutubeThumbnailUrl(devotional.mediaUrl) else devotional.mediaUrl
+                if (thumb != null) {
+                    coil.compose.AsyncImage(
+                        model = thumb,
+                        contentDescription = null,
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier.fillMaxWidth().aspectRatio(16f/9f).clickable {
+                            if (isYt) {
+                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(devotional.mediaUrl))
+                                context.startActivity(intent)
+                            }
+                        }
+                    )
+                }
             }
             Column(modifier = Modifier.padding(20.dp)) {
                 Row(
@@ -189,13 +214,23 @@ fun DevotionalDetailScreen(devotional: Devotional, onBack: () -> Unit) {
                     .padding(horizontal = 24.dp)
             ) {
                 if (devotional.mediaUrl.isNotBlank()) {
-                    coil.compose.AsyncImage(
-                        model = devotional.mediaUrl,
-                        contentDescription = null,
-                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                        modifier = Modifier.fillMaxWidth().height(250.dp).clip(RoundedCornerShape(16.dp))
-                    )
-                    Spacer(modifier = Modifier.height(24.dp))
+                    val context = androidx.compose.ui.platform.LocalContext.current
+                    val isYt = isYoutubeUrl(devotional.mediaUrl)
+                    val thumb = if (isYt) getYoutubeThumbnailUrl(devotional.mediaUrl) else devotional.mediaUrl
+                    if (thumb != null) {
+                        coil.compose.AsyncImage(
+                            model = thumb,
+                            contentDescription = null,
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                            modifier = Modifier.fillMaxWidth().aspectRatio(16f/9f).clip(RoundedCornerShape(16.dp)).clickable {
+                                if (isYt) {
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(devotional.mediaUrl))
+                                    context.startActivity(intent)
+                                }
+                            }
+                        )
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
                 }
                 Text(
                     text = devotional.title,

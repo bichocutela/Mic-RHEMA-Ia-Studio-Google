@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
@@ -32,13 +33,13 @@ fun EditPlansSection() {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("Gerenciar Planos", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Button(onClick = { showDialog = true; editingPlan = null; currentThemes = mutableListOf() }) {
-                Icon(Icons.Default.Add, contentDescription = "Adicionar Plano")
+                Icon(Icons.Default.Add, contentDescription = "Adicionar")
                 Spacer(Modifier.width(4.dp))
-                Text("Novo Plano")
+                Text("Novo")
             }
         }
         Spacer(Modifier.height(16.dp))
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
             items(biblePlansState) { plan ->
                 Card(
                     modifier = Modifier.fillMaxWidth().clickable { 
@@ -97,7 +98,7 @@ fun EditPlansSection() {
             confirmButton = {
                 TextButton(onClick = {
                     if (name.isNotEmpty()) {
-                        val newPlan = PlanCategory(name, androidx.compose.ui.graphics.Color.Gray, currentThemes.toList())
+                        val newPlan = PlanCategory(name, editingPlan?.color ?: androidx.compose.ui.graphics.Color.Gray, currentThemes.toList())
                         if (editingPlan != null) {
                             val idx = biblePlansState.indexOf(editingPlan)
                             if (idx >= 0) biblePlansState[idx] = newPlan
@@ -134,7 +135,7 @@ fun EditPlansSection() {
             confirmButton = {
                 TextButton(onClick = {
                     if (tTitle.isNotEmpty()) {
-                        val newTheme = PlanTheme(tTitle, tContent, listOf(tVerse), tImage)
+                        val newTheme = PlanTheme(tTitle, tContent, listOf(tVerse), convertGoogleDriveUrl(tImage))
                         if (editingTheme != null) {
                             val idx = currentThemes.indexOf(editingTheme)
                             if (idx >= 0) {
@@ -183,7 +184,7 @@ fun EditServicesSection() {
                             Text(service.title, fontWeight = FontWeight.Bold)
                             Text("${service.day} às ${service.time}", style = MaterialTheme.typography.bodySmall)
                         }
-                        IconButton(onClick = { removeChurchService(service); weeklyServicesState.remove(service) }) {
+                        IconButton(onClick = { removeChurchService(service);  }) {
                             Icon(Icons.Default.Delete, contentDescription = "Deletar", tint = MaterialTheme.colorScheme.error)
                         }
                     }
@@ -196,6 +197,7 @@ fun EditServicesSection() {
         var title by remember { mutableStateOf(editingService?.title ?: "") }
         var day by remember { mutableStateOf(editingService?.day ?: "") }
         var time by remember { mutableStateOf(editingService?.time ?: "") }
+        var mediaUrl by remember { mutableStateOf(editingService?.mediaUrl ?: "") }
         
         AlertDialog(
             onDismissRequest = { showDialog = false },
@@ -205,18 +207,14 @@ fun EditServicesSection() {
                     OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Título (ex: Culto da Família)") })
                     OutlinedTextField(value = day, onValueChange = { day = it }, label = { Text("Dia (ex: Domingo)") })
                     OutlinedTextField(value = time, onValueChange = { time = it }, label = { Text("Horário (ex: 18:30)") })
+                    OutlinedTextField(value = mediaUrl, onValueChange = { mediaUrl = it }, label = { Text("URL do Vídeo (YouTube)") })
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
                     if (title.isNotEmpty()) {
-                        val newService = ChurchService(editingService?.id ?: java.util.UUID.randomUUID().toString(), title, time, day)
-                        if (editingService != null) {
-                            val idx = weeklyServicesState.indexOf(editingService)
-                            if (idx >= 0) weeklyServicesState[idx] = newService
-                        } else {
-                            weeklyServicesState.add(newService)
-                        }
+                        val newService = ChurchService(id = editingService?.id ?: java.util.UUID.randomUUID().toString(), title = title, day = day, time = time, dayShort = day.take(3).uppercase(), mediaUrl = mediaUrl)
+                        
                         addChurchService(newService)
                         showDialog = false
                     }
@@ -267,6 +265,7 @@ fun EditDevotionalsSection() {
         var title by remember { mutableStateOf(editingDevotional?.title ?: "") }
         var content by remember { mutableStateOf(editingDevotional?.content ?: "") }
         var verse by remember { mutableStateOf(editingDevotional?.verse ?: "") }
+        var mediaUrl by remember { mutableStateOf(editingDevotional?.mediaUrl ?: "") }
         var ref by remember { mutableStateOf(editingDevotional?.verseReference ?: "") }
         var date by remember { mutableStateOf(editingDevotional?.date ?: "") }
         
@@ -280,6 +279,7 @@ fun EditDevotionalsSection() {
                     OutlinedTextField(value = ref, onValueChange = { ref = it }, label = { Text("Referência (ex: João 3:16)") })
                     OutlinedTextField(value = verse, onValueChange = { verse = it }, label = { Text("Versículo") })
                     OutlinedTextField(value = content, onValueChange = { content = it }, label = { Text("Conteúdo") }, modifier = Modifier.height(120.dp))
+                    OutlinedTextField(value = mediaUrl, onValueChange = { mediaUrl = it }, label = { Text("URL de Mídia (YouTube, etc)") })
                 }
             },
             confirmButton = {
@@ -293,6 +293,7 @@ fun EditDevotionalsSection() {
                             verseReference = ref,
                             content = content,
                             likes = editingDevotional?.likes ?: 0,
+                            mediaUrl = mediaUrl,
                             timestamp = editingDevotional?.timestamp ?: System.currentTimeMillis()
                         )
                         if (editingDevotional != null) {
@@ -368,6 +369,32 @@ fun EditSettingsSection() {
             // Placeholder save
         }) {
             Text("Salvar Configurações")
+        }
+        
+        Spacer(Modifier.height(16.dp))
+        val context = androidx.compose.ui.platform.LocalContext.current
+        val scope = rememberCoroutineScope()
+        var syncing by remember { mutableStateOf(false) }
+        
+        Button(
+            onClick = {
+                scope.launch {
+                    syncing = true
+                    try {
+                        Firebase.firestore.collection("settings").document("sync_trigger").set(mapOf("timestamp" to System.currentTimeMillis()))
+                        forceRefreshData()
+                        android.widget.Toast.makeText(context, "Sincronização forçada com sucesso!", android.widget.Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {
+                        android.widget.Toast.makeText(context, "Erro ao sincronizar", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                    syncing = false
+                }
+            },
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+        ) {
+            Icon(if (syncing) Icons.Default.Refresh else Icons.Default.Refresh, contentDescription = "Sincronizar") // Replace later with appropriate icon
+            Spacer(Modifier.width(8.dp))
+            Text(if (syncing) "Sincronizando..." else "Sincronizar Banco de Dados")
         }
     }
 }
@@ -490,3 +517,107 @@ fun EditBannersSection() {
     }
 }
 
+
+// DONATIONS
+@Composable
+fun EditDonationsSection() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var pixKey by remember { mutableStateOf(pixKeyState.value) }
+    var qrCodeUrl by remember { mutableStateOf(pixQrCodeUrlState.value) }
+    var isUploading by remember { mutableStateOf(false) }
+    var uploadProgress by remember { mutableFloatStateOf(0f) }
+    val scope = rememberCoroutineScope()
+    var saving by remember { mutableStateOf(false) }
+    
+    val imagePickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri: android.net.Uri? ->
+        if (uri != null) {
+            isUploading = true
+            scope.launch {
+                uploadProgress = 0f
+                val uploadedUrl = StorageManager.uploadFile(context, uri, "donations") { progress ->
+                    uploadProgress = progress
+                }
+                if (uploadedUrl.isNotEmpty()) {
+                    qrCodeUrl = uploadedUrl
+                }
+                isUploading = false
+            }
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Text("Dízimos e Ofertas", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text("Configure a chave Pix e o QR Code que serão exibidos na tela de doações.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f))
+        Spacer(Modifier.height(24.dp))
+        
+        OutlinedTextField(
+            value = pixKey,
+            onValueChange = { pixKey = it },
+            label = { Text("Chave Pix") },
+            modifier = Modifier.fillMaxWidth()
+        )
+        
+        Spacer(Modifier.height(16.dp))
+        
+        Text("QR Code (Opcional)", fontWeight = FontWeight.Bold)
+        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (qrCodeUrl.isNotEmpty()) {
+                coil.compose.AsyncImage(
+                    model = qrCodeUrl,
+                    contentDescription = "QR Code Pix",
+                    modifier = Modifier.size(100.dp).padding(end = 16.dp),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                )
+            }
+            
+            Column {
+                Button(
+                    onClick = { imagePickerLauncher.launch("image/*") },
+                    enabled = !isUploading
+                ) {
+                    if (isUploading) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
+                        Spacer(Modifier.width(8.dp))
+                        Text("${(uploadProgress * 100).toInt()}%")
+                    } else {
+                        Icon(androidx.compose.material.icons.Icons.Default.Add, contentDescription = "Adicionar QR Code")
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (qrCodeUrl.isNotEmpty()) "Trocar Imagem" else "Enviar Imagem")
+                    }
+                }
+                if (qrCodeUrl.isNotEmpty()) {
+                    TextButton(onClick = { qrCodeUrl = "" }) {
+                        Text("Remover Imagem", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
+        }
+        
+        Spacer(Modifier.weight(1f))
+        
+        Button(
+            onClick = {
+                scope.launch {
+                    saving = true
+                    try {
+                        saveDonationsToFirestore(pixKey, qrCodeUrl)
+                        android.widget.Toast.makeText(context, "Salvo com sucesso!", android.widget.Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {
+                        android.widget.Toast.makeText(context, "Erro ao salvar", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                    saving = false
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !saving && !isUploading
+        ) {
+            if (saving) {
+                CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
+            } else {
+                Text("Salvar Configurações")
+            }
+        }
+    }
+}

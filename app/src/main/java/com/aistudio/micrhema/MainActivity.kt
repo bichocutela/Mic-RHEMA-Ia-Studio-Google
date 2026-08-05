@@ -214,6 +214,7 @@ fun MainScreen() {
             NotificationHelper.scheduleDailyReminder(context)
             try {
                 NotificationHelper.scheduleDevotionalSync(context)
+                NotificationHelper.scheduleServiceAlert(context)
             } catch(e: Exception) {}
             try {
                 com.google.firebase.messaging.FirebaseMessaging.getInstance().subscribeToTopic("devocionais")
@@ -232,6 +233,7 @@ fun MainScreen() {
         loadContentFromFirebase(context)
         loadTeamMembersFromFirebase()
         loadBannersFromFirestore()
+        loadDonationsFromFirestore()
         syncBibleNewsAndPlans()
         MemberManager.syncFromFirestore(context)
         MemberManager.loadMembers(context)

@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import coil.compose.AsyncImage
 import java.util.Calendar
 
@@ -36,18 +37,105 @@ import java.util.Calendar
 fun HomeScreen(onNavigate: (String) -> Unit = {}) {
     val scrollState = rememberScrollState()
 
+    var isRefreshing by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+    
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .verticalScroll(scrollState)
-                .padding(horizontal = 20.dp, vertical = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+        androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = {
+                coroutineScope.launch {
+                    isRefreshing = true
+                    forceRefreshData()
+                    isRefreshing = false
+                }
+            },
+            modifier = Modifier.padding(paddingValues).fillMaxSize()
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scrollState)
+                    .padding(horizontal = 20.dp, vertical = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+            // Service Alert
+            val calendar = java.util.Calendar.getInstance()
+            val todayDayOfWeek = calendar.get(java.util.Calendar.DAY_OF_WEEK)
+            val tomorrowCalendar = java.util.Calendar.getInstance()
+            tomorrowCalendar.add(java.util.Calendar.DAY_OF_YEAR, 1)
+            val tomorrowDayOfWeek = tomorrowCalendar.get(java.util.Calendar.DAY_OF_WEEK)
+            val dayMap = mapOf(
+                java.util.Calendar.SUNDAY to "Domingo",
+                java.util.Calendar.MONDAY to "Segunda",
+                java.util.Calendar.TUESDAY to "Terça",
+                java.util.Calendar.WEDNESDAY to "Quarta",
+                java.util.Calendar.THURSDAY to "Quinta",
+                java.util.Calendar.FRIDAY to "Sexta",
+                java.util.Calendar.SATURDAY to "Sábado"
+            )
+            val todayStr = dayMap[todayDayOfWeek] ?: ""
+            val tomorrowStr = dayMap[tomorrowDayOfWeek] ?: ""
+            
+            val todayService = weeklyServicesState.find { it.day.equals(todayStr, ignoreCase = true) || it.day.contains(todayStr, ignoreCase = true) }
+            val tomorrowService = weeklyServicesState.find { it.day.equals(tomorrowStr, ignoreCase = true) || it.day.contains(tomorrowStr, ignoreCase = true) }
+            
+            var alertMessage = ""
+            var alertTime = ""
+            if (todayService != null) {
+                var isPast = false
+                try {
+                    val currentTime = java.util.Calendar.getInstance()
+                    val currentHour = currentTime.get(java.util.Calendar.HOUR_OF_DAY)
+                    val currentMinute = currentTime.get(java.util.Calendar.MINUTE)
+                    val timeParts = todayService.time.split(":")
+                    if (timeParts.size >= 2) {
+                        val serviceHour = timeParts[0].trim().toInt()
+                        val serviceMinuteStr = timeParts[1].trim().take(2)
+                        val serviceMinute = serviceMinuteStr.toInt()
+                        if (currentHour > serviceHour || (currentHour == serviceHour && currentMinute >= serviceMinute)) {
+                            isPast = true
+                        }
+                    }
+                } catch (e: Exception) {}
+                
+                if (isPast) {
+                    alertMessage = "Hoje teve ${todayService.title}"
+                } else {
+                    alertMessage = "Hoje tem ${todayService.title}"
+                }
+                alertTime = "Às ${todayService.time}"
+            } else if (tomorrowService != null) {
+                alertMessage = "Amanhã é dia de ${tomorrowService.title}"
+                alertTime = "Às ${tomorrowService.time}"
+            }
+            
+            if (alertMessage.isNotEmpty()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Icon(Icons.Outlined.DateRange, contentDescription = "Alerta", tint = MaterialTheme.colorScheme.primary)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(alertMessage, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                Text(alertTime, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f))
+                            }
+                        }
+                    }
+                }
+            }
+
             // Featured Carousel
             val bannerState = rememberLazyListState()
             LaunchedEffect(homeBannersState.size) {
@@ -121,7 +209,7 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
             }
 
             // Notícias
-            val carouselNews = if (bibleNewsState.isEmpty()) BibleNewsData.newsList.take(12) else bibleNewsState.take(12)
+            val carouselNews = if (bibleNewsState.isEmpty()) BibleNewsData.newsList else bibleNewsState
             val listState = rememberLazyListState()
             
             LaunchedEffect(carouselNews) {
@@ -196,6 +284,7 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
             }
                 Spacer(modifier = Modifier.height(40.dp))
         }
+        } // end PullToRefreshBox
     }
 }
 
