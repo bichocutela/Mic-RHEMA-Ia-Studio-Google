@@ -7,6 +7,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -104,6 +105,7 @@ fun EditContentSection() {
                 var audioCover by remember { mutableStateOf("") }
                 GlassTextField(value = audioTitle, onValueChange = { audioTitle = it }, label = { Text("Título") }, modifier = Modifier.fillMaxWidth())
                 GlassTextField(value = audioArtist, onValueChange = { audioArtist = it }, label = { Text("Artista/Preletor") }, modifier = Modifier.fillMaxWidth())
+                LocalUploadField(value = audioCover, onValueChange = { audioCover = it }, label = "URL ou Arquivo de Capa (Opcional)", mimeType = "image/*")
                 LocalUploadField(value = audioUrl, onValueChange = { audioUrl = it }, label = "URL ou Arquivo Local MP3", mimeType = "audio/*")
                 GlassButton(onClick = {
                     if (isUploading) return@GlassButton
@@ -156,20 +158,24 @@ fun EditContentSection() {
                 var videoTitle by remember { mutableStateOf("") }
                 var videoDesc by remember { mutableStateOf("") }
                 var videoUrl by remember { mutableStateOf("") }
+                var videoThumb by remember { mutableStateOf("") }
                 GlassTextField(value = videoTitle, onValueChange = { videoTitle = it }, label = { Text("Título") }, modifier = Modifier.fillMaxWidth())
                 GlassTextField(value = videoDesc, onValueChange = { videoDesc = it }, label = { Text("Descrição") }, modifier = Modifier.fillMaxWidth())
+                LocalUploadField(value = videoThumb, onValueChange = { videoThumb = it }, label = "URL ou Arquivo de Capa/Thumbnail (Opcional)", mimeType = "image/*")
                 LocalUploadField(value = videoUrl, onValueChange = { videoUrl = it }, label = "URL ou Arquivo Local MP4", mimeType = "video/*")
                 GlassButton(onClick = {
                     if (isUploading) return@GlassButton
                     isUploading = true
                     coroutineScope.launch {
                         uploadProgress = 0f
-                        val finalVideoUrl = if (videoUrl.isNotBlank() && !videoUrl.startsWith("http")) StorageManager.uploadFile(context, android.net.Uri.parse(videoUrl), "videos/files") { progress -> uploadProgress = progress } else convertGoogleDriveUrl(videoUrl).ifEmpty { "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" }
-                        val finalThumb = getYoutubeThumbnailUrl(finalVideoUrl) ?: "https://images.unsplash.com/photo-1505764761634-1d77b57e1966?w=500&q=80"
+                        val finalThumbUploaded = if (videoThumb.isNotBlank() && !videoThumb.startsWith("http")) StorageManager.uploadFile(context, android.net.Uri.parse(videoThumb), "videos/covers") { progress -> uploadProgress = progress / 2f } else convertGoogleDriveUrl(videoThumb)
+                        val finalVideoUrl = if (videoUrl.isNotBlank() && !videoUrl.startsWith("http")) StorageManager.uploadFile(context, android.net.Uri.parse(videoUrl), "videos/files") { progress -> uploadProgress = 0.5f + (progress / 2f) } else convertGoogleDriveUrl(videoUrl).ifEmpty { "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" }
+                        val finalThumb = finalThumbUploaded.ifEmpty { getYoutubeThumbnailUrl(finalVideoUrl) ?: "https://images.unsplash.com/photo-1505764761634-1d77b57e1966?w=500&q=80" }
                         addContentVideo(ContentVideo(id = System.currentTimeMillis().toString(), title = videoTitle, description = videoDesc, videoUrl = finalVideoUrl, thumbnailUrl = finalThumb))
                         videoTitle = ""
                         videoDesc = ""
                         videoUrl = ""
+                        videoThumb = ""
                         isUploading = false
                     }
                 }, modifier = Modifier.padding(top = 8.dp)) {
@@ -208,6 +214,7 @@ fun EditContentSection() {
                 Text("Adicionar Álbum de Fotos", fontWeight = FontWeight.Bold)
                 var albumTitle by remember { mutableStateOf("") }
                 var albumDesc by remember { mutableStateOf("") }
+                var albumDriveUrl by remember { mutableStateOf("") }
                 var customCoverUrl by remember { mutableStateOf<String?>(null) }
                 var isUploadingCover by remember { mutableStateOf(false) }
                 var coverProgress by remember { mutableFloatStateOf(0f) }
@@ -234,6 +241,7 @@ fun EditContentSection() {
 
                 GlassTextField(value = albumTitle, onValueChange = { albumTitle = it }, label = { Text("Título do Álbum") }, modifier = Modifier.fillMaxWidth())
                 GlassTextField(value = albumDesc, onValueChange = { albumDesc = it }, label = { Text("Descrição do Álbum") }, modifier = Modifier.fillMaxWidth())
+                GlassTextField(value = albumDriveUrl, onValueChange = { albumDriveUrl = it }, label = { Text("Link da Pasta/Fotos do Google Drive (Opcional)") }, modifier = Modifier.fillMaxWidth())
                 
                 Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Button(onClick = { if (!isUploadingCover) coverPicker.launch("image/*") }) {
@@ -251,20 +259,23 @@ fun EditContentSection() {
                 }
 
                 Button(onClick = {
+                    val finalDriveUrl = convertGoogleDriveUrl(albumDriveUrl)
                     if (customCoverUrl != null) {
-                        addContentPhotoAlbum(ContentPhotoAlbum(id = System.currentTimeMillis().toString(), title = albumTitle, description = albumDesc, coverUrl = convertGoogleDriveUrl(customCoverUrl!!), photos = listOf(AlbumPhoto(url = convertGoogleDriveUrl(customCoverUrl!!), caption = ""))))
+                        addContentPhotoAlbum(ContentPhotoAlbum(id = System.currentTimeMillis().toString(), title = albumTitle, description = albumDesc, coverUrl = convertGoogleDriveUrl(customCoverUrl!!), photos = listOf(AlbumPhoto(url = convertGoogleDriveUrl(customCoverUrl!!), caption = "")), driveFolderUrl = finalDriveUrl))
                         albumTitle = ""
                         albumDesc = ""
+                        albumDriveUrl = ""
                         customCoverUrl = null
                     } else {
                         isGenerating = true
                         scope.launch {
                             val generatedCover = generatePlaceholderAlbumCover("A beautiful abstract aesthetic background suitable for a photo album cover titled '$albumTitle'. Minimalist, pastel colors.")
                             val finalCoverUrl = generatedCover ?: "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=500&q=80" // Fallback se a API não estiver configurada
-                            addContentPhotoAlbum(ContentPhotoAlbum(id = System.currentTimeMillis().toString(), title = albumTitle, description = albumDesc, coverUrl = finalCoverUrl))
+                            addContentPhotoAlbum(ContentPhotoAlbum(id = System.currentTimeMillis().toString(), title = albumTitle, description = albumDesc, coverUrl = finalCoverUrl, driveFolderUrl = finalDriveUrl))
                             isGenerating = false
                             albumTitle = ""
                             albumDesc = ""
+                            albumDriveUrl = ""
                             customCoverUrl = null
                         }
                     }
@@ -436,10 +447,12 @@ fun EditContentSection() {
     if (editingAlbum != null) {
         var editTitle by remember(editingAlbum) { mutableStateOf(editingAlbum!!.title) }
         var editDesc by remember(editingAlbum) { mutableStateOf(editingAlbum!!.description) }
+        var editDriveUrl by remember(editingAlbum) { mutableStateOf(editingAlbum!!.driveFolderUrl) }
         
         var photoUriInput by remember { mutableStateOf<android.net.Uri?>(null) }
         var isUploadingPhoto by remember { mutableStateOf(false) }
         var photoProgress by remember { mutableFloatStateOf(0f) }
+        var newPhotoDriveUrl by remember { mutableStateOf("") }
         val scope = rememberCoroutineScope()
         val photoPicker = androidx.activity.compose.rememberLauncherForActivityResult(
             contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
@@ -478,10 +491,42 @@ fun EditContentSection() {
                     GlassTextField(value = editTitle, onValueChange = { editTitle = it }, label = { Text("Título") }, modifier = Modifier.fillMaxWidth())
                     Spacer(modifier = Modifier.height(8.dp))
                     GlassTextField(value = editDesc, onValueChange = { editDesc = it }, label = { Text("Descrição") }, modifier = Modifier.fillMaxWidth())
+                    Spacer(modifier = Modifier.height(8.dp))
+                    GlassTextField(value = editDriveUrl, onValueChange = { editDriveUrl = it }, label = { Text("Link Google Drive da Pasta/Álbum") }, modifier = Modifier.fillMaxWidth())
                     Spacer(modifier = Modifier.height(16.dp))
                     
-                    Button(onClick = { photoPicker.launch("image/*") }) {
-                        Text("Adicionar Foto ao Álbum")
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Button(onClick = { photoPicker.launch("image/*") }) {
+                            Text("Adicionar Foto do Dispositivo")
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        GlassTextField(
+                            value = newPhotoDriveUrl, 
+                            onValueChange = { newPhotoDriveUrl = it }, 
+                            label = { Text("URL Google Drive da Foto") }, 
+                            modifier = Modifier.weight(1f)
+                        )
+                        IconButton(onClick = {
+                            if (newPhotoDriveUrl.isNotBlank()) {
+                                val url = convertGoogleDriveUrl(newPhotoDriveUrl)
+                                val updatedAlbum = editingAlbum!!.copy(
+                                    photos = editingAlbum!!.photos + AlbumPhoto(url = url, caption = ""),
+                                    coverUrl = editingAlbum!!.coverUrl ?: url
+                                )
+                                val index = contentAlbumsState.indexOfFirst { it.id == editingAlbum!!.id }
+                                if (index != -1) {
+                                    contentAlbumsState[index] = updatedAlbum
+                                    addContentPhotoAlbum(updatedAlbum)
+                                    editingAlbum = updatedAlbum
+                                }
+                                newPhotoDriveUrl = ""
+                            }
+                        }) {
+                            Icon(Icons.Default.Add, contentDescription = "Adicionar Foto", tint = MaterialTheme.colorScheme.primary)
+                        }
                     }
                     
                     Spacer(modifier = Modifier.height(16.dp))
@@ -532,7 +577,7 @@ fun EditContentSection() {
                 TextButton(onClick = {
                     val index = contentAlbumsState.indexOfFirst { it.id == editingAlbum!!.id }
                     if (index != -1) {
-                        val updated = editingAlbum!!.copy(title = editTitle, description = editDesc)
+                        val updated = editingAlbum!!.copy(title = editTitle, description = editDesc, driveFolderUrl = convertGoogleDriveUrl(editDriveUrl))
                         contentAlbumsState[index] = updated
                         addContentPhotoAlbum(updated)
                     }

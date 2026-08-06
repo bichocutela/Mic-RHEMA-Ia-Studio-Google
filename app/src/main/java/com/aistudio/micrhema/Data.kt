@@ -706,7 +706,8 @@ data class ContentPhotoAlbum(
     var title: String = "",
     var description: String = "",
     var coverUrl: String? = null,
-    var photos: List<AlbumPhoto> = emptyList()
+    var photos: List<AlbumPhoto> = emptyList(),
+    var driveFolderUrl: String = ""
 )
 
 

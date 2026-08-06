@@ -745,6 +745,38 @@ fun AlbumDetail(album: ContentPhotoAlbum, onBack: () -> Unit) {
                     Spacer(modifier = Modifier.height(16.dp))
                 }
                 
+                if (album.driveFolderUrl.isNotBlank()) {
+                    item {
+                        val context = androidx.compose.ui.platform.LocalContext.current
+                        val driveUrl = album.driveFolderUrl
+                        Button(onClick = {
+                            try {
+                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(driveUrl))
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
+                        }, modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+                            Text("Abrir Álbum Externo no Navegador")
+                        }
+                    }
+                    item {
+                        androidx.compose.ui.viewinterop.AndroidView(
+                            factory = { context ->
+                                android.webkit.WebView(context).apply {
+                                    settings.javaScriptEnabled = true
+                                    settings.domStorageEnabled = true
+                                    settings.builtInZoomControls = true
+                                    settings.displayZoomControls = false
+                                    webViewClient = android.webkit.WebViewClient()
+                                    loadUrl(album.driveFolderUrl)
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().height(600.dp).clip(RoundedCornerShape(8.dp))
+                        )
+                    }
+                }
+                
                 val chunks = album.photos.chunked(2)
                 itemsIndexed(chunks) { rowIndex, rowPhotos ->
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
