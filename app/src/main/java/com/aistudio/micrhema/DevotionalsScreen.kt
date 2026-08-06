@@ -85,7 +85,10 @@ fun DevotionalsScreen() {
                         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 100.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        items(devotionalsState.sortedByDescending { it.timestamp }) { devotional ->
+                        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+                        val todayStr = sdf.format(java.util.Date())
+                        val availableDevotionals = devotionalsState.filter { it.date <= todayStr }
+                        items(availableDevotionals.sortedByDescending { it.date }) { devotional ->
                             DevotionalCard(devotional = devotional) {
                                 selectedDevotional = devotional
                             }

@@ -22,12 +22,10 @@ class DevotionalReminderWorker(
             emptyList()
         }
         
-        val dayOfYear = Calendar.getInstance().get(Calendar.DAY_OF_YEAR)
-        val todayDevotional = if (devotionals.isNotEmpty()) {
-            devotionals[dayOfYear % devotionals.size]
-        } else {
-            null
-        }
+        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+        val todayStr = sdf.format(java.util.Date())
+        
+        val todayDevotional = devotionals.find { it.date == todayStr } ?: devotionals.firstOrNull()
         
         val title = "Devocional Diário: ${todayDevotional?.title ?: "Nova Palavra"}"
         val message = todayDevotional?.verse ?: "Tempo para o seu devocional de hoje! Venha se fortalecer com a Palavra."
@@ -37,6 +35,7 @@ class DevotionalReminderWorker(
             title = title,
             message = message
         )
+
         return Result.success()
     }
 }

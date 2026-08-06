@@ -199,7 +199,10 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
             }
 
             if (devotionalsState.isNotEmpty()) {
-                val todayDevotional = devotionalsState.sortedByDescending { it.timestamp }.first()
+                val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+                val todayStr = sdf.format(java.util.Date())
+                val availableDevotionals = devotionalsState.filter { it.date <= todayStr }
+                val todayDevotional = if(availableDevotionals.isNotEmpty()) availableDevotionals.sortedByDescending { it.date }.first() else devotionalsState.sortedByDescending { it.timestamp }.first()
                 Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Text("Devocional Diário", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     DevotionalCard(devotional = todayDevotional) {

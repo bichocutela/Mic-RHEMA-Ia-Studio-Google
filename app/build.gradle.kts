@@ -42,15 +42,7 @@ val appVersionName = "${major}.${minor}.${patch}.${buildNum}"
 
 android {
     namespace = "com.aistudio.micrhema"
-    compileSdk = 34
-signingConfigs {
-    create("debugConfig") {
-      storeFile = file("${rootDir}/debug.keystore")
-      storePassword = "android"
-      keyAlias = "androiddebugkey"
-      keyPassword = "android"
-    }
-  }
+
     lint {
         disable += "UnsafeOptInUsageError"
     }
