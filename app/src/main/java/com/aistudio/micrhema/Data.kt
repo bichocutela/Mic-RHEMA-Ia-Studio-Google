@@ -460,7 +460,12 @@ object MemberManager {
                             isVip = obj.optBoolean("isVip", false),
                             isIbr = obj.optBoolean("isIbr", false),
                             isAdmin = obj.optBoolean("isAdmin", false),
-                            ibrCertificateUrl = obj.optString("ibrCertificateUrl", "")
+                            ibrCertificateUrl = obj.optString("ibrCertificateUrl", ""),
+                            profilePhotoUrl = obj.optString("profilePhotoUrl", ""),
+                            address = obj.optString("address", ""),
+                            birthDate = obj.optString("birthDate", ""),
+                            createdAt = obj.optLong("createdAt", 0L),
+                            updatedAt = obj.optLong("updatedAt", 0L)
                         )
                     )
                 }
@@ -501,6 +506,11 @@ object MemberManager {
                 obj.put("isIbr", member.isIbr)
                 obj.put("isAdmin", member.isAdmin)
                 obj.put("ibrCertificateUrl", member.ibrCertificateUrl)
+                obj.put("profilePhotoUrl", member.profilePhotoUrl)
+                obj.put("address", member.address)
+                obj.put("birthDate", member.birthDate)
+                obj.put("createdAt", member.createdAt)
+                obj.put("updatedAt", member.updatedAt)
                 jsonArray.put(obj)
             }
             prefs.edit().putString(KEY_MEMBERS, jsonArray.toString()).apply()

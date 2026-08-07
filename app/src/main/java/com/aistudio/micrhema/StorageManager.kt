@@ -3,6 +3,7 @@ package com.aistudio.micrhema
 import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.tasks.await
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
@@ -11,6 +12,7 @@ import okhttp3.RequestBody.Companion.asRequestBody
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.TimeUnit
+import com.google.firebase.storage.FirebaseStorage
 
 object StorageManager {
     private val client = OkHttpClient.Builder()
@@ -75,6 +77,42 @@ object StorageManager {
                 e.printStackTrace()
                 android.util.Log.e("StorageManager", "Upload failed", e)
                 ""
+            }
+        }
+    }
+
+    @Throws(Exception::class)
+    suspend fun uploadProfilePhotoToFirebase(context: android.content.Context, uri: Uri, uid: String): String {
+        if (uri.scheme == "http" || uri.scheme == "https") return uri.toString()
+        
+        return withContext(Dispatchers.IO) {
+            var tempFile: File? = null
+            try {
+                val storage = FirebaseStorage.getInstance()
+                val storageRef = storage.reference
+                val imageRef = storageRef.child("profile_photos/$uid/profile.jpg")
+                
+                tempFile = File(context.cacheDir, "upload_temp_${System.currentTimeMillis()}.jpg")
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    FileOutputStream(tempFile).use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                
+                if (tempFile == null || !tempFile.exists()) throw Exception("Não foi possível processar a imagem localmente.")
+
+                val uploadTask = imageRef.putFile(android.net.Uri.fromFile(tempFile))
+                uploadTask.await()
+                val downloadUrl = imageRef.downloadUrl.await()
+                
+                tempFile.delete()
+                
+                downloadUrl.toString()
+            } catch (e: Exception) {
+                android.util.Log.e("StorageManager", "Upload to Firebase failed", e)
+                throw e
+            } finally {
+                tempFile?.delete()
             }
         }
     }

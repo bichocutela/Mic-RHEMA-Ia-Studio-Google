@@ -46,14 +46,16 @@ fun ProfileScreen(
     var isEditingPhone by remember { mutableStateOf(false) }
     var isEditingAddress by remember { mutableStateOf(false) }
     var isEditingBirthDate by remember { mutableStateOf(false) }
+    var isUploading by remember { mutableStateOf(false) }
 
     val imageLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.GetContent()
     ) { uri ->
         if (uri != null) {
+            isUploading = true
             coroutineScope.launch {
-                val uploadedUrl = com.aistudio.micrhema.StorageManager.uploadFile(context, uri, "profile_photos")
-                if (uploadedUrl.isNotBlank()) {
+                try {
+                    val uploadedUrl = com.aistudio.micrhema.StorageManager.uploadProfilePhotoToFirebase(context, uri, loggedInMember.id)
                     profilePhotoUrl = uploadedUrl
                     saveProfile(
                         loggedInMember,
@@ -62,10 +64,15 @@ fun ProfileScreen(
                         address,
                         birthDate,
                         profilePhotoUrl,
-                        context
+                        context,
+                        showToast = false
                     )
-                } else {
-                    android.widget.Toast.makeText(context, "Erro ao atualizar foto", android.widget.Toast.LENGTH_SHORT).show()
+                    android.widget.Toast.makeText(context, "Foto atualizada com sucesso", android.widget.Toast.LENGTH_SHORT).show()
+                } catch (e: Exception) {
+                    android.util.Log.e("ProfileScreen", "Erro ao fazer upload da foto", e)
+                    android.widget.Toast.makeText(context, "Erro ao atualizar foto: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+                } finally {
+                    isUploading = false
                 }
             }
         }
@@ -144,6 +151,20 @@ fun ProfileScreen(
                         tint = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.size(16.dp)
                     )
+                }
+                
+                if (isUploading) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.5f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
                 }
             }
             
@@ -276,7 +297,8 @@ private fun saveProfile(
     address: String,
     birthDate: String,
     profilePhotoUrl: String,
-    context: android.content.Context
+    context: android.content.Context,
+    showToast: Boolean = true
 ) {
     member.name = name
     member.phone = phone
@@ -297,10 +319,14 @@ private fun saveProfile(
         context = context,
         member = member,
         onSuccess = {
-            android.widget.Toast.makeText(context, "Perfil atualizado", android.widget.Toast.LENGTH_SHORT).show()
+            if (showToast) {
+                android.widget.Toast.makeText(context, "Perfil atualizado", android.widget.Toast.LENGTH_SHORT).show()
+            }
         },
         onFailure = {
-            android.widget.Toast.makeText(context, "Erro ao salvar", android.widget.Toast.LENGTH_SHORT).show()
+            if (showToast) {
+                android.widget.Toast.makeText(context, "Erro ao salvar", android.widget.Toast.LENGTH_SHORT).show()
+            }
         }
     )
 }
