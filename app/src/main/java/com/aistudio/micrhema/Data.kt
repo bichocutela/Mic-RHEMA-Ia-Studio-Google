@@ -290,7 +290,12 @@ data class MemberRequest(
     var title: String = "",
     var type: String = "acesso",
     var content: String = "",
-    var mediaUrl: String = ""
+    var mediaUrl: String = "",
+    var profilePhotoUrl: String = "",
+    var address: String = "",
+    var birthDate: String = "",
+    var createdAt: Long = 0L,
+    var updatedAt: Long = 0L
 )
 
 val memberRequestsState = mutableStateListOf<MemberRequest>(
@@ -344,6 +349,11 @@ object MemberManager {
                     val isIbr = document.getBoolean("isIbr") ?: false
                     val email = document.getString("email") ?: ""
                     val isAdmin = document.getBoolean("isAdmin") ?: false
+                    val profilePhotoUrl = document.getString("profilePhotoUrl") ?: ""
+                    val address = document.getString("address") ?: ""
+                    val birthDate = document.getString("birthDate") ?: ""
+                    val createdAt = document.getLong("createdAt") ?: 0L
+                    val updatedAt = document.getLong("updatedAt") ?: 0L
                     newList.add(MemberRequest(
                         id = id, 
                         name = name, 
@@ -352,7 +362,12 @@ object MemberManager {
                         isApproved = isApproved, 
                         isVip = isVip, 
                         isIbr = isIbr,
-                        isAdmin = isAdmin
+                        isAdmin = isAdmin,
+                        profilePhotoUrl = profilePhotoUrl,
+                        address = address,
+                        birthDate = birthDate,
+                        createdAt = createdAt,
+                        updatedAt = updatedAt
                     ))
                 }
                 if (newList.isNotEmpty()) {
@@ -395,7 +410,7 @@ object MemberManager {
         try {
             val db = Firebase.firestore
 
-            val memberMap = hashMapOf(
+            val memberMap = hashMapOf<String, Any>(
                 "name" to member.name,
                 "phone" to member.phone,
                 "email" to member.email,
@@ -404,7 +419,12 @@ object MemberManager {
                 "isIbr" to member.isIbr,
                 "isAdmin" to member.isAdmin,
                 "ibrCertificateUrl" to member.ibrCertificateUrl,
-                "status" to (if (member.isApproved || member.isVip || member.isIbr) "aprovado" else "pendente")
+                "status" to (if (member.isApproved || member.isVip || member.isIbr) "aprovado" else "pendente"),
+                "profilePhotoUrl" to member.profilePhotoUrl,
+                "address" to member.address,
+                "birthDate" to member.birthDate,
+                "createdAt" to member.createdAt,
+                "updatedAt" to member.updatedAt
             )
             db.collection("acessos_pendentes").document(member.id).set(memberMap)
                 .addOnSuccessListener { 
@@ -1175,7 +1195,9 @@ fun syncBibleNewsAndPlans() {
             planSyncErrorState.value = "Listener erro: $e"
             return@addSnapshotListener
         }
-        if (snapshot.isEmpty) {
+        val firstDocThemes = snapshot.documents.firstOrNull()?.get("themes") as? List<*>
+        val needsUpdate = snapshot.isEmpty || (firstDocThemes != null && firstDocThemes.size < 37)
+        if (needsUpdate) {
             PlansData.categories.forEach { cat ->
                 db.collection("bible_plans").document(cat.name).set(mapOf(
                     "name" to cat.name,

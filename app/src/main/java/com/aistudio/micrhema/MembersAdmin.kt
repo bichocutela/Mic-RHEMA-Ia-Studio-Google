@@ -1,4 +1,9 @@
 package com.aistudio.micrhema
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.background
+import androidx.compose.material.icons.filled.Person
+
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -121,6 +126,72 @@ fun EditMembersSection() {
                                 memberRequestsState.remove(member)
                             }) {
                                 Icon(Icons.Default.Delete, contentDescription = "Deletar", tint = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun EditProfilesSection() {
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Text("Perfis dos Membros", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 16.dp))
+        
+        val approvedMembers = memberRequestsState.filter { it.isApproved || it.isVip || it.isIbr }
+        
+        if (approvedMembers.isEmpty()) {
+            Text("Nenhum membro aprovado encontrado.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            return@Column
+        }
+
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(items = approvedMembers, key = { it.id }) { member ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (member.profilePhotoUrl.isNotBlank()) {
+                            coil.compose.AsyncImage(
+                                model = member.profilePhotoUrl,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clip(androidx.compose.foundation.shape.CircleShape),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), androidx.compose.foundation.shape.CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.width(16.dp))
+                        
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(member.name.takeIf { it.isNotBlank() } ?: "Sem Nome", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                            Text("📱 ${member.phone.takeIf { it.isNotBlank() } ?: "-"}", style = MaterialTheme.typography.bodyMedium)
+                            if (member.address.isNotBlank()) {
+                                Text("📍 ${member.address}", style = MaterialTheme.typography.bodyMedium)
+                            }
+                            if (member.birthDate.isNotBlank()) {
+                                Text("🎂 ${member.birthDate}", style = MaterialTheme.typography.bodyMedium)
+                            }
+                            
+                            val dateFormat = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale("pt", "BR"))
+                            if (member.createdAt > 0L) {
+                                Text("Cadastro: ${dateFormat.format(java.util.Date(member.createdAt))}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            if (member.updatedAt > 0L) {
+                                Text("Atualizado: ${dateFormat.format(java.util.Date(member.updatedAt))}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }

@@ -391,6 +391,7 @@ fun EditContentSection() {
         var editTitle by remember(editingAudio) { mutableStateOf(editingAudio!!.title) }
         var editArtist by remember(editingAudio) { mutableStateOf(editingAudio!!.artist) }
         var editUrl by remember(editingAudio) { mutableStateOf(editingAudio!!.audioUrl) }
+        var editCoverUrl by remember(editingAudio) { mutableStateOf(editingAudio!!.coverUrl) }
         
         AlertDialog(
             onDismissRequest = { editingAudio = null },
@@ -400,13 +401,14 @@ fun EditContentSection() {
                     GlassTextField(value = editTitle, onValueChange = { editTitle = it }, label = { Text("Título") })
                     GlassTextField(value = editArtist, onValueChange = { editArtist = it }, label = { Text("Artista") })
                     LocalUploadField(value = editUrl, onValueChange = { editUrl = it }, label = "URL ou Arquivo Local MP3", mimeType = "audio/*")
+                    LocalUploadField(value = editCoverUrl, onValueChange = { editCoverUrl = it }, label = "URL ou Arquivo de Capa (Opcional)", mimeType = "image/*")
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
                     val idx = contentAudiosState.indexOfFirst { it.id == editingAudio!!.id }
                     if (idx != -1) {
-                        val updated = editingAudio!!.copy(title = editTitle, artist = editArtist, audioUrl = editUrl)
+                        val updated = editingAudio!!.copy(title = editTitle, artist = editArtist, audioUrl = editUrl, coverUrl = convertGoogleDriveUrl(editCoverUrl))
                         addContentAudio(updated)
                     }
                     editingAudio = null
@@ -420,6 +422,7 @@ fun EditContentSection() {
         var editTitle by remember(editingVideo) { mutableStateOf(editingVideo!!.title) }
         var editDesc by remember(editingVideo) { mutableStateOf(editingVideo!!.description) }
         var editUrl by remember(editingVideo) { mutableStateOf(editingVideo!!.videoUrl) }
+        var editThumbUrl by remember(editingVideo) { mutableStateOf(editingVideo!!.thumbnailUrl) }
         
         AlertDialog(
             onDismissRequest = { editingVideo = null },
@@ -429,13 +432,14 @@ fun EditContentSection() {
                     GlassTextField(value = editTitle, onValueChange = { editTitle = it }, label = { Text("Título") })
                     GlassTextField(value = editDesc, onValueChange = { editDesc = it }, label = { Text("Descrição") })
                     LocalUploadField(value = editUrl, onValueChange = { editUrl = it }, label = "URL ou Arquivo Local MP4", mimeType = "video/*")
+                    LocalUploadField(value = editThumbUrl, onValueChange = { editThumbUrl = it }, label = "URL ou Arquivo de Capa/Thumbnail (Opcional)", mimeType = "image/*")
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
                     val idx = contentVideosState.indexOfFirst { it.id == editingVideo!!.id }
                     if (idx != -1) {
-                        val updated = editingVideo!!.copy(title = editTitle, description = editDesc, videoUrl = editUrl)
+                        val updated = editingVideo!!.copy(title = editTitle, description = editDesc, videoUrl = editUrl, thumbnailUrl = convertGoogleDriveUrl(editThumbUrl))
                         addContentVideo(updated)
                     }
                     editingVideo = null
@@ -448,6 +452,7 @@ fun EditContentSection() {
         var editTitle by remember(editingAlbum) { mutableStateOf(editingAlbum!!.title) }
         var editDesc by remember(editingAlbum) { mutableStateOf(editingAlbum!!.description) }
         var editDriveUrl by remember(editingAlbum) { mutableStateOf(editingAlbum!!.driveFolderUrl) }
+        var editCoverUrl by remember(editingAlbum) { mutableStateOf(editingAlbum!!.coverUrl ?: "") }
         
         var photoUriInput by remember { mutableStateOf<android.net.Uri?>(null) }
         var isUploadingPhoto by remember { mutableStateOf(false) }
@@ -491,6 +496,8 @@ fun EditContentSection() {
                     GlassTextField(value = editTitle, onValueChange = { editTitle = it }, label = { Text("Título") }, modifier = Modifier.fillMaxWidth())
                     Spacer(modifier = Modifier.height(8.dp))
                     GlassTextField(value = editDesc, onValueChange = { editDesc = it }, label = { Text("Descrição") }, modifier = Modifier.fillMaxWidth())
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LocalUploadField(value = editCoverUrl, onValueChange = { editCoverUrl = it }, label = "Capa do Álbum (URL da Imagem)", mimeType = "image/*")
                     Spacer(modifier = Modifier.height(8.dp))
                     GlassTextField(value = editDriveUrl, onValueChange = { editDriveUrl = it }, label = { Text("Link Google Drive da Pasta/Álbum") }, modifier = Modifier.fillMaxWidth())
                     Spacer(modifier = Modifier.height(16.dp))
@@ -577,7 +584,7 @@ fun EditContentSection() {
                 TextButton(onClick = {
                     val index = contentAlbumsState.indexOfFirst { it.id == editingAlbum!!.id }
                     if (index != -1) {
-                        val updated = editingAlbum!!.copy(title = editTitle, description = editDesc, driveFolderUrl = convertGoogleDriveUrl(editDriveUrl))
+                        val updated = editingAlbum!!.copy(title = editTitle, description = editDesc, driveFolderUrl = convertGoogleDriveUrl(editDriveUrl), coverUrl = convertGoogleDriveUrl(editCoverUrl))
                         contentAlbumsState[index] = updated
                         addContentPhotoAlbum(updated)
                     }

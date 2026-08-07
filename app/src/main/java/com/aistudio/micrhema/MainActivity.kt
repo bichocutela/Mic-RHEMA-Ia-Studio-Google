@@ -1,4 +1,6 @@
 package com.aistudio.micrhema
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.background
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 
@@ -88,6 +90,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     object Settings : Screen("settings", "Configurações", Icons.Default.Settings)
     object Content : Screen("content", "Conteúdo", Icons.Default.LibraryBooks)
     object Admin : Screen("admin", "Área ADM", Icons.Default.Lock)
+    object Profile : Screen("profile", "Meu Perfil", Icons.Default.Person)
 }
 
 val drawerItems = listOf(
@@ -282,39 +285,193 @@ fun MainScreen() {
         drawerState = drawerState,
         drawerContent = {
             ModalDrawerSheet(
-                drawerContainerColor = MaterialTheme.colorScheme.surface
+                drawerContainerColor = MaterialTheme.colorScheme.surface,
+                modifier = Modifier.verticalScroll(rememberScrollState())
             ) {
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    "Menu",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(16.dp)
-                )
-                HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-                drawerItems.forEach { item ->
-                    val route = if (item.id == "bible_tab") "bible" else (item.systemRoute ?: "custom_tab/${item.id}")
-                    NavigationDrawerItem(
-                        icon = { Icon(getIconFromName(item.iconName), contentDescription = null) },
-                        label = { Text(item.title) },
-                        selected = currentRoute == route,
-                        colors = NavigationDrawerItemDefaults.colors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                            unselectedContainerColor = Color.Transparent,
-                            selectedIconColor = MaterialTheme.colorScheme.secondary,
-                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            selectedTextColor = MaterialTheme.colorScheme.secondary,
-                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        ),
-                        onClick = {
+                Spacer(Modifier.height(16.dp))
+                
+                val member = loggedInMemberState.value
+                val profileName = member?.name?.takeIf { it.isNotBlank() } ?: "Entrar"
+                val profilePhone = if (member != null) "Meu Perfil" else "Solicite acesso para membros"
+                val initial = if (member != null && member.name.isNotBlank()) member.name.firstOrNull()?.toString()?.uppercase() ?: "?" else "👤"
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            val route = if (member != null) Screen.Profile.route else Screen.Members.route
                             navController.navigate(route) {
                                 popUpTo(navController.graph.startDestinationId)
                                 launchSingleTop = true
                             }
                             scope.launch { drawerState.close() }
-                        },
-                        modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                        }
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), androidx.compose.foundation.shape.CircleShape)
+                            .clip(androidx.compose.foundation.shape.CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (member != null && member.profilePhotoUrl.isNotBlank()) {
+                            coil.compose.AsyncImage(
+                                model = member.profilePhotoUrl,
+                                contentDescription = "Foto de perfil",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                            )
+                        } else if (initial == "👤") {
+                            Icon(
+                                imageVector = androidx.compose.material.icons.Icons.Default.Person,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        } else {
+                            Text(
+                                text = initial,
+                                color = MaterialTheme.colorScheme.primary,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.width(16.dp))
+                    
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = profileName,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = profilePhone,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    
+                    Icon(
+                        imageVector = androidx.compose.material.icons.Icons.Default.KeyboardArrowRight,
+                        contentDescription = "Ver Perfil",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+                
+                Spacer(Modifier.height(8.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+                
+                val groupsMapping = listOf(
+                    "Conteúdo" to listOf("Início", "Bíblia", "Devocionais", "Cursos IBR", "Conteúdo", "Planos"),
+                    "Comunidade" to listOf("Pedidos de Oração", "Membros", "Equipe"),
+                    "Igreja" to listOf("Cultos", "Dízimos e Ofertas"),
+                    "Sistema" to listOf("Configurações", "Sobre"),
+                    "Administração" to listOf("Área ADM")
+                )
+                var expandedGroups by remember { mutableStateOf(setOf("Conteúdo")) }
+                
+                val groupedItems = drawerItems.groupBy { item ->
+                    groupsMapping.find { it.second.contains(item.title) }?.first ?: "Conteúdo"
+                }.toSortedMap(compareBy { key -> 
+                    groupsMapping.indexOfFirst { it.first == key }
+                })
+                
+                groupedItems.forEach { (groupName, items) ->
+                    val isExpanded = expandedGroups.contains(groupName)
+                    val groupIcon = when (groupName) {
+                        "Conteúdo" -> androidx.compose.material.icons.Icons.Default.List
+                        "Comunidade" -> androidx.compose.material.icons.Icons.Default.People
+                        "Igreja" -> androidx.compose.material.icons.Icons.Default.Church
+                        "Sistema" -> androidx.compose.material.icons.Icons.Default.Settings
+                        "Administração" -> androidx.compose.material.icons.Icons.Default.Lock
+                        else -> androidx.compose.material.icons.Icons.Default.List
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                expandedGroups = if (isExpanded) {
+                                    expandedGroups - groupName
+                                } else {
+                                    expandedGroups + groupName
+                                }
+                            }
+                            .padding(horizontal = 16.dp, vertical = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = groupIcon,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(end = 12.dp)
+                            )
+                            Text(
+                                text = groupName,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        Icon(
+                            imageVector = if (isExpanded) androidx.compose.material.icons.Icons.Default.KeyboardArrowUp else androidx.compose.material.icons.Icons.Default.KeyboardArrowDown,
+                            contentDescription = if (isExpanded) "Recolher" else "Expandir",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = isExpanded,
+                        enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
+                        exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut()
+                    ) {
+                        Column {
+                            items.forEach { item ->
+                                val route = if (item.id == "bible_tab") "bible" else (item.systemRoute ?: "custom_tab/${item.id}")
+                                val itemIcon = when (item.title) {
+                                    "Bíblia" -> androidx.compose.material.icons.Icons.Default.MenuBook
+                                    "Devocionais" -> androidx.compose.material.icons.Icons.Default.Book
+                                    "Cursos IBR" -> androidx.compose.material.icons.Icons.Default.School
+                                    "Conteúdo" -> androidx.compose.material.icons.Icons.Default.PlayCircle
+                                    "Pedidos de Oração" -> androidx.compose.material.icons.Icons.Default.VolunteerActivism
+                                    "Membros" -> androidx.compose.material.icons.Icons.Default.Group
+                                    "Equipe" -> androidx.compose.material.icons.Icons.Default.Badge
+                                    "Dízimos e Ofertas" -> androidx.compose.material.icons.Icons.Default.Favorite
+                                    "Configurações" -> androidx.compose.material.icons.Icons.Default.Settings
+                                    "Sobre" -> androidx.compose.material.icons.Icons.Default.Info
+                                    "Área ADM" -> androidx.compose.material.icons.Icons.Default.AdminPanelSettings
+                                    else -> getIconFromName(item.iconName)
+                                }
+                                NavigationDrawerItem(
+                                    icon = { Icon(itemIcon, contentDescription = null) },
+                                    label = { Text(item.title) },
+                                    selected = currentRoute == route,
+                                    colors = NavigationDrawerItemDefaults.colors(
+                                        selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                        unselectedContainerColor = Color.Transparent,
+                                        selectedIconColor = MaterialTheme.colorScheme.secondary,
+                                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        selectedTextColor = MaterialTheme.colorScheme.secondary,
+                                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
+                                    onClick = {
+                                        navController.navigate(route) {
+                                            popUpTo(navController.graph.startDestinationId)
+                                            launchSingleTop = true
+                                        }
+                                        scope.launch { drawerState.close() }
+                                    },
+                                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                                )
+                            }
+                        }
+                    }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
                 }
             }
         }
@@ -458,6 +615,7 @@ fun MainScreen() {
                 composable(Screen.Settings.route) { SettingsScreen() }
                 composable(Screen.Content.route) { ContentScreen() }
                 composable(Screen.Admin.route) { AdminScreen() }
+                composable(Screen.Profile.route) { ProfileScreen(onNavigateBack = { navController.popBackStack() }) }
                 composable("news_list") { NewsListScreen(
                     onNavigateToDetail = { id -> navController.navigate("news_detail/$id") },
                     onBack = { navController.popBackStack() }
