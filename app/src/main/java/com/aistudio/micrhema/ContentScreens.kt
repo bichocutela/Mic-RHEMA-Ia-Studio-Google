@@ -39,7 +39,7 @@ import androidx.media3.ui.PlayerView
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-fun ContentScreen() {
+fun ContentScreen(initialType: String? = null, initialId: String? = null) {
 
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("Livros", "Áudios", "Vídeos", "Fotos")
@@ -48,6 +48,36 @@ fun ContentScreen() {
     var selectedAudio by remember { mutableStateOf<ContentAudio?>(null) }
     var selectedVideo by remember { mutableStateOf<ContentVideo?>(null) }
     var selectedAlbum by remember { mutableStateOf<ContentPhotoAlbum?>(null) }
+    
+    BackHandler(enabled = selectedBook != null || selectedAudio != null || selectedVideo != null || selectedAlbum != null) {
+        selectedBook = null
+        selectedAudio = null
+        selectedVideo = null
+        selectedAlbum = null
+    }
+
+    LaunchedEffect(initialType, initialId) {
+        if (initialType != null && initialId != null) {
+            when (initialType) {
+                "video" -> {
+                    selectedTab = 2
+                    selectedVideo = contentVideosState.find { it.id == initialId }
+                }
+                "audio" -> {
+                    selectedTab = 1
+                    selectedAudio = contentAudiosState.find { it.id == initialId }
+                }
+                "book" -> {
+                    selectedTab = 0
+                    selectedBook = contentBooksState.find { it.id == initialId }
+                }
+                "album" -> {
+                    selectedTab = 3
+                    selectedAlbum = contentAlbumsState.find { it.id == initialId }
+                }
+            }
+        }
+    }
     var isRefreshing by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var isLocalLoading by remember { mutableStateOf(true) }

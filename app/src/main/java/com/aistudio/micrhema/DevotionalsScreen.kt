@@ -26,6 +26,10 @@ import kotlinx.coroutines.launch
 fun DevotionalsScreen(initialDevotionalId: String? = null) {
     var selectedDevotional by remember { mutableStateOf<Devotional?>(null) }
     
+    androidx.activity.compose.BackHandler(enabled = selectedDevotional != null) {
+        selectedDevotional = null
+    }
+
     LaunchedEffect(initialDevotionalId, devotionalsState) {
         if (initialDevotionalId != null) {
             val dev = devotionalsState.find { it.id == initialDevotionalId }

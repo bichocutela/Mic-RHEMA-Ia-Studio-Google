@@ -578,7 +578,12 @@ fun MainScreen() {
                 }
             ) {
                 composable(Screen.Home.route) { HomeScreen(onNavigate = { route -> navController.navigate(route) { launchSingleTop = true } }) }
-                composable(Screen.Devotionals.route) { DevotionalsScreen() }
+                composable(
+                    route = "${Screen.Devotionals.route}?id={id}",
+                    arguments = listOf(navArgument("id") { type = androidx.navigation.NavType.StringType; nullable = true; defaultValue = null })
+                ) { backStackEntry ->
+                    DevotionalsScreen(initialDevotionalId = backStackEntry.arguments?.getString("id"))
+                }
                 composable("devotionals") { DevotionalsScreen() }
                 composable(Screen.Services.route) { ServicesScreen() }
                 composable(Screen.Prayer.route) { PrayerScreen() }
@@ -616,7 +621,17 @@ fun MainScreen() {
                 composable(Screen.About.route) { AboutScreen() }
                 composable(Screen.Donations.route) { DonationsScreen() }
                 composable(Screen.Settings.route) { SettingsScreen() }
-                composable(Screen.Content.route) { ContentScreen() }
+                composable(
+                    route = "${Screen.Content.route}?type={type}&id={id}",
+                    arguments = listOf(
+                        navArgument("type") { type = androidx.navigation.NavType.StringType; nullable = true; defaultValue = null },
+                        navArgument("id") { type = androidx.navigation.NavType.StringType; nullable = true; defaultValue = null }
+                    )
+                ) { backStackEntry ->
+                    val type = backStackEntry.arguments?.getString("type")
+                    val id = backStackEntry.arguments?.getString("id")
+                    ContentScreen(initialType = type, initialId = id)
+                }
                 composable(Screen.Admin.route) { AdminScreen() }
                 composable(Screen.Profile.route) { ProfileScreen(onNavigateBack = { navController.popBackStack() }) }
                 composable("news_list") { NewsListScreen(

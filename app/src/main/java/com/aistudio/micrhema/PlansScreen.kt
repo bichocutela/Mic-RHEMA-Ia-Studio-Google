@@ -35,6 +35,14 @@ fun PlansScreen(initialThemeName: String? = null, onNavigateToBible: (String, In
     var selectedCategory by remember { mutableStateOf<PlanCategory?>(null) }
     var selectedTheme by remember { mutableStateOf<PlanTheme?>(null) }
     
+    androidx.activity.compose.BackHandler(enabled = selectedTheme != null || selectedCategory != null) {
+        if (selectedTheme != null) {
+            selectedTheme = null
+        } else if (selectedCategory != null) {
+            selectedCategory = null
+        }
+    }
+
     LaunchedEffect(initialThemeName) {
         if (initialThemeName != null) {
             val allPlans = if (biblePlansState.isEmpty()) PlansData.categories else biblePlansState
