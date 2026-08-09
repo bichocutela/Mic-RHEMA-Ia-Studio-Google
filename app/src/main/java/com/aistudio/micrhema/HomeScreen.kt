@@ -138,9 +138,7 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
             coroutineScope.launch {
                 isRefreshing = true
                 try {
-                    delay(1000)
-                    com.google.firebase.firestore.FirebaseFirestore.getInstance().disableNetwork().await()
-                    com.google.firebase.firestore.FirebaseFirestore.getInstance().enableNetwork().await()
+                    refreshHomeData()
                 } catch (e: Exception) {}
                 isRefreshing = false
             }

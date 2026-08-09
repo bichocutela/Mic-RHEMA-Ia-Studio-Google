@@ -1342,6 +1342,150 @@ fun convertGoogleDriveUrl(url: String): String {
     return GoogleDriveService.getDirectDownloadLink(url)
 }
 
+
+suspend fun refreshHomeData() {
+    try {
+        val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+        val source = com.google.firebase.firestore.Source.SERVER
+
+        try {
+            val bannersSnapshot = db.collection("carousel_items").get(source).await()
+            val list = bannersSnapshot.documents.mapNotNull { try { it.toObject(CarouselItem::class.java) } catch(ex: Exception) { null } }
+            carouselItemsState.clear()
+            carouselItemsState.addAll(list)
+        } catch (e: Exception) { e.printStackTrace() }
+
+        try {
+            val devotionalsSnapshot = db.collection("devocionais").get(source).await()
+            val list = devotionalsSnapshot.documents.mapNotNull { doc ->
+                try {
+                    val id = doc.id
+                    val title = doc.getString("title") ?: ""
+                    val date = doc.getString("date") ?: ""
+                    val verse = doc.getString("verse") ?: ""
+                    val verseReference = doc.getString("verseReference") ?: ""
+                    val content = doc.getString("content") ?: ""
+                    val likes = doc.getLong("likes")?.toInt() ?: 0
+                    val type = doc.getString("type") ?: "devocional"
+                    val mediaUrl = doc.getString("mediaUrl") ?: ""
+                    val isApproved = doc.getBoolean("isApproved") ?: true
+                    val timestamp = doc.getLong("timestamp") ?: 0L
+                    Devotional(id, title, date, verse, verseReference, content, likes, type, mediaUrl, isApproved, timestamp)
+                } catch(ex: Exception) { null }
+            }
+            devotionalsState.clear()
+            devotionalsState.addAll(list.sortedByDescending { it.timestamp })
+        } catch (e: Exception) { e.printStackTrace() }
+
+        try {
+            val newsSnapshot = db.collection("bible_news").get(source).await()
+            val list = newsSnapshot.documents.mapNotNull { try { it.toObject(BibleNews::class.java) } catch(ex: Exception) { null } }
+            bibleNewsState.clear()
+            bibleNewsState.addAll(list)
+        } catch (e: Exception) { e.printStackTrace() }
+
+        try {
+            val servicesSnapshot = db.collection("cultos_agenda").get(source).await()
+            val list = servicesSnapshot.documents.mapNotNull { try { it.toObject(ChurchService::class.java) } catch(ex: Exception) { null } }
+            weeklyServicesState.clear()
+            weeklyServicesState.addAll(list)
+        } catch (e: Exception) { e.printStackTrace() }
+
+        try {
+            val plansSnapshot = db.collection("bible_plans").get(source).await()
+            val list = plansSnapshot.documents.mapNotNull { doc ->
+                try {
+                    val name = doc.getString("name") ?: ""
+                    val colorValue = doc.getLong("color") ?: 0L
+                    val themesList = doc.get("themes") as? List<Map<String, Any>> ?: emptyList()
+                    val themes = themesList.map { t ->
+                        PlanTheme(
+                            title = t["title"] as? String ?: "",
+                            content = t["content"] as? String ?: "",
+                            verses = (t["verses"] as? List<*>)?.map { it.toString() } ?: emptyList(),
+                            imageUrl = t["imageUrl"] as? String ?: ""
+                        )
+                    }
+                    PlanCategory(name, androidx.compose.ui.graphics.Color(colorValue.toULong()), themes)
+                } catch (ex: Exception) { null }
+            }
+            if (list.isNotEmpty()) {
+                biblePlansState.clear()
+                biblePlansState.addAll(list)
+            }
+        } catch (e: Exception) { e.printStackTrace() }
+
+        try {
+            val videosSnapshot = db.collection("conteudos_videos").get(source).await()
+            val list = videosSnapshot.documents.mapNotNull { try { it.toObject(ContentVideo::class.java) } catch(ex: Exception) { null } }
+            contentVideosState.clear()
+            contentVideosState.addAll(list)
+        } catch (e: Exception) { e.printStackTrace() }
+
+        try {
+            val audiosSnapshot = db.collection("conteudos_audios").get(source).await()
+            val list = audiosSnapshot.documents.mapNotNull { try { it.toObject(ContentAudio::class.java) } catch(ex: Exception) { null } }
+            contentAudiosState.clear()
+            contentAudiosState.addAll(list)
+        } catch (e: Exception) { e.printStackTrace() }
+
+        try {
+            val booksSnapshot = db.collection("conteudos_books").get(source).await()
+            val list = booksSnapshot.documents.mapNotNull { try { it.toObject(ContentBook::class.java) } catch(ex: Exception) { null } }
+            contentBooksState.clear()
+            contentBooksState.addAll(list)
+        } catch (e: Exception) { e.printStackTrace() }
+
+        try {
+            val albumsSnapshot = db.collection("conteudos_albums").get(source).await()
+            val list = albumsSnapshot.documents.mapNotNull { try { it.toObject(ContentPhotoAlbum::class.java) } catch(ex: Exception) { null } }
+            contentAlbumsState.clear()
+            contentAlbumsState.addAll(list)
+        } catch (e: Exception) { e.printStackTrace() }
+
+        val currentMember = loggedInMemberState.value
+        if (currentMember != null) {
+            try {
+                val memberSnapshot = db.collection("acessos_pendentes").document(currentMember.id).get(source).await()
+                if (memberSnapshot.exists()) {
+                    val id = memberSnapshot.id
+                    val name = memberSnapshot.getString("name") ?: ""
+                    val phone = memberSnapshot.getString("phone") ?: ""
+                    val rawIsApproved = memberSnapshot.getBoolean("isApproved") ?: false
+                    val isVip = memberSnapshot.getBoolean("isVip") ?: false
+                    val isApproved = rawIsApproved || isVip
+                    val isIbr = memberSnapshot.getBoolean("isIbr") ?: false
+                    val email = memberSnapshot.getString("email") ?: ""
+                    val isAdmin = memberSnapshot.getBoolean("isAdmin") ?: false
+                    val profilePhotoUrl = memberSnapshot.getString("profilePhotoUrl") ?: ""
+                    val address = memberSnapshot.getString("address") ?: ""
+                    val birthDate = memberSnapshot.getString("birthDate") ?: ""
+                    val createdAt = memberSnapshot.getLong("createdAt") ?: 0L
+                    val updatedAt = memberSnapshot.getLong("updatedAt") ?: 0L
+                    val updatedMember = MemberRequest(
+                        id = id, 
+                        name = name, 
+                        phone = phone, 
+                        email = email,
+                        isApproved = isApproved, 
+                        isVip = isVip, 
+                        isIbr = isIbr,
+                        isAdmin = isAdmin,
+                        profilePhotoUrl = profilePhotoUrl,
+                        address = address,
+                        birthDate = birthDate,
+                        createdAt = createdAt,
+                        updatedAt = updatedAt
+                    )
+                    loggedInMemberState.value = updatedMember
+                }
+            } catch (e: Exception) { e.printStackTrace() }
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
+}
+
 suspend fun forceRefreshData() {
     try {
         kotlinx.coroutines.delay(1000)
