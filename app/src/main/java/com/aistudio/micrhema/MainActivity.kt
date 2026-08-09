@@ -366,16 +366,16 @@ fun MainScreen() {
                 HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
                 
                 val groupsMapping = listOf(
-                    "Mídia" to listOf("Início", "Bíblia", "Devocionais", "Cursos IBR", "Mídia", "Planos"),
+                    "CONTEÚDO" to listOf("Início", "Bíblia", "Devocionais", "Cursos IBR", "Mídia", "Planos"),
                     "Comunidade" to listOf("Pedidos de Oração", "Membros", "Equipe"),
                     "Igreja" to listOf("Cultos", "Dízimos e Ofertas"),
                     "Sistema" to listOf("Configurações", "Sobre"),
                     "Administração" to listOf("Área ADM")
                 )
-                var expandedGroups by remember { mutableStateOf(setOf("Mídia")) }
+                var expandedGroups by remember { mutableStateOf(setOf("CONTEÚDO")) }
                 
                 val groupedItems = drawerItems.groupBy { item ->
-                    groupsMapping.find { it.second.contains(item.title) }?.first ?: "Mídia"
+                    groupsMapping.find { it.second.contains(item.title) }?.first ?: "CONTEÚDO"
                 }.toSortedMap(compareBy { key -> 
                     groupsMapping.indexOfFirst { it.first == key }
                 })
@@ -383,7 +383,7 @@ fun MainScreen() {
                 groupedItems.forEach { (groupName, items) ->
                     val isExpanded = expandedGroups.contains(groupName)
                     val groupIcon = when (groupName) {
-                        "Mídia" -> androidx.compose.material.icons.Icons.Default.List
+                        "CONTEÚDO" -> androidx.compose.material.icons.Icons.Default.List
                         "Comunidade" -> androidx.compose.material.icons.Icons.Default.People
                         "Igreja" -> androidx.compose.material.icons.Icons.Default.Church
                         "Sistema" -> androidx.compose.material.icons.Icons.Default.Settings

@@ -1,10 +1,12 @@
 package com.aistudio.micrhema
 
+import android.content.Context
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,6 +18,12 @@ import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material.icons.outlined.Book
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.OndemandVideo
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,6 +33,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
@@ -32,247 +41,401 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import coil.compose.AsyncImage
 import java.util.Calendar
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(onNavigate: (String) -> Unit = {}) {
     val scrollState = rememberScrollState()
-
-    var isRefreshing by remember { mutableStateOf(false) }
+    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background
-    ) { paddingValues ->
-        androidx.compose.material3.pulltorefresh.PullToRefreshBox(
-            isRefreshing = isRefreshing,
-            onRefresh = {
-                coroutineScope.launch {
-                    isRefreshing = true
-                    forceRefreshData()
-                    isRefreshing = false
-                }
-            },
-            modifier = Modifier.padding(paddingValues).fillMaxSize()
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(scrollState)
-                    .padding(horizontal = 20.dp, vertical = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-            // Service Alert
-            val calendar = java.util.Calendar.getInstance()
-            val todayDayOfWeek = calendar.get(java.util.Calendar.DAY_OF_WEEK)
-            val tomorrowCalendar = java.util.Calendar.getInstance()
-            tomorrowCalendar.add(java.util.Calendar.DAY_OF_YEAR, 1)
-            val tomorrowDayOfWeek = tomorrowCalendar.get(java.util.Calendar.DAY_OF_WEEK)
-            val dayMap = mapOf(
-                java.util.Calendar.SUNDAY to "Domingo",
-                java.util.Calendar.MONDAY to "Segunda",
-                java.util.Calendar.TUESDAY to "Terça",
-                java.util.Calendar.WEDNESDAY to "Quarta",
-                java.util.Calendar.THURSDAY to "Quinta",
-                java.util.Calendar.FRIDAY to "Sexta",
-                java.util.Calendar.SATURDAY to "Sábado"
+    val currentMember = loggedInMemberState.value
+    
+    // Data filtering for Banners
+    val now = Calendar.getInstance().timeInMillis
+    val validBanners = carouselItemsState.filter {
+        it.eventDate.isEmpty() || try {
+            val date = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).parse(it.eventDate)
+            date != null && date.time >= now - 86400000 // Keep for the day
+        } catch (e: Exception) {
+            true
+        }
+    }
+    
+    val validServices = weeklyServicesState.filter { true } 
+    val latestNews = bibleNewsState.sortedByDescending { it.id }.take(5)
+    
+    // Mood State
+    var showMoodSelector by remember { mutableStateOf(false) }
+    val prefs = context.getSharedPreferences("mic_rhema_prefs", Context.MODE_PRIVATE)
+    
+    val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    val todayDateStr = dateFormat.format(Calendar.getInstance().time)
+    
+    var savedMoodKey by remember { mutableStateOf(prefs.getString("moodKey", null)) }
+    var savedMoodDate by remember { mutableStateOf(prefs.getString("moodDate", null)) }
+    
+    if (savedMoodDate != todayDateStr) {
+        savedMoodKey = null
+        savedMoodDate = null
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(scrollState)
+            .padding(bottom = 100.dp), // Padding for Bottom Navigation
+        verticalArrangement = Arrangement.spacedBy(24.dp)
+    ) {
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // 1. Saudação
+        Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+            if (currentMember != null && currentMember.name.isNotBlank()) {
+                val firstName = currentMember.name.split(" ").firstOrNull() ?: ""
+                Text(
+                    text = "Olá, $firstName 👋",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+            } else {
+                Text(
+                    text = "Seja bem-vindo à Rhema",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+            }
+            Text(
+                text = "Que a paz do Senhor esteja com você",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
             )
-            val todayStr = dayMap[todayDayOfWeek] ?: ""
-            val tomorrowStr = dayMap[tomorrowDayOfWeek] ?: ""
-            
-            val todayService = weeklyServicesState.find { it.day.equals(todayStr, ignoreCase = true) || it.day.contains(todayStr, ignoreCase = true) }
-            val tomorrowService = weeklyServicesState.find { it.day.equals(tomorrowStr, ignoreCase = true) || it.day.contains(tomorrowStr, ignoreCase = true) }
-            
-            var alertMessage = ""
-            var alertTime = ""
-            if (todayService != null) {
-                var isPast = false
-                try {
-                    val currentTime = java.util.Calendar.getInstance()
-                    val currentHour = currentTime.get(java.util.Calendar.HOUR_OF_DAY)
-                    val currentMinute = currentTime.get(java.util.Calendar.MINUTE)
-                    val timeParts = todayService.time.split(":")
-                    if (timeParts.size >= 2) {
-                        val serviceHour = timeParts[0].trim().toInt()
-                        val serviceMinuteStr = timeParts[1].trim().take(2)
-                        val serviceMinute = serviceMinuteStr.toInt()
-                        if (currentHour > serviceHour || (currentHour == serviceHour && currentMinute >= serviceMinute)) {
-                            isPast = true
+        }
+        
+        // 2. Destaques / Banners
+        if (validBanners.isNotEmpty()) {
+            val bannerListState = rememberLazyListState()
+            LazyRow(
+                state = bannerListState,
+                contentPadding = PaddingValues(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                items(validBanners) { banner ->
+                    Card(
+                        modifier = Modifier
+                            .fillParentMaxWidth()
+                            .height(180.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        AsyncImage(
+                            model = banner.imageUrl,
+                            contentDescription = banner.title,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+                }
+            }
+        }
+        
+        // 3. Como você está se sentindo hoje?
+        MoodCard(
+            savedMoodKey = savedMoodKey,
+            onSelectMood = { showMoodSelector = true },
+            onNavigate = onNavigate
+        )
+        
+        // 4. Atalhos rápidos
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            QuickActionItem(icon = Icons.Outlined.Book, label = "Bíblia", onClick = { onNavigate("bible") })
+            QuickActionItem(icon = PrayingHandsIcon, label = "Pedidos", onClick = { onNavigate("prayer_requests") })
+            QuickActionItem(icon = Icons.Outlined.DateRange, label = "Planos", onClick = { onNavigate("plans") })
+            QuickActionItem(icon = Icons.Filled.People, label = "Membros", onClick = { onNavigate("members") })
+        }
+        
+        // 5. Devocional Diário
+        val todayDevotional = devotionalsState.firstOrNull() 
+        if (todayDevotional != null) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).clickable { onNavigate("devotionals") },
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("Devocional Diário", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Ler", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                            Icon(Icons.Filled.ChevronRight, contentDescription = "Ler", tint = MaterialTheme.colorScheme.primary)
                         }
                     }
-                } catch (e: Exception) {}
-                
-                if (isPast) {
-                    alertMessage = "Hoje teve ${todayService.title}"
-                } else {
-                    alertMessage = "Hoje tem ${todayService.title}"
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(todayDevotional.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(todayDevotional.date, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(todayDevotional.content, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
                 }
-                alertTime = "Às ${todayService.time}"
-            } else if (tomorrowService != null) {
-                alertMessage = "Amanhã é dia de ${tomorrowService.title}"
-                alertTime = "Às ${tomorrowService.time}"
             }
-            
-            if (alertMessage.isNotEmpty()) {
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+        }
+        
+        // 6. Notícias Bíblicas
+        if (latestNews.isNotEmpty()) {
+            HomeSectionHeader(title = "Notícias Bíblicas", action = "Ver todas", onAction = { onNavigate("news_list") })
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                items(latestNews) { news ->
+                    Card(
+                        modifier = Modifier.width(240.dp).clickable { onNavigate("news_detail/${news.id}") },
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                            Icon(Icons.Outlined.DateRange, contentDescription = "Alerta", tint = MaterialTheme.colorScheme.primary)
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
-                                Text(alertMessage, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                                Text(alertTime, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f))
+                        Column {
+                            AsyncImage(
+                                model = news.imageUrl,
+                                contentDescription = news.title,
+                                modifier = Modifier.fillMaxWidth().height(120.dp),
+                                contentScale = ContentScale.Crop
+                            )
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(news.title, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text("${news.book} ${news.chapter}:${news.verse}", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
                             }
                         }
                     }
                 }
             }
-
-            // Featured Carousel
-            val bannerState = rememberLazyListState()
-            
-            val validBanners = carouselItemsState.filter { banner ->
-                if (banner.eventDate.isEmpty()) true
-                else {
-                    try {
-                        val date = java.time.LocalDate.parse(banner.eventDate)
-                        val today = java.time.LocalDate.now()
-                        !date.isBefore(today)
-                    } catch (e: Exception) {
-                        true
-                    }
-                }
-            }
-
-            LaunchedEffect(validBanners.size) {
-                if (validBanners.size > 1) {
-                    while (true) {
-                        kotlinx.coroutines.delay(4000)
-                        val nextItem = (bannerState.firstVisibleItemIndex + 1) % validBanners.size
-                        bannerState.animateScrollToItem(nextItem)
-                    }
-                }
-            }
-
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(16f / 9f),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        }
+        
+        // 7. Próximos Cultos
+        if (validServices.isNotEmpty()) {
+            HomeSectionHeader(title = "Próximos Cultos", action = "Ver", onAction = { onNavigate("services") })
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                if (validBanners.isNotEmpty()) {
-                    LazyRow(
-                        state = bannerState,
-                        modifier = Modifier.fillMaxSize(),
-                        userScrollEnabled = true
+                items(validServices.take(3)) { service ->
+                    Card(
+                        modifier = Modifier.width(200.dp).clickable { onNavigate("services") },
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                     ) {
-                        items(validBanners) { banner ->
-                            AsyncImage(
-                                model = banner.imageUrl ?: "",
-                                contentDescription = banner.title.ifEmpty { "Destaque" },
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillParentMaxSize()
-                            )
+                        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(end = 12.dp)) {
+                                Text(service.dayShort, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                                val dayNum = "🗓"
+                                Text(dayNum, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            }
+                            Column {
+                                Text(service.title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+                                Text(service.time, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                         }
                     }
-                } else {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
-                    }
                 }
             }
-
-            val carouselNews = if (bibleNewsState.isEmpty()) BibleNewsData.newsList else bibleNewsState
-            val listState = rememberLazyListState()
-            
-            LaunchedEffect(carouselNews) {
-                while (true) {
-                    kotlinx.coroutines.delay(4000)
-                    if (carouselNews.isNotEmpty()) {
-                        val currentItem = listState.firstVisibleItemIndex
-                        val nextItem = (currentItem + 1) % carouselNews.size
-                        listState.animateScrollToItem(nextItem)
-                    }
+        }
+        
+        // 8. Mídia
+        val hasMedia = contentVideosState.isNotEmpty() || contentAudiosState.isNotEmpty() || contentBooksState.isNotEmpty()
+        if (hasMedia) {
+            HomeSectionHeader(title = "Mídia", action = "Ver todas", onAction = { onNavigate("content") })
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                items(contentVideosState.take(3)) { video ->
+                    MediaCard(title = video.title, type = "Vídeo", icon = Icons.Filled.OndemandVideo, cover = video.thumbnailUrl, onClick = { onNavigate("content") })
+                }
+                items(contentAudiosState.take(3)) { audio ->
+                    MediaCard(title = audio.title, type = "Áudio", icon = Icons.Filled.MusicNote, cover = audio.coverUrl, onClick = { onNavigate("content") })
+                }
+                items(contentBooksState.take(3)) { book ->
+                    MediaCard(title = book.title, type = "Livro", icon = Icons.Outlined.Book, cover = book.coverUrl, onClick = { onNavigate("content") })
                 }
             }
-
-            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Notícias Bíblicas", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text(
-                        "Ver todos", 
-                        style = MaterialTheme.typography.labelLarge, 
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.clickable { onNavigate("news_list") }
-                    )
-                }
+        }
+    }
+    
+    // Mood Bottom Sheet
+    if (showMoodSelector) {
+        ModalBottomSheet(
+            onDismissRequest = { showMoodSelector = false }
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp).verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text("Como está seu coração hoje?", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(24.dp))
                 
-                LazyRow(
-                    state = listState,
-                    contentPadding = PaddingValues(horizontal = 20.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(carouselNews) { news ->
-                        Card(
-                            modifier = Modifier
-                                .width(280.dp)
-                                .clickable { onNavigate("news_detail/${news.id}") },
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                        ) {
-                            Column {
-                                AsyncImage(
-                                    model = news.imageUrl,
-                                    contentDescription = news.title,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(140.dp),
-                                    contentScale = ContentScale.Crop
-                                )
-                                Column(modifier = Modifier.padding(12.dp)) {
-                                    Text(
-                                        text = news.title,
-                                        fontWeight = FontWeight.Bold,
-                                        style = MaterialTheme.typography.titleSmall,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 2,
-                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = "${news.book} ${news.chapter}:${news.verse}",
-                                        color = MaterialTheme.colorScheme.primary,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Bold
-                                    )
+                val moods = listOf(
+                    MoodItem("Feliz", "😊", "Alegria"),
+                    MoodItem("Ansioso", "😟", "Ansiedade"),
+                    MoodItem("Triste", "😔", "Esperança"),
+                    MoodItem("Com medo", "😨", "Medo"),
+                    MoodItem("Irritado", "😤", "Raiva"),
+                    MoodItem("Desanimado", "😞", "Esperança"),
+                    MoodItem("Em paz", "😌", "Paz"),
+                    MoodItem("Preciso de esperança", "🙏", "Esperança")
+                )
+                
+                // Chunk to rows of 2
+                moods.chunked(2).forEach { rowMoods ->
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        rowMoods.forEach { mood ->
+                            Card(
+                                modifier = Modifier.weight(1f).clickable {
+                                    prefs.edit().putString("moodKey", mood.title).putString("moodDate", todayDateStr).apply()
+                                    savedMoodKey = mood.title
+                                    showMoodSelector = false
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Text(mood.emoji, style = MaterialTheme.typography.titleMedium)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(mood.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                             }
                         }
                     }
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+        }
+    }
+}
+
+data class MoodItem(val title: String, val emoji: String, val planCategory: String)
+
+@Composable
+fun MoodCard(savedMoodKey: String?, onSelectMood: () -> Unit, onNavigate: (String) -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).clickable { onSelectMood() },
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Filled.Favorite, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(32.dp))
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                if (savedMoodKey == null) {
+                    Text("Como você está se sentindo hoje?", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Text("Toque para escolher", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
+                } else {
+                    Text("Hoje você marcou: $savedMoodKey", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    val mappedPlan = getMappedPlan(savedMoodKey)
+                    Text("Plano recomendado: $mappedPlan", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
                 }
             }
-                Spacer(modifier = Modifier.height(40.dp))
+            if (savedMoodKey != null) {
+                IconButton(onClick = { 
+                    onNavigate("plans")
+                }) {
+                    Icon(Icons.Filled.ChevronRight, contentDescription = "Ver Plano", tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                }
+            }
         }
-        } // end PullToRefreshBox
+    }
+}
+
+fun getMappedPlan(mood: String): String {
+    return when(mood) {
+        "Feliz", "Grato" -> "Alegria"
+        "Ansioso" -> "Ansiedade"
+        "Triste", "Desanimado", "Preciso de esperança" -> "Esperança"
+        "Com medo" -> "Medo"
+        "Irritado" -> "Raiva"
+        "Sem paciência" -> "Paciência"
+        "Em paz" -> "Paz"
+        "Sofrendo", "Ferido" -> "Cura"
+        "Saudade / Perda" -> "Perda"
+        "Em dúvida" -> "Dúvida"
+        "Tentado" -> "Tentação"
+        "Estressado" -> "Estresse"
+        "Com inveja" -> "Inveja"
+        else -> "Esperança"
     }
 }
 
 @Composable
-fun QuickActionItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit = {}) {
+fun HomeSectionHeader(title: String, action: String, onAction: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(
+            action, 
+            style = MaterialTheme.typography.labelLarge, 
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.clickable { onAction() }
+        )
+    }
+}
+
+@Composable
+fun MediaCard(title: String, type: String, icon: ImageVector, cover: String, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier.width(140.dp).clickable { onClick() },
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column {
+            Box(modifier = Modifier.fillMaxWidth().height(140.dp)) {
+                AsyncImage(
+                    model = cover,
+                    contentDescription = title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+                Box(
+                    modifier = Modifier.align(Alignment.BottomStart).padding(8.dp).background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(type, color = Color.White, style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
+            Text(
+                title, 
+                style = MaterialTheme.typography.titleSmall, 
+                fontWeight = FontWeight.Bold, 
+                maxLines = 2, 
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(8.dp)
+            )
+        }
+    }
+}
+
+@Composable
+fun QuickActionItem(icon: ImageVector, label: String, onClick: () -> Unit = {}) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -280,59 +443,22 @@ fun QuickActionItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label
     ) {
         Surface(
             shape = CircleShape,
-            color = Color.Transparent,
-            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f)),
+            color = MaterialTheme.colorScheme.surfaceVariant,
             modifier = Modifier.size(56.dp).clickable { onClick() }
         ) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                Icon(imageVector = icon, contentDescription = label, modifier = Modifier.size(24.dp))
+                Icon(imageVector = icon, contentDescription = label, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
             }
         }
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
             textAlign = TextAlign.Center,
-            maxLines = 2
-        )
-    }
-}
-
-@Composable
-fun NewsCard(title: String, subtitle: String, imageUrl: String) {
-    Column(
-        modifier = Modifier.width(140.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(140.dp),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            AsyncImage(
-                model = imageUrl,
-                contentDescription = title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-        }
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
-        )
-        Text(
-            text = subtitle,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
-            maxLines = 3,
+            maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
     }
 }
-
 
 val PrayingHandsIcon: ImageVector
     get() = ImageVector.Builder(
