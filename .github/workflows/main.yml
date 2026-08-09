@@ -33,6 +33,11 @@ jobs:
         run: |
           echo "${{ secrets.MICRHEMA_KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
 
+      - name: Calcular AUTO_BUILD_NUMBER
+        run: |
+          AUTO_BUILD_NUMBER=$((517 + ${{ github.run_number }}))
+          echo "AUTO_BUILD_NUMBER=$AUTO_BUILD_NUMBER" >> $GITHUB_ENV
+
       - name: Construir o APK
         env:
           KEYSTORE_FILE: ../release.keystore
@@ -57,7 +62,7 @@ jobs:
         id: prep
         run: |
           source version.properties
-          VERSION_NAME="${MAJOR}.${MINOR}.${PATCH}.${BUILD}"
+          VERSION_NAME="${MAJOR}.${MINOR}.${PATCH}.${AUTO_BUILD_NUMBER}"
           echo "VERSION_NAME=${VERSION_NAME}" >> $GITHUB_ENV
           
           # Encontrar o APK gerado

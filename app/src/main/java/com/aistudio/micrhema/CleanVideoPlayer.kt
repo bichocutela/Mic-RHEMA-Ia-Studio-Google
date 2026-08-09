@@ -208,7 +208,7 @@ fun CleanVideoPlayer(
             } else if (isYouTube) {
                 val videoId = extractYouTubeVideoId(videoUrl)
                 if (videoId != null) {
-                    val appWebOrigin = "https://app.micrhema.com"
+                    val appWebOrigin: String? = null // Origin automática do WebView
                     AndroidView(
                         factory = { ctx ->
                             android.webkit.WebView(ctx).apply {
@@ -216,61 +216,43 @@ fun CleanVideoPlayer(
                                 settings.domStorageEnabled = true
                                 settings.mediaPlaybackRequiresUserGesture = false
                                 webChromeClient = android.webkit.WebChromeClient()
-                                webViewClient = object : android.webkit.WebViewClient() {
-                                    override fun shouldOverrideUrlLoading(view: android.webkit.WebView?, request: android.webkit.WebResourceRequest?): Boolean {
-                                        return false
-                                    }
-                                }
                                 addJavascriptInterface(object {
                                     @android.webkit.JavascriptInterface
                                     fun onError(errorCode: Int) {
                                         android.os.Handler(android.os.Looper.getMainLooper()).post {
-                                            android.util.Log.e("CleanVideoPlayer", "YouTube Player Error: $errorCode for videoId: $videoId with origin: $appWebOrigin")
+                                            android.util.Log.e("CleanVideoPlayer", "YouTube Player Error: $errorCode for videoId: $videoId with origin: ${appWebOrigin ?: "none"}")
                                             errorMessage = when (errorCode) {
                                                 101, 150 -> "O proprietário deste vídeo não permite reprodução dentro de outros aplicativos."
+                                                152 -> "Este vídeo não pôde ser reproduzido. (Erro $errorCode)"
                                                 153 -> "O YouTube não conseguiu identificar corretamente este aplicativo."
                                                 else -> "Este vídeo não pôde ser reproduzido."
                                             }
                                         }
                                     }
                                 }, "YouTubeIface")
-                                val html = """
-                                    <!DOCTYPE html>
-                                    <html>
-                                    <head>
-                                        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-                                        <meta name="referrer" content="strict-origin-when-cross-origin">
-                                        <style>
-                                            body { margin: 0; padding: 0; background-color: #000000; overflow: hidden; }
-                                            #player { width: 100vw; height: 100vh; border: none; }
-                                        </style>
-                                    </head>
-                                    <body>
-                                        <div id="player"></div>
-                                        <script src="https://www.youtube.com/iframe_api"></script>
-                                        <script>
-                                            var player;
-                                            function onYouTubeIframeAPIReady() {
-                                                player = new YT.Player('player', {
-                                                    videoId: '$videoId',
-                                                    playerVars: {
-                                                        'playsinline': 1,
-                                                        'controls': 1,
-                                                        'rel': 0,
-                                                        'origin': '$appWebOrigin'
-                                                    },
-                                                    events: {
-                                                        'onError': function(event) {
-                                                            window.YouTubeIface.onError(event.data);
+                                webViewClient = object : android.webkit.WebViewClient() {
+                                    override fun shouldOverrideUrlLoading(view: android.webkit.WebView?, request: android.webkit.WebResourceRequest?): Boolean {
+                                        return false
+                                    }
+                                    override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
+                                        super.onPageFinished(view, url)
+                                        view?.evaluateJavascript("""
+                                            window.addEventListener('message', function(event) {
+                                                try {
+                                                    var data = JSON.parse(event.data);
+                                                    if (data.event === 'onError' || data.event === 'error' || data.event === 'onStateChange') {
+                                                        if (data.event === 'onError' || data.event === 'error') {
+                                                            var code = data.info || data.args[0] || 152;
+                                                            window.YouTubeIface.onError(code);
                                                         }
                                                     }
-                                                });
-                                            }
-                                        </script>
-                                    </body>
-                                    </html>
-                                """.trimIndent()
-                                loadDataWithBaseURL("$appWebOrigin/", html, "text/html", "UTF-8", null)
+                                                } catch(e) {}
+                                            });
+                                        """.trimIndent(), null)
+                                    }
+                                }
+                                val embedUrl = "https://www.youtube.com/embed/$videoId?enablejsapi=1&playsinline=1"
+                                loadUrl(embedUrl)
                             }
                         },
                         modifier = Modifier.fillMaxSize(),

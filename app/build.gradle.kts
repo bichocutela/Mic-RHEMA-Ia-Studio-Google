@@ -27,7 +27,8 @@ if (versionFile.exists()) {
 val major = versionProps["MAJOR"].toString().toInt()
 val minor = versionProps["MINOR"].toString().toInt()
 val patch = versionProps["PATCH"].toString().toInt()
-val buildNum = versionProps["BUILD"].toString().toInt()
+val autoBuild = System.getenv("AUTO_BUILD_NUMBER")?.toIntOrNull()
+val buildNum = autoBuild ?: versionProps["BUILD"].toString().toInt()
 
 val appVersionCode = major * 1000000 + minor * 10000 + patch * 100 + buildNum
 val appVersionName = "${major}.${minor}.${patch}.${buildNum}"
@@ -207,24 +208,3 @@ tasks.matching {
 }
 
 
-tasks.configureEach {
-    if (name == "assembleRelease" || name == "bundleRelease") {
-        doLast {
-            try {
-                val tagProcess = ProcessBuilder("git", "tag", "-a", "v${appVersionName}", "-m", "Release v${appVersionName}")
-                    .directory(rootProject.rootDir)
-                    .redirectErrorStream(true)
-                    .start()
-                tagProcess.waitFor()
-                val tagOutput = tagProcess.inputStream.bufferedReader().readText()
-                if (tagProcess.exitValue() == 0) {
-                    println("Successfully created git tag v${appVersionName}")
-                } else {
-                    println("Failed to create git tag: $tagOutput")
-                }
-            } catch (e: Exception) {
-                println("Exception while creating git tag: ${e.message}")
-            }
-        }
-    }
-}
