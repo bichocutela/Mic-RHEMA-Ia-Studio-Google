@@ -63,7 +63,7 @@ fun CleanVideoPlayer(
         if (videoUrl.isBlank()) {
             errorMessage = "O link do vídeo está vazio ou inválido."
             android.util.Log.e("CleanVideoPlayer", "Video URL is blank")
-        } else if (!videoUrl.contains("http") && extractYoutubeId(videoUrl) == null) {
+        } else if (!videoUrl.contains("http") && extractYouTubeVideoId(videoUrl) == null) {
             errorMessage = "Link de vídeo não reconhecido. Forneça uma URL válida."
             android.util.Log.e("CleanVideoPlayer", "Invalid URL format: $videoUrl")
         }
@@ -205,6 +205,80 @@ fun CleanVideoPlayer(
                     },
                     modifier = Modifier.fillMaxSize()
                 )
+            } else if (isYouTube) {
+                val videoId = extractYouTubeVideoId(videoUrl)
+                if (videoId != null) {
+                    AndroidView(
+                        factory = { ctx ->
+                            android.webkit.WebView(ctx).apply {
+                                settings.javaScriptEnabled = true
+                                settings.domStorageEnabled = true
+                                settings.mediaPlaybackRequiresUserGesture = false
+                                webChromeClient = android.webkit.WebChromeClient()
+                                webViewClient = object : android.webkit.WebViewClient() {
+                                    override fun shouldOverrideUrlLoading(view: android.webkit.WebView?, request: android.webkit.WebResourceRequest?): Boolean {
+                                        return false
+                                    }
+                                }
+                                addJavascriptInterface(object {
+                                    @android.webkit.JavascriptInterface
+                                    fun onError(errorCode: Int) {
+                                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                            errorMessage = "Este vídeo não pôde ser reproduzido. (Erro $errorCode)"
+                                        }
+                                    }
+                                }, "YouTubeIface")
+                                val html = """
+                                    <!DOCTYPE html>
+                                    <html>
+                                    <head>
+                                        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                                        <style>
+                                            body { margin: 0; padding: 0; background-color: #000000; overflow: hidden; }
+                                            #player { width: 100vw; height: 100vh; border: none; }
+                                        </style>
+                                    </head>
+                                    <body>
+                                        <div id="player"></div>
+                                        <script src="https://www.youtube.com/iframe_api"></script>
+                                        <script>
+                                            var player;
+                                            function onYouTubeIframeAPIReady() {
+                                                player = new YT.Player('player', {
+                                                    videoId: '$videoId',
+                                                    playerVars: {
+                                                        'playsinline': 1,
+                                                        'controls': 1,
+                                                        'rel': 0
+                                                    },
+                                                    events: {
+                                                        'onError': function(event) {
+                                                            window.YouTubeIface.onError(event.data);
+                                                        }
+                                                    }
+                                                });
+                                            }
+                                        </script>
+                                    </body>
+                                    </html>
+                                """.trimIndent()
+                                loadDataWithBaseURL("https://www.youtube.com", html, "text/html", "UTF-8", null)
+                            }
+                        },
+                        modifier = Modifier.fillMaxSize(),
+                        onRelease = { webView ->
+                            webView.stopLoading()
+                            webView.loadUrl("about:blank")
+                            webView.clearHistory()
+                            webView.removeAllViews()
+                            webView.destroy()
+                        }
+                    )
+                } else {
+                    LaunchedEffect(Unit) {
+                        errorMessage = "Não foi possível extrair o ID do vídeo."
+                    }
+                }
             }
 
             // Buffering Indicator for ExoPlayer

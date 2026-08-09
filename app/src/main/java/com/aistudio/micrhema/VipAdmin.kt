@@ -1288,7 +1288,7 @@ fun EditVipIbrSection() {
                         if (chapterIdx != -1) {
                             val updatedChapters = course.chapters.toMutableList()
                             val isYt = isYoutubeUrl(editVideoUrl)
-                            val ytId = extractYoutubeId(editVideoUrl) ?: ""
+                            val ytId = extractYouTubeVideoId(editVideoUrl) ?: ""
                             updatedChapters[chapterIdx] = editingChapter!!.copy(
                                 title = editTitle,
                                 description = editDescription,

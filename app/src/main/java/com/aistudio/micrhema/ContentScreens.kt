@@ -585,16 +585,7 @@ fun VideosList(selectedVideo: ContentVideo?, searchQuery: String, isLocalLoading
             items(filteredVideos) { video ->
                 Card(
                     modifier = Modifier.fillMaxWidth().clickable { 
-                        if (isYoutubeUrl(video.videoUrl)) {
-                            try {
-                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(video.videoUrl))
-                                context.startActivity(intent)
-                            } catch(e: Exception) {
-                                android.widget.Toast.makeText(context, "Erro ao abrir YouTube", android.widget.Toast.LENGTH_SHORT).show()
-                            }
-                        } else {
-                            onVideoSelected(video)
-                        }
+                        onVideoSelected(video)
                     },
                     shape = RoundedCornerShape(24.dp)
                 ) {

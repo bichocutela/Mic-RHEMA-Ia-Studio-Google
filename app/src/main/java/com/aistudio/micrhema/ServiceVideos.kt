@@ -115,16 +115,7 @@ fun ServiceVideosGallery() {
                                             .fillMaxWidth()
                                             .height(120.dp)
                                             .clickable {
-                                                if (isYoutubeUrl(video.videoUrl)) {
-                                                    try {
-                                                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(video.videoUrl))
-                                                        context.startActivity(intent)
-                                                    } catch(e: Exception) {
-                                                        android.widget.Toast.makeText(context, "Erro ao abrir", android.widget.Toast.LENGTH_SHORT).show()
-                                                    }
-                                                } else {
-                                                    selectedVideo = video 
-                                                }
+                                                selectedVideo = video 
                                             },
                                         contentScale = ContentScale.Crop
                                     )
@@ -162,16 +153,7 @@ fun ServiceVideosGallery() {
                                     ) {
                                         Button(
                                             onClick = { 
-                                                if (isYoutubeUrl(video.videoUrl)) {
-                                                    try {
-                                                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(video.videoUrl))
-                                                        context.startActivity(intent)
-                                                    } catch(e: Exception) {
-                                                        android.widget.Toast.makeText(context, "Erro ao abrir", android.widget.Toast.LENGTH_SHORT).show()
-                                                    }
-                                                } else {
-                                                    selectedVideo = video 
-                                                }
+                                                selectedVideo = video 
                                             },
                                             modifier = Modifier.weight(1f),
                                             contentPadding = PaddingValues(vertical = 4.dp, horizontal = 8.dp),
