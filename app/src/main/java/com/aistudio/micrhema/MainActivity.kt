@@ -609,7 +609,10 @@ fun MainScreen() {
                 }
                 composable("equipe") { TeamScreen() }
                 composable("team") { TeamScreen() }
-                composable("plans") { PlansScreen(onNavigateToBible = { book, chap -> navController.navigate("bible?book=$book&chapter=$chap") }) }
+                composable("plans?theme={theme}") { backStackEntry ->
+                    val theme = backStackEntry.arguments?.getString("theme")
+                    PlansScreen(initialThemeName = theme, onNavigateToBible = { book, chap -> navController.navigate("bible?book=$book&chapter=$chap") }) 
+                }
                 composable(Screen.About.route) { AboutScreen() }
                 composable(Screen.Donations.route) { DonationsScreen() }
                 composable(Screen.Settings.route) { SettingsScreen() }

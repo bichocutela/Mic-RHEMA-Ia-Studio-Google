@@ -23,8 +23,17 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DevotionalsScreen() {
+fun DevotionalsScreen(initialDevotionalId: String? = null) {
     var selectedDevotional by remember { mutableStateOf<Devotional?>(null) }
+    
+    LaunchedEffect(initialDevotionalId, devotionalsState) {
+        if (initialDevotionalId != null) {
+            val dev = devotionalsState.find { it.id == initialDevotionalId }
+            if (dev != null) {
+                selectedDevotional = dev
+            }
+        }
+    }
     
     if (selectedDevotional != null) {
         DevotionalDetailScreen(

@@ -12,15 +12,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material.icons.outlined.Book
-import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.OndemandVideo
@@ -38,41 +33,67 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.launch
 import coil.compose.AsyncImage
-import java.util.Calendar
-import java.text.SimpleDateFormat
-import java.util.Locale
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+import java.time.DayOfWeek
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(onNavigate: (String) -> Unit = {}) {
     val scrollState = rememberScrollState()
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
     
     val currentMember = loggedInMemberState.value
     
     // Data filtering for Banners
-    val now = Calendar.getInstance().timeInMillis
-    val validBanners = carouselItemsState.filter {
-        it.eventDate.isEmpty() || try {
-            val date = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).parse(it.eventDate)
-            date != null && date.time >= now - 86400000 // Keep for the day
-        } catch (e: Exception) {
-            true
+    val today = LocalDate.now()
+    val validBanners = carouselItemsState.filter { banner ->
+        if (banner.eventDate.isBlank()) return@filter true
+        try {
+            val date = LocalDate.parse(banner.eventDate) // format yyyy-MM-dd
+            !date.isBefore(today)
+        } catch (e: DateTimeParseException) {
+            true // If format is invalid, keep it to not break the app
         }
     }
     
-    val validServices = weeklyServicesState.filter { true } 
+    // Sort logic for Services
+    val dayMap = mapOf(
+        "Domingo" to DayOfWeek.SUNDAY,
+        "Segunda" to DayOfWeek.MONDAY,
+        "Segunda-feira" to DayOfWeek.MONDAY,
+        "Terça" to DayOfWeek.TUESDAY,
+        "Terça-feira" to DayOfWeek.TUESDAY,
+        "Quarta" to DayOfWeek.WEDNESDAY,
+        "Quarta-feira" to DayOfWeek.WEDNESDAY,
+        "Quinta" to DayOfWeek.THURSDAY,
+        "Quinta-feira" to DayOfWeek.THURSDAY,
+        "Sexta" to DayOfWeek.FRIDAY,
+        "Sexta-feira" to DayOfWeek.FRIDAY,
+        "Sábado" to DayOfWeek.SATURDAY
+    )
+    val currentDayOfWeek = today.dayOfWeek
+    val validServices = weeklyServicesState.sortedBy { service ->
+        val serviceDay = dayMap[service.day] ?: DayOfWeek.SUNDAY
+        var diff = serviceDay.value - currentDayOfWeek.value
+        if (diff < 0) diff += 7 // Next week
+        diff
+    }.take(3)
+    
+    // Devotional Logic
+    val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+    val todayStr = today.format(formatter)
+    val todayDevotional = devotionalsState.find { it.date == todayStr } ?: devotionalsState.firstOrNull()
+    
     val latestNews = bibleNewsState.sortedByDescending { it.id }.take(5)
     
     // Mood State
     var showMoodSelector by remember { mutableStateOf(false) }
     val prefs = context.getSharedPreferences("mic_rhema_prefs", Context.MODE_PRIVATE)
     
-    val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-    val todayDateStr = dateFormat.format(Calendar.getInstance().time)
+    val todayDateStr = today.toString()
     
     var savedMoodKey by remember { mutableStateOf(prefs.getString("moodKey", null)) }
     var savedMoodDate by remember { mutableStateOf(prefs.getString("moodDate", null)) }
@@ -119,26 +140,47 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
         // 2. Destaques / Banners
         if (validBanners.isNotEmpty()) {
             val bannerListState = rememberLazyListState()
-            LazyRow(
-                state = bannerListState,
-                contentPadding = PaddingValues(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                items(validBanners) { banner ->
-                    Card(
-                        modifier = Modifier
-                            .fillParentMaxWidth()
-                            .height(180.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            Column {
+                LazyRow(
+                    state = bannerListState,
+                    contentPadding = PaddingValues(horizontal = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(validBanners) { banner ->
+                        Card(
+                            modifier = Modifier
+                                .fillParentMaxWidth()
+                                .height(180.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                        ) {
+                            AsyncImage(
+                                model = banner.imageUrl,
+                                contentDescription = banner.title,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+                    }
+                }
+                
+                if (validBanners.size > 1) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center
                     ) {
-                        AsyncImage(
-                            model = banner.imageUrl,
-                            contentDescription = banner.title,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
+                        val currentItem = bannerListState.firstVisibleItemIndex
+                        validBanners.indices.forEach { index ->
+                            val color = if (index == currentItem) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                            Box(
+                                modifier = Modifier
+                                    .padding(horizontal = 4.dp)
+                                    .size(8.dp)
+                                    .background(color, CircleShape)
+                            )
+                        }
                     }
                 }
             }
@@ -157,16 +199,15 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             QuickActionItem(icon = Icons.Outlined.Book, label = "Bíblia", onClick = { onNavigate("bible") })
-            QuickActionItem(icon = PrayingHandsIcon, label = "Pedidos", onClick = { onNavigate("prayer_requests") })
-            QuickActionItem(icon = Icons.Outlined.DateRange, label = "Planos", onClick = { onNavigate("plans") })
-            QuickActionItem(icon = Icons.Filled.People, label = "Membros", onClick = { onNavigate("members") })
+            QuickActionItem(icon = PrayingHandsIcon, label = "Pedidos", onClick = { onNavigate(Screen.Prayer.route) })
+            QuickActionItem(icon = Icons.Outlined.DateRange, label = "Planos", onClick = { onNavigate(Screen.Plans.route) })
+            QuickActionItem(icon = Icons.Filled.People, label = "Membros", onClick = { onNavigate(Screen.Members.route) })
         }
         
         // 5. Devocional Diário
-        val todayDevotional = devotionalsState.firstOrNull() 
         if (todayDevotional != null) {
             Card(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).clickable { onNavigate("devotionals") },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).clickable { onNavigate(Screen.Devotionals.route + "?id=${todayDevotional.id}") },
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             ) {
@@ -221,14 +262,14 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
         
         // 7. Próximos Cultos
         if (validServices.isNotEmpty()) {
-            HomeSectionHeader(title = "Próximos Cultos", action = "Ver", onAction = { onNavigate("services") })
+            HomeSectionHeader(title = "Próximos Cultos", action = "Ver", onAction = { onNavigate(Screen.Services.route) })
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                items(validServices.take(3)) { service ->
+                items(validServices) { service ->
                     Card(
-                        modifier = Modifier.width(200.dp).clickable { onNavigate("services") },
+                        modifier = Modifier.width(200.dp).clickable { onNavigate(Screen.Services.route) },
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                     ) {
@@ -251,19 +292,19 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
         // 8. Mídia
         val hasMedia = contentVideosState.isNotEmpty() || contentAudiosState.isNotEmpty() || contentBooksState.isNotEmpty()
         if (hasMedia) {
-            HomeSectionHeader(title = "Mídia", action = "Ver todas", onAction = { onNavigate("content") })
+            HomeSectionHeader(title = "Mídia", action = "Ver todas", onAction = { onNavigate(Screen.Content.route) })
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 items(contentVideosState.take(3)) { video ->
-                    MediaCard(title = video.title, type = "Vídeo", icon = Icons.Filled.OndemandVideo, cover = video.thumbnailUrl, onClick = { onNavigate("content") })
+                    MediaCard(title = video.title, type = "Vídeo", icon = Icons.Filled.OndemandVideo, cover = video.thumbnailUrl, onClick = { onNavigate(Screen.Content.route) })
                 }
                 items(contentAudiosState.take(3)) { audio ->
-                    MediaCard(title = audio.title, type = "Áudio", icon = Icons.Filled.MusicNote, cover = audio.coverUrl, onClick = { onNavigate("content") })
+                    MediaCard(title = audio.title, type = "Áudio", icon = Icons.Filled.MusicNote, cover = audio.coverUrl, onClick = { onNavigate(Screen.Content.route) })
                 }
                 items(contentBooksState.take(3)) { book ->
-                    MediaCard(title = book.title, type = "Livro", icon = Icons.Outlined.Book, cover = book.coverUrl, onClick = { onNavigate("content") })
+                    MediaCard(title = book.title, type = "Livro", icon = Icons.Outlined.Book, cover = book.coverUrl, onClick = { onNavigate(Screen.Content.route) })
                 }
             }
         }
@@ -330,30 +371,46 @@ data class MoodItem(val title: String, val emoji: String, val planCategory: Stri
 @Composable
 fun MoodCard(savedMoodKey: String?, onSelectMood: () -> Unit, onNavigate: (String) -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).clickable { onSelectMood() },
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
     ) {
         Row(
-            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Filled.Favorite, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(32.dp))
-            Spacer(modifier = Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                if (savedMoodKey == null) {
-                    Text("Como você está se sentindo hoje?", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                    Text("Toque para escolher", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
-                } else {
-                    Text("Hoje você marcou: $savedMoodKey", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                    val mappedPlan = getMappedPlan(savedMoodKey)
-                    Text("Plano recomendado: $mappedPlan", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { onSelectMood() }
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Filled.Favorite, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(32.dp))
+                Spacer(modifier = Modifier.width(16.dp))
+                Column {
+                    if (savedMoodKey == null) {
+                        Text("Como você está se sentindo hoje?", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Text("Toque para escolher", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
+                    } else {
+                        Text("Hoje você marcou: $savedMoodKey", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Text("Toque para alterar o sentimento", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
+                    }
                 }
             }
             if (savedMoodKey != null) {
-                IconButton(onClick = { 
-                    onNavigate("plans")
-                }) {
+                val mappedPlan = getMappedPlan(savedMoodKey)
+                Row(
+                    modifier = Modifier
+                        .clickable { onNavigate(Screen.Plans.route + "?theme=" + mappedPlan) }
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("Ver plano:", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f))
+                        Text(mappedPlan, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
                     Icon(Icons.Filled.ChevronRight, contentDescription = "Ver Plano", tint = MaterialTheme.colorScheme.onPrimaryContainer)
                 }
             }

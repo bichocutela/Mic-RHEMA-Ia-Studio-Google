@@ -31,9 +31,19 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PlansScreen(onNavigateToBible: (String, Int) -> Unit = { _, _ -> }) {
+fun PlansScreen(initialThemeName: String? = null, onNavigateToBible: (String, Int) -> Unit = { _, _ -> }) {
     var selectedCategory by remember { mutableStateOf<PlanCategory?>(null) }
     var selectedTheme by remember { mutableStateOf<PlanTheme?>(null) }
+    
+    LaunchedEffect(initialThemeName) {
+        if (initialThemeName != null) {
+            val allPlans = if (biblePlansState.isEmpty()) PlansData.categories else biblePlansState
+            val theme = allPlans.flatMap { it.themes }.find { it.title == initialThemeName }
+            if (theme != null) {
+                selectedTheme = theme
+            }
+        }
+    }
 
     if (selectedTheme != null) {
         ThemeDetailScreen(
