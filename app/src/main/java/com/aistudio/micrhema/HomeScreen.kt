@@ -38,6 +38,8 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 import java.time.DayOfWeek
+import java.time.LocalTime
+import java.time.LocalDateTime
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,12 +76,32 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
         "Sexta-feira" to DayOfWeek.FRIDAY,
         "Sábado" to DayOfWeek.SATURDAY
     )
+    val currentTime = java.time.LocalTime.now()
     val currentDayOfWeek = today.dayOfWeek
     val validServices = weeklyServicesState.sortedBy { service ->
         val serviceDay = dayMap[service.day] ?: DayOfWeek.SUNDAY
         var diff = serviceDay.value - currentDayOfWeek.value
-        if (diff < 0) diff += 7 // Next week
-        diff
+        
+        var parsedTime = LocalTime.of(23, 59)
+        try {
+            val cleanTime = service.time.replace("h", ":", ignoreCase = true).filter { it.isDigit() || it == ':' }
+            val timeParts = cleanTime.split(":")
+            if (timeParts.size >= 2) {
+                parsedTime = LocalTime.of(timeParts[0].toInt(), timeParts[1].take(2).toInt())
+            }
+        } catch (e: Exception) {
+            // Treat invalid times safely without crashing
+        }
+
+        if (diff < 0) {
+            diff += 7
+        } else if (diff == 0) {
+            if (parsedTime.isBefore(currentTime)) {
+                diff += 7
+            }
+        }
+        
+        today.plusDays(diff.toLong()).atTime(parsedTime)
     }.take(3)
     
     // Devotional Logic
