@@ -1,24 +1,51 @@
 package com.aistudio.micrhema
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AboutScreen() {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    
+    var isChecking by remember { mutableStateOf(false) }
+    var updateResult by remember { mutableStateOf<UpdateResult?>(null) }
+    
+    val checkUpdate: () -> Unit = {
+        isChecking = true
+        coroutineScope.launch {
+            val result = UpdateChecker.checkForUpdates(BuildConfig.VERSION_NAME)
+            updateResult = result
+            isChecking = false
+        }
+    }
+    
+    // Automatically check on load
+    LaunchedEffect(Unit) {
+        checkUpdate()
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
@@ -48,7 +75,6 @@ fun AboutScreen() {
                     color = MaterialTheme.colorScheme.onBackground
                 )
             }
-
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -107,6 +133,127 @@ fun AboutScreen() {
                         }
                     }
                 }
+
+                // Update Checker Section
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Text(
+                            text = "Versão do aplicativo",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        Text(
+                            text = "Versão atual: ${BuildConfig.VERSION_NAME}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        if (isChecking) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text("Verificando atualizações...", style = MaterialTheme.typography.bodyMedium)
+                            }
+                        } else {
+                            when (val result = updateResult) {
+                                is UpdateResult.Success -> {
+                                    if (result.info.updateAvailable) {
+                                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(Icons.Outlined.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = "Nova versão disponível",
+                                                    style = MaterialTheme.typography.bodyLarge,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                            Text(
+                                                text = "Versão ${result.info.latestVersion}",
+                                                style = MaterialTheme.typography.bodyMedium
+                                            )
+                                            
+                                            if (result.info.releaseNotes.isNotBlank()) {
+                                                Text(
+                                                    text = "Novidades desta versão:",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.padding(top = 8.dp)
+                                                )
+                                                Text(
+                                                    text = result.info.releaseNotes,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                            
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            
+                                            Button(
+                                                onClick = {
+                                                    result.info.downloadUrl?.let { url ->
+                                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                                        context.startActivity(intent)
+                                                    }
+                                                },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                enabled = result.info.downloadUrl != null
+                                            ) {
+                                                Text(if (result.info.downloadUrl != null) "Atualizar agora" else "Apk não encontrado")
+                                            }
+                                        }
+                                    } else {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = androidx.compose.ui.graphics.Color(0xFF4CAF50))
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = "Seu aplicativo está atualizado",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = androidx.compose.ui.graphics.Color(0xFF4CAF50)
+                                            )
+                                        }
+                                    }
+                                }
+                                is UpdateResult.Error -> {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "Não foi possível verificar atualizações. Confira sua conexão e tente novamente.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                }
+                                null -> {}
+                            }
+                        }
+
+                        if (!isChecking) {
+                            OutlinedButton(
+                                onClick = checkUpdate,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(if (updateResult is UpdateResult.Error) "Tentar novamente" else if (updateResult is UpdateResult.Success && (updateResult as UpdateResult.Success).info.updateAvailable) "Verificar novamente" else "Verificar atualização")
+                            }
+                        }
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(100.dp))
             }
         }
