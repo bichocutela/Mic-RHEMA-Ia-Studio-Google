@@ -3,7 +3,7 @@ package com.aistudio.micrhema
 fun extractYouTubeVideoId(url: String): String? {
     if (url.isBlank()) return null
     val cleanUrl = url.trim()
-    val regex = "(?:youtube\\.com\\/(?:[^\\/]+\\/.+\\/|(?:v|e(?:mbed)?)\\/|.*[?&]v=)|youtu\\.be\\/)([^\"&?\\/\\s]{11})".toRegex(RegexOption.IGNORE_CASE)
+    val regex = "(?:youtube\\.com\\/(?:[^\\/]+\\/.+\\/|(?:v|e(?:mbed)?|shorts|live)\\/|.*[?&]v=)|youtu\\.be\\/)([^\"&?\\/\\s]{11})".toRegex(RegexOption.IGNORE_CASE)
     val matchResult = regex.find(cleanUrl)
     return matchResult?.groupValues?.get(1) ?: if (!cleanUrl.contains("http") && !cleanUrl.contains("/") && cleanUrl.length >= 11) cleanUrl else null
 }

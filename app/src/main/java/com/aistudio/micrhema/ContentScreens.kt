@@ -295,7 +295,7 @@ fun BooksList(selectedBook: ContentBook?, searchQuery: String, isLocalLoading: B
                         Card(
                             modifier = Modifier.fillMaxWidth().clickable { onBookSelected(book) }
                                 .sharedElement(
-                                    state = rememberSharedContentState(key = "book_card_${book.id}"),
+                                    rememberSharedContentState(key = "book_card_${book.id}"),
                                     animatedVisibilityScope = this@AnimatedContent
                                 ),
                             shape = RoundedCornerShape(24.dp)
@@ -307,7 +307,7 @@ fun BooksList(selectedBook: ContentBook?, searchQuery: String, isLocalLoading: B
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier.size(80.dp, 120.dp).clip(RoundedCornerShape(12.dp))
                                         .sharedElement(
-                                            state = rememberSharedContentState(key = "book_cover_${book.id}"),
+                                            rememberSharedContentState(key = "book_cover_${book.id}"),
                                             animatedVisibilityScope = this@AnimatedContent
                                         )
                                 )
@@ -317,7 +317,7 @@ fun BooksList(selectedBook: ContentBook?, searchQuery: String, isLocalLoading: B
                                         book.title, 
                                         style = MaterialTheme.typography.titleLarge,
                                         modifier = Modifier.sharedElement(
-                                            state = rememberSharedContentState(key = "book_title_${book.id}"),
+                                            rememberSharedContentState(key = "book_title_${book.id}"),
                                             animatedVisibilityScope = this@AnimatedContent
                                         )
                                     )
@@ -340,7 +340,7 @@ fun BooksList(selectedBook: ContentBook?, searchQuery: String, isLocalLoading: B
 @Composable
 fun androidx.compose.animation.SharedTransitionScope.BookReader(book: ContentBook, onBack: () -> Unit, animatedVisibilityScope: androidx.compose.animation.AnimatedVisibilityScope) {
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).sharedElement(
-        state = rememberSharedContentState(key = "book_card_${book.id}"),
+        rememberSharedContentState(key = "book_card_${book.id}"),
         animatedVisibilityScope = animatedVisibilityScope
     )) {
         Row(
@@ -357,7 +357,7 @@ fun androidx.compose.animation.SharedTransitionScope.BookReader(book: ContentBoo
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.size(40.dp, 60.dp).clip(RoundedCornerShape(4.dp))
                     .sharedElement(
-                        state = rememberSharedContentState(key = "book_cover_${book.id}"),
+                        rememberSharedContentState(key = "book_cover_${book.id}"),
                         animatedVisibilityScope = animatedVisibilityScope
                     )
             )
@@ -366,7 +366,7 @@ fun androidx.compose.animation.SharedTransitionScope.BookReader(book: ContentBoo
                 book.title, 
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.sharedElement(
-                    state = rememberSharedContentState(key = "book_title_${book.id}"),
+                    rememberSharedContentState(key = "book_title_${book.id}"),
                     animatedVisibilityScope = animatedVisibilityScope
                 )
             )
@@ -450,7 +450,7 @@ fun AudiosList(selectedAudio: ContentAudio?, searchQuery: String, isLocalLoading
                                         .fillMaxWidth()
                                         .clickable { onAudioSelected(audio) }
                                         .sharedElement(
-                                            state = rememberSharedContentState(key = "audio_card_${audio.id}"),
+                                            rememberSharedContentState(key = "audio_card_${audio.id}"),
                                             animatedVisibilityScope = this@AnimatedContent
                                         ),
                                     shape = RoundedCornerShape(24.dp),
@@ -469,7 +469,7 @@ fun AudiosList(selectedAudio: ContentAudio?, searchQuery: String, isLocalLoading
                                                 contentScale = ContentScale.Crop,
                                                 modifier = Modifier.size(60.dp).clip(RoundedCornerShape(12.dp))
                                                     .sharedElement(
-                                                        state = rememberSharedContentState(key = "audio_cover_${audio.id}"),
+                                                        rememberSharedContentState(key = "audio_cover_${audio.id}"),
                                                         animatedVisibilityScope = this@AnimatedContent
                                                     )
                                             )
@@ -479,7 +479,7 @@ fun AudiosList(selectedAudio: ContentAudio?, searchQuery: String, isLocalLoading
                                                     audio.title, 
                                                     style = MaterialTheme.typography.titleMedium,
                                                     modifier = Modifier.sharedElement(
-                                                        state = rememberSharedContentState(key = "audio_title_${audio.id}"),
+                                                        rememberSharedContentState(key = "audio_title_${audio.id}"),
                                                         animatedVisibilityScope = this@AnimatedContent
                                                     )
                                                 )

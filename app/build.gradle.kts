@@ -138,6 +138,7 @@ dependencies {
     implementation(libs.retrofit.converter.serialization)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.okhttp)
+    implementation(libs.youtube.player)
 
     debugImplementation(libs.androidx.ui.tooling)
 }

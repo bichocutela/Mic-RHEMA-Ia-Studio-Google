@@ -208,60 +208,38 @@ fun CleanVideoPlayer(
             } else if (isYouTube) {
                 val videoId = extractYouTubeVideoId(videoUrl)
                 if (videoId != null) {
-                    val appWebOrigin: String? = null // Origin automática do WebView
+                    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
                     AndroidView(
                         factory = { ctx ->
-                            android.webkit.WebView(ctx).apply {
-                                settings.javaScriptEnabled = true
-                                settings.domStorageEnabled = true
-                                settings.mediaPlaybackRequiresUserGesture = false
-                                webChromeClient = android.webkit.WebChromeClient()
-                                addJavascriptInterface(object {
-                                    @android.webkit.JavascriptInterface
-                                    fun onError(errorCode: Int) {
+                            com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView(ctx).apply {
+                                lifecycleOwner.lifecycle.addObserver(this)
+                                addYouTubePlayerListener(object : com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.AbstractYouTubePlayerListener() {
+                                    override fun onReady(youTubePlayer: com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer) {
+                                        youTubePlayer.cueVideo(videoId, 0f)
+                                    }
+                                    
+                                    override fun onStateChange(youTubePlayer: com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer, state: com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants.PlayerState) {
+                                        if (state == com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants.PlayerState.PLAYING) {
+                                            isPlaying = true
+                                        } else if (state == com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants.PlayerState.PAUSED || state == com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants.PlayerState.ENDED) {
+                                            isPlaying = false
+                                        }
+                                    }
+                                    
+                                    override fun onError(youTubePlayer: com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer, error: com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants.PlayerError) {
                                         android.os.Handler(android.os.Looper.getMainLooper()).post {
-                                            android.util.Log.e("CleanVideoPlayer", "YouTube Player Error: $errorCode for videoId: $videoId with origin: ${appWebOrigin ?: "none"}")
-                                            errorMessage = when (errorCode) {
-                                                101, 150 -> "O proprietário deste vídeo não permite reprodução dentro de outros aplicativos."
-                                                152 -> "Este vídeo não pôde ser reproduzido. (Erro $errorCode)"
-                                                153 -> "O YouTube não conseguiu identificar corretamente este aplicativo."
+                                            errorMessage = when (error) {
+                                                com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants.PlayerError.VIDEO_NOT_PLAYABLE_IN_EMBEDDED_PLAYER -> "Este vídeo não permite reprodução dentro de outros aplicativos."
                                                 else -> "Este vídeo não pôde ser reproduzido."
                                             }
                                         }
                                     }
-                                }, "YouTubeIface")
-                                webViewClient = object : android.webkit.WebViewClient() {
-                                    override fun shouldOverrideUrlLoading(view: android.webkit.WebView?, request: android.webkit.WebResourceRequest?): Boolean {
-                                        return false
-                                    }
-                                    override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
-                                        super.onPageFinished(view, url)
-                                        view?.evaluateJavascript("""
-                                            window.addEventListener('message', function(event) {
-                                                try {
-                                                    var data = JSON.parse(event.data);
-                                                    if (data.event === 'onError' || data.event === 'error' || data.event === 'onStateChange') {
-                                                        if (data.event === 'onError' || data.event === 'error') {
-                                                            var code = data.info || data.args[0] || 152;
-                                                            window.YouTubeIface.onError(code);
-                                                        }
-                                                    }
-                                                } catch(e) {}
-                                            });
-                                        """.trimIndent(), null)
-                                    }
-                                }
-                                val embedUrl = "https://www.youtube.com/embed/$videoId?enablejsapi=1&playsinline=1"
-                                loadUrl(embedUrl)
+                                })
                             }
                         },
                         modifier = Modifier.fillMaxSize(),
-                        onRelease = { webView ->
-                            webView.stopLoading()
-                            webView.loadUrl("about:blank")
-                            webView.clearHistory()
-                            webView.removeAllViews()
-                            webView.destroy()
+                        onRelease = { view ->
+                            view.release()
                         }
                     )
                 } else {
