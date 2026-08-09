@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Settings
@@ -20,6 +21,7 @@ import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -299,33 +301,65 @@ fun AdminScreen() {
 
             var currentSection by remember { mutableStateOf(AdminSection.DASHBOARD) }
 
+            BackHandler(enabled = currentSection != AdminSection.DASHBOARD) {
+                currentSection = AdminSection.DASHBOARD
+            }
+
             if (currentSection == AdminSection.DASHBOARD) {
                 AdminDashboard(
                     onNavigate = { currentSection = it },
                     paddingValues = paddingValues
                 )
             } else {
+                val sectionName = when(currentSection) {
+                    AdminSection.DEVOTIONALS -> "Devocionais"
+                    AdminSection.NEWS -> "Notícias"
+                    AdminSection.CONTENT -> "Mídia"
+                    AdminSection.PLANS -> "Planos Bíblicos"
+                    AdminSection.VIP -> "Instituto Bíblico / VIP"
+                    AdminSection.SERVICES -> "Cultos"
+                    AdminSection.BANNERS -> "Destaques"
+                    AdminSection.DONATIONS -> "Dízimos e Ofertas"
+                    AdminSection.TEAM -> "Equipe"
+                    AdminSection.MEMBERS -> "Membros"
+                    AdminSection.PROFILES -> "Perfis dos Membros"
+                    AdminSection.TABS -> "Abas do Aplicativo"
+                    AdminSection.SETTINGS -> "Configurações"
+                    AdminSection.ABOUT -> "Sobre"
+                    else -> ""
+                }
+                
                 Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-                    // Back button
-                    Row(
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { currentSection = AdminSection.DASHBOARD }
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .padding(16.dp)
                     ) {
-                        Icon(
-                            Icons.Default.ArrowBack, 
-                            contentDescription = "Voltar", 
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Voltar ao Painel",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack, 
+                                contentDescription = "Voltar para o Painel Administrativo", 
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Painel Administrativo",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        if (sectionName.isNotEmpty()) {
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                text = sectionName,
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
                     }
 
                     Box(modifier = Modifier.fillMaxSize().weight(1f)) {
