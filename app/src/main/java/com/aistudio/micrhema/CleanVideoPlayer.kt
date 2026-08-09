@@ -208,6 +208,7 @@ fun CleanVideoPlayer(
             } else if (isYouTube) {
                 val videoId = extractYouTubeVideoId(videoUrl)
                 if (videoId != null) {
+                    val appWebOrigin = "https://app.micrhema.com"
                     AndroidView(
                         factory = { ctx ->
                             android.webkit.WebView(ctx).apply {
@@ -224,7 +225,12 @@ fun CleanVideoPlayer(
                                     @android.webkit.JavascriptInterface
                                     fun onError(errorCode: Int) {
                                         android.os.Handler(android.os.Looper.getMainLooper()).post {
-                                            errorMessage = "Este vídeo não pôde ser reproduzido. (Erro $errorCode)"
+                                            android.util.Log.e("CleanVideoPlayer", "YouTube Player Error: $errorCode for videoId: $videoId with origin: $appWebOrigin")
+                                            errorMessage = when (errorCode) {
+                                                101, 150 -> "O proprietário deste vídeo não permite reprodução dentro de outros aplicativos."
+                                                153 -> "O YouTube não conseguiu identificar corretamente este aplicativo."
+                                                else -> "Este vídeo não pôde ser reproduzido."
+                                            }
                                         }
                                     }
                                 }, "YouTubeIface")
@@ -233,6 +239,7 @@ fun CleanVideoPlayer(
                                     <html>
                                     <head>
                                         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                                        <meta name="referrer" content="strict-origin-when-cross-origin">
                                         <style>
                                             body { margin: 0; padding: 0; background-color: #000000; overflow: hidden; }
                                             #player { width: 100vw; height: 100vh; border: none; }
@@ -249,7 +256,8 @@ fun CleanVideoPlayer(
                                                     playerVars: {
                                                         'playsinline': 1,
                                                         'controls': 1,
-                                                        'rel': 0
+                                                        'rel': 0,
+                                                        'origin': '$appWebOrigin'
                                                     },
                                                     events: {
                                                         'onError': function(event) {
@@ -262,7 +270,7 @@ fun CleanVideoPlayer(
                                     </body>
                                     </html>
                                 """.trimIndent()
-                                loadDataWithBaseURL("https://www.youtube.com", html, "text/html", "UTF-8", null)
+                                loadDataWithBaseURL("$appWebOrigin/", html, "text/html", "UTF-8", null)
                             }
                         },
                         modifier = Modifier.fillMaxSize(),
