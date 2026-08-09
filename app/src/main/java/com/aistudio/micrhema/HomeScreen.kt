@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.DateRange
@@ -138,11 +139,25 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
 
             // Featured Carousel
             val bannerState = rememberLazyListState()
-            LaunchedEffect(homeBannersState.size) {
-                if (homeBannersState.size > 1) {
+            
+            val validBanners = carouselItemsState.filter { banner ->
+                if (banner.eventDate.isEmpty()) true
+                else {
+                    try {
+                        val date = java.time.LocalDate.parse(banner.eventDate)
+                        val today = java.time.LocalDate.now()
+                        !date.isBefore(today)
+                    } catch (e: Exception) {
+                        true
+                    }
+                }
+            }
+
+            LaunchedEffect(validBanners.size) {
+                if (validBanners.size > 1) {
                     while (true) {
                         kotlinx.coroutines.delay(4000)
-                        val nextItem = (bannerState.firstVisibleItemIndex + 1) % homeBannersState.size
+                        val nextItem = (bannerState.firstVisibleItemIndex + 1) % validBanners.size
                         bannerState.animateScrollToItem(nextItem)
                     }
                 }
@@ -155,16 +170,16 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             ) {
-                if (homeBannersState.isNotEmpty()) {
+                if (validBanners.isNotEmpty()) {
                     LazyRow(
                         state = bannerState,
                         modifier = Modifier.fillMaxSize(),
                         userScrollEnabled = true
                     ) {
-                        items(homeBannersState) { url ->
+                        items(validBanners) { banner ->
                             AsyncImage(
-                                model = url,
-                                contentDescription = "Destaque",
+                                model = banner.imageUrl ?: "",
+                                contentDescription = banner.title.ifEmpty { "Destaque" },
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier.fillParentMaxSize()
                             )
@@ -172,46 +187,11 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
                     }
                 } else {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
+                        Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
                     }
                 }
             }
 
-            // Welcome text
-            Text(
-                text = "Seja Bem Vindo à MIC Rhema!",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.fillMaxWidth(),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
-
-            // Quick Actions
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                QuickActionItem(icon = Icons.Outlined.Book, label = "Bíblia", onClick = { onNavigate("bible") })
-                QuickActionItem(icon = PrayingHandsIcon, label = "Pedido de\noração", onClick = { onNavigate("prayer") })
-                QuickActionItem(icon = Icons.Outlined.FavoriteBorder, label = "Planos", onClick = { onNavigate("plans") })
-                QuickActionItem(icon = Icons.Outlined.DateRange, label = "Horários", onClick = { onNavigate("services") })
-            }
-
-            if (devotionalsState.isNotEmpty()) {
-                val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
-                val todayStr = sdf.format(java.util.Date())
-                val availableDevotionals = devotionalsState.filter { it.date <= todayStr }
-                val todayDevotional = if(availableDevotionals.isNotEmpty()) availableDevotionals.sortedByDescending { it.date }.first() else devotionalsState.sortedByDescending { it.timestamp }.first()
-                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Text("Devocional Diário", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    DevotionalCard(devotional = todayDevotional) {
-                        onNavigate("devotionals")
-                    }
-                }
-            }
-
-            // Notícias
             val carouselNews = if (bibleNewsState.isEmpty()) BibleNewsData.newsList else bibleNewsState
             val listState = rememberLazyListState()
             

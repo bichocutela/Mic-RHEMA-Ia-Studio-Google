@@ -6,11 +6,14 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Gerar APK
     runs-on: ubuntu-latest
-
+    
     steps:
       - name: Checkout do código
         uses: actions/checkout@v4
@@ -49,3 +52,24 @@ jobs:
         with:
           name: aplicativo-pronto
           path: '**/*.apk'
+
+      - name: Extrair Versão e Preparar APK
+        id: prep
+        run: |
+          source version.properties
+          VERSION_NAME="${MAJOR}.${MINOR}.${PATCH}.${BUILD}"
+          echo "VERSION_NAME=${VERSION_NAME}" >> $GITHUB_ENV
+          
+          # Encontrar o APK gerado
+          APK_PATH=$(find . -name "*.apk" | grep release | head -n 1)
+          NEW_APK_NAME="MIC-Rhema-v${VERSION_NAME}.apk"
+          cp "$APK_PATH" "$NEW_APK_NAME"
+          echo "APK_PATH=$NEW_APK_NAME" >> $GITHUB_ENV
+
+      - name: Criar GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION_NAME }}
+          name: MicRhema ${{ env.VERSION_NAME }}
+          files: ${{ env.APK_PATH }}
+          make_latest: true

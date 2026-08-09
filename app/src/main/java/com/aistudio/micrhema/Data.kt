@@ -131,7 +131,8 @@ data class CarouselItem(
     var description: String = "",
     var date: String = "",
     var tag: String = "", // "EVENTO" ou "NOTÍCIA"
-    var imageUrl: String? = null
+    var imageUrl: String? = null,
+    var eventDate: String = "" // Formato: yyyy-MM-dd
 )
 
 // Global mutable states

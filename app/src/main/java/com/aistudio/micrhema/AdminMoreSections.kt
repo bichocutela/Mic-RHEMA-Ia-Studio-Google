@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -418,12 +419,12 @@ fun EditSettingsSection() {
 @Composable
 fun EditBannersSection() {
     val context = androidx.compose.ui.platform.LocalContext.current
-    var banners by remember { mutableStateOf(homeBannersState.toList()) }
-    var newUrl by remember { mutableStateOf("") }
-    var saving by remember { mutableStateOf(false) }
     var isUploading by remember { mutableStateOf(false) }
     var uploadProgress by remember { mutableFloatStateOf(0f) }
     val scope = rememberCoroutineScope()
+    
+    var showDialog by remember { mutableStateOf(false) }
+    var editingBanner by remember { mutableStateOf<CarouselItem?>(null) }
     
     val imagePickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
@@ -436,7 +437,12 @@ fun EditBannersSection() {
                     uploadProgress = progress
                 }
                 if (uploadedUrl.isNotEmpty()) {
-                    banners = banners + uploadedUrl
+                    val newItem = CarouselItem(
+                        id = java.util.UUID.randomUUID().toString(),
+                        imageUrl = uploadedUrl,
+                        eventDate = ""
+                    )
+                    addCarouselItem(newItem)
                 }
                 isUploading = false
             }
@@ -445,29 +451,57 @@ fun EditBannersSection() {
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("Gerenciar Banners (Destaques)", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Text("Adicione até 5 imagens no formato 16:9 para a tela inicial.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f))
+        Text("Adicione imagens no formato 16:9 para a tela inicial.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f))
         Spacer(Modifier.height(16.dp))
         
         LazyColumn(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            itemsIndexed(banners) { index, url ->
-                Card(modifier = Modifier.fillMaxWidth()) {
+            items(carouselItemsState, key = { it.id }) { banner ->
+                val dateStr = banner.eventDate
+                var isActive = true
+                if (dateStr.isNotEmpty()) {
+                    try {
+                        val eventDate = java.time.LocalDate.parse(dateStr)
+                        val today = java.time.LocalDate.now()
+                        if (eventDate.isBefore(today)) {
+                            isActive = false
+                        }
+                    } catch (e: Exception) {
+                        // ignore
+                    }
+                }
+                val formattedDate = if (dateStr.isNotEmpty()) {
+                    try {
+                        val parts = dateStr.split("-")
+                        "${parts[2]}/${parts[1]}/${parts[0]}"
+                    } catch(e: Exception) { dateStr }
+                } else ""
+                
+                Card(modifier = Modifier.fillMaxWidth().clickable { editingBanner = banner; showDialog = true }) {
                     Row(
                         modifier = Modifier.padding(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         coil.compose.AsyncImage(
-                            model = url,
+                            model = banner.imageUrl,
                             contentDescription = null,
                             modifier = Modifier.size(100.dp, 56.dp),
                             contentScale = androidx.compose.ui.layout.ContentScale.Crop
                         )
                         Spacer(Modifier.width(8.dp))
-                        Text("Banner ${index + 1}", modifier = Modifier.weight(1f))
+                        Column(modifier = Modifier.weight(1f)) {
+                            if (dateStr.isEmpty()) {
+                                Text("🟢 Ativo - Banner permanente", style = MaterialTheme.typography.bodySmall)
+                            } else if (isActive) {
+                                Text("🟢 Ativo - Evento: $formattedDate", style = MaterialTheme.typography.bodySmall)
+                            } else {
+                                Text("🔴 Expirado - Evento: $formattedDate", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                            }
+                        }
                         IconButton(onClick = {
-                            banners = banners.toMutableList().apply { removeAt(index) }
+                            removeCarouselItem(banner)
                         }) {
                             Icon(androidx.compose.material.icons.Icons.Default.Delete, contentDescription = "Remover", tint = MaterialTheme.colorScheme.error)
                         }
@@ -477,59 +511,135 @@ fun EditBannersSection() {
         }
         
         Spacer(Modifier.height(16.dp))
-            OutlinedTextField(
-                value = newUrl,
-                onValueChange = { newUrl = it },
-                label = { Text("URL da Imagem") },
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.height(8.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = {
-                        if (newUrl.isNotBlank()) {
-                            banners = banners + convertGoogleDriveUrl(newUrl)
-                            newUrl = ""
-                        }
-                    },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Adicionar URL")
-                }
-                
-                Button(
-                    onClick = {
-                        imagePickerLauncher.launch("image/*")
-                    },
-                    modifier = Modifier.weight(1f),
-                    enabled = !isUploading
-                ) {
-                    if (isUploading) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
-                    } else {
-                        Icon(androidx.compose.material.icons.Icons.Default.Add, contentDescription = "Imagem")
-                        Spacer(Modifier.width(4.dp))
-                        Text("Galeria")
-                    }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = {
+                    editingBanner = CarouselItem(id = java.util.UUID.randomUUID().toString())
+                    showDialog = true
+                },
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Adicionar URL")
+            }
+            
+            Button(
+                onClick = {
+                    imagePickerLauncher.launch("image/*")
+                },
+                modifier = Modifier.weight(1f),
+                enabled = !isUploading
+            ) {
+                if (isUploading) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
+                } else {
+                    Icon(androidx.compose.material.icons.Icons.Default.Add, contentDescription = "Imagem")
+                    Spacer(Modifier.width(4.dp))
+                    Text("Galeria")
                 }
             }
-        
-        Spacer(Modifier.height(16.dp))
-        Button(
-            onClick = {
-                saving = true
-                saveBannersToFirestore(banners)
-                saving = false
-            },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !saving && !isUploading
-        ) {
-            Text("Salvar Alterações")
         }
-        Spacer(Modifier.height(32.dp))
+    }
+
+    if (showDialog && editingBanner != null) {
+        BannerEditDialog(
+            banner = editingBanner!!,
+            onDismiss = { showDialog = false; editingBanner = null },
+            onSave = { updatedBanner ->
+                addCarouselItem(updatedBanner)
+                showDialog = false
+                editingBanner = null
+            }
+        )
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun BannerEditDialog(banner: CarouselItem, onDismiss: () -> Unit, onSave: (CarouselItem) -> Unit) {
+    var imageUrl by remember { mutableStateOf(banner.imageUrl ?: "") }
+    var eventDate by remember { mutableStateOf(banner.eventDate) }
+    
+    var showDatePicker by remember { mutableStateOf(false) }
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = if (eventDate.isNotEmpty()) {
+            try {
+                java.time.LocalDate.parse(eventDate).atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli()
+            } catch (e: Exception) { null }
+        } else null
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Editar Banner") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                OutlinedTextField(
+                    value = imageUrl,
+                    onValueChange = { imageUrl = it },
+                    label = { Text("URL da Imagem") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                val formattedDate = if (eventDate.isNotEmpty()) {
+                    try {
+                        val parts = eventDate.split("-")
+                        "${parts[2]}/${parts[1]}/${parts[0]}"
+                    } catch(e: Exception) { eventDate }
+                } else "Sem data / Banner permanente"
+
+                OutlinedTextField(
+                    value = formattedDate,
+                    onValueChange = { },
+                    label = { Text("Data do evento (opcional)") },
+                    readOnly = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    trailingIcon = {
+                        IconButton(onClick = { showDatePicker = true }) {
+                            Icon(androidx.compose.material.icons.Icons.Default.DateRange, contentDescription = "Selecionar Data")
+                        }
+                    }
+                )
+                
+                if (eventDate.isNotEmpty()) {
+                    TextButton(onClick = { eventDate = "" }) {
+                        Text("Remover data (Tornar permanente)")
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                val finalUrl = convertGoogleDriveUrl(imageUrl)
+                onSave(banner.copy(imageUrl = finalUrl, eventDate = eventDate))
+            }) {
+                Text("Salvar")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancelar") }
+        }
+    )
+
+    if (showDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { millis ->
+                        val date = java.time.Instant.ofEpochMilli(millis).atZone(java.time.ZoneOffset.UTC).toLocalDate()
+                        eventDate = date.toString() // yyyy-MM-dd
+                    }
+                    showDatePicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text("Cancelar") }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+}
 
 // DONATIONS
 @Composable
