@@ -1,5 +1,6 @@
 package com.aistudio.micrhema
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.background
@@ -24,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.clickable
 
 @Composable
 fun MembersScreen() {
@@ -295,41 +297,55 @@ fun AdminScreen() {
                 return@Scaffold
             }
 
-            var selectedTab by remember { mutableStateOf(0) }
-            val tabs = listOf("Abas", "Planos", "Cultos", "Devocionais", "Notícias", "Conteúdo", "VIP/IBR", "Equipe", "Membros", "Sobre", "Destaques", "Configurações", "Dízimos e Ofertas", "Perfis dos Membros")
+            var currentSection by remember { mutableStateOf(AdminSection.DASHBOARD) }
 
-            Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-                ScrollableTabRow(
-                    selectedTabIndex = selectedTab,
-                    edgePadding = 8.dp,
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    contentColor = MaterialTheme.colorScheme.primary
-                ) {
-                    tabs.forEachIndexed { index, title ->
-                        Tab(
-                            selected = selectedTab == index,
-                            onClick = { selectedTab = index },
-                            text = { Text(title, fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Normal) }
+            if (currentSection == AdminSection.DASHBOARD) {
+                AdminDashboard(
+                    onNavigate = { currentSection = it },
+                    paddingValues = paddingValues
+                )
+            } else {
+                Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+                    // Back button
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { currentSection = AdminSection.DASHBOARD }
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.ArrowBack, 
+                            contentDescription = "Voltar", 
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Voltar ao Painel",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
-                }
 
-                Box(modifier = Modifier.fillMaxSize().weight(1f)) {
-                    when (selectedTab) {
-                        0 -> AdminTabsScreen()
-                        1 -> EditPlansSection()
-                        2 -> EditServicesSection()
-                        3 -> EditDevotionalsSection()
-                        4 -> EditNewsSection()
-                        5 -> EditContentSection()
-                        6 -> EditVipSection()
-                        7 -> EditTeamSection()
-                        8 -> EditMembersSection()
-                        9 -> EditAboutSection()
-                        10 -> EditBannersSection()
-                        11 -> EditSettingsSection()
-                        12 -> EditDonationsSection()
-                        13 -> EditProfilesSection()
+                    Box(modifier = Modifier.fillMaxSize().weight(1f)) {
+                        when (currentSection) {
+                            AdminSection.TABS -> AdminTabsScreen()
+                            AdminSection.PLANS -> EditPlansSection()
+                            AdminSection.SERVICES -> EditServicesSection()
+                            AdminSection.DEVOTIONALS -> EditDevotionalsSection()
+                            AdminSection.NEWS -> EditNewsSection()
+                            AdminSection.CONTENT -> EditContentSection()
+                            AdminSection.VIP -> EditVipSection()
+                            AdminSection.TEAM -> EditTeamSection()
+                            AdminSection.MEMBERS -> EditMembersSection()
+                            AdminSection.ABOUT -> EditAboutSection()
+                            AdminSection.BANNERS -> EditBannersSection()
+                            AdminSection.SETTINGS -> EditSettingsSection()
+                            AdminSection.DONATIONS -> EditDonationsSection()
+                            AdminSection.PROFILES -> EditProfilesSection()
+                            else -> {}
+                        }
                     }
                 }
             }
