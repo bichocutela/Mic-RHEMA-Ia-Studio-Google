@@ -472,9 +472,9 @@ object MemberManager {
                     )
                 }
                 if (list.isNotEmpty()) {
-                    memberRequestsState.clear()
-                    memberRequestsState.addAll(list)
-                }
+                memberRequestsState.clear()
+                memberRequestsState.addAll(list)
+            }
             } catch (e: Exception) {
                 e.printStackTrace()
                 // Se der erro no formato antigo, limpa para não mostrar lixo
@@ -1343,6 +1343,7 @@ fun convertGoogleDriveUrl(url: String): String {
 }
 
 
+
 suspend fun refreshHomeData() {
     try {
         val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
@@ -1351,8 +1352,10 @@ suspend fun refreshHomeData() {
         try {
             val bannersSnapshot = db.collection("carousel_items").get(source).await()
             val list = bannersSnapshot.documents.mapNotNull { try { it.toObject(CarouselItem::class.java) } catch(ex: Exception) { null } }
-            carouselItemsState.clear()
-            carouselItemsState.addAll(list)
+            if (list.isNotEmpty() || bannersSnapshot.isEmpty) {
+                carouselItemsState.clear()
+                carouselItemsState.addAll(list)
+            }
         } catch (e: Exception) { e.printStackTrace() }
 
         try {
@@ -1373,22 +1376,28 @@ suspend fun refreshHomeData() {
                     Devotional(id, title, date, verse, verseReference, content, likes, type, mediaUrl, isApproved, timestamp)
                 } catch(ex: Exception) { null }
             }
-            devotionalsState.clear()
-            devotionalsState.addAll(list.sortedByDescending { it.timestamp })
+            if (list.isNotEmpty() || devotionalsSnapshot.isEmpty) {
+                devotionalsState.clear()
+                devotionalsState.addAll(list.sortedByDescending { it.timestamp })
+            }
         } catch (e: Exception) { e.printStackTrace() }
 
         try {
             val newsSnapshot = db.collection("bible_news").get(source).await()
             val list = newsSnapshot.documents.mapNotNull { try { it.toObject(BibleNews::class.java) } catch(ex: Exception) { null } }
-            bibleNewsState.clear()
-            bibleNewsState.addAll(list)
+            if (list.isNotEmpty() || newsSnapshot.isEmpty) {
+                bibleNewsState.clear()
+                bibleNewsState.addAll(list)
+            }
         } catch (e: Exception) { e.printStackTrace() }
 
         try {
             val servicesSnapshot = db.collection("cultos_agenda").get(source).await()
             val list = servicesSnapshot.documents.mapNotNull { try { it.toObject(ChurchService::class.java) } catch(ex: Exception) { null } }
-            weeklyServicesState.clear()
-            weeklyServicesState.addAll(list)
+            if (list.isNotEmpty() || servicesSnapshot.isEmpty) {
+                weeklyServicesState.clear()
+                weeklyServicesState.addAll(list)
+            }
         } catch (e: Exception) { e.printStackTrace() }
 
         try {
@@ -1409,7 +1418,7 @@ suspend fun refreshHomeData() {
                     PlanCategory(name, androidx.compose.ui.graphics.Color(colorValue.toULong()), themes)
                 } catch (ex: Exception) { null }
             }
-            if (list.isNotEmpty()) {
+            if (list.isNotEmpty() || plansSnapshot.isEmpty) {
                 biblePlansState.clear()
                 biblePlansState.addAll(list)
             }
@@ -1418,29 +1427,37 @@ suspend fun refreshHomeData() {
         try {
             val videosSnapshot = db.collection("conteudos_videos").get(source).await()
             val list = videosSnapshot.documents.mapNotNull { try { it.toObject(ContentVideo::class.java) } catch(ex: Exception) { null } }
-            contentVideosState.clear()
-            contentVideosState.addAll(list)
+            if (list.isNotEmpty() || videosSnapshot.isEmpty) {
+                contentVideosState.clear()
+                contentVideosState.addAll(list)
+            }
         } catch (e: Exception) { e.printStackTrace() }
 
         try {
             val audiosSnapshot = db.collection("conteudos_audios").get(source).await()
             val list = audiosSnapshot.documents.mapNotNull { try { it.toObject(ContentAudio::class.java) } catch(ex: Exception) { null } }
-            contentAudiosState.clear()
-            contentAudiosState.addAll(list)
+            if (list.isNotEmpty() || audiosSnapshot.isEmpty) {
+                contentAudiosState.clear()
+                contentAudiosState.addAll(list)
+            }
         } catch (e: Exception) { e.printStackTrace() }
 
         try {
             val booksSnapshot = db.collection("conteudos_books").get(source).await()
             val list = booksSnapshot.documents.mapNotNull { try { it.toObject(ContentBook::class.java) } catch(ex: Exception) { null } }
-            contentBooksState.clear()
-            contentBooksState.addAll(list)
+            if (list.isNotEmpty() || booksSnapshot.isEmpty) {
+                contentBooksState.clear()
+                contentBooksState.addAll(list)
+            }
         } catch (e: Exception) { e.printStackTrace() }
 
         try {
             val albumsSnapshot = db.collection("conteudos_albums").get(source).await()
             val list = albumsSnapshot.documents.mapNotNull { try { it.toObject(ContentPhotoAlbum::class.java) } catch(ex: Exception) { null } }
-            contentAlbumsState.clear()
-            contentAlbumsState.addAll(list)
+            if (list.isNotEmpty() || albumsSnapshot.isEmpty) {
+                contentAlbumsState.clear()
+                contentAlbumsState.addAll(list)
+            }
         } catch (e: Exception) { e.printStackTrace() }
 
         val currentMember = loggedInMemberState.value
@@ -1453,7 +1470,7 @@ suspend fun refreshHomeData() {
                     val phone = memberSnapshot.getString("phone") ?: ""
                     val rawIsApproved = memberSnapshot.getBoolean("isApproved") ?: false
                     val isVip = memberSnapshot.getBoolean("isVip") ?: false
-                    val isApproved = rawIsApproved || isVip
+                    val effectiveApproved = rawIsApproved || isVip
                     val isIbr = memberSnapshot.getBoolean("isIbr") ?: false
                     val email = memberSnapshot.getString("email") ?: ""
                     val isAdmin = memberSnapshot.getBoolean("isAdmin") ?: false
@@ -1467,8 +1484,8 @@ suspend fun refreshHomeData() {
                         name = name, 
                         phone = phone, 
                         email = email,
-                        isApproved = isApproved, 
-                        isVip = isVip, 
+                        isApproved = effectiveApproved, 
+                        isVip = false, 
                         isIbr = isIbr,
                         isAdmin = isAdmin,
                         profilePhotoUrl = profilePhotoUrl,
@@ -1485,7 +1502,6 @@ suspend fun refreshHomeData() {
         e.printStackTrace()
     }
 }
-
 suspend fun forceRefreshData() {
     try {
         kotlinx.coroutines.delay(1000)
