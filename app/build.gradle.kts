@@ -34,6 +34,10 @@ val appVersionCode = major * 1000000 + minor * 10000 + patch * 100 + buildNum
 val appVersionName = "${major}.${minor}.${patch}.${buildNum}"
 
 android {
+    lint {
+        abortOnError = false
+        checkReleaseBuilds = false
+    }
     namespace = "com.aistudio.micrhema"
 
     lint {

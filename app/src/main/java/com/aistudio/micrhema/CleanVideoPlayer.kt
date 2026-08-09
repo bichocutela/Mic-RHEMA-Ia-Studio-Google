@@ -239,6 +239,7 @@ fun CleanVideoPlayer(
                         },
                         modifier = Modifier.fillMaxSize(),
                         onRelease = { view ->
+                            lifecycleOwner.lifecycle.removeObserver(view)
                             view.release()
                         }
                     )
