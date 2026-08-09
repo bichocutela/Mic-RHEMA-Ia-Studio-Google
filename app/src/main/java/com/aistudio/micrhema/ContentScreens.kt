@@ -517,7 +517,7 @@ fun VideosList(selectedVideo: ContentVideo?, searchQuery: String, isLocalLoading
 
     if (selectedVideo != null) {
         val context = LocalContext.current
-        val authorizedUser = loggedInMemberState.value?.let { it.isApproved || it.isIbr || it.isVip } ?: false
+        val authorizedUser = loggedInMemberState.value?.let { it.isApproved || it.isIbr } ?: false
         Column(modifier = Modifier.fillMaxSize()) {
             CleanVideoPlayer(
                 videoUrl = selectedVideo!!.videoUrl,

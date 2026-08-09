@@ -154,7 +154,7 @@ object LocalDataManager {
                     AppTab("2", "Cultos", "DateRange", false, true, true, 2, TabContentType.SYSTEM, Screen.Services.route),
                     AppTab("3", "Devocionais", "Book", false, true, false, 3, TabContentType.SYSTEM, Screen.Devotionals.route),
                     AppTab("4", "Cursos IBR", "School", false, true, false, 4, TabContentType.SYSTEM, Screen.Ibr.route),
-                    AppTab("5", "Conteúdo", "PlayArrow", false, true, false, 5, TabContentType.SYSTEM, Screen.Content.route),
+                    AppTab("5", "Mídia", "PlayArrow", false, true, false, 5, TabContentType.SYSTEM, Screen.Content.route),
                     AppTab("6", "Pedidos de Oração", "Favorite", false, true, true, 6, TabContentType.SYSTEM, Screen.Prayer.route),
                     AppTab("plans_tab", "Planos", "List", false, true, true, 7, TabContentType.SYSTEM, "plans"),
                     AppTab("team_tab", "Equipe", "Groups", false, true, false, 8, TabContentType.SYSTEM, Screen.Team.route),

@@ -81,14 +81,14 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     object Devotionals : Screen("devocionais", "Devocionais", Icons.Default.Book)
     object Services : Screen("services", "Cultos", Icons.Default.Church)
     object Prayer : Screen("prayer", "Oração", Icons.Default.Favorite)
-    object Members : Screen("members", "Membro (VIP)", Icons.Default.People)
+    object Members : Screen("members", "Membros", Icons.Default.People)
     object Ibr : Screen("ibr", "IBR", Icons.Default.Group)
     object Plans : Screen("plans", "Planos", Icons.Default.List)
     object Team : Screen("equipe", "Equipe", Icons.Default.Group)
     object About : Screen("about", "Sobre", Icons.Default.Info)
     object Donations : Screen("donations", "Dízimos e Ofertas", Icons.Default.VolunteerActivism)
     object Settings : Screen("settings", "Configurações", Icons.Default.Settings)
-    object Content : Screen("content", "Conteúdo", Icons.Default.LibraryBooks)
+    object Content : Screen("content", "Mídia", Icons.Default.LibraryBooks)
     object Admin : Screen("admin", "Área ADM", Icons.Default.Lock)
     object Profile : Screen("profile", "Meu Perfil", Icons.Default.Person)
 }
@@ -366,16 +366,16 @@ fun MainScreen() {
                 HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
                 
                 val groupsMapping = listOf(
-                    "Conteúdo" to listOf("Início", "Bíblia", "Devocionais", "Cursos IBR", "Conteúdo", "Planos"),
+                    "Mídia" to listOf("Início", "Bíblia", "Devocionais", "Cursos IBR", "Mídia", "Planos"),
                     "Comunidade" to listOf("Pedidos de Oração", "Membros", "Equipe"),
                     "Igreja" to listOf("Cultos", "Dízimos e Ofertas"),
                     "Sistema" to listOf("Configurações", "Sobre"),
                     "Administração" to listOf("Área ADM")
                 )
-                var expandedGroups by remember { mutableStateOf(setOf("Conteúdo")) }
+                var expandedGroups by remember { mutableStateOf(setOf("Mídia")) }
                 
                 val groupedItems = drawerItems.groupBy { item ->
-                    groupsMapping.find { it.second.contains(item.title) }?.first ?: "Conteúdo"
+                    groupsMapping.find { it.second.contains(item.title) }?.first ?: "Mídia"
                 }.toSortedMap(compareBy { key -> 
                     groupsMapping.indexOfFirst { it.first == key }
                 })
@@ -383,7 +383,7 @@ fun MainScreen() {
                 groupedItems.forEach { (groupName, items) ->
                     val isExpanded = expandedGroups.contains(groupName)
                     val groupIcon = when (groupName) {
-                        "Conteúdo" -> androidx.compose.material.icons.Icons.Default.List
+                        "Mídia" -> androidx.compose.material.icons.Icons.Default.List
                         "Comunidade" -> androidx.compose.material.icons.Icons.Default.People
                         "Igreja" -> androidx.compose.material.icons.Icons.Default.Church
                         "Sistema" -> androidx.compose.material.icons.Icons.Default.Settings
@@ -437,7 +437,7 @@ fun MainScreen() {
                                     "Bíblia" -> androidx.compose.material.icons.Icons.Default.MenuBook
                                     "Devocionais" -> androidx.compose.material.icons.Icons.Default.Book
                                     "Cursos IBR" -> androidx.compose.material.icons.Icons.Default.School
-                                    "Conteúdo" -> androidx.compose.material.icons.Icons.Default.PlayCircle
+                                    "Mídia" -> androidx.compose.material.icons.Icons.Default.PlayCircle
                                     "Pedidos de Oração" -> androidx.compose.material.icons.Icons.Default.VolunteerActivism
                                     "Membros" -> androidx.compose.material.icons.Icons.Default.Group
                                     "Equipe" -> androidx.compose.material.icons.Icons.Default.Badge

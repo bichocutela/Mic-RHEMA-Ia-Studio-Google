@@ -18,7 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun EditContentSection() {
+fun EditMediaSection() {
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
     var isUploading by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     var uploadProgress by androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
@@ -36,8 +36,8 @@ fun EditContentSection() {
     var isDeleting by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("Gerenciar Conteúdos VIP", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Text("Adicione e edite livros, áudios e vídeos para os membros VIP e IBR.", style = MaterialTheme.typography.bodyMedium)
+        Text("Gerenciar Mídia", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text("Adicione e edite livros, áudios, vídeos e álbuns da aba Mídia.", style = MaterialTheme.typography.bodyMedium)
         
         // ADD BOOK
         Card(modifier = Modifier.fillMaxWidth()) {

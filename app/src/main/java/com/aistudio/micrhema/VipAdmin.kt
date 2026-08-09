@@ -79,7 +79,7 @@ fun EditVipSection() {
             FilterChip(
                 selected = vipTab == "midia",
                 onClick = { vipTab = "midia" },
-                label = { Text("Conteúdo VIP") }
+                label = { Text("Conteúdo IBR") }
             )
             FilterChip(
                 selected = vipTab == "cursos",
@@ -128,8 +128,8 @@ fun EditVipContentSection() {
     var isDeleting by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("VIP - Conteúdo Geral", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Text("Adicione e edite livros, áudios e vídeos para os membros VIP e IBR.", style = MaterialTheme.typography.bodyMedium)
+        Text("IBR - Conteúdo Geral", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text("Adicione e edite livros, áudios e vídeos para os alunos do Instituto Bíblico Rhema.", style = MaterialTheme.typography.bodyMedium)
         // SMART IMPORTER
         var smartUrl by remember { mutableStateOf("") }
         var isSmartLoading by remember { mutableStateOf(false) }
@@ -752,7 +752,7 @@ fun EditVipIbrSection() {
         item {
             Column {
                 Text(
-                    text = "VIP - Cursos Exclusivos",
+                    text = "IBR - Cursos Exclusivos",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary

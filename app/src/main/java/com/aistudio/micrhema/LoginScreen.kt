@@ -114,8 +114,8 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                                                 name = doc.getString("name") ?: "",
                                                 phone = doc.getString("phone") ?: "",
                                                 email = doc.getString("email") ?: "",
-                                                isApproved = doc.getBoolean("isApproved") ?: false,
-                                                isVip = doc.getBoolean("isVip") ?: false,
+                                                isApproved = (doc.getBoolean("isApproved") ?: false) || (doc.getBoolean("isVip") ?: false),
+                                                isVip = false,
                                                 isIbr = doc.getBoolean("isIbr") ?: false,
                                                 isAdmin = doc.getBoolean("isAdmin") ?: false
                                             )

@@ -305,7 +305,7 @@ val memberRequestsState = mutableStateListOf<MemberRequest>(
         name = "Carlos Oliveira",
         phone = "11999999999",
         isApproved = true,
-        isVip = true,
+        isVip = false,
         isIbr = false
     ),
     MemberRequest(
@@ -345,8 +345,9 @@ object MemberManager {
                     val id = document.id
                     val name = document.getString("name") ?: ""
                     val phone = document.getString("phone") ?: ""
-                    val isApproved = document.getBoolean("isApproved") ?: false
+                    val rawIsApproved = document.getBoolean("isApproved") ?: false
                     val isVip = document.getBoolean("isVip") ?: false
+                    val isApproved = rawIsApproved || isVip
                     val isIbr = document.getBoolean("isIbr") ?: false
                     val email = document.getString("email") ?: ""
                     val isAdmin = document.getBoolean("isAdmin") ?: false
@@ -416,11 +417,11 @@ object MemberManager {
                 "phone" to member.phone,
                 "email" to member.email,
                 "isApproved" to member.isApproved,
-                "isVip" to member.isVip,
+                "isVip" to false,
                 "isIbr" to member.isIbr,
                 "isAdmin" to member.isAdmin,
                 "ibrCertificateUrl" to member.ibrCertificateUrl,
-                "status" to (if (member.isApproved || member.isVip || member.isIbr) "aprovado" else "pendente"),
+                "status" to (if (member.isApproved || member.isIbr) "aprovado" else "pendente"),
                 "profilePhotoUrl" to member.profilePhotoUrl,
                 "address" to member.address,
                 "birthDate" to member.birthDate,
@@ -457,8 +458,8 @@ object MemberManager {
                             name = obj.optString("name", ""),
                             phone = obj.optString("phone", ""),
                             email = obj.optString("email", ""),
-                            isApproved = obj.optBoolean("isApproved", false),
-                            isVip = obj.optBoolean("isVip", false),
+                            isApproved = obj.optBoolean("isApproved", false) || obj.optBoolean("isVip", false),
+                            isVip = false,
                             isIbr = obj.optBoolean("isIbr", false),
                             isAdmin = obj.optBoolean("isAdmin", false),
                             ibrCertificateUrl = obj.optString("ibrCertificateUrl", ""),
@@ -503,7 +504,7 @@ object MemberManager {
                 obj.put("phone", member.phone)
                 obj.put("email", member.email)
                 obj.put("isApproved", member.isApproved)
-                obj.put("isVip", member.isVip)
+                obj.put("isVip", false)
                 obj.put("isIbr", member.isIbr)
                 obj.put("isAdmin", member.isAdmin)
                 obj.put("ibrCertificateUrl", member.ibrCertificateUrl)
@@ -807,7 +808,7 @@ fun loadContentFromFirebase(context: Context) {
                     contentAlbumsState.addAll(list)
             }
             
-            // VIP CONTENT
+            // IBR CONTENT
             db.collection("vip_books").addSnapshotListener { snapshot, e ->
                 if (e != null || snapshot == null) return@addSnapshotListener
                 val list = snapshot.documents.mapNotNull { try { it.toObject(ContentBook::class.java) } catch(ex: Exception) { null } }
@@ -966,7 +967,7 @@ fun initializeTabs() {
         AppTab("2", "Cultos", "DateRange", false, true, true, 2, TabContentType.SYSTEM, Screen.Services.route),
         AppTab("3", "Devocionais", "Book", false, true, false, 3, TabContentType.SYSTEM, Screen.Devotionals.route),
         AppTab("4", "Cursos IBR", "School", false, true, false, 4, TabContentType.SYSTEM, Screen.Ibr.route),
-        AppTab("5", "Conteúdo", "PlayArrow", false, true, false, 5, TabContentType.SYSTEM, Screen.Content.route),
+        AppTab("5", "Mídia", "PlayArrow", false, true, false, 5, TabContentType.SYSTEM, Screen.Content.route),
         AppTab("6", "Pedidos de Oração", "Favorite", false, true, true, 6, TabContentType.SYSTEM, Screen.Prayer.route),
         AppTab("plans_tab", "Planos", "List", false, true, true, 7, TabContentType.SYSTEM, "plans"),
         AppTab("team_tab", "Equipe", "Groups", false, true, false, 8, TabContentType.SYSTEM, Screen.Team.route),

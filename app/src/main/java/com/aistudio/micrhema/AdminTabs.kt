@@ -191,7 +191,7 @@ fun AdminTabsScreen() {
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = isPrivate, onCheckedChange = { isPrivate = it })
-                        Text("Aba Privada (Exige Login/VIP)")
+                        Text("Aba Privada (Exige permissão)")
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = showInBottomBar, onCheckedChange = { showInBottomBar = it })

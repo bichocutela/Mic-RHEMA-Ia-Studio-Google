@@ -106,26 +106,12 @@ fun MembersScreen() {
                             Text(loggedInMember.phone, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(modifier = Modifier.height(16.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                if (loggedInMember.isVip) AssistChip(onClick = {}, label = { Text("VIP") }, leadingIcon = { Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp)) })
-                                if (loggedInMember.isIbr) AssistChip(onClick = {}, label = { Text("Aluno IBR") }, leadingIcon = { Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp)) })
+                                                                if (loggedInMember.isIbr) AssistChip(onClick = {}, label = { Text("Aluno IBR") }, leadingIcon = { Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp)) })
                             }
                         }
                     }
                     
-                    if (loggedInMember.isVip) {
-                        Spacer(modifier = Modifier.height(24.dp))
-                        Text("Conteúdo VIP", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                        ) {
-                            Column(modifier = Modifier.padding(20.dp)) {
-                                Text("Você tem acesso aos livros, áudios e vídeos exclusivos da aba Conteúdo.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
-                            }
-                        }
-                    }
+
 
                     Spacer(modifier = Modifier.height(24.dp))
                     Text("Meus Favoritos", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
@@ -314,9 +300,9 @@ fun AdminScreen() {
                 val sectionName = when(currentSection) {
                     AdminSection.DEVOTIONALS -> "Devocionais"
                     AdminSection.NEWS -> "Notícias"
-                    AdminSection.CONTENT -> "Mídia"
+                    AdminSection.MEDIA -> "Mídia"
                     AdminSection.PLANS -> "Planos Bíblicos"
-                    AdminSection.VIP -> "Instituto Bíblico / VIP"
+                    AdminSection.IBR -> "Instituto Bíblico Rhema"
                     AdminSection.SERVICES -> "Cultos"
                     AdminSection.BANNERS -> "Destaques"
                     AdminSection.DONATIONS -> "Dízimos e Ofertas"
@@ -369,8 +355,8 @@ fun AdminScreen() {
                             AdminSection.SERVICES -> EditServicesSection()
                             AdminSection.DEVOTIONALS -> EditDevotionalsSection()
                             AdminSection.NEWS -> EditNewsSection()
-                            AdminSection.CONTENT -> EditContentSection()
-                            AdminSection.VIP -> EditVipSection()
+                            AdminSection.MEDIA -> EditMediaSection()
+                            AdminSection.IBR -> EditVipSection()
                             AdminSection.TEAM -> EditTeamSection()
                             AdminSection.MEMBERS -> EditMembersSection()
                             AdminSection.ABOUT -> EditAboutSection()

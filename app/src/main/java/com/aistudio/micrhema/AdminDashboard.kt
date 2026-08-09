@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.dp
 
 enum class AdminSection {
     DASHBOARD,
-    DEVOTIONALS, NEWS, CONTENT, PLANS, VIP,
+    DEVOTIONALS, NEWS, MEDIA, PLANS, IBR,
     SERVICES, BANNERS, DONATIONS,
     MEMBERS, PROFILES, TEAM,
     TABS, SETTINGS, ABOUT
@@ -27,8 +27,7 @@ fun AdminDashboard(onNavigate: (AdminSection) -> Unit, paddingValues: PaddingVal
     val approvedCount = memberRequestsState.count { it.isApproved || it.status == "aprovado" }
     val pendingCount = memberRequestsState.count { !it.isApproved && it.status != "aprovado" }
     val ibrCount = memberRequestsState.count { it.isIbr }
-    val vipCount = memberRequestsState.count { it.isVip }
-
+    
     LazyColumn(
         contentPadding = PaddingValues(
             start = 16.dp, 
@@ -78,12 +77,6 @@ fun AdminDashboard(onNavigate: (AdminSection) -> Unit, paddingValues: PaddingVal
                     icon = Icons.Default.School,
                     modifier = Modifier.weight(1f)
                 )
-                AdminOverviewCard(
-                    title = "Membros VIP",
-                    value = vipCount.toString(),
-                    icon = Icons.Default.Star,
-                    modifier = Modifier.weight(1f)
-                )
             }
         }
         
@@ -125,12 +118,12 @@ fun AdminDashboard(onNavigate: (AdminSection) -> Unit, paddingValues: PaddingVal
         item { AdminCategoryTitle("CONTEÚDO") }
         item { AdminMenuItem("Devocionais", "Mensagens e reflexões", Icons.Default.Book, { onNavigate(AdminSection.DEVOTIONALS) }) }
         item { AdminMenuItem("Notícias", "Informativos e avisos", Icons.Default.Article, { onNavigate(AdminSection.NEWS) }) }
-        item { AdminMenuItem("Mídia", "Áudios, vídeos, livros e álbuns", Icons.Default.PlayArrow, { onNavigate(AdminSection.CONTENT) }) }
+        item { AdminMenuItem("Mídia", "Áudios, vídeos, livros e álbuns", Icons.Default.PlayArrow, { onNavigate(AdminSection.MEDIA) }) }
         item { AdminMenuItem("Planos Bíblicos", "Planos e jornadas de leitura", Icons.Default.MenuBook, { onNavigate(AdminSection.PLANS) }) }
 
         // ENSINO
         item { AdminCategoryTitle("ENSINO") }
-        item { AdminMenuItem("Instituto Bíblico / VIP", "Cursos e conteúdos exclusivos", Icons.Default.WorkspacePremium, { onNavigate(AdminSection.VIP) }) }
+        item { AdminMenuItem("Instituto Bíblico Rhema", "Cursos e formação bíblica", Icons.Default.WorkspacePremium, { onNavigate(AdminSection.IBR) }) }
 
         // IGREJA
         item { AdminCategoryTitle("IGREJA") }

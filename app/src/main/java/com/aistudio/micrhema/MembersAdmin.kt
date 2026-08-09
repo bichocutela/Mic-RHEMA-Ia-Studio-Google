@@ -25,7 +25,7 @@ import android.widget.Toast
 fun EditMembersSection() {
     val context = LocalContext.current
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Gerenciar Membros (VIP/IBR)", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 16.dp))
+        Text("Gerenciar Membros", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 16.dp))
         
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(items = memberRequestsState, key = { it.id }) { member ->
@@ -39,7 +39,7 @@ fun EditMembersSection() {
                                 Text(member.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                                 Text(member.phone, style = MaterialTheme.typography.bodyMedium)
                             }
-                            if (member.isApproved || member.isVip || member.isIbr) {
+                            if (member.isApproved || member.isIbr) {
                                 Text("Aprovado", style = MaterialTheme.typography.labelSmall, color = androidx.compose.ui.graphics.Color(0xFF4CAF50))
                             } else {
                                 Text("Pendente", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
@@ -65,23 +65,7 @@ fun EditMembersSection() {
                             )
                             Text("Aprovado")
                             
-                            Spacer(modifier = Modifier.width(16.dp))
-                            
-                            Checkbox(
-                                checked = member.isVip,
-                                onCheckedChange = { 
-                                    val index = memberRequestsState.indexOfFirst { it.id == member.id }
-                                    if (index != -1) {
-                                        val updated = member.copy(isVip = it)
-                                        memberRequestsState[index] = updated
-                                        MemberManager.saveToFirestore(context, updated,
-                                            onSuccess = { Toast.makeText(context, if(it) "Acesso VIP aprovado para ${member.name}" else "Acesso VIP removido para ${member.name}", Toast.LENGTH_SHORT).show() },
-                                            onFailure = { memberRequestsState[index] = member; Toast.makeText(context, "Erro: ${it.message}\n\nVerifique as regras de segurança (Rules) do seu Firebase Firestore.", Toast.LENGTH_LONG).show() }
-                                        )
-                                    }
-                                }
-                            )
-                            Text("VIP")
+
                             
                             Spacer(modifier = Modifier.width(16.dp))
                             
@@ -140,7 +124,7 @@ fun EditProfilesSection() {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("Perfis dos Membros", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 16.dp))
         
-        val approvedMembers = memberRequestsState.filter { it.isApproved || it.isVip || it.isIbr }
+        val approvedMembers = memberRequestsState.filter { it.isApproved || it.isIbr }
         
         if (approvedMembers.isEmpty()) {
             Text("Nenhum membro aprovado encontrado.", color = MaterialTheme.colorScheme.onSurfaceVariant)

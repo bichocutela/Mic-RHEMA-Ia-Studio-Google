@@ -38,7 +38,7 @@ fun CustomTabScreen(tabId: String?) {
 
     if (tab.isPrivate && !isAdmin) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Conteúdo restrito para membros VIP/Admin.", color = MaterialTheme.colorScheme.error)
+            Text("Conteúdo restrito para membros autorizados.", color = MaterialTheme.colorScheme.error)
         }
         return
     }

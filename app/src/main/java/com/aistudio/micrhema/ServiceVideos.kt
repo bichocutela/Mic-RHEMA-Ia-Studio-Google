@@ -49,7 +49,7 @@ fun ServiceVideosGallery() {
     if (selectedVideo != null) {
         // Video Player Modal or Full Section
         Column(modifier = Modifier.fillMaxWidth()) {
-            val authorizedUser = loggedInMemberState.value?.let { it.isApproved || it.isIbr || it.isVip } ?: false
+            val authorizedUser = loggedInMemberState.value?.let { it.isApproved || it.isIbr } ?: false
             
             CleanVideoPlayer(
                 videoUrl = selectedVideo!!.videoUrl,
