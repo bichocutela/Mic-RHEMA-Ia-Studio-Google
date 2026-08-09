@@ -159,6 +159,69 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
             )
         }
         
+        // 1.5. Culto Hoje Aviso Contextual
+        val todayServices = weeklyServicesState.filter { service -> 
+            val serviceDay = dayMap[service.day] ?: DayOfWeek.SUNDAY
+            serviceDay == currentDayOfWeek
+        }.map { service ->
+            var parsedTime = LocalTime.of(23, 59)
+            try {
+                val cleanTime = service.time.replace("h", ":", ignoreCase = true).filter { it.isDigit() || it == ':' }
+                val timeParts = cleanTime.split(":")
+                if (timeParts.size >= 2) {
+                    parsedTime = LocalTime.of(timeParts[0].toInt(), timeParts[1].take(2).toInt())
+                }
+            } catch (e: Exception) {}
+            Pair(service, parsedTime)
+        }.sortedBy { it.second }
+        
+        if (todayServices.isNotEmpty()) {
+            var targetServicePair = todayServices.find { it.second.isAfter(currentTime) || it.second == currentTime }
+            var isFuture = true
+            
+            if (targetServicePair == null) {
+                targetServicePair = todayServices.last()
+                isFuture = false
+            }
+            
+            val targetService = targetServicePair.first
+            
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .clickable { onNavigate(Screen.Services.route) },
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.DateRange,
+                        contentDescription = "Culto de Hoje",
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(32.dp)
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column {
+                        Text(
+                            text = if (isFuture) "Hoje tem ${targetService.title}" else "Hoje teve ${targetService.title}",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Text(
+                            text = "Às ${targetService.time}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                        )
+                    }
+                }
+            }
+        }
+
         // 2. Destaques / Banners
         if (validBanners.isNotEmpty()) {
             val bannerListState = rememberLazyListState()
