@@ -22,6 +22,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.Job
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,6 +33,10 @@ fun AboutScreen() {
     
     var isChecking by remember { mutableStateOf(false) }
     var updateResult by remember { mutableStateOf<UpdateResult?>(null) }
+
+    val updateDownloader = remember { UpdateDownloader(context) }
+    var downloadState by remember { mutableStateOf<DownloadState>(DownloadState.Idle) }
+    var downloadJob by remember { mutableStateOf<Job?>(null) }
     
     val checkUpdate: () -> Unit = {
         isChecking = true
@@ -200,17 +206,69 @@ fun AboutScreen() {
                                             
                                             Spacer(modifier = Modifier.height(8.dp))
                                             
-                                            Button(
-                                                onClick = {
-                                                    result.info.downloadUrl?.let { url ->
-                                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                                                        context.startActivity(intent)
+                                            when (val state = downloadState) {
+                                                is DownloadState.Idle -> {
+                                                    Button(
+                                                        onClick = {
+                                                            result.info.downloadUrl?.let { url ->
+                                                                downloadJob?.cancel()
+                                                                downloadJob = coroutineScope.launch {
+                                                                    updateDownloader.downloadUpdate(url, result.info.latestVersion)
+                                                                        .collectLatest { newState ->
+                                                                            downloadState = newState
+                                                                            if (newState is DownloadState.Downloaded) {
+                                                                                updateDownloader.installApk(result.info.latestVersion)
+                                                                            }
+                                                                        }
+                                                                }
+                                                            }
+                                                        },
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        enabled = result.info.downloadUrl != null
+                                                    ) {
+                                                        Text(if (result.info.downloadUrl != null) "Atualizar agora" else "Apk não encontrado")
                                                     }
-                                                },
-                                                modifier = Modifier.fillMaxWidth(),
-                                                enabled = result.info.downloadUrl != null
-                                            ) {
-                                                Text(if (result.info.downloadUrl != null) "Atualizar agora" else "Apk não encontrado")
+                                                }
+                                                is DownloadState.Downloading -> {
+                                                    Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                                                        Text("Baixando atualização...", style = MaterialTheme.typography.bodyMedium)
+                                                        Spacer(Modifier.height(8.dp))
+                                                        LinearProgressIndicator(
+                                                            progress = { state.progress / 100f },
+                                                            modifier = Modifier.fillMaxWidth().height(8.dp),
+                                                            color = MaterialTheme.colorScheme.primary,
+                                                        )
+                                                        Spacer(Modifier.height(4.dp))
+                                                        Text("${state.progress}%", style = MaterialTheme.typography.labelSmall)
+                                                    }
+                                                }
+                                                is DownloadState.Downloaded -> {
+                                                    Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                                                        Text("A atualização foi baixada.", style = MaterialTheme.typography.bodyMedium, color = androidx.compose.ui.graphics.Color(0xFF4CAF50))
+                                                        Spacer(Modifier.height(8.dp))
+                                                        Button(
+                                                            onClick = { updateDownloader.installApk(result.info.latestVersion) },
+                                                            modifier = Modifier.fillMaxWidth()
+                                                        ) {
+                                                            Text("Instalar atualização")
+                                                        }
+                                                    }
+                                                }
+                                                is DownloadState.Error -> {
+                                                    Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                                                        Text("Não foi possível baixar a atualização.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                                                        Spacer(Modifier.height(8.dp))
+                                                        Button(
+                                                            onClick = {
+                                                                downloadState = DownloadState.Idle
+                                                            },
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                                                        ) {
+                                                            Text("Tentar novamente")
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     } else {
