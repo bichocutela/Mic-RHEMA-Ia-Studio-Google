@@ -1,4 +1,8 @@
 package com.aistudio.micrhema
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.delay
+
 
 import android.content.Context
 import androidx.compose.foundation.background
@@ -125,13 +129,31 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
         savedMoodDate = null
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(scrollState)
-            .padding(bottom = 100.dp), // Padding for Bottom Navigation
-        verticalArrangement = Arrangement.spacedBy(24.dp)
+    var isRefreshing by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+
+    androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = {
+            coroutineScope.launch {
+                isRefreshing = true
+                try {
+                    delay(1000)
+                    com.google.firebase.firestore.FirebaseFirestore.getInstance().disableNetwork().await()
+                    com.google.firebase.firestore.FirebaseFirestore.getInstance().enableNetwork().await()
+                } catch (e: Exception) {}
+                isRefreshing = false
+            }
+        },
+        modifier = Modifier.fillMaxSize()
     ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+                .padding(bottom = 100.dp), // Padding for Bottom Navigation
+            verticalArrangement = Arrangement.spacedBy(24.dp)
+        ) {
         Spacer(modifier = Modifier.height(16.dp))
         
         // 1. Saudação
@@ -393,6 +415,7 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
                 }
             }
         }
+    }
     }
     
     // Mood Bottom Sheet
