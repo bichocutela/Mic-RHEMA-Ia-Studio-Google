@@ -26,20 +26,23 @@ jobs:
         with:
           validate-wrappers: false
 
-      - name: Criar chave de assinatura (release.keystore)
+      - name: Reconstruir chave de assinatura (release.keystore)
         run: |
-          rm -f release.keystore
-          keytool -genkeypair -v -keystore release.keystore -storepass android -alias androidreleasekey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -storetype PKCS12 -dname "C=BR, O=Android, CN=Android Release"
+          echo "${{ secrets.MICRHEMA_KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
 
       - name: Construir o APK
         env:
           KEYSTORE_FILE: ../release.keystore
-          KEYSTORE_PASSWORD: android
-          KEY_ALIAS: androidreleasekey
-          KEY_PASSWORD: android
+          KEYSTORE_PASSWORD: ${{ secrets.MICRHEMA_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.MICRHEMA_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.MICRHEMA_KEY_PASSWORD }}
         run: |
           chmod +x gradlew || true
           ./gradlew assembleRelease || gradle assembleRelease
+
+      - name: Remover chave de assinatura
+        if: always()
+        run: rm -f release.keystore
 
       - name: Upload do APK
         uses: actions/upload-artifact@v4

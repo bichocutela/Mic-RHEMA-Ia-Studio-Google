@@ -26,16 +26,13 @@ if (versionFile.exists()) {
 
 val isBuilding = gradle.startParameter.taskNames.any { it.contains("assemble") || it.contains("build") || it.contains("bundle") }
 
-var buildNum = versionProps["BUILD"].toString().toInt()
-if (isBuilding) {
-    buildNum++
-    versionProps["BUILD"] = buildNum.toString()
-    versionProps.store(FileOutputStream(versionFile), "Auto-incremented build number")
-}
-
 val major = versionProps["MAJOR"].toString().toInt()
 val minor = versionProps["MINOR"].toString().toInt()
 val patch = versionProps["PATCH"].toString().toInt()
+
+// Determinar o buildNum baseado no GITHUB_RUN_NUMBER ou na propriedade BUILD
+val githubRunNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull()
+val buildNum = githubRunNumber ?: versionProps["BUILD"].toString().toInt()
 
 val appVersionCode = major * 1000000 + minor * 10000 + patch * 100 + buildNum
 val appVersionName = "${major}.${minor}.${patch}.${buildNum}"
