@@ -113,6 +113,7 @@ android {
 }
 
 dependencies {
+    implementation(libs.zxing.core)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.firestore)
     implementation(libs.firebase.config)

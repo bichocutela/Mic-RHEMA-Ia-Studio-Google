@@ -1,4 +1,5 @@
 [versions]
+zxing = "3.5.3"
 playServicesAuth = "21.0.0"
 googleServices = "4.4.2"
 firebaseCrashlyticsPlugin = "3.0.2"
@@ -21,6 +22,7 @@ secretsGradlePlugin = "2.0.1"
 youtubePlayer = "13.0.0"
 
 [libraries]
+zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
 youtube-player = { group = "com.pierfrancescosoffritti.androidyoutubeplayer", name = "core", version.ref = "youtubePlayer" }
 play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version.ref = "playServicesAuth" }
 firebase-auth = { group = "com.google.firebase", name = "firebase-auth", version.ref = "firebaseAuth" }
