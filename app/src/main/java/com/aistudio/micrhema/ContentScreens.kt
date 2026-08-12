@@ -525,26 +525,6 @@ fun VideosList(selectedVideo: ContentVideo?, searchQuery: String, isLocalLoading
 
     val context = LocalContext.current
     
-    val exoPlayer = remember {
-        ExoPlayer.Builder(context).setMediaSourceFactory(androidx.media3.exoplayer.source.DefaultMediaSourceFactory(com.aistudio.micrhema.ExoPlayerCache.getCacheDataSourceFactory(context))).build()
-    }
-    
-    DisposableEffect(Unit) {
-        onDispose {
-            exoPlayer.release()
-        }
-    }
-    
-    LaunchedEffect(selectedVideo) {
-        if (selectedVideo != null) {
-            exoPlayer.setMediaItem(MediaItem.fromUri(selectedVideo!!.videoUrl))
-            exoPlayer.prepare()
-            exoPlayer.play()
-        } else {
-            exoPlayer.stop()
-        }
-    }
-
     if (selectedVideo != null) {
         val context = LocalContext.current
         val authorizedUser = loggedInMemberState.value?.let { it.isApproved || it.isIbr } ?: false
@@ -590,10 +570,9 @@ fun VideosList(selectedVideo: ContentVideo?, searchQuery: String, isLocalLoading
                     shape = RoundedCornerShape(24.dp)
                 ) {
                     Column {
-                        AsyncImage(
-                            model = video.thumbnailUrl,
-                            contentDescription = "Thumbnail",
-                            contentScale = ContentScale.Crop,
+                        YoutubeThumbnailImage(
+                            videoUrl = video.videoUrl,
+                            explicitThumbnailUrl = video.thumbnailUrl,
                             modifier = Modifier.fillMaxWidth().aspectRatio(16f/9f)
                         )
                         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {

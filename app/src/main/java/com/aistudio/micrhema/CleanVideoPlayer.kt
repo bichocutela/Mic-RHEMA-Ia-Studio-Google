@@ -550,14 +550,6 @@ fun CleanVideoPlayer(
                                     color = Color.White.copy(alpha = 0.9f),
                                     fontSize = 11.sp
                                 )
-                            } else {
-                                Text(
-                                    text = "🔴 YouTube Player",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Color.Red.copy(alpha = 0.9f),
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp
-                                )
                             }
 
                             if (lightsOff) {

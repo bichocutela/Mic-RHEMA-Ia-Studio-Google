@@ -1,4 +1,5 @@
 package com.aistudio.micrhema
+import androidx.compose.foundation.shape.RoundedCornerShape
 import kotlinx.coroutines.launch
 import androidx.compose.ui.draw.clip
 
@@ -163,6 +164,21 @@ fun EditMediaSection() {
                 GlassTextField(value = videoDesc, onValueChange = { videoDesc = it }, label = { Text("Descrição") }, modifier = Modifier.fillMaxWidth())
                 LocalUploadField(value = videoThumb, onValueChange = { videoThumb = it }, label = "URL ou Arquivo de Capa/Thumbnail (Opcional)", mimeType = "image/*")
                 LocalUploadField(value = videoUrl, onValueChange = { videoUrl = it }, label = "URL ou Arquivo Local MP4", mimeType = "video/*")
+                
+                if (isYoutubeUrl(videoUrl) || videoUrl.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Prévia do vídeo", style = MaterialTheme.typography.labelMedium)
+                    Card(modifier = Modifier.fillMaxWidth().aspectRatio(16f/9f), shape = RoundedCornerShape(12.dp)) {
+                        if (isYoutubeUrl(videoUrl)) {
+                            YoutubeThumbnailImage(videoUrl = videoUrl, explicitThumbnailUrl = videoThumb)
+                        } else {
+                            coil.compose.AsyncImage(model = videoThumb.ifEmpty { videoUrl }, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                        }
+                    }
+                    if (videoTitle.isNotBlank()) Text(videoTitle, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
+                    if (videoDesc.isNotBlank()) Text(videoDesc, style = MaterialTheme.typography.bodySmall)
+                }
+
                 GlassButton(onClick = {
                     if (isUploading) return@GlassButton
                     isUploading = true
@@ -170,7 +186,7 @@ fun EditMediaSection() {
                         uploadProgress = 0f
                         val finalThumbUploaded = if (videoThumb.isNotBlank() && !videoThumb.startsWith("http")) StorageManager.uploadFile(context, android.net.Uri.parse(videoThumb), "videos/covers") { progress -> uploadProgress = progress / 2f } else convertGoogleDriveUrl(videoThumb)
                         val finalVideoUrl = if (videoUrl.isNotBlank() && !videoUrl.startsWith("http")) StorageManager.uploadFile(context, android.net.Uri.parse(videoUrl), "videos/files") { progress -> uploadProgress = 0.5f + (progress / 2f) } else convertGoogleDriveUrl(videoUrl).ifEmpty { "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" }
-                        val finalThumb = finalThumbUploaded.ifEmpty { getYoutubeThumbnailUrl(finalVideoUrl) ?: "https://images.unsplash.com/photo-1505764761634-1d77b57e1966?w=500&q=80" }
+                        val finalThumb = finalThumbUploaded
                         addContentVideo(ContentVideo(id = System.currentTimeMillis().toString(), title = videoTitle, description = videoDesc, videoUrl = finalVideoUrl, thumbnailUrl = finalThumb))
                         videoTitle = ""
                         videoDesc = ""
@@ -433,6 +449,20 @@ fun EditMediaSection() {
                     GlassTextField(value = editDesc, onValueChange = { editDesc = it }, label = { Text("Descrição") })
                     LocalUploadField(value = editUrl, onValueChange = { editUrl = it }, label = "URL ou Arquivo Local MP4", mimeType = "video/*")
                     LocalUploadField(value = editThumbUrl, onValueChange = { editThumbUrl = it }, label = "URL ou Arquivo de Capa/Thumbnail (Opcional)", mimeType = "image/*")
+                    
+                    if (isYoutubeUrl(editUrl) || editUrl.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Prévia do vídeo", style = MaterialTheme.typography.labelMedium)
+                        Card(modifier = Modifier.fillMaxWidth().aspectRatio(16f/9f), shape = RoundedCornerShape(12.dp)) {
+                            if (isYoutubeUrl(editUrl)) {
+                                YoutubeThumbnailImage(videoUrl = editUrl, explicitThumbnailUrl = editThumbUrl)
+                            } else {
+                                coil.compose.AsyncImage(model = editThumbUrl.ifEmpty { editUrl }, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                            }
+                        }
+                        if (editTitle.isNotBlank()) Text(editTitle, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
+                        if (editDesc.isNotBlank()) Text(editDesc, style = MaterialTheme.typography.bodySmall)
+                    }
                 }
             },
             confirmButton = {

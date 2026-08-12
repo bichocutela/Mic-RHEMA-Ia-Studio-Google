@@ -281,13 +281,28 @@ fun EditVipContentSection() {
                 GlassTextField(value = videoTitle, onValueChange = { videoTitle = it }, label = { Text("Título") }, modifier = Modifier.fillMaxWidth())
                 GlassTextField(value = videoDesc, onValueChange = { videoDesc = it }, label = { Text("Descrição") }, modifier = Modifier.fillMaxWidth())
                 LocalUploadField(value = videoUrl, onValueChange = { videoUrl = it }, label = "URL ou Arquivo Local MP4", mimeType = "video/*")
+                
+                if (isYoutubeUrl(videoUrl) || videoUrl.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Prévia do vídeo", style = MaterialTheme.typography.labelMedium)
+                    Card(modifier = Modifier.fillMaxWidth().aspectRatio(16f/9f), shape = RoundedCornerShape(12.dp)) {
+                        if (isYoutubeUrl(videoUrl)) {
+                            YoutubeThumbnailImage(videoUrl = videoUrl)
+                        } else {
+                            coil.compose.AsyncImage(model = videoUrl, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                        }
+                    }
+                    if (videoTitle.isNotBlank()) Text(videoTitle, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
+                    if (videoDesc.isNotBlank()) Text(videoDesc, style = MaterialTheme.typography.bodySmall)
+                }
+
                 GlassButton(onClick = {
                     if (isUploading) return@GlassButton
                     isUploading = true
                     coroutineScope.launch {
                         uploadProgress = 0f
                         val finalVideoUrl = if (videoUrl.isNotBlank() && !videoUrl.startsWith("http")) StorageManager.uploadFile(context, android.net.Uri.parse(videoUrl), "videos/files") { progress -> uploadProgress = progress } else convertGoogleDriveUrl(videoUrl).ifEmpty { "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" }
-                        val finalThumb = getYoutubeThumbnailUrl(finalVideoUrl) ?: "https://images.unsplash.com/photo-1505764761634-1d77b57e1966?w=500&q=80"
+                        val finalThumb = ""
                         addVipVideo(ContentVideo(id = System.currentTimeMillis().toString(), title = videoTitle, description = videoDesc, videoUrl = finalVideoUrl, thumbnailUrl = finalThumb))
                         videoTitle = ""
                         videoDesc = ""
@@ -539,6 +554,20 @@ fun EditVipContentSection() {
                     GlassTextField(value = editTitle, onValueChange = { editTitle = it }, label = { Text("Título") })
                     GlassTextField(value = editDesc, onValueChange = { editDesc = it }, label = { Text("Descrição") })
                     LocalUploadField(value = editUrl, onValueChange = { editUrl = it }, label = "URL ou Arquivo Local MP4", mimeType = "video/*")
+                    
+                    if (isYoutubeUrl(editUrl) || editUrl.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Prévia do vídeo", style = MaterialTheme.typography.labelMedium)
+                        Card(modifier = Modifier.fillMaxWidth().aspectRatio(16f/9f), shape = RoundedCornerShape(12.dp)) {
+                            if (isYoutubeUrl(editUrl)) {
+                                YoutubeThumbnailImage(videoUrl = editUrl)
+                            } else {
+                                coil.compose.AsyncImage(model = editUrl, contentDescription = null, contentScale = androidx.compose.ui.layout.ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                            }
+                        }
+                        if (editTitle.isNotBlank()) Text(editTitle, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
+                        if (editDesc.isNotBlank()) Text(editDesc, style = MaterialTheme.typography.bodySmall)
+                    }
                 }
             },
             confirmButton = {

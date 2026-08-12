@@ -107,18 +107,17 @@ fun ServiceVideosGallery() {
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                         ) {
                             Column {
-                                Box {
-                                    AsyncImage(
-                                        model = video.thumbnailUrl.ifEmpty { "https://images.unsplash.com/photo-1438211331416-0be89cc621a8?w=500&q=80" },
-                                        contentDescription = video.title,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(120.dp)
-                                            .clickable {
-                                                selectedVideo = video 
-                                            },
-                                        contentScale = ContentScale.Crop
-                                    )
+                                Box(modifier = Modifier.fillMaxWidth().height(120.dp).clickable { selectedVideo = video }) {
+                                    if (isYoutubeUrl(video.videoUrl)) {
+                                        YoutubeThumbnailImage(videoUrl = video.videoUrl, explicitThumbnailUrl = video.thumbnailUrl, modifier = Modifier.fillMaxSize())
+                                    } else {
+                                        AsyncImage(
+                                            model = video.thumbnailUrl.ifEmpty { "https://images.unsplash.com/photo-1438211331416-0be89cc621a8?w=500&q=80" },
+                                            contentDescription = video.title,
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    }
                                     Surface(
                                         modifier = Modifier
                                             .align(Alignment.TopEnd)

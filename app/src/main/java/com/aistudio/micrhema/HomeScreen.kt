@@ -561,7 +561,7 @@ fun HomeSectionHeader(title: String, action: String, onAction: () -> Unit) {
 }
 
 @Composable
-fun MediaCard(title: String, type: String, icon: ImageVector, cover: String, onClick: () -> Unit) {
+fun MediaCard(title: String, type: String, icon: ImageVector, cover: String, videoUrl: String = "", onClick: () -> Unit) {
     Card(
         modifier = Modifier.width(140.dp).clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
@@ -569,12 +569,20 @@ fun MediaCard(title: String, type: String, icon: ImageVector, cover: String, onC
     ) {
         Column {
             Box(modifier = Modifier.fillMaxWidth().height(140.dp)) {
-                AsyncImage(
-                    model = cover,
-                    contentDescription = title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
+                if (videoUrl.isNotBlank() && (type == "Vídeo" || isYoutubeUrl(videoUrl))) {
+                    YoutubeThumbnailImage(
+                        videoUrl = videoUrl,
+                        explicitThumbnailUrl = cover,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    AsyncImage(
+                        model = cover,
+                        contentDescription = title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
                 Box(
                     modifier = Modifier.align(Alignment.BottomStart).padding(8.dp).background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
