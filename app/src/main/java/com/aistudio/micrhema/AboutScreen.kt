@@ -12,14 +12,18 @@ import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collectLatest
@@ -33,6 +37,15 @@ fun AboutScreen() {
     
     var isChecking by remember { mutableStateOf(false) }
     var updateResult by remember { mutableStateOf<UpdateResult?>(null) }
+
+    var showQrModal by remember { mutableStateOf(false) }
+    var showErrorModal by remember { mutableStateOf(false) }
+    var isGeneratingQr by remember { mutableStateOf(false) }
+    var qrCodeBitmap by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+    var publishedVersionName by remember { mutableStateOf("") }
+    var apkDownloadUrl by remember { mutableStateOf("") }
+    val clipboardManager = LocalClipboardManager.current
+    var showCopiedToast by remember { mutableStateOf(false) }
 
     val updateDownloader = remember { UpdateDownloader(context) }
     var downloadState by remember { mutableStateOf<DownloadState>(DownloadState.Idle) }
@@ -308,6 +321,55 @@ fun AboutScreen() {
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(if (updateResult is UpdateResult.Error) "Tentar novamente" else if (updateResult is UpdateResult.Success && (updateResult as UpdateResult.Success).info.updateAvailable) "Verificar novamente" else "Verificar atualização")
                             }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            OutlinedButton(
+                                onClick = {
+                                    isGeneratingQr = true
+                                    coroutineScope.launch {
+                                        var info = (updateResult as? UpdateResult.Success)?.info
+                                        if (info == null) {
+                                            val result = UpdateChecker.checkForUpdates(BuildConfig.VERSION_NAME)
+                                            if (result is UpdateResult.Success) {
+                                                info = result.info
+                                                updateResult = result
+                                            }
+                                        }
+
+                                        if (info != null && info.downloadUrl != null && info.downloadUrl.startsWith("https://")) {
+                                            publishedVersionName = info.latestVersion
+                                            apkDownloadUrl = info.downloadUrl
+                                            val bitmap = generateQrCode(info.downloadUrl)
+                                            if (bitmap != null) {
+                                                qrCodeBitmap = bitmap
+                                                showQrModal = true
+                                            } else {
+                                                showErrorModal = true
+                                            }
+                                        } else {
+                                            showErrorModal = true
+                                        }
+                                        isGeneratingQr = false
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = !isGeneratingQr
+                            ) {
+                                if (isGeneratingQr) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(18.dp),
+                                        strokeWidth = 2.dp,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Gerando...")
+                                } else {
+                                    Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Gerar versão em QR Code")
+                                }
+                            }
                         }
                     }
                 }
@@ -315,5 +377,136 @@ fun AboutScreen() {
                 Spacer(modifier = Modifier.height(100.dp))
             }
         }
+    }
+
+    if (showQrModal) {
+        AlertDialog(
+            onDismissRequest = { showQrModal = false },
+            title = {
+                Text(
+                    text = "Compartilhar MIC Rhema",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = "Versão disponível: v$publishedVersionName",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    qrCodeBitmap?.let {
+                        androidx.compose.foundation.Image(
+                            bitmap = it,
+                            contentDescription = "QR Code",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(1f)
+                                .padding(16.dp),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                        )
+                    }
+                    Text(
+                        text = "Escaneie para baixar esta versão",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (showCopiedToast) {
+                        Text(
+                            text = "Link copiado!",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        clipboardManager.setText(AnnotatedString(apkDownloadUrl))
+                        showCopiedToast = true
+                        coroutineScope.launch {
+                            kotlinx.coroutines.delay(2000)
+                            showCopiedToast = false
+                        }
+                    }
+                ) {
+                    Text("Copiar link")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showQrModal = false }) {
+                    Text("Fechar")
+                }
+            },
+            shape = RoundedCornerShape(20.dp),
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    }
+
+    if (showErrorModal) {
+        AlertDialog(
+            onDismissRequest = { showErrorModal = false },
+            title = {
+                Text(
+                    text = "Não foi possível gerar o QR Code",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "Verifique sua conexão e tente novamente.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showErrorModal = false
+                        isGeneratingQr = true
+                        coroutineScope.launch {
+                            val result = UpdateChecker.checkForUpdates(BuildConfig.VERSION_NAME)
+                            if (result is UpdateResult.Success) {
+                                updateResult = result
+                                val info = result.info
+                                if (info.downloadUrl != null && info.downloadUrl.startsWith("https://")) {
+                                    publishedVersionName = info.latestVersion
+                                    apkDownloadUrl = info.downloadUrl
+                                    val bitmap = generateQrCode(info.downloadUrl)
+                                    if (bitmap != null) {
+                                        qrCodeBitmap = bitmap
+                                        showQrModal = true
+                                    } else {
+                                        showErrorModal = true
+                                    }
+                                } else {
+                                    showErrorModal = true
+                                }
+                            } else {
+                                showErrorModal = true
+                            }
+                            isGeneratingQr = false
+                        }
+                    }
+                ) {
+                    Text("Tentar novamente")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showErrorModal = false }) {
+                    Text("Fechar")
+                }
+            },
+            shape = RoundedCornerShape(20.dp),
+            containerColor = MaterialTheme.colorScheme.surface
+        )
     }
 }
