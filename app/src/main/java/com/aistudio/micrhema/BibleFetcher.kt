@@ -82,32 +82,19 @@ object BibleFetcher {
                     .replace("ú", "u")
                     .replace("ç", "c")
 
-                val translationParam = when(translation) {
-                    "ARA" -> "almeida"
-                    else -> "almeida"
-                }
+                // Não usar outra tradução como fallback silencioso: a versão solicitada
+                // deve possuir provider próprio ou ser apresentada como indisponível.
+                return@withContext emptyList()
 
+                /*
+                val translationParam = when (translation) {
+                    "ARA" -> "almeida"
+                    else -> return@withContext emptyList()
+                }
                 val urlString = "https://bible-api.com/$formattedBook+$chapter?translation=$translationParam"
                 Log.d("BibleFetcher", "Fetching from: $urlString")
-
-                val response = URL(urlString).readText()
-                val json = JSONObject(response)
-                
-                val versesArray = json.getJSONArray("verses")
-                val resultList = mutableListOf<BibleVerse>()
-                
-                for (i in 0 until versesArray.length()) {
-                    val verseObj = versesArray.getJSONObject(i)
-                    resultList.add(
-                        BibleVerse(
-                            bookName = verseObj.getString("book_name"),
-                            chapter = verseObj.getInt("chapter"),
-                            verse = verseObj.getInt("verse"),
-                            text = verseObj.getString("text").trim()
-                        )
-                    )
-                }
-                resultList
+                val response = URL(urlString).readText()*/
+                emptyList<BibleVerse>()
             } catch (e: Exception) {
                 e.printStackTrace()
                 Log.e("BibleFetcher", "Error fetching Bible: ${e.message}")

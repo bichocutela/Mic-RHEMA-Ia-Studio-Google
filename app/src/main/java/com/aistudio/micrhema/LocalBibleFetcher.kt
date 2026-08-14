@@ -27,7 +27,7 @@ object LocalBibleFetcher {
 
     private suspend fun getCache(context: Context, version: String): JSONArray? = withContext(Dispatchers.IO) {
         val fileName = when (version) {
-            "ARA" -> "pt_aa.json"
+            "ARA" -> return@withContext null // ARA licenciada não está disponível nos assets atuais.
             "ACF" -> "pt_acf.json"
             "NVI" -> "pt_nvi.json"
             else -> return@withContext null

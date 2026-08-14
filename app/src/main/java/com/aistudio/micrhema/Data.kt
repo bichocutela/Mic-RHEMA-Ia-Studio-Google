@@ -333,12 +333,19 @@ object MemberManager {
     private const val PREFS_NAME = "micrhema_members_prefs"
     private const val KEY_MEMBERS = "members_list"
     private const val KEY_LOGGED_IN_ID = "logged_in_member_id"
+    private var membersListener: com.google.firebase.firestore.ListenerRegistration? = null
+
+    fun stopSync() {
+        membersListener?.remove()
+        membersListener = null
+    }
 
     fun syncFromFirestore(context: android.content.Context) {
+        stopSync()
         try {
             val db = Firebase.firestore
 
-            db.collection("acessos_pendentes").addSnapshotListener { snapshot, e ->
+            membersListener = db.collection("acessos_pendentes").addSnapshotListener { snapshot, e ->
                 if (e != null || snapshot == null) return@addSnapshotListener
                 val newList = mutableListOf<MemberRequest>()
                 for (document in snapshot.documents) {
@@ -346,8 +353,10 @@ object MemberManager {
                     val name = document.getString("name") ?: ""
                     val phone = document.getString("phone") ?: ""
                     val rawIsApproved = document.getBoolean("isApproved") ?: false
-                    val isVip = document.getBoolean("isVip") ?: false
-                    val isApproved = rawIsApproved || isVip
+                    val rawIsVip = document.getBoolean("isVip") ?: false
+                    val effectiveApproved = rawIsApproved || rawIsVip
+                    val isVip = false
+                    val isApproved = effectiveApproved
                     val isIbr = document.getBoolean("isIbr") ?: false
                     val email = document.getString("email") ?: ""
                     val isAdmin = document.getBoolean("isAdmin") ?: false
@@ -372,20 +381,16 @@ object MemberManager {
                         updatedAt = updatedAt
                     ))
                 }
-                if (newList.isNotEmpty()) {
-                    memberRequestsState.clear()
-                    memberRequestsState.addAll(newList)
-                    saveMembers(context)
-                    
-                    val loggedInId = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+                memberRequestsState.clear()
+                memberRequestsState.addAll(newList)
+                saveMembers(context)
+
+                val loggedInId = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
                         .getString(KEY_LOGGED_IN_ID, "") ?: ""
-                    if (loggedInId.isNotEmpty()) {
-                        val member = memberRequestsState.find { it.id == loggedInId }
-                        if (member != null) {
-                            loggedInMemberState.value = member
-                            loadIbrProgressFromFirestore()
-                        }
-                    }
+                if (loggedInId.isNotEmpty()) {
+                    val member = memberRequestsState.find { it.id == loggedInId }
+                    loggedInMemberState.value = member
+                    if (member != null) loadIbrProgressFromFirestore()
                 }
             }
         } catch (e: Exception) {
@@ -565,86 +570,7 @@ data class IbrProgress(
     var isCompleted: Boolean = false
 )
 
-val ibrCoursesState = mutableStateListOf<IbrCourse>(
-    IbrCourse(
-        id = "1",
-        title = "Introdução à Teologia Sistemática",
-        theme = "Teologia",
-        description = "Explore os pilares fundamentais da fé cristã, a Doutrina de Deus, Cristo e da Revelação Divina com profundidade acadêmica e prática ministerial.",
-        imageUrl = "https://images.unsplash.com/photo-1504052434569-70ad5836ab65?w=500&auto=format&fit=crop&q=60",
-        chapters = listOf(
-            IbrChapter(
-                id = "1_1",
-                title = "Aula 1: O que é Teologia?",
-                description = "Conceito, importância e o método do estudo teológico sistemático na caminhada cristã.",
-                durationMinutes = 45,
-                videoUrl = "https://m.youtube.com/watch?v=SKsJdyi4eUE",
-                isYoutube = true,
-                youtubeId = "SKsJdyi4eUE",
-                audioUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"
-            ),
-            IbrChapter(
-                id = "1_2",
-                title = "Aula 2: A Doutrina da Trindade",
-                description = "Uma imersão na revelação bíblica sobre a natureza triúna de Deus: Pai, Filho e Espírito Santo.",
-                durationMinutes = 52,
-                videoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
-                audioUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3"
-            ),
-            IbrChapter(
-                id = "1_3",
-                title = "Aula 3: Hermenêutica e Revelação Divina",
-                description = "Vídeo oficial de apoio sobre como interpretar e receber a palavra revelada do Senhor.",
-                durationMinutes = 38,
-                videoUrl = "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-                isYoutube = true,
-                youtubeId = "dQw4w9WgXcQ"
-            )
-        )
-    ),
-    IbrCourse(
-        id = "2",
-        title = "História da Igreja Cristã",
-        theme = "História Bíblica",
-        description = "Caminhe através dos séculos de história cristã, desde o dia de Pentecostes até o avivamento contemporâneo.",
-        imageUrl = "https://images.unsplash.com/photo-1438211331416-0be89cc621a8?w=500&auto=format&fit=crop&q=60",
-        chapters = listOf(
-            IbrChapter(
-                id = "2_1",
-                title = "Aula 1: A Igreja Primitiva",
-                description = "Os primeiros séculos da fé cristã, o império romano e a propagação do Evangelho.",
-                durationMinutes = 55,
-                videoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-                audioUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3"
-            ),
-            IbrChapter(
-                id = "2_2",
-                title = "Aula 2: A Reforma Protestante",
-                description = "O retorno às Escrituras Sagradas e as cinco solas que moldaram o pensamento protestante.",
-                durationMinutes = 60,
-                videoUrl = "",
-                audioUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3"
-            )
-        )
-    ),
-    IbrCourse(
-        id = "3",
-        title = "Doutrina do Rhema - Fé Prática",
-        theme = "Vida Cristã",
-        description = "Compreenda a diferença bíblica entre Logos e Rhema e como aplicar a palavra revelada para viver uma vida vitoriosa em Cristo.",
-        imageUrl = "https://images.unsplash.com/photo-1447069387593-a5de0862481e?w=500&auto=format&fit=crop&q=60",
-        chapters = listOf(
-            IbrChapter(
-                id = "3_1",
-                title = "Aula 1: Logos vs Rhema",
-                description = "A palavra escrita frente à palavra falada pelo Espírito diretamente ao nosso coração.",
-                durationMinutes = 35,
-                videoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
-                audioUrl = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3"
-            )
-        )
-    )
-)
+val ibrCoursesState = mutableStateListOf<IbrCourse>()
 
 val ibrProgressState = mutableStateListOf<IbrProgress>()
 
@@ -749,32 +675,11 @@ val vipVideosState = androidx.compose.runtime.mutableStateListOf<ContentVideo>()
 val vipAlbumsState = androidx.compose.runtime.mutableStateListOf<ContentPhotoAlbum>()
 val vipCoursesState = androidx.compose.runtime.mutableStateListOf<IbrCourse>()
 
-val contentBooksState = androidx.compose.runtime.mutableStateListOf<ContentBook>(
-    ContentBook("1", "O Poder da Oração", "E.M. Bounds", "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=500&q=80", "A oração é a força mais poderosa da terra...", isCached = true, progress = 0.1f)
-)
-val contentAudiosState = androidx.compose.runtime.mutableStateListOf<ContentAudio>(
-    ContentAudio("1", "Mensagem de Fé", "Pr. Presidente", "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80", isCached = true, progress = 0.4f)
-)
-val contentVideosState = androidx.compose.runtime.mutableStateListOf<ContentVideo>(
-    ContentVideo("1", "Culto Especial de Domingo", "Mensagem sobre a graça de Deus", "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4", "https://images.unsplash.com/photo-1505764761634-1d77b57e1966?w=500&q=80", isCached = true, progress = 0.8f)
-)
+val contentBooksState = androidx.compose.runtime.mutableStateListOf<ContentBook>()
+val contentAudiosState = androidx.compose.runtime.mutableStateListOf<ContentAudio>()
+val contentVideosState = androidx.compose.runtime.mutableStateListOf<ContentVideo>()
 val contentAlbumsState = androidx.compose.runtime.mutableStateListOf<ContentPhotoAlbum>()
-val serviceVideosState = androidx.compose.runtime.mutableStateListOf<ServiceVideoModel>(
-    ServiceVideoModel(
-        id = "1",
-        title = "Culto de Domingo - Família",
-        date = "Domingo, 10h",
-        videoUrl = "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-        thumbnailUrl = "https://images.unsplash.com/photo-1438211331416-0be89cc621a8?w=500&q=80"
-    ),
-    ServiceVideoModel(
-        id = "2",
-        title = "Culto de Celebração e Palavra",
-        date = "Domingo, 18h",
-        videoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
-        thumbnailUrl = "https://images.unsplash.com/photo-1510915361894-db8b60106cb1?w=500&q=80"
-    )
-)
+val serviceVideosState = androidx.compose.runtime.mutableStateListOf<ServiceVideoModel>()
 
 fun loadContentFromFirebase(context: Context) {
     if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
@@ -960,7 +865,7 @@ fun addRecentlyViewed(item: RecentlyViewedItem) {
 val appTabsState = androidx.compose.runtime.mutableStateListOf<AppTab>()
 
 fun initializeTabs() {
-    appTabsState.clear()
+    if (appTabsState.isNotEmpty()) return
     val defaultTabs = listOf(
         AppTab("1", "Início", "Home", false, true, true, 0, TabContentType.SYSTEM, Screen.Home.route),
         AppTab("bible_tab", "Bíblia", "MenuBook", false, true, false, 1, TabContentType.SYSTEM, "bible"),
@@ -1142,10 +1047,18 @@ fun removeCarouselItem(item: CarouselItem) {
     }
 }
 
-fun addPrayerRequest(item: PrayerRequest) {
-    if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
-        Firebase.firestore.collection("prayer_requests").document(item.id).set(item)
+fun addPrayerRequest(
+    item: PrayerRequest,
+    onSuccess: () -> Unit = {},
+    onFailure: (Exception) -> Unit = {}
+) {
+    if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isEmpty()) {
+        onFailure(IllegalStateException("Firebase não configurado"))
+        return
     }
+    Firebase.firestore.collection("prayer_requests").document(item.id).set(item)
+        .addOnSuccessListener { onSuccess() }
+        .addOnFailureListener { onFailure(it) }
 }
 fun removePrayerRequest(item: PrayerRequest) {
     if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {

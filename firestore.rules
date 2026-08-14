@@ -1,56 +1,153 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Permite leitura pública de todos os documentos
-    match /{document=**} {
-      allow read: if true;
+    function signedIn() {
+      return request.auth != null;
     }
 
-    // Verifica se o usuário está autenticado e tem a flag isAdmin (no documento do usuário)
-    // ou se possui a claim 'isAdmin' no token do Firebase Auth
     function isAdmin() {
-      return request.auth != null && (
+      return signedIn() && (
         request.auth.token.isAdmin == true ||
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
       );
     }
-    
-    // Aplicando a regra para a coleção 'conteúdo' e afins
-    match /conteudo/{document} {
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    // Conteúdo de leitura pública. Alterações ficam restritas à administração.
+    match /bible_news/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /bible_plans/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /carousel_items/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /conteudos_books/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /conteudos_audios/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /conteudos_videos/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /conteudos_albums/{document} {
+      allow read: if true;
       allow write: if isAdmin();
     }
     match /content_books/{document} {
+      allow read: if true;
       allow write: if isAdmin();
     }
     match /content_audios/{document} {
+      allow read: if true;
       allow write: if isAdmin();
     }
     match /content_videos/{document} {
+      allow read: if true;
       allow write: if isAdmin();
     }
     match /content_albums/{document} {
+      allow read: if true;
       allow write: if isAdmin();
     }
-    match /vip_books/{document} {
-      allow write: if isAdmin();
-    }
-    match /vip_audios/{document} {
-      allow write: if isAdmin();
-    }
-    match /vip_videos/{document} {
-      allow write: if isAdmin();
-    }
-    match /vip_albums/{document} {
+    match /devocionais/{document} {
+      allow read: if true;
       allow write: if isAdmin();
     }
     match /devotionals/{document} {
+      allow read: if true;
       allow write: if isAdmin();
     }
-    match /services/{document} {
+    match /cultos/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /cultos_agenda/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /equipe/{document} {
+      allow read: if true;
       allow write: if isAdmin();
     }
     match /events/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /ibr_courses/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /vip_books/{document} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+    match /vip_audios/{document} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+    match /vip_videos/{document} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+    match /vip_albums/{document} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+    match /vip_courses/{document} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+    match /conteudo/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Configurações públicas são legíveis; gravações administrativas.
+    match /settings/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /app_tabs/{document} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Dados administrativos e pessoais não têm leitura pública global.
+    match /acessos_pendentes/{document} {
+      allow read, write: if isAdmin();
+    }
+    match /prayer_requests/{document} {
+      allow create: if signedIn();
+      allow read, update, delete: if isAdmin();
+    }
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create, update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
+
+      match /favorites/{favoriteId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+      match /ibrProgress/{progressId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+    }
+
+    // Coleções administrativas legadas mantidas somente para compatibilidade.
+    match /services/{document} {
+      allow read: if true;
       allow write: if isAdmin();
     }
   }

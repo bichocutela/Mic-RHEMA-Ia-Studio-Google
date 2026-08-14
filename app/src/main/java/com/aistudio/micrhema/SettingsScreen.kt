@@ -17,13 +17,37 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import android.os.Environment
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
+private fun micRhemaDownloadsDir(context: android.content.Context): File =
+    File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "micrhema")
+
+private fun directorySize(file: File): Long =
+    if (!file.exists()) 0L else file.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+
+private fun formatStorageSize(bytes: Long): String {
+    if (bytes < 1024L) return "$bytes B"
+    val kb = bytes / 1024.0
+    if (kb < 1024.0) return "%.1f KB".format(kb)
+    val mb = kb / 1024.0
+    if (mb < 1024.0) return "%.1f MB".format(mb)
+    return "%.2f GB".format(mb / 1024.0)
+}
+
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(onNavigateProfile: () -> Unit = {}) {
     val context = LocalContext.current
     val settings by currentSettingsState
     val loggedInMember = loggedInMemberState.value
+    var occupiedBytes by remember { mutableLongStateOf(0L) }
+
+    fun refreshStorageSize() {
+        occupiedBytes = directorySize(micRhemaDownloadsDir(context))
+    }
+
+    LaunchedEffect(Unit) { refreshStorageSize() }
 
     fun updateSettings(newSettings: UserSettings) {
         UserSettingsManager.saveSettings(context, newSettings)
@@ -131,8 +155,12 @@ fun SettingsScreen() {
                     updateSettings(settings.copy(storageFolder = it))
                 }
                 SettingsSwitch("Limpar downloads antigos", settings.autoCleanOldDownloads) { updateSettings(settings.copy(autoCleanOldDownloads = it)) }
-                SettingsAction("Espaço ocupado: 1.2 GB (Exemplo)") {}
-                SettingsAction("Limpar downloads") {}
+                SettingsAction("Espaço ocupado: ${formatStorageSize(occupiedBytes)}") { refreshStorageSize() }
+                SettingsAction("Limpar downloads") {
+                    micRhemaDownloadsDir(context).deleteRecursively()
+                    refreshStorageSize()
+                    android.widget.Toast.makeText(context, "Downloads do MIC Rhema removidos.", android.widget.Toast.LENGTH_SHORT).show()
+                }
             }
 
             item { SettingsCategoryTitle("Notificações") }
@@ -148,7 +176,10 @@ fun SettingsScreen() {
                 SettingsSwitch("Pré-carregar imagens", settings.preloadImages) { updateSettings(settings.copy(preloadImages = it)) }
                 SettingsSwitch("Economizar dados móveis", settings.saveMobileData) { updateSettings(settings.copy(saveMobileData = it)) }
                 SettingsSwitch("Atualizar automaticamente", settings.autoUpdateContent) { updateSettings(settings.copy(autoUpdateContent = it)) }
-                SettingsAction("Limpar cache") {}
+                SettingsAction("Limpar cache") {
+                    context.cacheDir.deleteRecursively()
+                    android.widget.Toast.makeText(context, "Cache seguro limpo.", android.widget.Toast.LENGTH_SHORT).show()
+                }
             }
 
             item { SettingsCategoryTitle("Favoritos") }
@@ -156,12 +187,20 @@ fun SettingsScreen() {
                 SettingsSwitch("Sincronizar favoritos", settings.syncFavorites) { updateSettings(settings.copy(syncFavorites = it)) }
                 SettingsSwitch("Backup automático", settings.autoBackup) { updateSettings(settings.copy(autoBackup = it)) }
                 SettingsSwitch("Histórico de reprodução", settings.trackPlaybackHistory) { updateSettings(settings.copy(trackPlaybackHistory = it)) }
-                SettingsAction("Limpar histórico") {}
+                SettingsAction("Limpar histórico") {
+                    recentlyViewedState.clear()
+                    LocalDataManager.saveAll(context)
+                    android.widget.Toast.makeText(context, "Histórico limpo.", android.widget.Toast.LENGTH_SHORT).show()
+                }
             }
 
             item { SettingsCategoryTitle("Avançado") }
             item {
-                SettingsAction("Recarregar banco de dados") {}
+                SettingsAction("Recarregar banco de dados") {
+                    LocalDataManager.loadAll(context)
+                    refreshStorageSize()
+                    android.widget.Toast.makeText(context, "Dados locais recarregados; o conteúdo remoto é sincronizado pelos listeners ativos.", android.widget.Toast.LENGTH_SHORT).show()
+                }
                 SettingsAction("Resetar configurações", color = MaterialTheme.colorScheme.error) {
                     updateSettings(UserSettings())
                 }
@@ -192,7 +231,7 @@ fun SettingsScreen() {
                         }
                     }
 
-                    SettingsAction("Alterar número de contato") {}
+                    SettingsAction("Alterar número de contato") { onNavigateProfile() }
                     SettingsAction("Sair da conta", color = MaterialTheme.colorScheme.error) {
                         MemberManager.setLoggedInMember(context, null)
                     }

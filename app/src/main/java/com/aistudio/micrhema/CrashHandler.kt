@@ -16,6 +16,11 @@ object CrashHandler : Thread.UncaughtExceptionHandler {
 
     override fun uncaughtException(t: Thread, e: Throwable) {
         val stackTrace = Log.getStackTraceString(e)
+        try {
+            com.google.firebase.crashlytics.FirebaseCrashlytics.getInstance().recordException(e)
+        } catch (reportingError: Exception) {
+            Log.e("CrashHandler", "Falha ao registrar crash no Crashlytics", reportingError)
+        }
         prefs.edit().putString("last_crash", stackTrace).commit()
         defaultHandler?.uncaughtException(t, e)
     }

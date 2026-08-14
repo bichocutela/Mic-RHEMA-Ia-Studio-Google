@@ -53,6 +53,7 @@ fun AdminTabsScreen() {
                             NavigationBarItem(
                                 selected = index == 0,
                                 onClick = { },
+                                enabled = false,
                                 icon = { Icon(getIconFromName(tab.iconName), contentDescription = null) },
                                 label = { Text(tab.title) }
                             )

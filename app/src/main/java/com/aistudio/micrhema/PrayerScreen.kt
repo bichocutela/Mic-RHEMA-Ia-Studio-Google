@@ -151,14 +151,22 @@ fun PrayerScreen() {
                         onClick = {
                             if (name.isNotBlank() && request.isNotBlank()) {
                                 isLoading = true
-                                val newReq = PrayerRequest(id = java.util.UUID.randomUUID().toString(), name = name, request = request, date = "Hoje")
-                                prayerRequestsState.add(0, newReq)
-                                addPrayerRequest(newReq)
-                                // If connected to firestore, could save it here
-                                Toast.makeText(context, "Pedido enviado com sucesso!", Toast.LENGTH_SHORT).show()
-                                name = ""
-                                request = ""
-                                isLoading = false
+                                val newReq = PrayerRequest(id = java.util.UUID.randomUUID().toString(), name = name.trim(), request = request.trim(), date = "Hoje")
+                                addPrayerRequest(
+                                    item = newReq,
+                                    onSuccess = {
+                                        prayerRequestsState.add(0, newReq)
+                                        Toast.makeText(context, "Pedido enviado com sucesso!", Toast.LENGTH_SHORT).show()
+                                        name = ""
+                                        request = ""
+                                        isLoading = false
+                                    },
+                                    onFailure = { error ->
+                                        Toast.makeText(context, "Não foi possível enviar o pedido. Tente novamente.", Toast.LENGTH_LONG).show()
+                                        android.util.Log.e("PrayerScreen", "Falha ao enviar pedido", error)
+                                        isLoading = false
+                                    }
+                                )
                             } else {
                                 Toast.makeText(context, "Preencha todos os campos.", Toast.LENGTH_SHORT).show()
                             }

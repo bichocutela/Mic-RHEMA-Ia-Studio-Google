@@ -133,11 +133,13 @@ class MainActivity : ComponentActivity() {
                     val lastCrash = CrashHandler.getLastCrash(this@MainActivity)
                     if (lastCrash != null) {
                         androidx.compose.foundation.layout.Column(androidx.compose.ui.Modifier.fillMaxSize().verticalScroll(androidx.compose.foundation.rememberScrollState())) {
-                            androidx.compose.material3.Text("CRASH LOG:", color = androidx.compose.ui.graphics.Color.Red)
-                            androidx.compose.material3.Button(onClick = { CrashHandler.clearLastCrash(this@MainActivity) }) {
-                                androidx.compose.material3.Text("Clear")
+                            androidx.compose.material3.Text("Ocorreu um erro inesperado. O problema foi registrado para análise.", color = androidx.compose.ui.graphics.Color.Red)
+                            if (com.aistudio.micrhema.BuildConfig.DEBUG) {
+                                androidx.compose.material3.Text(lastCrash)
                             }
-                            androidx.compose.material3.Text(lastCrash)
+                            androidx.compose.material3.Button(onClick = { CrashHandler.clearLastCrash(this@MainActivity) }) {
+                                androidx.compose.material3.Text("Continuar")
+                            }
                         }
                     } else {
                         MainScreen()
@@ -147,8 +149,13 @@ class MainActivity : ComponentActivity() {
         } catch (e: Exception) {
             setContent {
                 androidx.compose.foundation.layout.Column(androidx.compose.ui.Modifier.fillMaxSize().verticalScroll(androidx.compose.foundation.rememberScrollState())) {
-                    androidx.compose.material3.Text("CRASH IN ONCREATE:", color = androidx.compose.ui.graphics.Color.Red)
-                    androidx.compose.material3.Text(android.util.Log.getStackTraceString(e))
+                    androidx.compose.material3.Text("Não foi possível iniciar o aplicativo. O problema foi registrado para análise.", color = androidx.compose.ui.graphics.Color.Red)
+                    if (com.aistudio.micrhema.BuildConfig.DEBUG) {
+                        androidx.compose.material3.Text(android.util.Log.getStackTraceString(e))
+                    }
+                    try {
+                        com.google.firebase.crashlytics.FirebaseCrashlytics.getInstance().recordException(e)
+                    } catch (_: Exception) { }
                 }
             }
         }
@@ -181,24 +188,6 @@ fun MainScreen() {
     }
 
     LaunchedEffect(Unit) {
-        // Enforce cleanup on the UI side directly
-        val toDelete = appTabsState.filter { it.title.contains("Ajuda", ignoreCase = true) || it.title.contains("Eventos", ignoreCase = true) || it.id == "9" || it.id == "eventos_tab" || it.id == "ajuda_tab" || it.id == "events_tab" || it.id == "help_tab" }
-        appTabsState.removeAll(toDelete)
-        
-        val sobreIdx = appTabsState.indexOfFirst { it.id == "8" }
-        if (sobreIdx != -1) {
-            appTabsState[sobreIdx] = appTabsState[sobreIdx].copy(isVisible = true, title = "Sobre", iconName = "Info", systemRoute = Screen.About.route)
-        } else {
-            appTabsState.add(AppTab("8", "Sobre", "Info", false, true, false, 9, TabContentType.SYSTEM, Screen.About.route))
-        }
-        
-        val adminIdx = appTabsState.indexOfFirst { it.id == "admin_tab" }
-        if (adminIdx != -1) {
-            appTabsState[adminIdx] = appTabsState[adminIdx].copy(isVisible = true)
-        } else {
-            appTabsState.add(AppTab("admin_tab", "Área ADM", "Lock", false, true, false, 11, TabContentType.SYSTEM, Screen.Admin.route))
-        }
-
         // Initialize Firebase if keys are present (via Secrets panel/BuildConfig)
         if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty() && com.google.firebase.FirebaseApp.getApps(context).isEmpty()) {
             try {
@@ -242,17 +231,12 @@ fun MainScreen() {
         MemberManager.loadMembers(context)
         MemberManager.syncFromFirestore(context)
         
-        // Force refresh from Firestore on app open
-        kotlinx.coroutines.GlobalScope.launch {
+        // A rede é habilitada sem criar um escopo global de longa duração.
+        launch {
             try {
                 com.google.firebase.firestore.FirebaseFirestore.getInstance().enableNetwork().await()
-            } catch(e: Exception) {}
-        }
-        
-        launch {
-            while (true) {
-                kotlinx.coroutines.delay(5000)
-                LocalDataManager.saveAll(context)
+            } catch (e: Exception) {
+                android.util.Log.w("MainActivity", "Não foi possível habilitar a rede", e)
             }
         }
         
@@ -620,7 +604,9 @@ fun MainScreen() {
                 }
                 composable(Screen.About.route) { AboutScreen() }
                 composable(Screen.Donations.route) { DonationsScreen() }
-                composable(Screen.Settings.route) { SettingsScreen() }
+                composable(Screen.Settings.route) {
+                    SettingsScreen(onNavigateProfile = { navController.navigate(Screen.Profile.route) })
+                }
                 composable(
                     route = "${Screen.Content.route}?type={type}&id={id}",
                     arguments = listOf(

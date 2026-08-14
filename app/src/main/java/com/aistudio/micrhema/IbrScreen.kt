@@ -379,17 +379,6 @@ fun IbrCourseScreen(
                     Card(
                         modifier = Modifier.fillMaxWidth().clickable {
                             if (chapter.type == "VIDEO") {
-                                // Mark as watched
-                                val newProg = IbrProgress(course.id, chapter.id, 0, chapter.durationMinutes * 60, true)
-                                syncIbrProgressToFirestore(newProg)
-                                val existing = ibrProgressState.find { it.courseId == course.id && it.chapterId == chapter.id }
-                                if (existing != null) {
-                                    existing.isCompleted = true
-                                } else {
-                                    ibrProgressState.add(newProg)
-                                }
-                                showCompletionAnim = true
-                                
                                 val url = if (chapter.isYoutube && chapter.videoUrl.isNotEmpty()) {
                                     if (chapter.videoUrl.startsWith("http")) chapter.videoUrl else "https://www.youtube.com/watch?v=${chapter.videoUrl}"
                                 } else chapter.videoUrl
@@ -410,16 +399,7 @@ fun IbrCourseScreen(
                                     coverUrl = course.imageUrl.ifEmpty { "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80" }
                                 )
                                 GlobalAudioPlayer.playTrack(context, track)
-                                // We mark as completed here for simplicity, or ideally when audio finishes (but GlobalAudioPlayer doesn't easily callback to IbrProgress right now).
-                                val newProg = IbrProgress(course.id, chapter.id, 0, chapter.durationMinutes * 60, true)
-                                syncIbrProgressToFirestore(newProg)
-                                val existing = ibrProgressState.find { it.courseId == course.id && it.chapterId == chapter.id }
-                                if (existing != null) {
-                                    existing.isCompleted = true
-                                } else {
-                                    ibrProgressState.add(newProg)
-                                }
-                                showCompletionAnim = true
+                                android.widget.Toast.makeText(context, "O progresso será concluído após a reprodução real do áudio.", android.widget.Toast.LENGTH_SHORT).show()
 
                             } else if (chapter.type == "TEXT") {
                                 onNavigateToText(course.id, chapter.id)
@@ -499,16 +479,8 @@ fun IbrTextScreen(
 
     var fontSizeMultiplier by remember { mutableFloatStateOf(1f) }
     
-    // Mark as read when opening (or we could wait until they scroll to bottom)
-    LaunchedEffect(Unit) {
-        val newProg = IbrProgress(course.id, chapter.id, 0, chapter.durationMinutes * 60, true)
-        syncIbrProgressToFirestore(newProg)
-        val existing = ibrProgressState.find { it.courseId == course.id && it.chapterId == chapter.id }
-        if (existing != null) {
-            existing.isCompleted = true
-        } else {
-            ibrProgressState.add(newProg)
-        }
+    var isCompleted by remember {
+        mutableStateOf(ibrProgressState.any { it.courseId == course.id && it.chapterId == chapter.id && it.isCompleted })
     }
 
     Scaffold(
@@ -551,13 +523,18 @@ fun IbrTextScreen(
                 color = MaterialTheme.colorScheme.onBackground
             )
             Spacer(modifier = Modifier.height(48.dp))
-            
-            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF4CAF50))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Aula marcada como lida.", color = Color(0xFF4CAF50), fontWeight = FontWeight.Bold)
-                }
+            Button(
+                onClick = {
+                    val newProg = IbrProgress(course.id, chapter.id, 0, chapter.durationMinutes * 60, true)
+                    syncIbrProgressToFirestore(newProg)
+                    val existing = ibrProgressState.find { it.courseId == course.id && it.chapterId == chapter.id }
+                    if (existing != null) existing.isCompleted = true else ibrProgressState.add(newProg)
+                    isCompleted = true
+                },
+                enabled = !isCompleted,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(if (isCompleted) "Leitura concluída" else "Concluir leitura")
             }
         }
     }
