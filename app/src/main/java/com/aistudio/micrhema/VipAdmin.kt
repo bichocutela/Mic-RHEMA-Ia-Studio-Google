@@ -242,7 +242,12 @@ fun EditVipContentSection() {
                 GlassTextField(value = audioArtist, onValueChange = { audioArtist = it }, label = { Text("Artista/Preletor") }, modifier = Modifier.fillMaxWidth())
                 LocalUploadField(value = audioUrl, onValueChange = { audioUrl = it }, label = "URL ou Arquivo Local MP3", mimeType = "audio/*")
                 GlassButton(onClick = {
-                    addVipAudio(ContentAudio(id = System.currentTimeMillis().toString(), title = audioTitle, artist = audioArtist, audioUrl = convertGoogleDriveUrl(audioUrl).ifEmpty { "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" }, coverUrl = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80"))
+                    val finalAudioUrl = convertGoogleDriveUrl(audioUrl)
+                    if (finalAudioUrl.isBlank()) {
+                        android.widget.Toast.makeText(context, "Informe ou selecione um arquivo de áudio.", android.widget.Toast.LENGTH_SHORT).show()
+                        return@GlassButton
+                    }
+                    addVipAudio(ContentAudio(id = System.currentTimeMillis().toString(), title = audioTitle, artist = audioArtist, audioUrl = finalAudioUrl, coverUrl = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80"))
                     audioTitle = ""
                     audioArtist = ""
                     audioUrl = ""

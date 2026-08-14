@@ -53,3 +53,9 @@ A disponibilização de ARA e NVI exige fonte e licença autorizadas. A compara�
 ## Arquivos modificados
 
 `firestore.rules`, `MainActivity.kt`, `Data.kt`, `PrayerScreen.kt`, `SettingsScreen.kt`, `IbrScreen.kt`, `LocalBibleFetcher.kt`, `BibleFetcher.kt`, `BibleDatasetValidator.kt`, `CrashHandler.kt`, `AdminTabs.kt`, `gradlew` e `gradle/wrapper/gradle-wrapper.jar`.
+
+## Correções adicionais posteriores
+
+Na revisão do commit `5b20e0c`, foram corrigidos três problemas adicionais. O listener de `sync_trigger` deixou de usar `GlobalScope` e passou a utilizar um escopo dedicado com `SupervisorJob` e `Dispatchers.IO`, incluindo tratamento de falhas. Os formulários de áudio comum e VIP deixaram de inserir SoundHelix como fallback e agora exigem uma URL ou arquivo real antes de salvar. A busca estática confirmou que não restam referências a `SoundHelix`, `ElephantsDream` ou `GlobalScope` no código Kotlin.
+
+A validação Gradle posterior foi interrompida por contenção de memória e trava de cache causada por instâncias concorrentes do Gradle no ambiente. O diff passou em `git diff --check`; a compilação Android completa continua dependente de um ambiente com Android SDK configurado e recursos suficientes.

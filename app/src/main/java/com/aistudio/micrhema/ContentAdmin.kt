@@ -113,8 +113,13 @@ fun EditMediaSection() {
                     isUploading = true
                     coroutineScope.launch {
                         uploadProgress = 0f
+                        if (audioUrl.isBlank()) {
+                            android.widget.Toast.makeText(context, "Informe ou selecione um arquivo de áudio.", android.widget.Toast.LENGTH_SHORT).show()
+                            isUploading = false
+                            return@launch
+                        }
                         val finalCoverUrl = if (audioCover.isNotBlank() && !audioCover.startsWith("http")) StorageManager.uploadFile(context, android.net.Uri.parse(audioCover), "audios/covers") { progress -> uploadProgress = progress / 2f } else convertGoogleDriveUrl(audioCover).ifEmpty { "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80" }
-                        val finalAudioUrl = if (audioUrl.isNotBlank() && !audioUrl.startsWith("http")) StorageManager.uploadFile(context, android.net.Uri.parse(audioUrl), "audios/files") { progress -> uploadProgress = 0.5f + (progress / 2f) } else convertGoogleDriveUrl(audioUrl).ifEmpty { "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" }
+                        val finalAudioUrl = if (!audioUrl.startsWith("http")) StorageManager.uploadFile(context, android.net.Uri.parse(audioUrl), "audios/files") { progress -> uploadProgress = 0.5f + (progress / 2f) } else convertGoogleDriveUrl(audioUrl)
                         addContentAudio(ContentAudio(id = System.currentTimeMillis().toString(), title = audioTitle, artist = audioArtist, audioUrl = finalAudioUrl, coverUrl = finalCoverUrl))
                         audioTitle = ""
                         audioArtist = ""

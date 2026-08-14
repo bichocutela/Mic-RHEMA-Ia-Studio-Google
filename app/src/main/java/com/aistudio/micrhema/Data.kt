@@ -1,7 +1,9 @@
 package com.aistudio.micrhema
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 
 
 import com.google.firebase.Firebase
@@ -11,6 +13,8 @@ import android.util.Log
 import android.content.Context
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+
+private val dataSyncScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
 object DevotionalManager {
     fun syncDevotionals(context: Context, scope: kotlinx.coroutines.CoroutineScope) {
@@ -696,8 +700,12 @@ fun loadContentFromFirebase(context: Context) {
             }
             db.collection("settings").document("sync_trigger").addSnapshotListener { snapshot, e ->
                 if (e != null || snapshot == null || !snapshot.exists()) return@addSnapshotListener
-                kotlinx.coroutines.GlobalScope.launch {
-                    forceRefreshData()
+                dataSyncScope.launch {
+                    try {
+                        forceRefreshData()
+                    } catch (refreshError: Exception) {
+                        Log.e("Data", "Falha ao atualizar dados após sync_trigger", refreshError)
+                    }
                 }
             }
             db.collection("conteudos_audios").addSnapshotListener { snapshot, e ->
