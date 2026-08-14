@@ -59,3 +59,9 @@ A disponibilização de ARA e NVI exige fonte e licença autorizadas. A compara�
 Na revisão do commit `5b20e0c`, foram corrigidos três problemas adicionais. O listener de `sync_trigger` deixou de usar `GlobalScope` e passou a utilizar um escopo dedicado com `SupervisorJob` e `Dispatchers.IO`, incluindo tratamento de falhas. Os formulários de áudio comum e VIP deixaram de inserir SoundHelix como fallback e agora exigem uma URL ou arquivo real antes de salvar. A busca estática confirmou que não restam referências a `SoundHelix`, `ElephantsDream` ou `GlobalScope` no código Kotlin.
 
 A validação Gradle posterior foi interrompida por contenção de memória e trava de cache causada por instâncias concorrentes do Gradle no ambiente. O diff passou em `git diff --check`; a compilação Android completa continua dependente de um ambiente com Android SDK configurado e recursos suficientes.
+
+## Revisão adicional do commit a7c0cd9
+
+A revisão ponta a ponta confirmou que o commit `a7c0cd9` não alterou applicationId, chaves, assinatura, `google-services`, workflows ou dependências protegidas. A análise estática passou em `git diff --check`, e não há referências Kotlin restantes a `SoundHelix`, `ElephantsDream` ou `GlobalScope`.
+
+O ambiente apresentou encerramento inesperado do daemon Gradle durante a inicialização, mesmo após a remoção das travas obsoletas. Para reduzir a pressão de memória sem alterar o aplicativo, `gradle.properties` foi ajustado para `Xmx384m`, um worker, execução não paralela e compilador Kotlin in-process. A nova tentativa ainda terminou com o daemon desaparecendo antes da execução das tarefas; por isso, não há resultado de compilação Kotlin/Android confiável neste sandbox. O erro remanescente é ambiental, não foi mascarado nem resolvido com flags de lint permissivas.
