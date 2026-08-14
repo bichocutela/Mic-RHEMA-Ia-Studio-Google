@@ -45,8 +45,8 @@ jobs:
           KEY_ALIAS: ${{ secrets.MICRHEMA_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.MICRHEMA_KEY_PASSWORD }}
         run: |
-          chmod +x gradlew || true
-          ./gradlew assembleRelease || gradle assembleRelease
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: Remover chave de assinatura
         if: always()

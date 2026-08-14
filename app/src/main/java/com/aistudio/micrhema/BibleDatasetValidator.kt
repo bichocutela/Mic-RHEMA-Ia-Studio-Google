@@ -30,7 +30,8 @@ object BibleDatasetValidator {
             if (json.length() != 66) invalid += "Esperados 66 livros, encontrados ${json.length()}"
             val limit = minOf(json.length(), expectedChapters.size)
             for (bookIndex in 0 until limit) {
-                val book = json.optJSONObject(bookIndex) ?: run {
+                val book = json.optJSONObject(bookIndex)
+                if (book == null) {
                     invalid += "Livro ${bookIndex + 1} inválido"
                     continue
                 }
