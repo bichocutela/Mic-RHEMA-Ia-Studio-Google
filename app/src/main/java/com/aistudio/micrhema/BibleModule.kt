@@ -15,7 +15,6 @@ import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Download
-import kotlinx.coroutines.launch
 import android.widget.Toast
 
 import androidx.compose.material.icons.filled.Book
@@ -27,7 +26,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
@@ -61,32 +59,18 @@ fun BibleScreen(
     var selectedChapter by remember { mutableStateOf<Int?>(initialChapter ?: 1) }
     var selectedVersion by remember { mutableStateOf(initialVersion ?: "ARA") }
     var showVersionDialog by remember { mutableStateOf(false) }
-    var verses by remember { mutableStateOf<List<BibleVerse>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(false) }
-    var fontSize by remember { mutableStateOf(18f) }
+    var shouldOpenYouVersion by remember { mutableStateOf(true) }
     
     var showBookSelector by remember { mutableStateOf(false) }
     var selectorStep by remember { mutableStateOf("book") }
     var selectedBookTemp by remember { mutableStateOf<String?>(null) }
 
-    val coroutineScope = rememberCoroutineScope()
-    val context = LocalContext.current
-
     val versions = YouVersionLinks.versions.map { it.code to it.name }
 
-    fun fetchChapter() {
-        if (selectedBook != null && selectedChapter != null) {
-            isLoading = true
-            coroutineScope.launch {
-                verses = BibleFetcher.getChapter(context, selectedBook!!, selectedChapter!!, selectedVersion)
-                isLoading = false
-            }
-        }
-    }
-
-    LaunchedEffect(selectedChapter, selectedVersion) {
-        if (selectedChapter != null) {
-            fetchChapter()
+    LaunchedEffect(selectedBook, selectedChapter, selectedVersion, shouldOpenYouVersion) {
+        if (shouldOpenYouVersion && selectedBook != null && selectedChapter != null) {
+            shouldOpenYouVersion = false
+            onOpenYouVersion(selectedBook!!, selectedChapter!!, selectedVersion)
         }
     }
     
@@ -134,76 +118,26 @@ fun BibleScreen(
                     )
                 }
 
-                // Right side: Font size and Version
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { if (fontSize > 12f) fontSize -= 2f }) {
-                        Icon(Icons.Default.Remove, contentDescription = "Diminuir", modifier = Modifier.size(20.dp))
-                    }
-                    IconButton(onClick = { if (fontSize < 48f) fontSize += 2f }) {
-                        Icon(Icons.Default.Add, contentDescription = "Aumentar", modifier = Modifier.size(20.dp))
-                    }
-                    TextButton(
-                        onClick = { showVersionDialog = true },
-                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onBackground)
-                    ) {
-                        Text(selectedVersion, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                        Icon(
-                            Icons.Default.KeyboardArrowDown,
-                            contentDescription = "Versão",
-                            modifier = Modifier.padding(start = 4.dp)
-                        )
-                    }
+                // Seleção de versão; a escolha abre automaticamente a página no YouVersion.
+                TextButton(
+                    onClick = { showVersionDialog = true },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onBackground)
+                ) {
+                    Text(selectedVersion, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                    Icon(
+                        Icons.Default.KeyboardArrowDown,
+                        contentDescription = "Versão",
+                        modifier = Modifier.padding(start = 4.dp)
+                    )
                 }
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
 
-            if (selectedBook != null && selectedChapter != null) {
-                OutlinedButton(
-                    onClick = { onOpenYouVersion(selectedBook!!, selectedChapter!!, selectedVersion) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    Text("Ler $selectedVersion no YouVersion")
-                }
-            }
-
-            if (isLoading) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-            } else if (verses.isEmpty() && selectedBook != null && selectedChapter != null) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Capítulo não encontrado ou erro de conexão.", color = MaterialTheme.colorScheme.error)
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Button(onClick = { fetchChapter() }) {
-                            Text("Tentar novamente")
-                        }
-                    }
-                }
-            } else if (selectedBook != null && selectedChapter != null) {
-                LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-                    item { Spacer(modifier = Modifier.height(16.dp)) }
-                    items(verses) { verse ->
-                        Row(modifier = Modifier.padding(vertical = 4.dp).fillMaxWidth()) {
-                            Text(
-                                "${verse.verse}",
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(end = 8.dp, top = 4.dp),
-                                fontSize = androidx.compose.ui.unit.TextUnit(fontSize * 0.7f, androidx.compose.ui.unit.TextUnitType.Sp)
-                            )
-                            Text(
-                                verse.text,
-                                fontSize = androidx.compose.ui.unit.TextUnit(fontSize, androidx.compose.ui.unit.TextUnitType.Sp),
-                                lineHeight = androidx.compose.ui.unit.TextUnit(fontSize * 1.5f, androidx.compose.ui.unit.TextUnitType.Sp),
-                                color = MaterialTheme.colorScheme.onBackground
-                            )
-                        }
-                    }
-                    item { Spacer(modifier = Modifier.height(64.dp)) }
-                }
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("Escolha uma versão ou capítulo para abrir no YouVersion…")
             }
         }
         
@@ -251,6 +185,7 @@ fun BibleScreen(
                                     modifier = Modifier.aspectRatio(1f).clickable {
                                         selectedBook = selectedBookTemp
                                         selectedChapter = chapter
+                                        shouldOpenYouVersion = true
                                         showBookSelector = false
                                         selectorStep = "book"
                                     }
@@ -279,6 +214,7 @@ fun BibleScreen(
                                     .fillMaxWidth()
                                     .clickable {
                                         selectedVersion = code
+                                        shouldOpenYouVersion = true
                                         showVersionDialog = false
                                     }
                                     .padding(vertical = 12.dp),
