@@ -19,35 +19,39 @@ import com.aistudio.micrhema.currentSettingsState
 import androidx.core.view.WindowCompat
 
 private val LightColorScheme = lightColorScheme(
-    primary = Color(0xFFD4AF37), // Pure gold
+    primary = Color(0xFF8A6500),
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFFEF08A), // Light yellow
-    onPrimaryContainer = Color(0xFF713F12),
-    
-    secondary = Color(0xFFEAB308), // Yellow
+    primaryContainer = Color(0xFFFFE8A3),
+    onPrimaryContainer = Color(0xFF3C2F00),
+
+    secondary = Color(0xFF765600),
     onSecondary = Color.White,
-    secondaryContainer = Color(0xFFFDE68A), // Light amber
-    onSecondaryContainer = Color(0xFF78350F),
-    
-    tertiary = Color(0xFFFBBF24), // Amber
+    secondaryContainer = Color(0xFFFFF0C2),
+    onSecondaryContainer = Color(0xFF3C2F00),
+
+    tertiary = Color(0xFF8A6500),
     onTertiary = Color.White,
-    
-    background = Color(0xFFFFFDF5), // Off-white with yellow tint
+
+    background = Color(0xFFFFFDF7),
     onBackground = Color(0xFF1C1917),
-    
-    surface = Color(0xFFFFFFFF), // Pure white
+
+    surface = Color(0xFFFFFFFF),
     onSurface = Color(0xFF1C1917),
-    
-    surfaceVariant = Color(0xFFFFFBEB), // Very light yellow surface variant
-    onSurfaceVariant = Color(0xFF78350F), // Dark yellow/brown text
-    
-    outline = Color(0xFFFDE68A)
+
+    surfaceVariant = Color(0xFFFFF8E7),
+    onSurfaceVariant = Color(0xFF514000),
+
+    outline = Color(0xFF6B6252),
+    outlineVariant = Color(0xFFD4C8AC)
 )
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Color(0xFF3B82F6), // Elegant premium blue
-    secondary = Color(0xFFD4AF37), // Pure gold accent
-    tertiary = Color(0xFFE5B842), // Bright gold accent
+    primary = Color(0xFF7DB3FF),
+    onPrimary = Color(0xFF06234A),
+    secondary = Color(0xFFE5B842),
+    onSecondary = Color(0xFF2D2100),
+    tertiary = Color(0xFFFFD66B),
+    onTertiary = Color(0xFF2D2100),
     background = Color(0xFF090E17), // Premium midnight deep navy
     surface = Color(0xFF131B2E), // Premium dark ocean surface
     primaryContainer = Color(0xFF1E293B), // Elegant slate container
@@ -80,7 +84,7 @@ fun MICRhemaTheme(
         AccentColor.BLUE -> Color(0xFF3B82F6)
         AccentColor.GREEN -> Color(0xFF10B981)
         AccentColor.PURPLE -> Color(0xFF8B5CF6)
-        AccentColor.GOLD -> Color(0xFFD4AF37)
+        AccentColor.GOLD -> Color(0xFF8A6500)
         AccentColor.WHITE -> if (darkTheme) Color.White else Color.Black
     }
     

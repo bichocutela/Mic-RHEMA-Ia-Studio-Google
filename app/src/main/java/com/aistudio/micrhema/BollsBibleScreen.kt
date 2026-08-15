@@ -38,7 +38,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -59,8 +58,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
@@ -99,13 +96,29 @@ fun BollsBibleScreen(
     var showChapterDialog by remember { mutableStateOf(false) }
     var referenceBook by remember(currentBook) { mutableStateOf(currentBook) }
     var referenceChapter by remember(currentBook, currentChapter) { mutableIntStateOf(currentChapter) }
-    var referenceVerseText by remember(currentBook, currentChapter, selectedTargetVerse) {
-        mutableStateOf((selectedTargetVerse ?: 1).toString())
+    var referenceVerse by remember(currentBook, currentChapter, selectedTargetVerse) {
+        mutableIntStateOf(selectedTargetVerse ?: 1)
     }
+    var referenceVerses by remember { mutableStateOf<List<BibleVerse>>(emptyList()) }
+    var isLoadingReferenceVerses by remember { mutableStateOf(false) }
     var currentBookmark by remember { mutableStateOf(BibleReadingPreferences.getBookmark(context)) }
 
     LaunchedEffect(Unit) {
         BibleReadingPreferences.loadLocalFavoritesIntoState(context)
+    }
+
+    LaunchedEffect(referenceBook, referenceChapter, currentVersion, verses) {
+        isLoadingReferenceVerses = true
+        referenceVerses = if (referenceBook == currentBook && referenceChapter == currentChapter) {
+            verses
+        } else {
+            BollsBibleApi.getChapter(referenceBook, referenceChapter, currentVersion)
+        }
+        val availableVerses = referenceVerses.map { it.verse }
+        if (availableVerses.isNotEmpty() && referenceVerse !in availableVerses) {
+            referenceVerse = availableVerses.first()
+        }
+        isLoadingReferenceVerses = false
     }
 
     LaunchedEffect(currentBook, currentChapter, currentVersion, reloadKey) {
@@ -124,9 +137,8 @@ fun BollsBibleScreen(
     }
 
     fun openSelectedReference() {
-        val selectedVerse = referenceVerseText.toIntOrNull()?.takeIf { it > 0 } ?: 1
         showReferenceDialog = false
-        onOpenReference(referenceBook, referenceChapter, selectedVerse, currentVersion)
+        onOpenReference(referenceBook, referenceChapter, referenceVerse, currentVersion)
     }
 
     Scaffold(
@@ -279,14 +291,33 @@ fun BollsBibleScreen(
                     OutlinedButton(onClick = { showChapterDialog = true }, modifier = Modifier.fillMaxWidth()) {
                         Text("Capítulo $referenceChapter", modifier = Modifier.fillMaxWidth())
                     }
-                    OutlinedTextField(
-                        value = referenceVerseText,
-                        onValueChange = { value -> referenceVerseText = value.filter(Char::isDigit).take(3) },
-                        label = { Text("Versículo") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    Text("Versículo", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                    if (isLoadingReferenceVerses) {
+                        Text("Carregando versículos disponíveis…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else if (referenceVerses.isEmpty()) {
+                        Text("Não foi possível carregar os versículos deste capítulo.", color = MaterialTheme.colorScheme.error)
+                    } else {
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(5),
+                            modifier = Modifier.heightIn(max = 220.dp),
+                            contentPadding = PaddingValues(2.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            items(referenceVerses, key = { it.verse }) { verseOption ->
+                                OutlinedButton(
+                                    onClick = { referenceVerse = verseOption.verse },
+                                    contentPadding = PaddingValues(0.dp),
+                                    colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                                        containerColor = if (referenceVerse == verseOption.verse) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                                        contentColor = if (referenceVerse == verseOption.verse) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                    )
+                                ) {
+                                    Text(verseOption.verse.toString(), fontWeight = if (referenceVerse == verseOption.verse) FontWeight.Bold else FontWeight.Normal)
+                                }
+                            }
+                        }
+                    }
                 }
             },
             confirmButton = {
@@ -309,6 +340,7 @@ fun BollsBibleScreen(
                             onClick = {
                                 referenceBook = bookOption
                                 referenceChapter = 1
+                                referenceVerse = 1
                                 showBookDialog = false
                             },
                             modifier = Modifier.fillMaxWidth()
@@ -338,6 +370,7 @@ fun BollsBibleScreen(
                         OutlinedButton(
                             onClick = {
                                 referenceChapter = chapterOption
+                                referenceVerse = 1
                                 showChapterDialog = false
                             },
                             contentPadding = PaddingValues(0.dp)
@@ -408,7 +441,7 @@ private fun BibleVerseCard(
         BibleReadingPreferences.key(it.book, it.chapter, it.verse, it.version) == verseKey
     } == true
     val backgroundColor = if (isHighlighted) {
-        MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
     } else {
         Color.Transparent
     }
