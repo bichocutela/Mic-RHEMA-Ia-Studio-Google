@@ -1374,8 +1374,9 @@ suspend fun refreshHomeData() {
                     val isIbr = memberSnapshot.getBoolean("isIbr") ?: false
                     val email = memberSnapshot.getString("email") ?: ""
                     val isAdmin = memberSnapshot.getBoolean("isAdmin") ?: false
-                    val remoteProfilePhotoUrl = memberSnapshot.getString("profilePhotoUrl") ?: ""
-                    val profilePhotoUrl = resolveProfilePhotoUrl(context, id, remoteProfilePhotoUrl)
+                    val profilePhotoUrl = memberSnapshot.getString("profilePhotoUrl")
+                        ?.takeIf { it.isNotBlank() }
+                        ?: currentMember.profilePhotoUrl
                     val address = memberSnapshot.getString("address") ?: ""
                     val birthDate = memberSnapshot.getString("birthDate") ?: ""
                     val createdAt = memberSnapshot.getLong("createdAt") ?: 0L
