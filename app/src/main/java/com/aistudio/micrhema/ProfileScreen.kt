@@ -47,6 +47,7 @@ fun ProfileScreen(
     var isEditingAddress by remember { mutableStateOf(false) }
     var isEditingBirthDate by remember { mutableStateOf(false) }
     var isUploading by remember { mutableStateOf(false) }
+    var showLogoutDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(loggedInMember.id, loggedInMember.name, loggedInMember.phone, loggedInMember.address, loggedInMember.birthDate, loggedInMember.profilePhotoUrl) {
         if (!isEditingName) name = loggedInMember.name
@@ -247,7 +248,47 @@ fun ProfileScreen(
                     saveProfile(loggedInMember, name, phone, address, birthDate, profilePhotoUrl, context)
                 }
             )
+
+            Spacer(modifier = Modifier.height(24.dp))
+            OutlinedButton(
+                onClick = { showLogoutDialog = true },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error
+                ),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.7f))
+            ) {
+                Icon(Icons.Default.ExitToApp, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Sair da conta", fontWeight = FontWeight.SemiBold)
+            }
+            Spacer(modifier = Modifier.height(16.dp))
         }
+    }
+
+    if (showLogoutDialog) {
+        AlertDialog(
+            onDismissRequest = { showLogoutDialog = false },
+            title = { Text("Sair da conta?") },
+            text = { Text("Seus favoritos e dados salvos no aparelho serão preservados. Você poderá entrar novamente depois.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showLogoutDialog = false
+                        MemberManager.setLoggedInMember(context, null)
+                        onNavigateBack()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Sair")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogoutDialog = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
     }
 }
 
