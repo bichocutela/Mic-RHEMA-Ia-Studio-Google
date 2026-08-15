@@ -364,6 +364,9 @@ object MemberManager {
                     val isIbr = document.getBoolean("isIbr") ?: false
                     val email = document.getString("email") ?: ""
                     val isAdmin = document.getBoolean("isAdmin") ?: false
+                    val ibrCertificateUrl = document.getString("ibrCertificateUrl") ?: ""
+                    val status = document.getString("status") ?: if (isApproved || isIbr) "aprovado" else "pendente"
+                    val title = document.getString("title") ?: ""
                     val remoteProfilePhotoUrl = document.getString("profilePhotoUrl") ?: ""
                     val profilePhotoUrl = resolveProfilePhotoUrl(context, id, remoteProfilePhotoUrl)
                     val address = document.getString("address") ?: ""
@@ -371,14 +374,17 @@ object MemberManager {
                     val createdAt = document.getLong("createdAt") ?: 0L
                     val updatedAt = document.getLong("updatedAt") ?: 0L
                     newList.add(MemberRequest(
-                        id = id, 
-                        name = name, 
-                        phone = phone, 
+                        id = id,
+                        name = name,
+                        phone = phone,
                         email = email,
-                        isApproved = isApproved, 
-                        isVip = isVip, 
+                        isApproved = isApproved,
+                        isVip = isVip,
                         isIbr = isIbr,
                         isAdmin = isAdmin,
+                        ibrCertificateUrl = ibrCertificateUrl,
+                        status = status,
+                        title = title,
                         profilePhotoUrl = profilePhotoUrl,
                         address = address,
                         birthDate = birthDate,
