@@ -2,7 +2,7 @@ package com.aistudio.micrhema
 
 import android.net.Uri
 
-/** Catálogo de versões e URLs oficiais do YouVersion usadas pelo leitor interno. */
+/** Catálogo de versões e rota interna do leitor bíblico. */
 object YouVersionLinks {
     data class Version(
         val code: String,
@@ -98,6 +98,6 @@ object YouVersionLinks {
     fun encodedBook(book: String): String = Uri.encode(book)
 
     fun internalRoute(book: String, chapter: Int, versionCode: String = "ARA"): String {
-        return "youversion?book=${Uri.encode(book)}&chapter=$chapter&version=${Uri.encode(versionCode)}"
+        return "bible_reader?book=${Uri.encode(book)}&chapter=$chapter&version=${Uri.encode(versionCode)}"
     }
 }

@@ -163,13 +163,13 @@ fun NewsDetailScreen(newsId: Int, onBack: () -> Unit, onNavigateToBible: (String
                 Spacer(modifier = Modifier.height(32.dp))
                 
                 Text(
-                    text = "Ir pra história",
+                    text = "Ler esta história na NTLH",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
                     textDecoration = TextDecoration.Underline,
                     modifier = Modifier.clickable {
-                        onNavigateToBible(news.book, news.chapter, "ARA")
+                        onNavigateToBible(news.book, news.chapter, "NTLH")
                     }.padding(vertical = 8.dp)
                 )
                 

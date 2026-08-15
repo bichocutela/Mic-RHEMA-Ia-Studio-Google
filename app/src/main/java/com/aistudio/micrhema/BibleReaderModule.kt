@@ -28,7 +28,7 @@ fun BibleReaderModal(
     var selectedBook by remember { mutableStateOf<String?>(null) }
     var selectedChapter by remember { mutableStateOf<Int?>(null) }
     
-    var selectedVersion by remember { mutableStateOf("NTLH") }
+    var selectedVersion by remember { mutableStateOf("ARA") }
     var showVersionDialog by remember { mutableStateOf(false) }
 
     var verses by remember { mutableStateOf<List<BibleVerse>>(emptyList()) }
@@ -37,7 +37,7 @@ fun BibleReaderModal(
     val context = LocalContext.current
 
     val versions = listOf(
-        "ACF" to "Almeida Corrigida Fiel",
+        "ARA" to "Almeida Revista e Atualizada",
         "NVI" to "Nova Versão Internacional",
         "NTLH" to "Nova Tradução na Linguagem de Hoje"
     )

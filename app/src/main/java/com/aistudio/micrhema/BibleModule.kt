@@ -52,25 +52,25 @@ fun BibleScreen(
     initialBook: String? = null,
     initialChapter: Int? = null,
     initialVersion: String? = null,
-    onOpenYouVersion: (String, Int, String) -> Unit = { _, _, _ -> }
+    onOpenBible: (String, Int, String) -> Unit = { _, _, _ -> }
 ) {
     var searchQuery by remember { mutableStateOf("") }
-    var selectedBook by remember { mutableStateOf<String?>(initialBook ?: "João") }
+    var selectedBook by remember { mutableStateOf<String?>(initialBook ?: "Gênesis") }
     var selectedChapter by remember { mutableStateOf<Int?>(initialChapter ?: 1) }
     var selectedVersion by remember { mutableStateOf(initialVersion ?: "ARA") }
     var showVersionDialog by remember { mutableStateOf(false) }
-    var shouldOpenYouVersion by remember { mutableStateOf(true) }
+    var shouldOpenBible by remember { mutableStateOf(true) }
     
     var showBookSelector by remember { mutableStateOf(false) }
     var selectorStep by remember { mutableStateOf("book") }
     var selectedBookTemp by remember { mutableStateOf<String?>(null) }
 
-    val versions = YouVersionLinks.versions.map { it.code to it.name }
+    val versions = BollsBibleCatalog.translations.map { it.code to it.name }
 
-    LaunchedEffect(selectedBook, selectedChapter, selectedVersion, shouldOpenYouVersion) {
-        if (shouldOpenYouVersion && selectedBook != null && selectedChapter != null) {
-            shouldOpenYouVersion = false
-            onOpenYouVersion(selectedBook!!, selectedChapter!!, selectedVersion)
+    LaunchedEffect(selectedBook, selectedChapter, selectedVersion, shouldOpenBible) {
+        if (shouldOpenBible && selectedBook != null && selectedChapter != null) {
+            shouldOpenBible = false
+            onOpenBible(selectedBook!!, selectedChapter!!, selectedVersion)
         }
     }
     
@@ -137,7 +137,7 @@ fun BibleScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                Text("Escolha uma versão ou capítulo para abrir no YouVersion…")
+                Text("Selecione um livro, capítulo ou versão para continuar a leitura…")
             }
         }
         
@@ -185,7 +185,7 @@ fun BibleScreen(
                                     modifier = Modifier.aspectRatio(1f).clickable {
                                         selectedBook = selectedBookTemp
                                         selectedChapter = chapter
-                                        shouldOpenYouVersion = true
+                                        shouldOpenBible = true
                                         showBookSelector = false
                                         selectorStep = "book"
                                     }
@@ -214,7 +214,7 @@ fun BibleScreen(
                                     .fillMaxWidth()
                                     .clickable {
                                         selectedVersion = code
-                                        shouldOpenYouVersion = true
+                                        shouldOpenBible = true
                                         showVersionDialog = false
                                     }
                                     .padding(vertical = 12.dp),

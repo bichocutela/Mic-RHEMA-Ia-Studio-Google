@@ -677,24 +677,27 @@ fun MainScreen() {
                         initialBook = book,
                         initialChapter = chapter,
                         initialVersion = version,
-                        onOpenYouVersion = { selectedBook, selectedChapter, selectedVersion ->
+                        onOpenBible = { selectedBook, selectedChapter, selectedVersion ->
                             navController.navigate(YouVersionLinks.internalRoute(selectedBook, selectedChapter, selectedVersion))
                         }
                     )
                 }
                 composable(
-                    route = "youversion?book={book}&chapter={chapter}&version={version}",
+                    route = "bible_reader?book={book}&chapter={chapter}&version={version}",
                     arguments = listOf(
                         navArgument("book") { nullable = true; defaultValue = null },
                         navArgument("chapter") { nullable = true; defaultValue = null },
                         navArgument("version") { nullable = true; defaultValue = "ARA" }
                     )
                 ) { backStackEntry ->
-                    YouVersionScreen(
+                    BollsBibleScreen(
                         book = backStackEntry.arguments?.getString("book"),
                         chapter = backStackEntry.arguments?.getString("chapter")?.toIntOrNull(),
                         versionCode = backStackEntry.arguments?.getString("version"),
-                        onBack = { navController.popBackStack() }
+                        onBack = { navController.popBackStack() },
+                        onOpenChapter = { nextBook, nextChapter, nextVersion ->
+                            navController.navigate(YouVersionLinks.internalRoute(nextBook, nextChapter, nextVersion))
+                        }
                     )
                 }
                 composable(
