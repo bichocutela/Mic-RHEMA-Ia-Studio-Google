@@ -2,6 +2,13 @@ package com.aistudio.micrhema
 
 import android.content.Context
 
+data class BibleVerse(
+    val bookName: String,
+    val chapter: Int,
+    val verse: Int,
+    val text: String
+)
+
 /**
  * Fachada de leitura bíblica usada pelas telas legadas e pelo leitor nativo.
  * O texto solicitado vem do Bolls; não há fallback silencioso para outra versão.
