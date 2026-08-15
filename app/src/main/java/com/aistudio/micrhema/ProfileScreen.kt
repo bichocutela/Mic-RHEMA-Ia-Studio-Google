@@ -48,6 +48,14 @@ fun ProfileScreen(
     var isEditingBirthDate by remember { mutableStateOf(false) }
     var isUploading by remember { mutableStateOf(false) }
 
+    LaunchedEffect(loggedInMember.id, loggedInMember.name, loggedInMember.phone, loggedInMember.address, loggedInMember.birthDate, loggedInMember.profilePhotoUrl) {
+        if (!isEditingName) name = loggedInMember.name
+        if (!isEditingPhone) phone = loggedInMember.phone
+        if (!isEditingAddress) address = loggedInMember.address
+        if (!isEditingBirthDate) birthDate = loggedInMember.birthDate
+        profilePhotoUrl = loggedInMember.profilePhotoUrl
+    }
+
     val imageLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.GetContent()
     ) { uri ->
@@ -66,8 +74,16 @@ fun ProfileScreen(
                         profilePhotoUrl,
                         context,
                         showToast = false
-                    )
-                    android.widget.Toast.makeText(context, "Foto atualizada com sucesso", android.widget.Toast.LENGTH_SHORT).show()
+                    ) { synced, error ->
+                        val message = if (synced && uploadedUrl.startsWith("http")) {
+                            "Foto atualizada e sincronizada"
+                        } else if (synced) {
+                            "Foto salva neste aparelho"
+                        } else {
+                            "Foto salva neste aparelho; não foi sincronizada: ${error?.message ?: "verifique sua conexão"}"
+                        }
+                        android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+                    }
                 } catch (e: Exception) {
                     android.util.Log.e("ProfileScreen", "Erro ao fazer upload da foto", e)
                     android.widget.Toast.makeText(context, "Erro ao atualizar foto: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
@@ -171,6 +187,7 @@ fun ProfileScreen(
             if (profilePhotoUrl.isNotBlank()) {
                 TextButton(
                     onClick = {
+                        StorageManager.deleteLocalProfilePhoto(context, loggedInMember.id)
                         profilePhotoUrl = ""
                         saveProfile(loggedInMember, name, phone, address, birthDate, profilePhotoUrl, context)
                     },
@@ -298,7 +315,8 @@ private fun saveProfile(
     birthDate: String,
     profilePhotoUrl: String,
     context: android.content.Context,
-    showToast: Boolean = true
+    showToast: Boolean = true,
+    onResult: ((synced: Boolean, error: Exception?) -> Unit)? = null
 ) {
     member.name = name
     member.phone = phone
@@ -319,13 +337,15 @@ private fun saveProfile(
         context = context,
         member = member,
         onSuccess = {
+            onResult?.invoke(true, null)
             if (showToast) {
                 android.widget.Toast.makeText(context, "Perfil atualizado", android.widget.Toast.LENGTH_SHORT).show()
             }
         },
-        onFailure = {
+        onFailure = { error ->
+            onResult?.invoke(false, error)
             if (showToast) {
-                android.widget.Toast.makeText(context, "Erro ao salvar", android.widget.Toast.LENGTH_SHORT).show()
+                android.widget.Toast.makeText(context, "Erro ao salvar: ${error.message ?: "verifique sua conexão"}", android.widget.Toast.LENGTH_LONG).show()
             }
         }
     )

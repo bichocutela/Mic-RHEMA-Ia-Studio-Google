@@ -81,39 +81,45 @@ object StorageManager {
         }
     }
 
-    @Throws(Exception::class)
     suspend fun uploadProfilePhotoToFirebase(context: android.content.Context, uri: Uri, uid: String): String {
         if (uri.scheme == "http" || uri.scheme == "https") return uri.toString()
-        
+
         return withContext(Dispatchers.IO) {
-            var tempFile: File? = null
+            val localUri = saveProfilePhotoLocally(context, uri, uid)
             try {
                 val storage = FirebaseStorage.getInstance()
-                val storageRef = storage.reference
-                val imageRef = storageRef.child("profile_photos/$uid/profile.jpg")
-                
-                tempFile = File(context.cacheDir, "upload_temp_${System.currentTimeMillis()}.jpg")
-                context.contentResolver.openInputStream(uri)?.use { input ->
-                    FileOutputStream(tempFile).use { output ->
-                        input.copyTo(output)
-                    }
-                }
-                
-                if (tempFile == null || !tempFile.exists()) throw Exception("Não foi possível processar a imagem localmente.")
-
-                val uploadTask = imageRef.putFile(android.net.Uri.fromFile(tempFile))
-                uploadTask.await()
-                val downloadUrl = imageRef.downloadUrl.await()
-                
-                tempFile.delete()
-                
-                downloadUrl.toString()
+                val imageRef = storage.reference.child("profile_photos/$uid/profile.jpg")
+                imageRef.putFile(Uri.parse(localUri)).await()
+                imageRef.downloadUrl.await().toString()
             } catch (e: Exception) {
-                android.util.Log.e("StorageManager", "Upload to Firebase failed", e)
-                throw e
-            } finally {
-                tempFile?.delete()
+                // O login do app é baseado no cadastro de membros e pode não ter Firebase Auth.
+                // A foto local continua sendo uma cópia persistente e segura neste aparelho.
+                android.util.Log.w("StorageManager", "Firebase Storage indisponível; usando foto local", e)
+                localUri
             }
         }
+    }
+
+    suspend fun saveProfilePhotoLocally(context: android.content.Context, uri: Uri, uid: String): String =
+        withContext(Dispatchers.IO) {
+            val directory = File(context.filesDir, "profile_photos")
+            if (!directory.exists()) directory.mkdirs()
+            val destination = File(directory, "${uid}_profile.jpg")
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                FileOutputStream(destination).use { output -> input.copyTo(output) }
+            } ?: throw Exception("Não foi possível ler a foto selecionada.")
+            if (!destination.exists() || destination.length() == 0L) {
+                throw Exception("Não foi possível salvar a foto no aparelho.")
+            }
+            Uri.fromFile(destination).toString()
+        }
+
+    fun getLocalProfilePhotoUri(context: android.content.Context, uid: String): String {
+        val file = File(context.filesDir, "profile_photos/${uid}_profile.jpg")
+        return if (file.exists() && file.length() > 0L) Uri.fromFile(file).toString() else ""
+    }
+
+    fun deleteLocalProfilePhoto(context: android.content.Context, uid: String) {
+        File(context.filesDir, "profile_photos/${uid}_profile.jpg").delete()
     }
 }

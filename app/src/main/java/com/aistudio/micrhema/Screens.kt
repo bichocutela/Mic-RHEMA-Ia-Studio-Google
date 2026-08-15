@@ -141,7 +141,10 @@ fun MembersScreen() {
                                                 Spacer(modifier = Modifier.height(4.dp))
                                                 Text(fav.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                                             }
-                                            IconButton(onClick = { removeFavorite(fav.id) }) {
+                                            IconButton(onClick = {
+                                                BibleReadingPreferences.removeLocalFavorite(context, fav.id)
+                                                removeFavorite(fav.id)
+                                            }) {
                                                 Icon(Icons.Default.Favorite, contentDescription = "Remover favorito", tint = MaterialTheme.colorScheme.error)
                                             }
                                         }

@@ -177,6 +177,7 @@ fun DevotionalCard(devotional: Devotional, onClick: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DevotionalDetailScreen(devotional: Devotional, onBack: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
@@ -206,14 +207,19 @@ fun DevotionalDetailScreen(devotional: Devotional, onBack: () -> Unit) {
                 IconButton(onClick = {
                     if (isFavorite) {
                         val fav = favoriteItemsState.find { it.type == "devotional" && it.reference == devotional.title }
-                        if (fav != null) removeFavorite(fav.id)
+                        if (fav != null) {
+                            BibleReadingPreferences.removeLocalFavorite(context, fav.id)
+                            removeFavorite(fav.id)
+                        }
                     } else {
-                        addFavorite(FavoriteItem(
-                            id = java.util.UUID.randomUUID().toString(),
+                        val favorite = FavoriteItem(
+                            id = "devotional-${devotional.id}",
                             type = "devotional",
                             reference = devotional.title,
                             text = devotional.verse
-                        ))
+                        )
+                        addFavorite(favorite)
+                        BibleReadingPreferences.saveLocalFavorite(context, favorite)
                     }
                 }) {
                     Icon(

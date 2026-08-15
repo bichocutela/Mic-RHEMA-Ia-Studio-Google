@@ -364,7 +364,8 @@ object MemberManager {
                     val isIbr = document.getBoolean("isIbr") ?: false
                     val email = document.getString("email") ?: ""
                     val isAdmin = document.getBoolean("isAdmin") ?: false
-                    val profilePhotoUrl = document.getString("profilePhotoUrl") ?: ""
+                    val remoteProfilePhotoUrl = document.getString("profilePhotoUrl") ?: ""
+                    val profilePhotoUrl = resolveProfilePhotoUrl(context, id, remoteProfilePhotoUrl)
                     val address = document.getString("address") ?: ""
                     val birthDate = document.getString("birthDate") ?: ""
                     val createdAt = document.getLong("createdAt") ?: 0L
@@ -410,6 +411,12 @@ object MemberManager {
         } catch (e: Exception) {
             Log.e("MemberManager", "Firestore not initialized or error", e)
         }
+    }
+
+    private fun resolveProfilePhotoUrl(context: android.content.Context, memberId: String, remoteUrl: String): String {
+        if (remoteUrl.startsWith("http://") || remoteUrl.startsWith("https://")) return remoteUrl
+        val localUrl = StorageManager.getLocalProfilePhotoUri(context, memberId)
+        return localUrl.ifBlank { if (remoteUrl.startsWith("file://")) "" else remoteUrl }
     }
 
     fun saveToFirestore(context: android.content.Context, member: MemberRequest, onSuccess: () -> Unit = {}, onFailure: (Exception) -> Unit = {}) {
@@ -1367,7 +1374,8 @@ suspend fun refreshHomeData() {
                     val isIbr = memberSnapshot.getBoolean("isIbr") ?: false
                     val email = memberSnapshot.getString("email") ?: ""
                     val isAdmin = memberSnapshot.getBoolean("isAdmin") ?: false
-                    val profilePhotoUrl = memberSnapshot.getString("profilePhotoUrl") ?: ""
+                    val remoteProfilePhotoUrl = memberSnapshot.getString("profilePhotoUrl") ?: ""
+                    val profilePhotoUrl = resolveProfilePhotoUrl(context, id, remoteProfilePhotoUrl)
                     val address = memberSnapshot.getString("address") ?: ""
                     val birthDate = memberSnapshot.getString("birthDate") ?: ""
                     val createdAt = memberSnapshot.getLong("createdAt") ?: 0L
