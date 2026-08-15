@@ -446,20 +446,36 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
         }
         
         // 8. Mídia
-        val hasMedia = contentVideosState.isNotEmpty() || contentAudiosState.isNotEmpty() || contentBooksState.isNotEmpty()
+        val recentVideos = contentVideosState
+            .sortedByDescending { it.id.toLongOrNull() ?: Long.MIN_VALUE }
+            .take(3)
+        val recentAudios = contentAudiosState
+            .sortedByDescending { it.id.toLongOrNull() ?: Long.MIN_VALUE }
+            .take(3)
+        val recentBooks = contentBooksState
+            .sortedByDescending { it.id.toLongOrNull() ?: Long.MIN_VALUE }
+            .take(3)
+        val hasMedia = recentVideos.isNotEmpty() || recentAudios.isNotEmpty() || recentBooks.isNotEmpty()
         if (hasMedia) {
             HomeSectionHeader(title = "Mídia", action = "Ver todas", onAction = { onNavigate(Screen.Content.route) })
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                items(contentVideosState.take(3)) { video ->
-                    MediaCard(title = video.title, type = "Vídeo", icon = Icons.Filled.OndemandVideo, cover = video.thumbnailUrl, onClick = { onNavigate("${Screen.Content.route}?type=video&id=${video.id}") })
+                items(recentVideos) { video ->
+                    MediaCard(
+                        title = video.title,
+                        type = "Vídeo",
+                        icon = Icons.Filled.OndemandVideo,
+                        cover = video.thumbnailUrl,
+                        videoUrl = video.videoUrl,
+                        onClick = { onNavigate("${Screen.Content.route}?type=video&id=${video.id}") }
+                    )
                 }
-                items(contentAudiosState.take(3)) { audio ->
+                items(recentAudios) { audio ->
                     MediaCard(title = audio.title, type = "Áudio", icon = Icons.Filled.MusicNote, cover = audio.coverUrl, onClick = { onNavigate("${Screen.Content.route}?type=audio&id=${audio.id}") })
                 }
-                items(contentBooksState.take(3)) { book ->
+                items(recentBooks) { book ->
                     MediaCard(title = book.title, type = "Livro", icon = Icons.Outlined.Book, cover = book.coverUrl, onClick = { onNavigate("${Screen.Content.route}?type=book&id=${book.id}") })
                 }
             }
