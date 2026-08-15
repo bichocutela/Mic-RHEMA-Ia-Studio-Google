@@ -1030,7 +1030,7 @@ fun removeBibleNews(item: BibleNews) {
 fun addBibleNews(item: BibleNews) {
     if (isOfflineModeState.value) return
     val db = com.google.firebase.Firebase.firestore
-    db.collection("bible_news").document(item.id.toString()).set(item)
+    db.collection("bible_news").document(item.id.toString()).set(BibleNewsEditorial.decorate(item))
 }
 
 fun addChurchEvent(item: ChurchEvent) {
@@ -1094,33 +1094,8 @@ val planSyncErrorState = androidx.compose.runtime.mutableStateOf("")
 fun syncBibleNewsAndPlans() {
     val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
     
-    // Sync News
-    db.collection("bible_news").addSnapshotListener { snapshot, e ->
-        if (e != null || snapshot == null) return@addSnapshotListener
-        if (snapshot.isEmpty) {
-            BibleNewsData.newsList.forEach { news ->
-                db.collection("bible_news").document(news.id.toString()).set(news)
-            }
-            bibleNewsState.clear()
-            bibleNewsState.addAll(BibleNewsData.newsList)
-        } else {
-            val list = snapshot.documents.mapNotNull { 
-                try { 
-                    BibleNews(
-                        id = it.getLong("id")?.toInt() ?: 0,
-                        title = it.getString("title") ?: "",
-                        content = it.getString("content") ?: "",
-                        book = it.getString("book") ?: "",
-                        chapter = it.getLong("chapter")?.toInt() ?: 0,
-                        verse = it.getLong("verse")?.toInt() ?: 0,
-                        imageUrl = it.getString("imageUrl") ?: ""
-                    )
-                } catch(ex: Exception) { null } 
-            }
-            bibleNewsState.clear()
-            bibleNewsState.addAll(list.sortedBy { it.id })
-        }
-    }
+    // Sync News: a Home e a Central carregam somente a primeira página.
+    BibleNewsPagination.start()
     
     // Sync Plans
     db.collection("bible_plans").addSnapshotListener { snapshot, e ->

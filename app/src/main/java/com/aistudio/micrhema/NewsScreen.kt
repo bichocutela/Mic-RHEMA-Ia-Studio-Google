@@ -1,17 +1,51 @@
 package com.aistudio.micrhema
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -19,15 +53,46 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.launch
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import kotlinx.coroutines.launch
+
+private fun decoratedBibleNews(): List<BibleNews> =
+    BibleNewsEditorial.decorateAll(
+        if (bibleNewsState.isEmpty()) BibleNewsData.newsList else bibleNewsState.toList()
+    )
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NewsListScreen(onNavigateToDetail: (Int) -> Unit, onBack: () -> Unit) {
-    Scaffold(modifier = Modifier.padding(bottom = 80.dp),
+    var isRefreshing by remember { mutableStateOf(false) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var selectedFilter by rememberSaveable { mutableStateOf("Tudo") }
+    var visibleCount by rememberSaveable { mutableIntStateOf(20) }
+    var isLoadingMore by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
+    val allNews = decoratedBibleNews()
+    val filteredNews = allNews
+        .filter { BibleNewsEditorial.matches(it, query, selectedFilter) }
+        .sortedWith(
+            if (selectedFilter == "Mais recentes") {
+                compareByDescending<BibleNews> { it.publishedAt }
+            } else {
+                compareByDescending<BibleNews> { it.publishedAt }
+            }
+        )
+    val visibleNews = filteredNews.take(visibleCount)
+
+    LaunchedEffect(query, selectedFilter) {
+        visibleCount = 20
+        listState.animateScrollToItem(0)
+    }
+
+    Scaffold(
+        modifier = Modifier.padding(bottom = 80.dp),
         topBar = {
             TopAppBar(
                 title = { Text("Notícias Bíblicas", fontWeight = FontWeight.Bold) },
@@ -36,13 +101,12 @@ fun NewsListScreen(onNavigateToDetail: (Int) -> Unit, onBack: () -> Unit) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background
+                )
             )
         }
     ) { paddingValues ->
-        var isRefreshing by remember { mutableStateOf(false) }
-        val coroutineScope = rememberCoroutineScope()
-        
         androidx.compose.material3.pulltorefresh.PullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = {
@@ -52,61 +116,208 @@ fun NewsListScreen(onNavigateToDetail: (Int) -> Unit, onBack: () -> Unit) {
                     isRefreshing = false
                 }
             },
-            modifier = Modifier.padding(paddingValues).fillMaxSize()
-        ) {
-        LazyColumn(
             modifier = Modifier
+                .padding(paddingValues)
                 .fillMaxSize()
-                .padding(paddingValues),
-            contentPadding = PaddingValues(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            items(if (bibleNewsState.isEmpty()) BibleNewsData.newsList else bibleNewsState) { news ->
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onNavigateToDetail(news.id) },
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    Column {
-                        AsyncImage(
-                            model = news.imageUrl,
-                            contentDescription = news.title,
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                item {
+                    Text(
+                        "Encontre uma história bíblica para este momento",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        "Pesquise por personagem, livro, tema ou escolha a intensidade narrativa.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                item {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("Buscar notícias") },
+                        placeholder = { Text("Ex.: Davi, coragem, Provérbios…") },
+                        leadingIcon = {
+                            Icon(Icons.Default.Search, contentDescription = "Buscar")
+                        }
+                    )
+                }
+                item {
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(vertical = 2.dp)
+                    ) {
+                        items(BibleNewsEditorial.categories, key = { it }) { filter ->
+                            FilterChip(
+                                selected = selectedFilter == filter,
+                                onClick = { selectedFilter = filter },
+                                label = { Text(filter) }
+                            )
+                        }
+                    }
+                }
+                item {
+                    Text(
+                        text = if (filteredNews.size == 1) "1 notícia encontrada" else "${filteredNews.size} notícias encontradas",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                if (visibleNews.isEmpty()) {
+                    item {
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(180.dp),
-                            contentScale = ContentScale.Crop
-                        )
-                        Column(modifier = Modifier.padding(16.dp)) {
+                                .padding(vertical = 48.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
                             Text(
-                                text = news.title,
-                                fontWeight = FontWeight.Bold,
+                                "Nenhuma notícia encontrada",
                                 style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "${news.book} ${news.chapter}:${news.verse}",
-                                color = MaterialTheme.colorScheme.primary,
-                                style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Bold
                             )
+                            Text(
+                                "Tente outra busca ou escolha outra categoria.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            if (query.isNotBlank() || selectedFilter != "Tudo") {
+                                TextButton(onClick = {
+                                    query = ""
+                                    selectedFilter = "Tudo"
+                                }) {
+                                    Text("Limpar filtros")
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    items(visibleNews, key = { it.id }) { news ->
+                        NewsCard(news = news, onClick = { onNavigateToDetail(news.id) })
+                    }
+                    if (visibleCount < filteredNews.size || BibleNewsPagination.hasMore) {
+                        item {
+                            OutlinedButton(
+                                onClick = {
+                                    if (visibleCount < filteredNews.size) {
+                                        visibleCount += 20
+                                    } else if (!isLoadingMore) {
+                                        coroutineScope.launch {
+                                            isLoadingMore = true
+                                            BibleNewsPagination.loadNextPage()
+                                            visibleCount += 20
+                                            isLoadingMore = false
+                                        }
+                                    }
+                                },
+                                enabled = !isLoadingMore,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(if (isLoadingMore) "Carregando…" else "Carregar mais notícias")
+                            }
                         }
                     }
                 }
             }
         }
-        } // end PullToRefreshBox
+    }
+}
+
+@Composable
+private fun NewsCard(news: BibleNews, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column {
+            AsyncImage(
+                model = news.imageUrl,
+                contentDescription = news.title,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp)
+                    .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)),
+                contentScale = ContentScale.Crop
+            )
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    AssistChip(
+                        onClick = {},
+                        label = { Text(news.category, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                    )
+                    AssistChip(
+                        onClick = {},
+                        label = { Text(BibleNewsEditorial.intensityLabel(news.intensity), maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = news.title,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(5.dp))
+                Text(
+                    text = news.summary,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "${news.book} ${news.chapter}:${news.verse}",
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (news.contentWarning.isNotBlank()) {
+                        Text(
+                            news.contentWarning,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NewsDetailScreen(newsId: Int, onBack: () -> Unit, onNavigateToBible: (String, Int, String?) -> Unit) {
-    val news = (if (bibleNewsState.isEmpty()) BibleNewsData.newsList else bibleNewsState).find { it.id == newsId } ?: return
+fun NewsDetailScreen(
+    newsId: Int,
+    onBack: () -> Unit,
+    onNavigateToBible: (String, Int, String?) -> Unit
+) {
+    val news = decoratedBibleNews().find { it.id == newsId } ?: return
 
-    Scaffold(modifier = Modifier.padding(bottom = 80.dp),
+    Scaffold(
+        modifier = Modifier.padding(bottom = 80.dp),
         topBar = {
             TopAppBar(
                 title = {},
@@ -118,8 +329,7 @@ fun NewsDetailScreen(newsId: Int, onBack: () -> Unit, onNavigateToBible: (String
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
             )
         }
-    ) { paddingValues ->
-        val unused = paddingValues
+    ) { _ ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -138,6 +348,11 @@ fun NewsDetailScreen(newsId: Int, onBack: () -> Unit, onNavigateToBible: (String
                     .fillMaxSize()
                     .padding(20.dp)
             ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AssistChip(onClick = {}, label = { Text(news.category) })
+                    AssistChip(onClick = {}, label = { Text(BibleNewsEditorial.intensityLabel(news.intensity)) })
+                }
+                Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     text = news.title,
                     style = MaterialTheme.typography.headlineMedium,
@@ -151,28 +366,32 @@ fun NewsDetailScreen(newsId: Int, onBack: () -> Unit, onNavigateToBible: (String
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
+                if (news.contentWarning.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        "Aviso: ${news.contentWarning}",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
                 Spacer(modifier = Modifier.height(24.dp))
-                
                 Text(
                     text = news.content,
                     style = MaterialTheme.typography.bodyLarge,
                     lineHeight = 28.sp,
                     color = MaterialTheme.colorScheme.onBackground
                 )
-                
                 Spacer(modifier = Modifier.height(32.dp))
-                
                 Text(
                     text = "Ler esta história na NTLH",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
                     textDecoration = TextDecoration.Underline,
-                    modifier = Modifier.clickable {
-                        onNavigateToBible(news.book, news.chapter, "NTLH")
-                    }.padding(vertical = 8.dp)
+                    modifier = Modifier
+                        .clickable { onNavigateToBible(news.book, news.chapter, "NTLH") }
+                        .padding(vertical = 8.dp)
                 )
-                
                 Spacer(modifier = Modifier.height(60.dp))
             }
         }

@@ -1,6 +1,22 @@
 package com.aistudio.micrhema
 
-data class BibleNews(val id: Int, val title: String, val content: String, val book: String, val chapter: Int, val verse: Int, val imageUrl: String)
+data class BibleNews(
+    val id: Int,
+    val title: String,
+    val content: String,
+    val book: String,
+    val chapter: Int,
+    val verse: Int,
+    val imageUrl: String,
+    val summary: String = "",
+    val category: String = "",
+    val intensity: Int = 0,
+    val tags: List<String> = emptyList(),
+    val contentWarning: String = "",
+    val publishedAt: Long = 0L,
+    val featured: Boolean = false,
+    val storyKey: String = ""
+)
 
 object BibleNewsData {
     val newsList = listOf(

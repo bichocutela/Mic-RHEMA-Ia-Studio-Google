@@ -24,7 +24,9 @@ fun EditNewsSection() {
     var showDialog by remember { mutableStateOf(false) }
     var editingNews by remember { mutableStateOf<BibleNews?>(null) }
     
-    val newsList = if (bibleNewsState.isEmpty()) BibleNewsData.newsList else bibleNewsState
+    val newsList = BibleNewsEditorial.decorateAll(
+        if (bibleNewsState.isEmpty()) BibleNewsData.newsList else bibleNewsState.toList()
+    )
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -66,6 +68,11 @@ fun EditNewsSection() {
         var chapter by remember { mutableStateOf(editingNews?.chapter?.toString() ?: "") }
         var verse by remember { mutableStateOf(editingNews?.verse?.toString() ?: "") }
         var imageUrl by remember { mutableStateOf(editingNews?.imageUrl ?: "") }
+        var category by remember { mutableStateOf(editingNews?.category?.takeIf { it.isNotBlank() } ?: "Para refletir") }
+        var intensity by remember { mutableStateOf(editingNews?.intensity?.takeIf { it in 1..4 }?.toString() ?: "1") }
+        var tagsText by remember { mutableStateOf(editingNews?.tags?.joinToString(", ") ?: "") }
+        var contentWarning by remember { mutableStateOf(editingNews?.contentWarning ?: "") }
+        var isFeatured by remember { mutableStateOf(editingNews?.featured ?: false) }
         var isUploading by remember { mutableStateOf(false) }
         var uploadProgress by remember { mutableFloatStateOf(0f) }
         val scope = rememberCoroutineScope()
@@ -99,6 +106,14 @@ fun EditNewsSection() {
                     OutlinedTextField(value = verse, onValueChange = { verse = it }, label = { Text("Versículo (Opcional)") }, modifier = Modifier.fillMaxWidth())
                     
                     OutlinedTextField(value = imageUrl, onValueChange = { imageUrl = it }, label = { Text("URL da Imagem") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = category, onValueChange = { category = it }, label = { Text("Categoria editorial") }, supportingText = { Text("Ex.: Para refletir, Milagres e sinais, Poder e justiça") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = intensity, onValueChange = { intensity = it.filter(Char::isDigit).take(1) }, label = { Text("Intensidade narrativa (1 a 4)") }, supportingText = { Text("1: reflexão  •  2: conflitos  •  3: consequências  •  4: reviravoltas") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = tagsText, onValueChange = { tagsText = it }, label = { Text("Tags separadas por vírgula") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = contentWarning, onValueChange = { contentWarning = it }, label = { Text("Aviso de conteúdo (opcional)") }, modifier = Modifier.fillMaxWidth())
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = isFeatured, onCheckedChange = { isFeatured = it })
+                        Text("Destacar na Home")
+                    }
                     Button(
                         onClick = { imagePickerLauncher.launch("image/*") },
                         modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp),
@@ -127,7 +142,14 @@ fun EditNewsSection() {
                             book = book,
                             chapter = chapter.toIntOrNull() ?: 0,
                             verse = verse.toIntOrNull() ?: 0,
-                            imageUrl = convertGoogleDriveUrl(imageUrl)
+                            imageUrl = convertGoogleDriveUrl(imageUrl),
+                            category = category.ifBlank { "Para refletir" },
+                            intensity = intensity.toIntOrNull()?.coerceIn(1, 4) ?: 1,
+                            tags = tagsText.split(",").map { it.trim() }.filter { it.isNotBlank() },
+                            contentWarning = contentWarning.trim(),
+                            featured = isFeatured,
+                            publishedAt = editingNews?.publishedAt?.takeIf { it > 0L } ?: System.currentTimeMillis(),
+                            storyKey = editingNews?.storyKey.orEmpty()
                         )
                         
                         if (editingNews != null) {

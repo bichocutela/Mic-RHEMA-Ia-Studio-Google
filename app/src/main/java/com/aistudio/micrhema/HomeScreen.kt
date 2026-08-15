@@ -115,7 +115,9 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
     val todayStr = today.format(formatter)
     val todayDevotional = devotionalsState.find { it.date == todayStr } ?: devotionalsState.firstOrNull()
     
-    val latestNews = bibleNewsState.sortedByDescending { it.id }.take(5)
+    val latestNews = BibleNewsEditorial.decorateAll(
+        if (bibleNewsState.isEmpty()) BibleNewsData.newsList else bibleNewsState.toList()
+    ).sortedByDescending { it.publishedAt }.take(5)
     
     // Mood State
     var showMoodSelector by remember { mutableStateOf(false) }
@@ -408,7 +410,9 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
                             Column(modifier = Modifier.padding(12.dp)) {
                                 Text(news.title, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)
                                 Spacer(modifier = Modifier.height(4.dp))
-                                Text("${news.book} ${news.chapter}:${news.verse}", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
+                                Text(news.category, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Text("${news.book} ${news.chapter}:${news.verse} • ${BibleNewsEditorial.intensityLabel(news.intensity)}", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
                     }
