@@ -260,7 +260,8 @@ private fun NewsCard(news: BibleNews, onClick: () -> Unit) {
                         .fillMaxWidth()
                         .height(180.dp)
                         .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)),
-                    contentScale = ContentScale.Crop
+                    contentScale = ContentScale.Crop,
+                    colorFilter = BibleNewsVisuals.monochromeFilter
                 )
             }
             Column(modifier = Modifier.padding(16.dp)) {
@@ -352,7 +353,8 @@ fun NewsDetailScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(280.dp),
-                    contentScale = ContentScale.Crop
+                    contentScale = ContentScale.Crop,
+                    colorFilter = BibleNewsVisuals.monochromeFilter
                 )
             }
             Column(
