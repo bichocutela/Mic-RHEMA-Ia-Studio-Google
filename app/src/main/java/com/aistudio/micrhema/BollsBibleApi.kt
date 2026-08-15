@@ -20,7 +20,13 @@ object BollsBibleCatalog {
     val translations = listOf(
         Translation("ARA", "Almeida Revista e Atualizada", "ARA"),
         Translation("NVI", "Nova Versão Internacional", "NVIPT"),
-        Translation("NTLH", "Nova Tradução na Linguagem de Hoje", "NTLH")
+        Translation("NTLH", "Nova Tradução na Linguagem de Hoje", "NTLH"),
+        Translation("NAA", "Nova Almeida Atualizada 2017", "NAA"),
+        Translation("ARC", "Almeida Revista e Corrigida 2009", "ARC09"),
+        Translation("ACF", "Almeida Corrigida Fiel 2011", "ACF11"),
+        Translation("NVT", "Nova Versão Transformadora 2016", "NVT"),
+        Translation("NBV", "Nova Bíblia Viva 2007", "NBV07"),
+        Translation("KJA", "King James Atualizada 2001", "KJA")
     )
 
     fun normalize(code: String?): String =

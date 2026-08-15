@@ -20,8 +20,8 @@ object BibleFetcher {
         chapter: Int,
         translation: String
     ): List<BibleVerse> {
-        val supported = setOf("ARA", "NVI", "NTLH").any {
-            it.equals(translation, ignoreCase = true)
+        val supported = BollsBibleCatalog.translations.any {
+            it.code.equals(translation, ignoreCase = true)
         }
         if (!supported) return emptyList()
         return BollsBibleApi.getChapter(book, chapter, translation)
