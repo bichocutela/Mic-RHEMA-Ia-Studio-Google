@@ -5,6 +5,7 @@ import kotlinx.coroutines.delay
 
 
 import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -139,8 +140,11 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
                 isRefreshing = true
                 try {
                     refreshHomeData()
-                } catch (e: Exception) {}
-                isRefreshing = false
+                } catch (e: Exception) {
+                    Toast.makeText(context, "Não foi possível atualizar a página inicial.", Toast.LENGTH_SHORT).show()
+                } finally {
+                    isRefreshing = false
+                }
             }
         },
         modifier = Modifier.fillMaxSize()
@@ -256,16 +260,62 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
                         Card(
                             modifier = Modifier
                                 .fillParentMaxWidth()
-                                .height(180.dp),
+                                .height(180.dp)
+                                .clickable {
+                                    onNavigate(
+                                        if (banner.tag.equals("EVENTO", ignoreCase = true)) {
+                                            Screen.Services.route
+                                        } else {
+                                            "news_list"
+                                        }
+                                    )
+                                },
                             shape = RoundedCornerShape(16.dp),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                         ) {
-                            AsyncImage(
-                                model = banner.imageUrl,
-                                contentDescription = banner.title,
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                AsyncImage(
+                                    model = banner.imageUrl?.takeIf { it.isNotBlank() },
+                                    contentDescription = banner.title,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomCenter)
+                                        .fillMaxWidth()
+                                        .background(Color.Black.copy(alpha = 0.58f))
+                                        .padding(horizontal = 14.dp, vertical = 10.dp)
+                                ) {
+                                    Column {
+                                        if (banner.tag.isNotBlank()) {
+                                            Text(
+                                                text = banner.tag,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = Color.White.copy(alpha = 0.8f),
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                        Text(
+                                            text = banner.title.ifBlank { "Destaque da igreja" },
+                                            style = MaterialTheme.typography.titleSmall,
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        if (banner.description.isNotBlank()) {
+                                            Text(
+                                                text = banner.description,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = Color.White.copy(alpha = 0.85f),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
