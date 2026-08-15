@@ -50,7 +50,12 @@ val chapterCounts = mapOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BibleScreen(initialBook: String? = null, initialChapter: Int? = null, initialVersion: String? = null) {
+fun BibleScreen(
+    initialBook: String? = null,
+    initialChapter: Int? = null,
+    initialVersion: String? = null,
+    onOpenYouVersion: (String, Int, String) -> Unit = { _, _, _ -> }
+) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedBook by remember { mutableStateOf<String?>(initialBook ?: "João") }
     var selectedChapter by remember { mutableStateOf<Int?>(initialChapter ?: 1) }
@@ -67,11 +72,7 @@ fun BibleScreen(initialBook: String? = null, initialChapter: Int? = null, initia
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
 
-    val versions = listOf(
-        "ARA" to "Almeida Revista e Atualizada",
-        "ACF" to "Almeida Corrigida Fiel",
-        "NVI" to "Nova Versão Internacional"
-    )
+    val versions = YouVersionLinks.versions.map { it.code to it.name }
 
     fun fetchChapter() {
         if (selectedBook != null && selectedChapter != null) {
@@ -155,6 +156,17 @@ fun BibleScreen(initialBook: String? = null, initialChapter: Int? = null, initia
                 }
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
+
+            if (selectedBook != null && selectedChapter != null) {
+                OutlinedButton(
+                    onClick = { onOpenYouVersion(selectedBook!!, selectedChapter!!, selectedVersion) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Text("Ler $selectedVersion no YouVersion")
+                }
+            }
 
             if (isLoading) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

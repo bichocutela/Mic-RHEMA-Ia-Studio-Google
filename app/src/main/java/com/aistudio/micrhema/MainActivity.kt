@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.navArgument
 import android.app.Activity
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.zIndex
 
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
@@ -256,8 +257,21 @@ fun MainScreen() {
     val navController = rememberNavController()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
-    var currentRoute by remember { mutableStateOf(Screen.Home.route) }
+        var currentRoute by remember { mutableStateOf(Screen.Home.route) }
     var topBarTitle by remember { mutableStateOf(Screen.Home.title) }
+    var showInitialLoading by remember { mutableStateOf(true) }
+    var showPageLoading by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(1100)
+        showInitialLoading = false
+    }
+
+    LaunchedEffect(currentRoute) {
+        showPageLoading = true
+        kotlinx.coroutines.delay(420)
+        showPageLoading = false
+    }
 
     navController.addOnDestinationChangedListener { _, destination, _ ->
         currentRoute = destination.route ?: Screen.Home.route
@@ -609,7 +623,9 @@ fun MainScreen() {
                     )
                 ) { backStackEntry ->
                     val theme = backStackEntry.arguments?.getString("theme")
-                    PlansScreen(initialThemeName = theme, onNavigateToBible = { book, chap -> navController.navigate("bible?book=$book&chapter=$chap") })
+                    PlansScreen(initialThemeName = theme, onNavigateToBible = { book, chap ->
+                        navController.navigate(YouVersionLinks.internalRoute(book, chap))
+                    })
                 }
                 composable(Screen.About.route) { AboutScreen() }
                 composable(Screen.Donations.route) { DonationsScreen() }
@@ -641,7 +657,9 @@ fun MainScreen() {
                     NewsDetailScreen(
                         newsId = id,
                         onBack = { navController.popBackStack() },
-                        onNavigateToBible = { book, chap, version -> navController.navigate("bible?book=$book&chapter=$chap&version=$version") }
+                        onNavigateToBible = { book, chap, version ->
+                            navController.navigate(YouVersionLinks.internalRoute(book, chap, version ?: "ARA"))
+                        }
                     )
                 }
                 composable(
@@ -655,7 +673,29 @@ fun MainScreen() {
                     val book = backStackEntry.arguments?.getString("book")
                     val chapter = backStackEntry.arguments?.getString("chapter")?.toIntOrNull()
                     val version = backStackEntry.arguments?.getString("version")?.takeIf { it.isNotBlank() }
-                    BibleScreen(initialBook = book, initialChapter = chapter, initialVersion = version)
+                    BibleScreen(
+                        initialBook = book,
+                        initialChapter = chapter,
+                        initialVersion = version,
+                        onOpenYouVersion = { selectedBook, selectedChapter, selectedVersion ->
+                            navController.navigate(YouVersionLinks.internalRoute(selectedBook, selectedChapter, selectedVersion))
+                        }
+                    )
+                }
+                composable(
+                    route = "youversion?book={book}&chapter={chapter}&version={version}",
+                    arguments = listOf(
+                        navArgument("book") { nullable = true; defaultValue = null },
+                        navArgument("chapter") { nullable = true; defaultValue = null },
+                        navArgument("version") { nullable = true; defaultValue = "ARA" }
+                    )
+                ) { backStackEntry ->
+                    YouVersionScreen(
+                        book = backStackEntry.arguments?.getString("book"),
+                        chapter = backStackEntry.arguments?.getString("chapter")?.toIntOrNull(),
+                        versionCode = backStackEntry.arguments?.getString("version"),
+                        onBack = { navController.popBackStack() }
+                    )
                 }
                 composable(
                     route = "custom_tab/{id}",
@@ -669,6 +709,12 @@ fun MainScreen() {
         
         if (GlobalAudioPlayer.isExpanded.value) {
             ExpandedAudioPlayerModal()
+        }
+        if (showInitialLoading || showPageLoading) {
+            RhemaLoadingIndicator(
+                message = if (showInitialLoading) "Carregando MIC Rhema…" else "Abrindo página…",
+                modifier = Modifier.zIndex(10f)
+            )
         }
         }
         }
