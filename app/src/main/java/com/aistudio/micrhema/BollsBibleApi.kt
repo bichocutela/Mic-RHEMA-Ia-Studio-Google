@@ -4,6 +4,9 @@ import android.text.Html
 import android.util.Log
 import com.google.gson.JsonParser
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -85,6 +88,58 @@ object BollsBibleApi {
                 emptyList()
             }
         }
+
+    suspend fun getVerseComparison(
+        book: String,
+        chapter: Int,
+        verse: Int,
+        versionCodes: List<String>
+    ): List<Pair<BollsBibleCatalog.Translation, BibleVerse?>> = coroutineScope {
+        versionCodes.distinct().map { code ->
+            async {
+                val translation = BollsBibleCatalog.translation(code)
+                translation to getVerse(book, chapter, verse, translation.code)
+            }
+        }.awaitAll()
+    }
+
+    private suspend fun getVerse(
+        book: String,
+        chapter: Int,
+        verse: Int,
+        versionCode: String
+    ): BibleVerse? = withContext(Dispatchers.IO) {
+        val bookId = BollsBibleCatalog.bookId(book)
+        val translation = BollsBibleCatalog.translation(versionCode)
+        if (bookId < 1 || chapter < 1 || verse < 1) return@withContext null
+
+        val url = "$baseUrl/get-verse/${translation.apiCode}/$bookId/$chapter/$verse/"
+        val request = Request.Builder()
+            .url(url)
+            .header("Accept", "application/json")
+            .build()
+
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    Log.w("BollsBibleApi", "Resposta HTTP ${response.code} para $url")
+                    return@withContext null
+                }
+                val body = response.body?.string().orEmpty()
+                if (body.isBlank()) return@withContext null
+                val verseObject = JsonParser.parseString(body).asJsonObject
+                BibleVerse(
+                    bookName = book,
+                    chapter = chapter,
+                    verse = verseObject.get("verse").asInt,
+                    text = cleanText(verseObject.get("text").asString)
+                )
+            }
+        } catch (error: Exception) {
+            Log.e("BollsBibleApi", "Falha ao buscar $book $chapter:$verse ${translation.code}", error)
+            null
+        }
+    }
 
     private fun cleanText(value: String): String =
         Html.fromHtml(value, Html.FROM_HTML_MODE_LEGACY)

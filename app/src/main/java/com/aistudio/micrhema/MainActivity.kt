@@ -697,7 +697,25 @@ fun MainScreen() {
                         onBack = { navController.popBackStack() },
                         onOpenChapter = { nextBook, nextChapter, nextVersion ->
                             navController.navigate(YouVersionLinks.internalRoute(nextBook, nextChapter, nextVersion))
+                        },
+                        onOpenComparison = { compareBook, compareChapter, compareVerse ->
+                            navController.navigate("bible_compare?book=${android.net.Uri.encode(compareBook)}&chapter=$compareChapter&verse=$compareVerse")
                         }
+                    )
+                }
+                composable(
+                    route = "bible_compare?book={book}&chapter={chapter}&verse={verse}",
+                    arguments = listOf(
+                        navArgument("book") { nullable = true; defaultValue = null },
+                        navArgument("chapter") { nullable = true; defaultValue = null },
+                        navArgument("verse") { nullable = true; defaultValue = null }
+                    )
+                ) { backStackEntry ->
+                    BibleComparisonScreen(
+                        initialBook = backStackEntry.arguments?.getString("book"),
+                        initialChapter = backStackEntry.arguments?.getString("chapter")?.toIntOrNull(),
+                        initialVerse = backStackEntry.arguments?.getString("verse")?.toIntOrNull(),
+                        onBack = { navController.popBackStack() }
                     )
                 }
                 composable(

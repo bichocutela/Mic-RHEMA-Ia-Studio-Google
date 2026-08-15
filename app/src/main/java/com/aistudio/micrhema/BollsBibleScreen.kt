@@ -48,7 +48,8 @@ fun BollsBibleScreen(
     chapter: Int?,
     versionCode: String?,
     onBack: () -> Unit,
-    onOpenChapter: (String, Int, String) -> Unit
+    onOpenChapter: (String, Int, String) -> Unit,
+    onOpenComparison: (String, Int, Int) -> Unit
 ) {
     val currentBook = book?.takeIf { chapterCounts.containsKey(it) } ?: "Gênesis"
     val currentChapter = chapter?.takeIf { it > 0 } ?: 1
@@ -99,6 +100,9 @@ fun BollsBibleScreen(
                     }
                 },
                 actions = {
+                    TextButton(onClick = { onOpenComparison(currentBook, currentChapter, 1) }) {
+                        Text("Comparar", fontWeight = FontWeight.Bold)
+                    }
                     TextButton(onClick = { showVersionDialog = true }) {
                         Text(version.code, fontWeight = FontWeight.Bold)
                     }
