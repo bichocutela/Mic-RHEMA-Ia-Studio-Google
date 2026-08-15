@@ -131,7 +131,7 @@ fun ProfileScreen(
                     .size(120.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
-                    .clickable { imageLauncher.launch("image/*") },
+                    .clickable { imageLauncher.launch(arrayOf("image/*")) },
                 contentAlignment = Alignment.Center
             ) {
                 if (profilePhotoUrl.isNotBlank()) {

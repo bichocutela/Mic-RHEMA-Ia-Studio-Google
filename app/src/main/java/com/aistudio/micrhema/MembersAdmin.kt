@@ -213,7 +213,7 @@ fun EditProfilesSection() {
         MemberAdminDetailsDialog(
             member = member,
             isUploadingPhoto = isUploadingPhoto,
-            onChangePhoto = { photoLauncher.launch("image/*") },
+            onChangePhoto = { photoLauncher.launch(arrayOf("image/*")) },
             onRemovePhoto = {
                 if (isUploadingPhoto) return@MemberAdminDetailsDialog
                 val previousPhotoUrl = member.profilePhotoUrl
