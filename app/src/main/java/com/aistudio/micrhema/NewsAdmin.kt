@@ -63,6 +63,8 @@ fun EditNewsSection() {
     
     if (showDialog) {
         var title by remember { mutableStateOf(editingNews?.title ?: "") }
+        var summary by remember { mutableStateOf(editingNews?.summary ?: "") }
+        var storyKey by remember { mutableStateOf(editingNews?.storyKey ?: "") }
         var content by remember { mutableStateOf(editingNews?.content ?: "") }
         var book by remember { mutableStateOf(editingNews?.book ?: "") }
         var chapter by remember { mutableStateOf(editingNews?.chapter?.toString() ?: "") }
@@ -101,7 +103,9 @@ fun EditNewsSection() {
             text = {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                     OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Título") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(value = book, onValueChange = { book = it }, label = { Text("Categoria / Livro") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = summary, onValueChange = { summary = it }, label = { Text("Resumo para o card") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+                    OutlinedTextField(value = storyKey, onValueChange = { storyKey = it }, label = { Text("Chave da história") }, supportingText = { Text("Use a mesma chave apenas para a mesma história; exemplo: jose-vendido") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = book, onValueChange = { book = it }, label = { Text("Livro") }, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = chapter, onValueChange = { chapter = it }, label = { Text("Capítulo (Opcional)") }, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = verse, onValueChange = { verse = it }, label = { Text("Versículo (Opcional)") }, modifier = Modifier.fillMaxWidth())
                     
@@ -139,6 +143,7 @@ fun EditNewsSection() {
                             id = newId,
                             title = title,
                             content = content,
+                            summary = summary.trim(),
                             book = book,
                             chapter = chapter.toIntOrNull() ?: 0,
                             verse = verse.toIntOrNull() ?: 0,
@@ -149,7 +154,7 @@ fun EditNewsSection() {
                             contentWarning = contentWarning.trim(),
                             featured = isFeatured,
                             publishedAt = editingNews?.publishedAt?.takeIf { it > 0L } ?: System.currentTimeMillis(),
-                            storyKey = editingNews?.storyKey.orEmpty()
+                            storyKey = storyKey.trim()
                         )
                         
                         if (editingNews != null) {

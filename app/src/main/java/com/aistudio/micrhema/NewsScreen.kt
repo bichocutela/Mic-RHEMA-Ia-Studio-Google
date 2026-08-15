@@ -395,7 +395,7 @@ fun NewsDetailScreen(
                 )
                 Spacer(modifier = Modifier.height(32.dp))
                 Text(
-                    text = "Ler esta história na NTLH",
+                    text = "Ir Para a História",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,

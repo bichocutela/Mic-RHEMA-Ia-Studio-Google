@@ -50,7 +50,7 @@ object BibleNewsEditorial {
         val summary = source.summary.ifBlank { buildSummary(source.content) }
         val tags = if (source.tags.isEmpty()) inferTags(source, category) else source.tags
         val publishedAt = if (source.publishedAt > 0L) source.publishedAt else source.id.toLong()
-        val featured = source.featured || source.id >= 26
+        val featured = source.featured
         val storyKey = source.storyKey.ifBlank { buildStoryKey(source) }
         val warning = source.contentWarning.ifBlank { inferWarning(source, intensity) }
         return source.copy(

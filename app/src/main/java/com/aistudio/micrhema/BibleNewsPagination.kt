@@ -20,7 +20,7 @@ object BibleNewsPagination {
         val db = FirebaseFirestore.getInstance()
         firstPageListener?.remove()
         firstPageListener = db.collection("bible_news")
-            .orderBy("id", Query.Direction.DESCENDING)
+            .orderBy("publishedAt", Query.Direction.DESCENDING)
             .limit(pageSize)
             .addSnapshotListener { snapshot, error ->
                 if (error != null || snapshot == null) return@addSnapshotListener
@@ -44,7 +44,7 @@ object BibleNewsPagination {
         try {
             val snapshot = FirebaseFirestore.getInstance()
                 .collection("bible_news")
-                .orderBy("id", Query.Direction.DESCENDING)
+                .orderBy("publishedAt", Query.Direction.DESCENDING)
                 .startAfter(cursor)
                 .limit(pageSize)
                 .get()
@@ -62,7 +62,9 @@ object BibleNewsPagination {
     }
 
     private fun seedLocalNews(db: FirebaseFirestore) {
-        val seedNews = BibleNewsEditorial.decorateAll(BibleNewsData.newsList)
+        val seedNews = BibleNewsEditorial.decorateAll(
+            BibleNewsData.newsList + BibleNewsEditorialCatalog.additionalNews
+        )
         seedNews.forEach { news ->
             db.collection("bible_news").document(news.id.toString()).set(news)
         }

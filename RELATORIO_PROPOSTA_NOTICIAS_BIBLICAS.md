@@ -6,7 +6,7 @@
 
 A base atual possui **30 notícias bíblicas estáticas**, com títulos em caixa alta e textos curtos, geralmente entre 26 e 40 palavras. O formato chama atenção, mas em alguns casos usa exageros, termos imprecisos ou detalhes que não aparecem diretamente no texto bíblico. O maior problema editorial não é falta de impacto; é falta de contexto. Para prender o usuário e, ao mesmo tempo, preservar a credibilidade da igreja, o ideal é substituir o clickbait enganoso por **títulos de curiosidade honesta**: promessas fortes, perguntas dramáticas e reviravoltas reais da narrativa, sem inventar fatos.
 
-Também havia um conflito de navegação. O detalhe da notícia mostrava a referência como **NTLH**, mas o clique em “Ir pra história” enviava o usuário para a versão **ARA**. Esse fluxo já foi corrigido no app: o botão agora se chama **“Ler esta história na NTLH”** e abre o leitor bíblico nativo do MIC Rhema na NTLH, sem WebView externa. A mesma estrutura permite consultar as nove versões atualmente disponíveis no aplicativo.
+Também havia um conflito de navegação. O detalhe da notícia mostrava a referência como **NTLH**, mas o clique em “Ir pra história” enviava o usuário para a versão **ARA**. Esse fluxo já foi corrigido no app: o botão agora se chama **“Ir Para a História”** e abre o leitor bíblico nativo do MIC Rhema na NTLH, sem WebView externa. A mesma estrutura permite consultar as nove versões atualmente disponíveis no aplicativo.
 
 A Central de Notícias agora ordena por `publishedAt`, usa `id` como fallback para registros antigos e carrega o conteúdo em páginas. A Home mostra somente cinco destaques, enquanto “Ver todas” abre a Central com busca, filtros e contagem por categoria.
 
@@ -143,7 +143,7 @@ O título deve criar uma pergunta real, não uma promessa falsa. É válido usar
 
 Recomendo abandonar a caixa alta integral. Uma composição com capitalização normal, uma palavra em destaque e um subtítulo curto comunica mais profissionalismo e melhora a leitura em telas pequenas. Os cards podem exibir um selo de tema, como **JUSTIÇA**, **CORAGEM**, **FAMÍLIA**, **MILAGRE**, **PODER** ou **RECOMEÇO**, além do tempo estimado de leitura.
 
-A matéria deve terminar com uma pergunta de reflexão e uma ação clara, por exemplo: **“Leia a história completa na NTLH”**, **“Veja a referência em contexto”** ou **“Compartilhe com alguém que precisa refletir sobre isso”**. A referência deve ser aberta automaticamente na **NTLH** dentro do leitor nativo do MIC Rhema, não na ARA, quando o usuário tocar em “Ler esta história na NTLH”.
+A matéria deve terminar com uma pergunta de reflexão e uma ação clara, por exemplo: **“Ir Para a História”**, **“Veja a referência em contexto”** ou **“Compartilhe com alguém que precisa refletir sobre isso”**. A referência deve ser aberta automaticamente na **NTLH** dentro do leitor nativo do MIC Rhema, não na ARA, quando o usuário tocar em “Ir Para a História”.
 
 ## 7. Mudanças técnicas recomendadas
 
@@ -279,7 +279,7 @@ Na tela, as categorias podem aparecer como cartões horizontais ou filtros em fo
 
 ### 12.4 Como a navegação deve funcionar
 
-O usuário entra na aba e vê uma apresentação simples: **“Encontre uma história bíblica para este momento”**. Logo abaixo, aparece uma busca por título, personagem, livro ou tema. Em seguida, vêm os filtros de intensidade e categorias. Ao tocar em uma matéria, abre-se o detalhe completo; ao tocar em **“Ler esta história na NTLH”**, o app abre a referência no leitor bíblico nativo.
+O usuário entra na aba e vê uma apresentação simples: **“Encontre uma história bíblica para este momento”**. Logo abaixo, aparece uma busca por título, personagem, livro ou tema. Em seguida, vêm os filtros de intensidade e categorias. Ao tocar em uma matéria, abre-se o detalhe completo; ao tocar em **“Ir Para a História”**, o app abre a referência no leitor bíblico nativo.
 
 A Central não deve renderizar 500 cards ao mesmo tempo. O Firestore deve buscar somente a primeira página, ordenada por `publishedAt` ou `id`, com limite de aproximadamente 20 documentos. Ao chegar perto do fim, o app busca a próxima página usando o último documento como cursor. Se o usuário aplicar uma categoria, a consulta deve ser reiniciada com o filtro selecionado, sem manter centenas de objetos antigos na memória da tela.
 
