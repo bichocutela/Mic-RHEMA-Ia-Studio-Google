@@ -5,6 +5,7 @@ import kotlinx.coroutines.delay
 
 
 import android.content.Context
+import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -498,6 +499,7 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
                                     prefs.edit().putString("moodKey", mood.title).putString("moodDate", todayDateStr).apply()
                                     savedMoodKey = mood.title
                                     showMoodSelector = false
+                                    onNavigate(Screen.Plans.route + "?theme=" + Uri.encode(getMappedPlan(mood.title)))
                                 },
                                 shape = RoundedCornerShape(12.dp),
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -558,7 +560,7 @@ fun MoodCard(savedMoodKey: String?, onSelectMood: () -> Unit, onNavigate: (Strin
                 val mappedPlan = getMappedPlan(savedMoodKey)
                 Row(
                     modifier = Modifier
-                        .clickable { onNavigate(Screen.Plans.route + "?theme=" + mappedPlan) }
+                        .clickable { onNavigate(Screen.Plans.route + "?theme=" + Uri.encode(mappedPlan)) }
                         .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {

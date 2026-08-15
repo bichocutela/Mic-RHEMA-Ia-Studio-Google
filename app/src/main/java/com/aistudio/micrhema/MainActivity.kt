@@ -598,9 +598,18 @@ fun MainScreen() {
                 }
                 composable("equipe") { TeamScreen() }
                 composable("team") { TeamScreen() }
-                composable("plans?theme={theme}") { backStackEntry ->
+                composable(
+                    route = "plans?theme={theme}",
+                    arguments = listOf(
+                        navArgument("theme") {
+                            type = androidx.navigation.NavType.StringType
+                            nullable = true
+                            defaultValue = null
+                        }
+                    )
+                ) { backStackEntry ->
                     val theme = backStackEntry.arguments?.getString("theme")
-                    PlansScreen(initialThemeName = theme, onNavigateToBible = { book, chap -> navController.navigate("bible?book=$book&chapter=$chap") }) 
+                    PlansScreen(initialThemeName = theme, onNavigateToBible = { book, chap -> navController.navigate("bible?book=$book&chapter=$chap") })
                 }
                 composable(Screen.About.route) { AboutScreen() }
                 composable(Screen.Donations.route) { DonationsScreen() }
