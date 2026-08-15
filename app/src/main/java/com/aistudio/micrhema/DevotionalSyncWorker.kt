@@ -33,9 +33,11 @@ class DevotionalSyncWorker(
 
                 if (lastSeenId != null && lastSeenId != latestId) {
                     NotificationHelper.showNotification(
-                        context,
-                        "Novo Devocional Disponível! 📖",
-                        latestTitle
+                        context = context,
+                        title = "Novo Devocional Disponível!",
+                        message = latestTitle,
+                        category = NotificationHelper.Category.DAILY_DEVOTIONAL,
+                        respectPreferences = true
                     )
                 }
 

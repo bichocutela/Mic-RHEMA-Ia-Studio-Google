@@ -11,6 +11,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import com.google.gson.Gson
 
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
@@ -72,16 +73,60 @@ object NotificationHelper {
         )
     }
 
+    fun scheduleDailyNews(context: Context) {
+        val now = Calendar.getInstance()
+        val nextNoon = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 12)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+            if (!after(now)) add(Calendar.DAY_OF_YEAR, 1)
+        }
+        val delay = (nextNoon.timeInMillis - now.timeInMillis).coerceAtLeast(0L)
+        val request = PeriodicWorkRequestBuilder<MiddayNewsWorker>(24, TimeUnit.HOURS)
+            .setInitialDelay(delay, TimeUnit.MILLISECONDS)
+            .build()
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            "MiddayNewsWorker",
+            androidx.work.ExistingPeriodicWorkPolicy.UPDATE,
+            request
+        )
+    }
+
+    fun scheduleMediaSync(context: Context) {
+        val request = PeriodicWorkRequestBuilder<MediaUpdateWorker>(30, TimeUnit.MINUTES).build()
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            "MediaUpdateWorker",
+            androidx.work.ExistingPeriodicWorkPolicy.KEEP,
+            request
+        )
+    }
+
+    fun scheduleIbrContentSync(context: Context) {
+        val request = PeriodicWorkRequestBuilder<IbrContentWorker>(1, TimeUnit.HOURS).build()
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            "IbrContentWorker",
+            androidx.work.ExistingPeriodicWorkPolicy.KEEP,
+            request
+        )
+    }
+
     fun applyAdminNotificationPolicy(context: Context, enabled: Boolean) {
         val workManager = WorkManager.getInstance(context)
         if (enabled) {
             scheduleDailyReminder(context)
             scheduleDevotionalSync(context)
             scheduleServiceAlert(context)
+            scheduleDailyNews(context)
+            scheduleMediaSync(context)
+            scheduleIbrContentSync(context)
         } else {
             workManager.cancelUniqueWork("DailyDevotionalReminder")
             workManager.cancelUniqueWork("DevotionalSyncWorker")
             workManager.cancelUniqueWork("ServiceAlertWorker")
+            workManager.cancelUniqueWork("MiddayNewsWorker")
+            workManager.cancelUniqueWork("MediaUpdateWorker")
+            workManager.cancelUniqueWork("IbrContentWorker")
         }
     }
 
@@ -120,10 +165,104 @@ object NotificationHelper {
         }
     }
 
-    fun showNotification(context: Context, title: String, message: String) {
+    enum class Category {
+        GENERAL,
+        DAILY_DEVOTIONAL,
+        EVENTS,
+        COURSES,
+        SERMONS,
+        MEDIA,
+        NEXT_SERVICE,
+        DAILY_NEWS,
+        IBR_CONTENT,
+        CONTENT_UPDATES
+    }
+
+    fun categoryFrom(value: String?): Category {
+        return when (value?.trim()?.lowercase()) {
+            "devotional", "devocional", "daily_devotional" -> Category.DAILY_DEVOTIONAL
+            "event", "evento", "events" -> Category.EVENTS
+            "course", "curso", "courses" -> Category.COURSES
+            "sermon", "pregacao", "pregação", "sermons" -> Category.SERMONS
+            "media", "midia", "mídia", "audio", "video" -> Category.MEDIA
+            "service", "culto", "next_service" -> Category.NEXT_SERVICE
+            "news", "noticia", "notícia", "daily_news" -> Category.DAILY_NEWS
+            "ibr", "ibr_content", "course_ibr", "aula" -> Category.IBR_CONTENT
+            "content", "conteudo", "conteúdo", "content_updates" -> Category.CONTENT_UPDATES
+            else -> Category.GENERAL
+        }
+    }
+
+    private fun localUserSettings(context: Context): UserSettings {
+        val prefs = context.getSharedPreferences("micrhema_user_settings", Context.MODE_PRIVATE)
+        val json = prefs.getString("settings_json", null)
+        return if (json.isNullOrBlank()) {
+            currentSettingsState.value
+        } else {
+            runCatching { Gson().fromJson(json, UserSettings::class.java) }
+                .getOrElse { currentSettingsState.value }
+        }
+    }
+
+    private fun adminNotificationsEnabled(context: Context): Boolean {
+        val prefs = context.getSharedPreferences("micrhema_admin_settings", Context.MODE_PRIVATE)
+        return prefs.getBoolean(
+            "notificationsEnabled",
+            adminAppSettingsState.value.notificationsEnabled
+        ) && adminAppSettingsState.value.notificationsEnabled
+    }
+
+    fun rememberMediaIds(context: Context, ids: Collection<String>) {
+        if (ids.isEmpty()) return
+        val prefs = context.getSharedPreferences("micrhema_prefs", Context.MODE_PRIVATE)
+        val known = prefs.getStringSet("notified_media_ids", emptySet())?.toMutableSet() ?: mutableSetOf()
+        known.addAll(ids)
+        if (known.size > 100) {
+            val trimmed = known.toList().sortedByDescending { it.toLongOrNull() ?: 0L }.take(100).toSet()
+            known.clear()
+            known.addAll(trimmed)
+        }
+        prefs.edit().putStringSet("notified_media_ids", known).apply()
+    }
+
+    fun isIbrMember(context: Context): Boolean {
+        return loggedInMemberState.value?.isIbr == true ||
+            context.getSharedPreferences("micrhema_member_session", Context.MODE_PRIVATE)
+                .getBoolean("isIbr", false)
+    }
+
+    private fun isAllowed(
+        context: Context,
+        category: Category
+    ): Boolean {
+        if (!adminNotificationsEnabled(context)) return false
+        val settings = localUserSettings(context)
+        if (!settings.notificationsEnabled) return false
+        return when (category) {
+            Category.DAILY_DEVOTIONAL -> settings.notifDailyDevotional
+            Category.EVENTS -> settings.notifEvents
+            Category.COURSES -> settings.notifNewCourses
+            Category.SERMONS -> settings.notifNewSermons
+            Category.MEDIA -> settings.notifNewMedia
+            Category.NEXT_SERVICE -> settings.notifNextService
+            Category.DAILY_NEWS -> settings.notifDailyNews
+            Category.IBR_CONTENT -> {
+                settings.notifIbrContent && isIbrMember(context)
+            }
+            Category.GENERAL, Category.CONTENT_UPDATES -> true
+        }
+    }
+
+    fun showNotification(
+        context: Context,
+        title: String,
+        message: String,
+        category: Category = Category.GENERAL,
+        respectPreferences: Boolean = true
+    ) {
+        if (respectPreferences && !isAllowed(context, category)) return
         createNotificationChannel(context)
 
-        // Check permission for Android 13+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
@@ -131,13 +270,13 @@ object NotificationHelper {
         }
 
         val intent = android.content.Intent(context, MainActivity::class.java).apply {
-            flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
+            flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         val pendingIntent: android.app.PendingIntent = android.app.PendingIntent.getActivity(
             context,
-            0,
+            notificationId,
             intent,
-            android.app.PendingIntent.FLAG_IMMUTABLE
+            android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT
         )
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
@@ -150,11 +289,9 @@ object NotificationHelper {
             .setContentIntent(pendingIntent)
 
         try {
-            with(NotificationManagerCompat.from(context)) {
-                notify(notificationId++, builder.build())
-            }
+            NotificationManagerCompat.from(context).notify(notificationId++, builder.build())
         } catch (e: SecurityException) {
-            // Log or handle security exception gracefully
+            android.util.Log.w("NotificationHelper", "Permissão de notificação não concedida", e)
         }
     }
 }

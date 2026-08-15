@@ -33,7 +33,9 @@ class DevotionalReminderWorker(
         NotificationHelper.showNotification(
             context = context,
             title = title,
-            message = message
+            message = message,
+            category = NotificationHelper.Category.DAILY_DEVOTIONAL,
+            respectPreferences = true
         )
 
         return Result.success()

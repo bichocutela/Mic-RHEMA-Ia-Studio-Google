@@ -41,7 +41,7 @@ object GlobalStateManager {
     private val _carouselItems = MutableStateFlow<List<CarouselItem>>(emptyList())
     val carouselItems: StateFlow<List<CarouselItem>> = _carouselItems.asStateFlow()
 
-    fun initializeRealtimeUpdates() {
+    fun initializeRealtimeUpdates(context: Context) {
         if (BuildConfig.FIREBASE_PROJECT_ID.isEmpty()) {
             Log.d("GlobalStateManager", "Firebase not configured, skipping real-time listeners.")
             return
@@ -60,9 +60,29 @@ object GlobalStateManager {
             weeklyServicesState.addAll(list)
         }
 
+        var videosInitialized = false
         db.collection("conteudos_videos").addSnapshotListener { snapshot, e ->
             if (e != null || snapshot == null) return@addSnapshotListener
             val list = snapshot.documents.mapNotNull { try { it.toObject(ContentVideo::class.java) } catch(ex: Exception) { null } }
+            if (!videosInitialized) {
+                NotificationHelper.rememberMediaIds(context, list.map { it.id })
+                videosInitialized = true
+            } else {
+                val knownIds = context.getSharedPreferences("micrhema_prefs", android.content.Context.MODE_PRIVATE)
+                    .getStringSet("notified_media_ids", emptySet()) ?: emptySet()
+                snapshot.documentChanges
+                    .filter { it.type == com.google.firebase.firestore.DocumentChange.Type.ADDED && it.document.id !in knownIds }
+                    .forEach { change ->
+                        NotificationHelper.showNotification(
+                            context = context,
+                            title = "Novo vídeo em Mídia",
+                            message = change.document.getString("title") ?: "Novo vídeo disponível",
+                            category = NotificationHelper.Category.MEDIA,
+                            respectPreferences = true
+                        )
+                        NotificationHelper.rememberMediaIds(context, listOf(change.document.id))
+                    }
+            }
             _contentVideos.value = list
             contentVideosState.clear()
             contentVideosState.addAll(list)

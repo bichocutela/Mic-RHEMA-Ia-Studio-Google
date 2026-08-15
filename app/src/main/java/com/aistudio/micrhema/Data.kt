@@ -571,6 +571,16 @@ object MemberManager {
     fun setLoggedInMember(context: android.content.Context, member: MemberRequest?) {
         loggedInMemberState.value = member
         loadIbrProgressFromFirestore()
+        context.getSharedPreferences("micrhema_member_session", android.content.Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean("isIbr", member?.isIbr == true)
+            .putString("memberId", member?.id.orEmpty())
+            .apply()
+        runCatching {
+            val messaging = com.google.firebase.messaging.FirebaseMessaging.getInstance()
+            if (member?.isIbr == true) messaging.subscribeToTopic("ibr_users")
+            else messaging.unsubscribeFromTopic("ibr_users")
+        }
         val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
         if (member == null) {
             prefs.edit().remove(KEY_LOGGED_IN_ID).apply()
@@ -663,11 +673,19 @@ fun loadAdminAppSettings() {
     com.google.firebase.Firebase.firestore.collection("settings").document("app")
         .addSnapshotListener { snapshot, error ->
             if (error != null || snapshot == null || !snapshot.exists()) return@addSnapshotListener
-            adminAppSettingsState.value = AdminAppSettings(
+            val settings = AdminAppSettings(
                 notificationsEnabled = snapshot.getBoolean("notificationsEnabled") ?: true,
                 showDonationsTab = snapshot.getBoolean("showDonationsTab") ?: true,
                 updatedAt = snapshot.getLong("updatedAt") ?: 0L
             )
+            adminAppSettingsState.value = settings
+            runCatching {
+                com.google.firebase.FirebaseApp.getInstance().applicationContext
+                    .getSharedPreferences("micrhema_admin_settings", android.content.Context.MODE_PRIVATE)
+                    .edit()
+                    .putBoolean("notificationsEnabled", settings.notificationsEnabled)
+                    .apply()
+            }
         }
 }
 
@@ -678,6 +696,13 @@ fun saveAdminAppSettings(
 ) {
     val persistedSettings = settings.copy(updatedAt = System.currentTimeMillis())
     adminAppSettingsState.value = persistedSettings
+    runCatching {
+        com.google.firebase.FirebaseApp.getInstance().applicationContext
+            .getSharedPreferences("micrhema_admin_settings", android.content.Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean("notificationsEnabled", persistedSettings.notificationsEnabled)
+            .apply()
+    }
     if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isEmpty()) {
         onFailure(IllegalStateException("Firebase não configurado"))
         return
@@ -770,7 +795,7 @@ fun loadContentFromFirebase(context: Context) {
     if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
         try {
             val db = Firebase.firestore
-            GlobalStateManager.initializeRealtimeUpdates()
+            GlobalStateManager.initializeRealtimeUpdates(context)
             loadAdminAppSettings()
 
             // FREE CONTENT
@@ -790,11 +815,31 @@ fun loadContentFromFirebase(context: Context) {
                     }
                 }
             }
+            var audiosInitialized = false
             db.collection("conteudos_audios").addSnapshotListener { snapshot, e ->
                 if (e != null || snapshot == null) return@addSnapshotListener
                 val list = snapshot.documents.mapNotNull { try { it.toObject(ContentAudio::class.java) } catch(ex: Exception) { null } }
+                if (!audiosInitialized) {
+                    NotificationHelper.rememberMediaIds(context, list.map { it.id })
+                    audiosInitialized = true
+                } else {
+                    val knownIds = context.getSharedPreferences("micrhema_prefs", Context.MODE_PRIVATE)
+                        .getStringSet("notified_media_ids", emptySet()) ?: emptySet()
+                    snapshot.documentChanges
+                        .filter { it.type == com.google.firebase.firestore.DocumentChange.Type.ADDED && it.document.id !in knownIds }
+                        .forEach { change ->
+                            NotificationHelper.showNotification(
+                                context = context,
+                                title = "Novo áudio em Mídia",
+                                message = change.document.getString("title") ?: "Novo áudio disponível",
+                                category = NotificationHelper.Category.MEDIA,
+                                respectPreferences = true
+                            )
+                            NotificationHelper.rememberMediaIds(context, listOf(change.document.id))
+                        }
+                }
                 contentAudiosState.clear()
-                    contentAudiosState.addAll(list)
+                contentAudiosState.addAll(list)
             }
                         db.collection("conteudos_albums").addSnapshotListener { snapshot, e ->
                 if (e != null || snapshot == null) return@addSnapshotListener
@@ -1172,9 +1217,54 @@ fun removeAppTab(item: AppTab) {
 val bibleNewsState = androidx.compose.runtime.mutableStateListOf<BibleNews>()
 val biblePlansState = androidx.compose.runtime.mutableStateListOf<PlanCategory>().apply { addAll(PlansData.categories) }
 val planSyncErrorState = androidx.compose.runtime.mutableStateOf("")
+val dailyNewsNotificationIdState = androidx.compose.runtime.mutableStateOf<Int?>(null)
+
+fun loadDailyNewsNotificationSelection() {
+    if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isEmpty()) return
+    com.google.firebase.Firebase.firestore.collection("settings").document("daily_news")
+        .addSnapshotListener { snapshot, error ->
+            if (error != null || snapshot == null || !snapshot.exists()) return@addSnapshotListener
+            dailyNewsNotificationIdState.value = snapshot.getLong("selectedNewsId")?.toInt()
+        }
+}
+
+fun selectDailyNewsNotification(news: BibleNews, onSuccess: () -> Unit = {}, onFailure: (Exception) -> Unit = {}) {
+    if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isEmpty()) {
+        onFailure(IllegalStateException("Firebase não configurado"))
+        return
+    }
+    com.google.firebase.Firebase.firestore.collection("settings").document("daily_news").set(
+        mapOf(
+            "selectedNewsId" to news.id,
+            "title" to news.title,
+            "summary" to news.summary,
+            "content" to news.content,
+            "updatedAt" to System.currentTimeMillis()
+        ),
+        com.google.firebase.firestore.SetOptions.merge()
+    ).addOnSuccessListener {
+        dailyNewsNotificationIdState.value = news.id
+        onSuccess()
+    }.addOnFailureListener { onFailure(it) }
+}
+
+fun clearDailyNewsNotification(onSuccess: () -> Unit = {}, onFailure: (Exception) -> Unit = {}) {
+    if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isEmpty()) {
+        onFailure(IllegalStateException("Firebase não configurado"))
+        return
+    }
+    com.google.firebase.Firebase.firestore.collection("settings").document("daily_news")
+        .delete()
+        .addOnSuccessListener {
+            dailyNewsNotificationIdState.value = null
+            onSuccess()
+        }
+        .addOnFailureListener { onFailure(it) }
+}
 
 fun syncBibleNewsAndPlans() {
     val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+    loadDailyNewsNotificationSelection()
     
     // Sync News: a Home e a Central carregam somente a primeira página.
     BibleNewsPagination.start()

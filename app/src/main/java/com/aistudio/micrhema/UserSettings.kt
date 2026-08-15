@@ -45,6 +45,10 @@ data class UserSettings(
     var notifDailyDevotional: Boolean = true,
     var notifEvents: Boolean = true,
     var notifNewSermons: Boolean = true,
+    var notifNewMedia: Boolean = true,
+    var notifNextService: Boolean = true,
+    var notifDailyNews: Boolean = true,
+    var notifIbrContent: Boolean = true,
 
     // Internet
     var preloadImages: Boolean = true,

@@ -37,7 +37,25 @@ fun EditNewsSection() {
                 Text("Novo")
             }
         }
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Escolha uma notícia para ser enviada uma vez por dia ao meio-dia. Selecionar outra substitui a atual.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        if (dailyNewsNotificationIdState.value != null) {
+            TextButton(
+                onClick = {
+                    clearDailyNewsNotification(
+                        onSuccess = { android.widget.Toast.makeText(context, "Notícia do meio-dia desativada", android.widget.Toast.LENGTH_SHORT).show() },
+                        onFailure = { error -> android.widget.Toast.makeText(context, "Não foi possível desativar: ${error.message ?: "verifique sua conexão"}", android.widget.Toast.LENGTH_LONG).show() }
+                    )
+                }
+            ) {
+                Text("Remover seleção das 12h", color = MaterialTheme.colorScheme.error)
+            }
+        }
+        Spacer(Modifier.height(8.dp))
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(newsList) { news ->
                 Card(
@@ -48,6 +66,20 @@ fun EditNewsSection() {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(news.title, fontWeight = FontWeight.Bold)
                             Text(news.book, style = MaterialTheme.typography.bodySmall)
+                            TextButton(
+                                onClick = {
+                                    selectDailyNewsNotification(
+                                        news,
+                                        onSuccess = { android.widget.Toast.makeText(context, "Notícia selecionada para as 12h", android.widget.Toast.LENGTH_SHORT).show() },
+                                        onFailure = { error -> android.widget.Toast.makeText(context, "Não foi possível selecionar: ${error.message ?: "verifique sua conexão"}", android.widget.Toast.LENGTH_LONG).show() }
+                                    )
+                                }
+                            ) {
+                                Text(
+                                    if (dailyNewsNotificationIdState.value == news.id) "Selecionada para as 12h" else "Notificar às 12h",
+                                    color = if (dailyNewsNotificationIdState.value == news.id) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+                                )
+                            }
                         }
                         IconButton(onClick = { 
                             bibleNewsState.remove(news)

@@ -69,15 +69,17 @@ class FirestoreObserverService : Service() {
             if (!isFirstMember) {
                 val added = snapshot.documentChanges.count { it.type == DocumentChange.Type.ADDED }
                 if (added > 0) {
-                    val isAdmin = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser != null
+                    val isAdmin = loggedInMemberState.value?.isAdmin == true
                     
                     if (isAdmin) {
                         val unapproved = snapshot.documentChanges.filter { it.type == DocumentChange.Type.ADDED && it.document.getBoolean("isApproved") == false }
                         if (unapproved.isNotEmpty()) {
                             NotificationHelper.showNotification(
-                                this,
-                                "👤 Novo Pedido de Acesso",
-                                "Existem ${unapproved.size} nova(s) solicitação(ões) de acesso aguardando aprovação."
+                                context = this,
+                                title = "Novo Pedido de Acesso",
+                                message = "Existem ${unapproved.size} nova(s) solicitação(ões) de acesso aguardando aprovação.",
+                                category = NotificationHelper.Category.CONTENT_UPDATES,
+                                respectPreferences = true
                             )
                         }
                     }
@@ -101,9 +103,11 @@ class FirestoreObserverService : Service() {
                     
                     if (added > 0 || modified > 0 || removed > 0) {
                         NotificationHelper.showNotification(
-                            this,
-                            "$emoji $name Atualizado",
-                            "O conteúdo foi modificado (Novos: $added, Editados: $modified, Removidos: $removed)"
+                            context = this,
+                            title = "$name Atualizado",
+                            message = "O conteúdo foi modificado (Novos: $added, Editados: $modified, Removidos: $removed)",
+                            category = NotificationHelper.Category.CONTENT_UPDATES,
+                            respectPreferences = true
                         )
                     }
                 }
