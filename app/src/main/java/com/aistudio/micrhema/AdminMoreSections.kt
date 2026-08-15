@@ -365,28 +365,52 @@ fun EditAboutSection() {
 // SETTINGS
 @Composable
 fun EditSettingsSection() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val remoteSettings = adminAppSettingsState.value
+    var notificationsEnabled by remember(remoteSettings.updatedAt) { mutableStateOf(remoteSettings.notificationsEnabled) }
+    var showDonationsTab by remember(remoteSettings.updatedAt) { mutableStateOf(remoteSettings.showDonationsTab) }
+    var savingSettings by remember { mutableStateOf(false) }
+
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("Configurações Adicionais", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text("Estas opções são sincronizadas pelo Firebase para todos os aparelhos.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(16.dp))
-        
+
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(checked = true, onCheckedChange = {})
+            Checkbox(checked = notificationsEnabled, onCheckedChange = { notificationsEnabled = it })
             Text("Habilitar Notificações")
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(checked = true, onCheckedChange = {})
+            Checkbox(checked = showDonationsTab, onCheckedChange = { showDonationsTab = it })
             Text("Mostrar aba de Doações")
         }
-        
+
         Spacer(Modifier.height(16.dp))
-        Button(onClick = {
-            // Placeholder save
-        }) {
-            Text("Salvar Configurações")
+        Button(
+            onClick = {
+                savingSettings = true
+                saveAdminAppSettings(
+                    settings = AdminAppSettings(
+                        notificationsEnabled = notificationsEnabled,
+                        showDonationsTab = showDonationsTab
+                    ),
+                    onSuccess = {
+                        savingSettings = false
+                        android.widget.Toast.makeText(context, "Configurações sincronizadas para todos os aparelhos", android.widget.Toast.LENGTH_SHORT).show()
+                    },
+                    onFailure = { error ->
+                        savingSettings = false
+                        android.widget.Toast.makeText(context, "Não foi possível sincronizar: ${error.message ?: "verifique sua conexão"}", android.widget.Toast.LENGTH_LONG).show()
+                    }
+                )
+            },
+            enabled = !savingSettings
+        ) {
+            if (savingSettings) CircularProgressIndicator(modifier = Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary)
+            else Text("Salvar Configurações")
         }
-        
+
         Spacer(Modifier.height(16.dp))
-        val context = androidx.compose.ui.platform.LocalContext.current
         val scope = rememberCoroutineScope()
         var syncing by remember { mutableStateOf(false) }
         

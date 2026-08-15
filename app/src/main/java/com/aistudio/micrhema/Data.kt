@@ -650,6 +650,49 @@ object SettingsManager {
 val currentThemeMode = androidx.compose.runtime.mutableStateOf(ThemeMode.SYSTEM)
 val isOfflineModeState = androidx.compose.runtime.mutableStateOf(false)
 
+data class AdminAppSettings(
+    var notificationsEnabled: Boolean = true,
+    var showDonationsTab: Boolean = true,
+    var updatedAt: Long = 0L
+)
+
+val adminAppSettingsState = androidx.compose.runtime.mutableStateOf(AdminAppSettings())
+
+fun loadAdminAppSettings() {
+    if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isEmpty()) return
+    com.google.firebase.Firebase.firestore.collection("settings").document("app")
+        .addSnapshotListener { snapshot, error ->
+            if (error != null || snapshot == null || !snapshot.exists()) return@addSnapshotListener
+            adminAppSettingsState.value = AdminAppSettings(
+                notificationsEnabled = snapshot.getBoolean("notificationsEnabled") ?: true,
+                showDonationsTab = snapshot.getBoolean("showDonationsTab") ?: true,
+                updatedAt = snapshot.getLong("updatedAt") ?: 0L
+            )
+        }
+}
+
+fun saveAdminAppSettings(
+    settings: AdminAppSettings,
+    onSuccess: () -> Unit = {},
+    onFailure: (Exception) -> Unit = {}
+) {
+    val persistedSettings = settings.copy(updatedAt = System.currentTimeMillis())
+    adminAppSettingsState.value = persistedSettings
+    if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isEmpty()) {
+        onFailure(IllegalStateException("Firebase não configurado"))
+        return
+    }
+    com.google.firebase.Firebase.firestore.collection("settings").document("app").set(
+        mapOf(
+            "notificationsEnabled" to persistedSettings.notificationsEnabled,
+            "showDonationsTab" to persistedSettings.showDonationsTab,
+            "updatedAt" to persistedSettings.updatedAt
+        ),
+        com.google.firebase.firestore.SetOptions.merge()
+    ).addOnSuccessListener { onSuccess() }
+        .addOnFailureListener { onFailure(it) }
+}
+
 data class ContentBook(
     var id: String = "",
     var title: String = "",
@@ -728,6 +771,7 @@ fun loadContentFromFirebase(context: Context) {
         try {
             val db = Firebase.firestore
             GlobalStateManager.initializeRealtimeUpdates()
+            loadAdminAppSettings()
 
             // FREE CONTENT
             db.collection("conteudos_books").addSnapshotListener { snapshot, e ->

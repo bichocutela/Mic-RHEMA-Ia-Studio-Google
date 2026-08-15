@@ -185,19 +185,8 @@ fun AdminScreen() {
     
     var adminFontScale by remember { mutableFloatStateOf(1f) }
     
-    val adminColors = darkColorScheme(
-        primary = androidx.compose.ui.graphics.Color(0xFF8C9EFF),
-        secondary = androidx.compose.ui.graphics.Color(0xFFFF8A80),
-        background = androidx.compose.ui.graphics.Color(0xFF1E1E2C),
-        surface = androidx.compose.ui.graphics.Color(0xFF2D2D44),
-        surfaceVariant = androidx.compose.ui.graphics.Color(0xFF3B3B5A),
-        onPrimary = androidx.compose.ui.graphics.Color.White,
-        onSecondary = androidx.compose.ui.graphics.Color.White,
-        onBackground = androidx.compose.ui.graphics.Color(0xFFE0E0E0),
-        onSurface = androidx.compose.ui.graphics.Color(0xFFE0E0E0),
-        onSurfaceVariant = androidx.compose.ui.graphics.Color(0xFFB0B0C0)
-    )
-    
+    // O painel herda o mesmo esquema global para refletir Claro/Escuro e a cor de destaque escolhida.
+    val appColorScheme = MaterialTheme.colorScheme
     val baseTypography = MaterialTheme.typography
     val adminTypography = Typography(
         displayLarge = baseTypography.displayLarge.copy(fontSize = baseTypography.displayLarge.fontSize * adminFontScale),
@@ -218,7 +207,7 @@ fun AdminScreen() {
     )
 
     MaterialTheme(
-        colorScheme = adminColors,
+        colorScheme = appColorScheme,
         typography = adminTypography
     ) {
         Scaffold(

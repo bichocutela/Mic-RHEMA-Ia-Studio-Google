@@ -169,7 +169,9 @@ fun MainScreen() {
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
     val isCompact = configuration.screenWidthDp < 600
-    val visibleTabs = appTabsState.filter { it.isVisible }.sortedBy { it.order }
+    val visibleTabs = appTabsState
+        .filter { it.isVisible && (it.id != "10" || adminAppSettingsState.value.showDonationsTab) }
+        .sortedBy { it.order }
     val bottomBarItems = visibleTabs.filter { it.showInBottomBar }
     val drawerItems = visibleTabs.filter { !it.showInBottomBar }
     
@@ -271,6 +273,13 @@ fun MainScreen() {
         showPageLoading = true
         kotlinx.coroutines.delay(420)
         showPageLoading = false
+    }
+
+    LaunchedEffect(adminAppSettingsState.value.notificationsEnabled) {
+        NotificationHelper.applyAdminNotificationPolicy(
+            context,
+            adminAppSettingsState.value.notificationsEnabled
+        )
     }
 
     navController.addOnDestinationChangedListener { _, destination, _ ->

@@ -72,6 +72,19 @@ object NotificationHelper {
         )
     }
 
+    fun applyAdminNotificationPolicy(context: Context, enabled: Boolean) {
+        val workManager = WorkManager.getInstance(context)
+        if (enabled) {
+            scheduleDailyReminder(context)
+            scheduleDevotionalSync(context)
+            scheduleServiceAlert(context)
+        } else {
+            workManager.cancelUniqueWork("DailyDevotionalReminder")
+            workManager.cancelUniqueWork("DevotionalSyncWorker")
+            workManager.cancelUniqueWork("ServiceAlertWorker")
+        }
+    }
+
     fun createNotificationChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val importance = NotificationManager.IMPORTANCE_DEFAULT

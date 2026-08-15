@@ -391,7 +391,7 @@ fun EditVipContentSection() {
                 Button(onClick = {
                     val finalDriveUrl = convertGoogleDriveUrl(albumDriveUrl)
                     if (customCoverUrl != null) {
-                        addContentPhotoAlbum(ContentPhotoAlbum(id = System.currentTimeMillis().toString(), title = albumTitle, description = albumDesc, coverUrl = customCoverUrl!!, photos = listOf(AlbumPhoto(url = customCoverUrl!!, caption = "")), driveFolderUrl = finalDriveUrl))
+                        addVipAlbum(ContentPhotoAlbum(id = System.currentTimeMillis().toString(), title = albumTitle, description = albumDesc, coverUrl = customCoverUrl!!, photos = listOf(AlbumPhoto(url = customCoverUrl!!, caption = "")), driveFolderUrl = finalDriveUrl))
                         albumTitle = ""
                         albumDesc = ""
                         albumDriveUrl = ""
@@ -401,7 +401,7 @@ fun EditVipContentSection() {
                         scope.launch {
                             val generatedCover = generatePlaceholderAlbumCover("A beautiful abstract aesthetic background suitable for a photo album cover titled '$albumTitle'. Minimalist, pastel colors.")
                             val finalCoverUrl = generatedCover ?: "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=500&q=80" // Fallback se a API não estiver configurada
-                            addContentPhotoAlbum(ContentPhotoAlbum(id = System.currentTimeMillis().toString(), title = albumTitle, description = albumDesc, coverUrl = finalCoverUrl, driveFolderUrl = finalDriveUrl))
+                            addVipAlbum(ContentPhotoAlbum(id = System.currentTimeMillis().toString(), title = albumTitle, description = albumDesc, coverUrl = finalCoverUrl, driveFolderUrl = finalDriveUrl))
                             isGenerating = false
                             albumTitle = ""
                             albumDesc = ""
@@ -467,7 +467,7 @@ fun EditVipContentSection() {
                             
                             val idx = vipAlbumsState.indexOfFirst { it.id == albumToDelete!!.id }
                             if (idx != -1) {
-                                removeContentPhotoAlbum(albumToDelete!!)
+                                removeVipAlbum(albumToDelete!!)
                             }
                             isDeleting = false
                             albumToDelete = null
@@ -617,8 +617,7 @@ fun EditVipContentSection() {
                                 val index = vipAlbumsState.indexOfFirst { it.id == editingAlbum!!.id }
                                 if (index != -1) {
                                     vipAlbumsState[index] = updatedAlbum
-                                            addVipAlbum(updatedAlbum)
-                                            addVipAlbum(updatedAlbum)
+                                    addVipAlbum(updatedAlbum)
                                     editingAlbum = updatedAlbum
                                 }
                             }
