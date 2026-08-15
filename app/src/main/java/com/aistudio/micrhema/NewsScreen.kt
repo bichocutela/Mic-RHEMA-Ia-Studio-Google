@@ -60,7 +60,7 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 
 private fun decoratedBibleNews(): List<BibleNews> =
-    BibleNewsEditorial.decorateAll(
+    BibleNewsEditorial.withEditorialCatalog(
         if (bibleNewsState.isEmpty()) BibleNewsData.newsList else bibleNewsState.toList()
     )
 
@@ -75,6 +75,9 @@ fun NewsListScreen(onNavigateToDetail: (Int) -> Unit, onBack: () -> Unit) {
     val coroutineScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     val allNews = decoratedBibleNews()
+    val availableFilters = BibleNewsEditorial.categories.filter { filter ->
+        filter == "Tudo" || filter == "Mais recentes" || allNews.any { BibleNewsEditorial.matches(it, "", filter) }
+    }
     val filteredNews = allNews
         .filter { BibleNewsEditorial.matches(it, query, selectedFilter) }
         .sortedWith(
@@ -157,11 +160,16 @@ fun NewsListScreen(onNavigateToDetail: (Int) -> Unit, onBack: () -> Unit) {
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(vertical = 2.dp)
                     ) {
-                        items(BibleNewsEditorial.categories, key = { it }) { filter ->
+                        items(availableFilters, key = { it }) { filter ->
+                            val count = if (filter == "Tudo" || filter == "Mais recentes") {
+                                allNews.size
+                            } else {
+                                allNews.count { BibleNewsEditorial.matches(it, "", filter) }
+                            }
                             FilterChip(
                                 selected = selectedFilter == filter,
                                 onClick = { selectedFilter = filter },
-                                label = { Text(filter) }
+                                label = { Text("$filter ($count)") }
                             )
                         }
                     }
@@ -244,15 +252,17 @@ private fun NewsCard(news: BibleNews, onClick: () -> Unit) {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column {
-            AsyncImage(
-                model = news.imageUrl,
-                contentDescription = news.title,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(180.dp)
-                    .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)),
-                contentScale = ContentScale.Crop
-            )
+            if (news.imageUrl.isNotBlank()) {
+                AsyncImage(
+                    model = news.imageUrl,
+                    contentDescription = news.title,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                        .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)),
+                    contentScale = ContentScale.Crop
+                )
+            }
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -335,14 +345,16 @@ fun NewsDetailScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
         ) {
-            AsyncImage(
-                model = news.imageUrl,
-                contentDescription = news.title,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(280.dp),
-                contentScale = ContentScale.Crop
-            )
+            if (news.imageUrl.isNotBlank()) {
+                AsyncImage(
+                    model = news.imageUrl,
+                    contentDescription = news.title,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(280.dp),
+                    contentScale = ContentScale.Crop
+                )
+            }
             Column(
                 modifier = Modifier
                     .fillMaxSize()

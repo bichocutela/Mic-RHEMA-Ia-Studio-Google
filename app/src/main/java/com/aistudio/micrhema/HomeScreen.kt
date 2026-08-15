@@ -115,7 +115,7 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
     val todayStr = today.format(formatter)
     val todayDevotional = devotionalsState.find { it.date == todayStr } ?: devotionalsState.firstOrNull()
     
-    val latestNews = BibleNewsEditorial.decorateAll(
+    val latestNews = BibleNewsEditorial.withEditorialCatalog(
         if (bibleNewsState.isEmpty()) BibleNewsData.newsList else bibleNewsState.toList()
     ).sortedByDescending { it.publishedAt }.take(5)
     

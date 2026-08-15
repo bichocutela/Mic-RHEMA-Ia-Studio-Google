@@ -37,15 +37,23 @@ object BibleNewsEditorial {
     fun intensityLabel(value: Int): String = intensityLabels[normalizeIntensity(value)].orEmpty()
 
     fun decorate(news: BibleNews): BibleNews {
-        val category = news.category.ifBlank { inferCategory(news) }
-        val intensity = normalizeIntensity(if (news.intensity in 1..4) news.intensity else inferIntensity(news))
-        val summary = news.summary.ifBlank { buildSummary(news.content) }
-        val tags = if (news.tags.isEmpty()) inferTags(news, category) else news.tags
-        val publishedAt = if (news.publishedAt > 0L) news.publishedAt else news.id.toLong()
-        val featured = news.featured || news.id >= 26
-        val storyKey = news.storyKey.ifBlank { buildStoryKey(news) }
-        val warning = news.contentWarning.ifBlank { inferWarning(news, intensity) }
-        return news.copy(
+        val canonicalTitle = BibleNewsData.newsList.firstOrNull { it.id == news.id }?.title
+        val shouldUseCanonicalTitle = canonicalTitle != null && (
+            news.title == news.title.uppercase() ||
+                news.title.contains("parte", ignoreCase = true)
+            )
+        val titleBeforeCleanup = if (shouldUseCanonicalTitle) canonicalTitle.orEmpty() else news.title
+        val cleanTitle = normalizeTitle(titleBeforeCleanup)
+        val source = if (cleanTitle == news.title) news else news.copy(title = cleanTitle)
+        val category = source.category.ifBlank { inferCategory(source) }
+        val intensity = normalizeIntensity(if (source.intensity in 1..4) source.intensity else inferIntensity(source))
+        val summary = source.summary.ifBlank { buildSummary(source.content) }
+        val tags = if (source.tags.isEmpty()) inferTags(source, category) else source.tags
+        val publishedAt = if (source.publishedAt > 0L) source.publishedAt else source.id.toLong()
+        val featured = source.featured || source.id >= 26
+        val storyKey = source.storyKey.ifBlank { buildStoryKey(source) }
+        val warning = source.contentWarning.ifBlank { inferWarning(source, intensity) }
+        return source.copy(
             summary = summary,
             category = category,
             intensity = intensity,
@@ -58,6 +66,16 @@ object BibleNewsEditorial {
     }
 
     fun decorateAll(items: List<BibleNews>): List<BibleNews> = items.map(::decorate)
+
+    fun mergeUnique(items: List<BibleNews>): List<BibleNews> =
+        items.map(::decorate)
+            .groupBy { editorialKey(it) }
+            .values
+            .map { group -> group.maxByOrNull { it.publishedAt } ?: group.first() }
+            .sortedByDescending { it.publishedAt }
+
+    fun withEditorialCatalog(items: List<BibleNews>): List<BibleNews> =
+        mergeUnique(items + BibleNewsData.newsList + BibleNewsEditorialCatalog.additionalNews)
 
     fun matches(news: BibleNews, query: String, filter: String): Boolean {
         val normalizedQuery = query.trim().lowercase()
@@ -81,7 +99,7 @@ object BibleNewsEditorial {
     private fun inferCategory(news: BibleNews): String {
         val text = "${news.title} ${news.content}".lowercase()
         return when {
-            listOf("fogo", "mar", "cura", "cego", "pão", "anjo", "carruagem", "peixe").any { term -> text.contains(term) } -> "Grandes reviravoltas"
+            listOf("fogo", "mar", "cura", "cego", "pão", "anjo", "carruagem", "peixe", "ressusc").any { term -> text.contains(term) } -> "Milagres e sinais"
             listOf("rei", "palácio", "palacio", "prisão", "prisa", "general", "guerra", "altar").any { term -> text.contains(term) } -> "Poder e justiça"
             listOf("mãe", "mae", "mulher", "menino", "menina", "família", "familia", "multidão").any { term -> text.contains(term) } -> "Família e relacionamentos"
             listOf("arrepend", "oração", "oracao", "salvo", "salvação", "salvacao", "deserto").any { term -> text.contains(term) } -> "Crises e recomeços"
@@ -131,6 +149,24 @@ object BibleNewsEditorial {
             if (text.length <= 150) text else text.take(147).trimEnd() + "…"
         }
 
+    private fun normalizeTitle(title: String): String =
+        title.replace(Regex("\\s*[-–—:]?\\s*\\(?parte\\s+\\d+(?:\\s*(?:de|/|-)\\s*\\d+)?\\)?", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("\\s{2,}"), " ")
+            .trim()
+            .removeSuffix("-")
+            .trim()
+
+    private fun editorialKey(news: BibleNews): String {
+        val text = "${news.title} ${news.content}".lowercase()
+        return when {
+            news.book.equals("Jonas", ignoreCase = true) -> "jonas-arco-completo"
+            text.contains("ananias") && text.contains("safira") -> "ananias-safira"
+            BibleNewsData.newsList.any { it.id == news.id } -> "legacy-${news.id}"
+            news.storyKey.isNotBlank() -> news.storyKey.lowercase()
+            else -> normalizeTitle(news.title).lowercase().replace(Regex("[^a-z0-9áéíóúãõç ]"), "").trim()
+        }
+    }
+
     private fun buildStoryKey(news: BibleNews): String =
-        "${news.book}-${news.chapter}-${news.verse}-${news.title.lowercase().hashCode()}"
+        "${news.book}-${news.chapter}-${news.verse}-${normalizeTitle(news.title).lowercase().hashCode()}"
 }

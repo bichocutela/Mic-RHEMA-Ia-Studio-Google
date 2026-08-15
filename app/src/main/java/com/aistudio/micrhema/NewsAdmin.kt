@@ -24,7 +24,7 @@ fun EditNewsSection() {
     var showDialog by remember { mutableStateOf(false) }
     var editingNews by remember { mutableStateOf<BibleNews?>(null) }
     
-    val newsList = BibleNewsEditorial.decorateAll(
+    val newsList = BibleNewsEditorial.withEditorialCatalog(
         if (bibleNewsState.isEmpty()) BibleNewsData.newsList else bibleNewsState.toList()
     )
 
