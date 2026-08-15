@@ -43,12 +43,21 @@ fun PlansScreen(initialThemeName: String? = null, onNavigateToBible: (String, In
         }
     }
 
-    LaunchedEffect(initialThemeName) {
+    LaunchedEffect(initialThemeName, biblePlansState.size) {
         if (initialThemeName != null) {
             val allPlans = if (biblePlansState.isEmpty()) PlansData.categories else biblePlansState
-            val theme = allPlans.flatMap { it.themes }.find { it.title == initialThemeName }
-            if (theme != null) {
-                selectedTheme = theme
+            val category = allPlans.find { it.name.equals(initialThemeName, ignoreCase = true) }
+            val theme = allPlans.flatMap { it.themes }.find { it.title.equals(initialThemeName, ignoreCase = true) }
+
+            when {
+                theme != null -> {
+                    selectedCategory = null
+                    selectedTheme = theme
+                }
+                category != null -> {
+                    selectedTheme = null
+                    selectedCategory = category
+                }
             }
         }
     }
