@@ -134,10 +134,16 @@ fun EditProfilesSection() {
     val approvedMembers = memberRequestsState.filter { it.isApproved || it.isIbr }
 
     val photoLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.GetContent()
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
     ) { uri ->
         val target = selectedMember ?: return@rememberLauncherForActivityResult
         if (uri == null) return@rememberLauncherForActivityResult
+        runCatching {
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+        }
         isUploadingPhoto = true
         coroutineScope.launch {
             try {

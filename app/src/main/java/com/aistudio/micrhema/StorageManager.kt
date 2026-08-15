@@ -83,24 +83,42 @@ object StorageManager {
 
     suspend fun uploadProfilePhotoToFirebase(context: android.content.Context, uri: Uri, uid: String): String {
         if (uri.scheme == "http" || uri.scheme == "https") return uri.toString()
+        if (uri.scheme != "content" && uri.scheme != "file") {
+            throw IllegalArgumentException("A imagem selecionada não possui um URI válido.")
+        }
 
         return withContext(Dispatchers.IO) {
+            var firebaseError: Exception? = null
             try {
                 val storage = FirebaseStorage.getInstance()
                 val imageRef = storage.reference.child("profile_photos/$uid/profile.jpg")
                 imageRef.putFile(uri).await()
                 val remoteUrl = imageRef.downloadUrl.await().toString()
-
-                // O arquivo local é somente cache para uso offline; a fonte oficial é o Firebase.
                 runCatching { saveProfilePhotoLocally(context, uri, uid) }
                     .onFailure { error ->
                         android.util.Log.w("StorageManager", "Foto sincronizada, mas cache local não foi salvo", error)
                     }
-                remoteUrl
+                return@withContext remoteUrl
             } catch (e: Exception) {
-                android.util.Log.e("StorageManager", "Não foi possível sincronizar a foto no Firebase Storage", e)
-                throw e
+                firebaseError = e
+                android.util.Log.e("StorageManager", "Firebase Storage recusou o upload; tentando armazenamento remoto alternativo", e)
             }
+
+            val fallbackUrl = runCatching {
+                uploadFile(context, uri, "profile_photos")
+            }.getOrNull().orEmpty()
+            if (fallbackUrl.isNotBlank() && (fallbackUrl.startsWith("http://") || fallbackUrl.startsWith("https://"))) {
+                runCatching { saveProfilePhotoLocally(context, uri, uid) }
+                    .onFailure { error ->
+                        android.util.Log.w("StorageManager", "Foto remota salva, mas cache local não foi salvo", error)
+                    }
+                return@withContext fallbackUrl
+            }
+
+            throw IllegalStateException(
+                "Não foi possível enviar a foto ao Firebase Storage${firebaseError?.message?.let { ": $it" } ?: ". Verifique a conexão e as regras do Storage."}",
+                firebaseError
+            )
         }
     }
 
