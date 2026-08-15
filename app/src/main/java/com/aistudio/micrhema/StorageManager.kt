@@ -85,17 +85,37 @@ object StorageManager {
         if (uri.scheme == "http" || uri.scheme == "https") return uri.toString()
 
         return withContext(Dispatchers.IO) {
-            val localUri = saveProfilePhotoLocally(context, uri, uid)
             try {
                 val storage = FirebaseStorage.getInstance()
                 val imageRef = storage.reference.child("profile_photos/$uid/profile.jpg")
-                imageRef.putFile(Uri.parse(localUri)).await()
-                imageRef.downloadUrl.await().toString()
+                imageRef.putFile(uri).await()
+                val remoteUrl = imageRef.downloadUrl.await().toString()
+
+                // O arquivo local é somente cache para uso offline; a fonte oficial é o Firebase.
+                runCatching { saveProfilePhotoLocally(context, uri, uid) }
+                    .onFailure { error ->
+                        android.util.Log.w("StorageManager", "Foto sincronizada, mas cache local não foi salvo", error)
+                    }
+                remoteUrl
             } catch (e: Exception) {
-                // O login do app é baseado no cadastro de membros e pode não ter Firebase Auth.
-                // A foto local continua sendo uma cópia persistente e segura neste aparelho.
-                android.util.Log.w("StorageManager", "Firebase Storage indisponível; usando foto local", e)
-                localUri
+                android.util.Log.e("StorageManager", "Não foi possível sincronizar a foto no Firebase Storage", e)
+                throw e
+            }
+        }
+    }
+
+    suspend fun deleteProfilePhotoFromFirebase(uid: String) {
+        withContext(Dispatchers.IO) {
+            try {
+                FirebaseStorage.getInstance()
+                    .reference
+                    .child("profile_photos/$uid/profile.jpg")
+                    .delete()
+                    .await()
+            } catch (e: com.google.firebase.storage.StorageException) {
+                if (e.errorCode != com.google.firebase.storage.StorageException.ERROR_OBJECT_NOT_FOUND) {
+                    throw e
+                }
             }
         }
     }
@@ -109,7 +129,7 @@ object StorageManager {
                 FileOutputStream(destination).use { output -> input.copyTo(output) }
             } ?: throw Exception("Não foi possível ler a foto selecionada.")
             if (!destination.exists() || destination.length() == 0L) {
-                throw Exception("Não foi possível salvar a foto no aparelho.")
+                throw Exception("Não foi possível salvar o cache da foto no aparelho.")
             }
             Uri.fromFile(destination).toString()
         }

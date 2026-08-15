@@ -154,8 +154,14 @@ fun EditProfilesSection() {
                         Toast.makeText(context, "Foto do usuário atualizada", Toast.LENGTH_SHORT).show()
                     },
                     onFailure = { error ->
-                        isUploadingPhoto = false
-                        Toast.makeText(context, "Foto salva localmente, mas não foi sincronizada: ${error.message ?: "verifique as regras"}", Toast.LENGTH_LONG).show()
+                        val rollbackIndex = memberRequestsState.indexOfFirst { it.id == target.id }
+                        if (rollbackIndex >= 0) memberRequestsState[rollbackIndex] = target
+                        selectedMember = target
+                        coroutineScope.launch {
+                            runCatching { StorageManager.deleteProfilePhotoFromFirebase(target.id) }
+                            isUploadingPhoto = false
+                            Toast.makeText(context, "Não foi possível sincronizar a foto no perfil: ${error.message ?: "verifique as regras do Firebase"}", Toast.LENGTH_LONG).show()
+                        }
                     }
                 )
             } catch (error: Exception) {
@@ -203,7 +209,9 @@ fun EditProfilesSection() {
             isUploadingPhoto = isUploadingPhoto,
             onChangePhoto = { photoLauncher.launch("image/*") },
             onRemovePhoto = {
-                StorageManager.deleteLocalProfilePhoto(context, member.id)
+                if (isUploadingPhoto) return@MemberAdminDetailsDialog
+                val previousPhotoUrl = member.profilePhotoUrl
+                isUploadingPhoto = true
                 val updated = member.copy(profilePhotoUrl = "", updatedAt = System.currentTimeMillis())
                 val index = memberRequestsState.indexOfFirst { it.id == member.id }
                 if (index >= 0) memberRequestsState[index] = updated
@@ -211,8 +219,27 @@ fun EditProfilesSection() {
                 MemberManager.saveToFirestore(
                     context = context,
                     member = updated,
-                    onSuccess = { Toast.makeText(context, "Foto removida", Toast.LENGTH_SHORT).show() },
-                    onFailure = { error -> Toast.makeText(context, "Foto removida localmente, mas não sincronizada: ${error.message ?: "verifique as regras"}", Toast.LENGTH_LONG).show() }
+                    onSuccess = {
+                        coroutineScope.launch {
+                            try {
+                                if (previousPhotoUrl.startsWith("http://") || previousPhotoUrl.startsWith("https://")) {
+                                    StorageManager.deleteProfilePhotoFromFirebase(member.id)
+                                }
+                                StorageManager.deleteLocalProfilePhoto(context, member.id)
+                                Toast.makeText(context, "Foto removida do perfil sincronizado", Toast.LENGTH_SHORT).show()
+                            } catch (error: Exception) {
+                                Toast.makeText(context, "Perfil atualizado, mas o arquivo remoto precisa ser removido no Firebase", Toast.LENGTH_LONG).show()
+                            } finally {
+                                isUploadingPhoto = false
+                            }
+                        }
+                    },
+                    onFailure = { error ->
+                        if (index >= 0) memberRequestsState[index] = member
+                        selectedMember = member
+                        isUploadingPhoto = false
+                        Toast.makeText(context, "Não foi possível remover a foto do perfil: ${error.message ?: "verifique as regras do Firebase"}", Toast.LENGTH_LONG).show()
+                    }
                 )
             },
             onDismiss = { selectedMember = null }
@@ -281,9 +308,13 @@ private fun MemberAdminDetailsDialog(
                 MemberInfoRow("E-mail", member.email)
                 MemberInfoRow("Endereço", member.address)
                 MemberInfoRow("Nascimento", member.birthDate)
-                MemberInfoRow("Status", if (member.isApproved) "Aprovado" else "Pendente")
+                MemberInfoRow("Status", member.status.ifBlank { if (member.isApproved) "Aprovado" else "Pendente" })
                 MemberInfoRow("Aluno IBR", if (member.isIbr) "Sim" else "Não")
                 MemberInfoRow("Administrador", if (member.isAdmin) "Sim" else "Não")
+                MemberInfoRow("Título", member.title)
+                MemberInfoRow("Tipo", member.type)
+                MemberInfoRow("Conteúdo", member.content)
+                MemberInfoRow("Mídia", member.mediaUrl)
                 MemberInfoRow("ID", member.id)
                 if (member.createdAt > 0L) MemberInfoRow("Cadastrado em", dateFormat.format(java.util.Date(member.createdAt)))
                 if (member.updatedAt > 0L) MemberInfoRow("Atualizado em", dateFormat.format(java.util.Date(member.updatedAt)))

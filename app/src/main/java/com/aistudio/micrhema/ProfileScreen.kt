@@ -77,11 +77,11 @@ fun ProfileScreen(
                         showToast = false
                     ) { synced, error ->
                         val message = if (synced && uploadedUrl.startsWith("http")) {
-                            "Foto atualizada e sincronizada"
+                            "Foto atualizada e sincronizada no perfil"
                         } else if (synced) {
-                            "Foto salva neste aparelho"
+                            "Perfil atualizado, mas confirme a configuração do armazenamento remoto"
                         } else {
-                            "Foto salva neste aparelho; não foi sincronizada: ${error?.message ?: "verifique sua conexão"}"
+                            "Não foi possível sincronizar o perfil: ${error?.message ?: "verifique sua conexão"}"
                         }
                         android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
                     }
@@ -188,9 +188,45 @@ fun ProfileScreen(
             if (profilePhotoUrl.isNotBlank()) {
                 TextButton(
                     onClick = {
-                        StorageManager.deleteLocalProfilePhoto(context, loggedInMember.id)
+                        if (isUploading) return@TextButton
+                        val previousPhotoUrl = profilePhotoUrl
+                        isUploading = true
                         profilePhotoUrl = ""
-                        saveProfile(loggedInMember, name, phone, address, birthDate, profilePhotoUrl, context)
+                        saveProfile(
+                            loggedInMember,
+                            name,
+                            phone,
+                            address,
+                            birthDate,
+                            profilePhotoUrl,
+                            context,
+                            showToast = false
+                        ) { synced, error ->
+                            if (!synced) {
+                                profilePhotoUrl = previousPhotoUrl
+                                android.widget.Toast.makeText(
+                                    context,
+                                    "Não foi possível remover a foto do perfil: ${error?.message ?: "verifique sua conexão"}",
+                                    android.widget.Toast.LENGTH_LONG
+                                ).show()
+                                isUploading = false
+                            } else {
+                                coroutineScope.launch {
+                                    try {
+                                        if (previousPhotoUrl.startsWith("http://") || previousPhotoUrl.startsWith("https://")) {
+                                            StorageManager.deleteProfilePhotoFromFirebase(loggedInMember.id)
+                                        }
+                                        StorageManager.deleteLocalProfilePhoto(context, loggedInMember.id)
+                                        android.widget.Toast.makeText(context, "Foto removida do perfil sincronizado", android.widget.Toast.LENGTH_SHORT).show()
+                                    } catch (e: Exception) {
+                                        android.util.Log.w("ProfileScreen", "Perfil atualizado, mas não foi possível excluir o arquivo remoto", e)
+                                        android.widget.Toast.makeText(context, "Perfil atualizado, mas o arquivo remoto precisa ser removido no Firebase", android.widget.Toast.LENGTH_LONG).show()
+                                    } finally {
+                                        isUploading = false
+                                    }
+                                }
+                            }
+                        }
                     },
                     modifier = Modifier.padding(top = 8.dp)
                 ) {
@@ -359,6 +395,7 @@ private fun saveProfile(
     showToast: Boolean = true,
     onResult: ((synced: Boolean, error: Exception?) -> Unit)? = null
 ) {
+    val previousMember = member.copy()
     member.name = name
     member.phone = phone
     member.address = address
@@ -384,9 +421,18 @@ private fun saveProfile(
             }
         },
         onFailure = { error ->
+            member.name = previousMember.name
+            member.phone = previousMember.phone
+            member.address = previousMember.address
+            member.birthDate = previousMember.birthDate
+            member.profilePhotoUrl = previousMember.profilePhotoUrl
+            member.updatedAt = previousMember.updatedAt
+            loggedInMemberState.value = member.copy()
+            val failedIndex = memberRequestsState.indexOfFirst { it.id == member.id }
+            if (failedIndex >= 0) memberRequestsState[failedIndex] = member
             onResult?.invoke(false, error)
             if (showToast) {
-                android.widget.Toast.makeText(context, "Erro ao salvar: ${error.message ?: "verifique sua conexão"}", android.widget.Toast.LENGTH_LONG).show()
+                android.widget.Toast.makeText(context, "Erro ao sincronizar: ${error.message ?: "verifique sua conexão"}", android.widget.Toast.LENGTH_LONG).show()
             }
         }
     )

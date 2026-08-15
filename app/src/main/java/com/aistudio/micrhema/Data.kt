@@ -367,6 +367,9 @@ object MemberManager {
                     val ibrCertificateUrl = document.getString("ibrCertificateUrl") ?: ""
                     val status = document.getString("status") ?: if (isApproved || isIbr) "aprovado" else "pendente"
                     val title = document.getString("title") ?: ""
+                    val type = document.getString("type") ?: "acesso"
+                    val content = document.getString("content") ?: ""
+                    val mediaUrl = document.getString("mediaUrl") ?: ""
                     val remoteProfilePhotoUrl = document.getString("profilePhotoUrl") ?: ""
                     val profilePhotoUrl = resolveProfilePhotoUrl(context, id, remoteProfilePhotoUrl)
                     val address = document.getString("address") ?: ""
@@ -385,6 +388,9 @@ object MemberManager {
                         ibrCertificateUrl = ibrCertificateUrl,
                         status = status,
                         title = title,
+                        type = type,
+                        content = content,
+                        mediaUrl = mediaUrl,
                         profilePhotoUrl = profilePhotoUrl,
                         address = address,
                         birthDate = birthDate,
@@ -426,6 +432,9 @@ object MemberManager {
     }
 
     fun saveToFirestore(context: android.content.Context, member: MemberRequest, onSuccess: () -> Unit = {}, onFailure: (Exception) -> Unit = {}) {
+        val remoteProfilePhotoUrl = member.profilePhotoUrl.takeIf {
+            it.startsWith("http://") || it.startsWith("https://")
+        }.orEmpty()
         saveMembers(context)
         if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isEmpty()) {
             onSuccess()
@@ -443,14 +452,20 @@ object MemberManager {
                 "isIbr" to member.isIbr,
                 "isAdmin" to member.isAdmin,
                 "ibrCertificateUrl" to member.ibrCertificateUrl,
-                "status" to (if (member.isApproved || member.isIbr) "aprovado" else "pendente"),
-                "profilePhotoUrl" to member.profilePhotoUrl,
+                "status" to member.status.ifBlank { if (member.isApproved || member.isIbr) "aprovado" else "pendente" },
+                "title" to member.title,
+                "type" to member.type,
+                "content" to member.content,
+                "mediaUrl" to member.mediaUrl,
                 "address" to member.address,
                 "birthDate" to member.birthDate,
                 "createdAt" to member.createdAt,
                 "updatedAt" to member.updatedAt
             )
-            db.collection("acessos_pendentes").document(member.id).set(memberMap)
+            if (member.profilePhotoUrl.isBlank() || remoteProfilePhotoUrl.isNotBlank()) {
+                memberMap["profilePhotoUrl"] = remoteProfilePhotoUrl
+            }
+            db.collection("acessos_pendentes").document(member.id).set(memberMap, com.google.firebase.firestore.SetOptions.merge())
                 .addOnSuccessListener { 
                     Log.d("MemberManager", "Document successfully written!") 
                     onSuccess()
@@ -485,6 +500,11 @@ object MemberManager {
                             isIbr = obj.optBoolean("isIbr", false),
                             isAdmin = obj.optBoolean("isAdmin", false),
                             ibrCertificateUrl = obj.optString("ibrCertificateUrl", ""),
+                            status = obj.optString("status", "pendente"),
+                            title = obj.optString("title", ""),
+                            type = obj.optString("type", "acesso"),
+                            content = obj.optString("content", ""),
+                            mediaUrl = obj.optString("mediaUrl", ""),
                             profilePhotoUrl = obj.optString("profilePhotoUrl", ""),
                             address = obj.optString("address", ""),
                             birthDate = obj.optString("birthDate", ""),
@@ -530,6 +550,11 @@ object MemberManager {
                 obj.put("isIbr", member.isIbr)
                 obj.put("isAdmin", member.isAdmin)
                 obj.put("ibrCertificateUrl", member.ibrCertificateUrl)
+                obj.put("status", member.status)
+                obj.put("title", member.title)
+                obj.put("type", member.type)
+                obj.put("content", member.content)
+                obj.put("mediaUrl", member.mediaUrl)
                 obj.put("profilePhotoUrl", member.profilePhotoUrl)
                 obj.put("address", member.address)
                 obj.put("birthDate", member.birthDate)
@@ -1380,9 +1405,14 @@ suspend fun refreshHomeData() {
                     val isIbr = memberSnapshot.getBoolean("isIbr") ?: false
                     val email = memberSnapshot.getString("email") ?: ""
                     val isAdmin = memberSnapshot.getBoolean("isAdmin") ?: false
-                    val profilePhotoUrl = memberSnapshot.getString("profilePhotoUrl")
-                        ?.takeIf { it.isNotBlank() }
-                        ?: currentMember.profilePhotoUrl
+                    val ibrCertificateUrl = memberSnapshot.getString("ibrCertificateUrl") ?: ""
+                    val status = memberSnapshot.getString("status") ?: if (effectiveApproved || isIbr) "aprovado" else "pendente"
+                    val title = memberSnapshot.getString("title") ?: ""
+                    val type = memberSnapshot.getString("type") ?: "acesso"
+                    val content = memberSnapshot.getString("content") ?: ""
+                    val mediaUrl = memberSnapshot.getString("mediaUrl") ?: ""
+                    val remoteProfilePhotoUrl = memberSnapshot.getString("profilePhotoUrl") ?: ""
+                    val profilePhotoUrl = resolveProfilePhotoUrl(context, id, remoteProfilePhotoUrl)
                     val address = memberSnapshot.getString("address") ?: ""
                     val birthDate = memberSnapshot.getString("birthDate") ?: ""
                     val createdAt = memberSnapshot.getLong("createdAt") ?: 0L
@@ -1396,6 +1426,12 @@ suspend fun refreshHomeData() {
                         isVip = false, 
                         isIbr = isIbr,
                         isAdmin = isAdmin,
+                        ibrCertificateUrl = ibrCertificateUrl,
+                        status = status,
+                        title = title,
+                        type = type,
+                        content = content,
+                        mediaUrl = mediaUrl,
                         profilePhotoUrl = profilePhotoUrl,
                         address = address,
                         birthDate = birthDate,
