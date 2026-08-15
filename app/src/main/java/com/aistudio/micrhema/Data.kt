@@ -1165,29 +1165,26 @@ fun loadFavoritesFromFirestore() {
             val list = snapshot.documents.mapNotNull { 
                 try { it.toObject(FavoriteItem::class.java) } catch(ex: Exception) { null } 
             }
+            val merged = (favoriteItemsState.toList() + list)
+                .distinctBy { it.id }
+                .sortedByDescending { it.timestamp }
             favoriteItemsState.clear()
-            favoriteItemsState.addAll(list.sortedByDescending { it.timestamp })
+            favoriteItemsState.addAll(merged)
         }
 }
 
 fun addFavorite(item: FavoriteItem) {
-    val userId = loggedInMemberState.value?.id
-    if (userId == null) {
-        // Fallback to local memory if not logged in (wont persist cross-session)
-        favoriteItemsState.add(0, item)
-        return
-    }
+    favoriteItemsState.removeAll { it.id == item.id }
+    favoriteItemsState.add(0, item)
+    val userId = loggedInMemberState.value?.id ?: return
     val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
     db.collection("users").document(userId).collection("favorites").document(item.id)
         .set(item)
 }
 
 fun removeFavorite(itemId: String) {
-    val userId = loggedInMemberState.value?.id
-    if (userId == null) {
-        favoriteItemsState.removeAll { it.id == itemId }
-        return
-    }
+    favoriteItemsState.removeAll { it.id == itemId }
+    val userId = loggedInMemberState.value?.id ?: return
     val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
     db.collection("users").document(userId).collection("favorites").document(itemId)
         .delete()

@@ -181,10 +181,10 @@ fun MainScreen() {
 
 
     LaunchedEffect(loggedInMemberState.value) {
+        favoriteItemsState.clear()
+        BibleReadingPreferences.loadLocalFavoritesIntoState(context)
         if (loggedInMemberState.value != null) {
             loadFavoritesFromFirestore()
-        } else {
-            favoriteItemsState.clear()
         }
     }
 
@@ -683,23 +683,28 @@ fun MainScreen() {
                     )
                 }
                 composable(
-                    route = "bible_reader?book={book}&chapter={chapter}&version={version}",
+                    route = "bible_reader?book={book}&chapter={chapter}&version={version}&verse={verse}",
                     arguments = listOf(
                         navArgument("book") { nullable = true; defaultValue = null },
                         navArgument("chapter") { nullable = true; defaultValue = null },
-                        navArgument("version") { nullable = true; defaultValue = "ARA" }
+                        navArgument("version") { nullable = true; defaultValue = "ARA" },
+                        navArgument("verse") { nullable = true; defaultValue = null }
                     )
                 ) { backStackEntry ->
                     BollsBibleScreen(
                         book = backStackEntry.arguments?.getString("book"),
                         chapter = backStackEntry.arguments?.getString("chapter")?.toIntOrNull(),
                         versionCode = backStackEntry.arguments?.getString("version"),
+                        verse = backStackEntry.arguments?.getString("verse")?.toIntOrNull(),
                         onBack = { navController.popBackStack() },
                         onOpenChapter = { nextBook, nextChapter, nextVersion ->
                             navController.navigate(YouVersionLinks.internalRoute(nextBook, nextChapter, nextVersion))
                         },
                         onOpenComparison = { compareBook, compareChapter, compareVerse ->
                             navController.navigate("bible_compare?book=${android.net.Uri.encode(compareBook)}&chapter=$compareChapter&verse=$compareVerse")
+                        },
+                        onOpenReference = { referenceBook, referenceChapter, referenceVerse, referenceVersion ->
+                            navController.navigate(YouVersionLinks.internalRoute(referenceBook, referenceChapter, referenceVersion, referenceVerse))
                         }
                     )
                 }

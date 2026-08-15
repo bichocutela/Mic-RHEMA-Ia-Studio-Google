@@ -97,7 +97,8 @@ object YouVersionLinks {
 
     fun encodedBook(book: String): String = Uri.encode(book)
 
-    fun internalRoute(book: String, chapter: Int, versionCode: String = "ARA"): String {
-        return "bible_reader?book=${Uri.encode(book)}&chapter=$chapter&version=${Uri.encode(versionCode)}"
+    fun internalRoute(book: String, chapter: Int, versionCode: String = "ARA", verse: Int? = null): String {
+        val verseParameter = verse?.takeIf { it > 0 }?.let { "&verse=$it" }.orEmpty()
+        return "bible_reader?book=${Uri.encode(book)}&chapter=$chapter&version=${Uri.encode(versionCode)}$verseParameter"
     }
 }

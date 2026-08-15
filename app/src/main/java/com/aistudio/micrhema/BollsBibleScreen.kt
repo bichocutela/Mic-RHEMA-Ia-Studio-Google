@@ -1,5 +1,9 @@
 package com.aistudio.micrhema
 
+import android.content.Context
+import android.widget.Toast
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -7,23 +11,37 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.CompareArrows
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -34,12 +52,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,15 +71,21 @@ fun BollsBibleScreen(
     book: String?,
     chapter: Int?,
     versionCode: String?,
+    verse: Int?,
     onBack: () -> Unit,
     onOpenChapter: (String, Int, String) -> Unit,
-    onOpenComparison: (String, Int, Int) -> Unit
+    onOpenComparison: (String, Int, Int) -> Unit,
+    onOpenReference: (String, Int, Int, String) -> Unit
 ) {
+    val context = LocalContext.current
     val currentBook = book?.takeIf { chapterCounts.containsKey(it) } ?: "Gênesis"
     val currentChapter = chapter?.takeIf { it > 0 } ?: 1
     val currentVersion = BollsBibleCatalog.normalize(versionCode)
+    val selectedTargetVerse = verse?.takeIf { it > 0 }
     val version = BollsBibleCatalog.translation(currentVersion)
     val maxChapter = chapterCounts[currentBook] ?: 1
+    val listState = rememberLazyListState()
+    val coroutineScope = rememberCoroutineScope()
 
     var verses by remember(currentBook, currentChapter, currentVersion) {
         mutableStateOf<List<BibleVerse>>(emptyList())
@@ -64,6 +94,19 @@ fun BollsBibleScreen(
     var errorMessage by remember(currentBook, currentChapter, currentVersion) { mutableStateOf<String?>(null) }
     var reloadKey by remember(currentBook, currentChapter, currentVersion) { mutableIntStateOf(0) }
     var showVersionDialog by remember { mutableStateOf(false) }
+    var showReferenceDialog by remember { mutableStateOf(false) }
+    var showBookDialog by remember { mutableStateOf(false) }
+    var showChapterDialog by remember { mutableStateOf(false) }
+    var referenceBook by remember(currentBook) { mutableStateOf(currentBook) }
+    var referenceChapter by remember(currentBook, currentChapter) { mutableIntStateOf(currentChapter) }
+    var referenceVerseText by remember(currentBook, currentChapter, selectedTargetVerse) {
+        mutableStateOf((selectedTargetVerse ?: 1).toString())
+    }
+    var currentBookmark by remember { mutableStateOf(BibleReadingPreferences.getBookmark(context)) }
+
+    LaunchedEffect(Unit) {
+        BibleReadingPreferences.loadLocalFavoritesIntoState(context)
+    }
 
     LaunchedEffect(currentBook, currentChapter, currentVersion, reloadKey) {
         isLoading = true
@@ -75,17 +118,25 @@ fun BollsBibleScreen(
         isLoading = false
     }
 
+    LaunchedEffect(verses, selectedTargetVerse) {
+        val index = selectedTargetVerse?.let { target -> verses.indexOfFirst { it.verse == target } } ?: -1
+        if (index >= 0) listState.animateScrollToItem(index)
+    }
+
+    fun openSelectedReference() {
+        val selectedVerse = referenceVerseText.toIntOrNull()?.takeIf { it > 0 } ?: 1
+        showReferenceDialog = false
+        onOpenReference(referenceBook, referenceChapter, selectedVerse, currentVersion)
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Column {
+                        Text("$currentBook $currentChapter", fontWeight = FontWeight.Bold)
                         Text(
-                            text = "$currentBook $currentChapter",
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = version.code,
+                            version.code,
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -93,15 +144,22 @@ fun BollsBibleScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Voltar"
-                        )
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
                     }
                 },
                 actions = {
-                    TextButton(onClick = { onOpenComparison(currentBook, currentChapter, 1) }) {
-                        Text("Comparar", fontWeight = FontWeight.Bold)
+                    TextButton(onClick = { showReferenceDialog = true }) {
+                        Text("Escolher", fontWeight = FontWeight.Bold)
+                    }
+                    currentBookmark?.let { bookmark ->
+                        IconButton(onClick = {
+                            onOpenReference(bookmark.book, bookmark.chapter, bookmark.verse, bookmark.version)
+                        }) {
+                            Icon(Icons.Default.Bookmark, contentDescription = "Continuar do marcador")
+                        }
+                    }
+                    IconButton(onClick = { onOpenComparison(currentBook, currentChapter, 1) }) {
+                        Icon(Icons.Default.CompareArrows, contentDescription = "Comparar versões")
                     }
                     TextButton(onClick = { showVersionDialog = true }) {
                         Text(version.code, fontWeight = FontWeight.Bold)
@@ -130,7 +188,7 @@ fun BollsBibleScreen(
                         verticalArrangement = Arrangement.Center
                     ) {
                         Text(
-                            text = errorMessage.orEmpty(),
+                            errorMessage.orEmpty(),
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodyLarge
                         )
@@ -146,27 +204,24 @@ fun BollsBibleScreen(
                 else -> {
                     Column(modifier = Modifier.fillMaxSize()) {
                         LazyColumn(
+                            state = listState,
                             modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(horizontal = 22.dp, vertical = 20.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 20.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             items(verses, key = { it.verse }) { verseItem ->
-                                Row(modifier = Modifier.fillMaxWidth()) {
-                                    Text(
-                                        text = verseItem.verse.toString(),
-                                        modifier = Modifier.width(30.dp),
-                                        color = MaterialTheme.colorScheme.primary,
-                                        fontWeight = FontWeight.Bold,
-                                        style = MaterialTheme.typography.labelLarge
-                                    )
-                                    Text(
-                                        text = verseItem.text,
-                                        modifier = Modifier.weight(1f),
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        lineHeight = 27.sp,
-                                        color = MaterialTheme.colorScheme.onBackground
-                                    )
-                                }
+                                BibleVerseCard(
+                                    verseItem = verseItem,
+                                    book = currentBook,
+                                    chapter = currentChapter,
+                                    version = currentVersion,
+                                    context = context,
+                                    currentBookmark = currentBookmark,
+                                    onBookmarkChanged = { currentBookmark = it },
+                                    onNotify = { message ->
+                                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                                    }
+                                )
                             }
                         }
 
@@ -189,7 +244,7 @@ fun BollsBibleScreen(
                                 Text("Anterior", modifier = Modifier.padding(start = 6.dp))
                             }
                             Text(
-                                text = "$currentChapter de $maxChapter",
+                                "$currentChapter de $maxChapter",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -211,6 +266,91 @@ fun BollsBibleScreen(
         }
     }
 
+    if (showReferenceDialog) {
+        AlertDialog(
+            onDismissRequest = { showReferenceDialog = false },
+            title = { Text("Escolher referência") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Escolha o livro, capítulo e versículo que deseja ler.", style = MaterialTheme.typography.bodyMedium)
+                    OutlinedButton(onClick = { showBookDialog = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text(referenceBook, modifier = Modifier.fillMaxWidth())
+                    }
+                    OutlinedButton(onClick = { showChapterDialog = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Capítulo $referenceChapter", modifier = Modifier.fillMaxWidth())
+                    }
+                    OutlinedTextField(
+                        value = referenceVerseText,
+                        onValueChange = { value -> referenceVerseText = value.filter(Char::isDigit).take(3) },
+                        label = { Text("Versículo") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = { openSelectedReference() }) { Text("Abrir referência") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showReferenceDialog = false }) { Text("Cancelar") }
+            }
+        )
+    }
+
+    if (showBookDialog) {
+        AlertDialog(
+            onDismissRequest = { showBookDialog = false },
+            title = { Text("Escolher livro") },
+            text = {
+                LazyColumn(modifier = Modifier.heightIn(max = 420.dp)) {
+                    items(chapterCounts.keys.toList()) { bookOption ->
+                        TextButton(
+                            onClick = {
+                                referenceBook = bookOption
+                                referenceChapter = 1
+                                showBookDialog = false
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(bookOption, modifier = Modifier.fillMaxWidth())
+                        }
+                    }
+                }
+            },
+            confirmButton = {}
+        )
+    }
+
+    if (showChapterDialog) {
+        AlertDialog(
+            onDismissRequest = { showChapterDialog = false },
+            title = { Text("Escolher capítulo de $referenceBook") },
+            text = {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(5),
+                    modifier = Modifier.heightIn(max = 360.dp),
+                    contentPadding = PaddingValues(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    items((1..(chapterCounts[referenceBook] ?: 1)).toList()) { chapterOption ->
+                        OutlinedButton(
+                            onClick = {
+                                referenceChapter = chapterOption
+                                showChapterDialog = false
+                            },
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Text(chapterOption.toString())
+                        }
+                    }
+                }
+            },
+            confirmButton = {}
+        )
+    }
+
     if (showVersionDialog) {
         AlertDialog(
             onDismissRequest = { showVersionDialog = false },
@@ -228,26 +368,133 @@ fun BollsBibleScreen(
                                 selected = option.code == currentVersion,
                                 onClick = {
                                     showVersionDialog = false
-                                    onOpenChapter(currentBook, currentChapter, option.code)
+                                    onOpenReference(currentBook, currentChapter, selectedTargetVerse ?: 1, option.code)
                                 }
                             )
                             Column(modifier = Modifier.padding(start = 8.dp)) {
                                 Text(option.code, fontWeight = FontWeight.Bold)
-                                Text(
-                                    option.name,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Text(option.name, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showVersionDialog = false }) {
-                    Text("Fechar")
-                }
+                TextButton(onClick = { showVersionDialog = false }) { Text("Fechar") }
             }
         )
+    }
+}
+
+@Composable
+private fun BibleVerseCard(
+    verseItem: BibleVerse,
+    book: String,
+    chapter: Int,
+    version: String,
+    context: Context,
+    currentBookmark: BibleReadingPreferences.Bookmark?,
+    onBookmarkChanged: (BibleReadingPreferences.Bookmark?) -> Unit,
+    onNotify: (String) -> Unit
+) {
+    val verseKey = BibleReadingPreferences.key(book, chapter, verseItem.verse, version)
+    var isHighlighted by remember(verseKey) {
+        mutableStateOf(BibleReadingPreferences.isHighlighted(context, verseKey))
+    }
+    var isFavorite by remember(verseKey) {
+        mutableStateOf(BibleReadingPreferences.isFavorite(context, verseKey))
+    }
+    val isBookmark = currentBookmark?.let {
+        BibleReadingPreferences.key(it.book, it.chapter, it.verse, it.version) == verseKey
+    } == true
+    val backgroundColor = if (isHighlighted) {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+    } else {
+        Color.Transparent
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = backgroundColor,
+        shape = MaterialTheme.shapes.medium
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+                Text(
+                    verseItem.verse.toString(),
+                    modifier = Modifier.width(32.dp).padding(top = 5.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.labelLarge
+                )
+                Text(
+                    verseItem.text,
+                    modifier = Modifier.weight(1f).padding(top = 3.dp),
+                    style = MaterialTheme.typography.bodyLarge,
+                    lineHeight = 27.sp,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = {
+                    isHighlighted = BibleReadingPreferences.toggleHighlight(context, verseKey)
+                    onNotify(if (isHighlighted) "Versículo marcado" else "Marcação removida")
+                }) {
+                    Icon(
+                        Icons.Default.Star,
+                        contentDescription = if (isHighlighted) "Remover marcação" else "Marcar versículo",
+                        tint = if (isHighlighted) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                IconButton(onClick = {
+                    val favoriteId = "bible_$verseKey"
+                    val favorite = FavoriteItem(
+                        id = favoriteId,
+                        type = "bible",
+                        reference = "$book $chapter:${verseItem.verse} ($version)",
+                        text = verseItem.text
+                    )
+                    isFavorite = !isFavorite
+                    BibleReadingPreferences.setFavorite(context, verseKey, isFavorite)
+                    if (isFavorite) {
+                        addFavorite(favorite)
+                        BibleReadingPreferences.saveLocalFavorite(context, favorite)
+                        onNotify("Versículo adicionado aos favoritos")
+                    } else {
+                        removeFavorite(favoriteId)
+                        BibleReadingPreferences.removeLocalFavorite(context, favoriteId)
+                        onNotify("Versículo removido dos favoritos")
+                    }
+                }) {
+                    Icon(
+                        if (isFavorite) Icons.Default.Favorite else Icons.Outlined.FavoriteBorder,
+                        contentDescription = if (isFavorite) "Remover dos favoritos" else "Favoritar versículo",
+                        tint = if (isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                IconButton(onClick = {
+                    val bookmark = BibleReadingPreferences.Bookmark(book, chapter, verseItem.verse, version)
+                    if (isBookmark) {
+                        BibleReadingPreferences.clearBookmark(context)
+                        onBookmarkChanged(null)
+                        onNotify("Marcador removido")
+                    } else {
+                        BibleReadingPreferences.saveBookmark(context, bookmark)
+                        onBookmarkChanged(bookmark)
+                        onNotify("Marcador salvo neste versículo")
+                    }
+                }) {
+                    Icon(
+                        if (isBookmark) Icons.Default.Bookmark else Icons.Outlined.BookmarkBorder,
+                        contentDescription = if (isBookmark) "Remover marcador" else "Colocar marcador neste versículo",
+                        tint = if (isBookmark) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
     }
 }
