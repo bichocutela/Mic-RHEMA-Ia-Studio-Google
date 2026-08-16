@@ -71,13 +71,18 @@ fun removeVipAlbum(item: ContentPhotoAlbum) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditVipSection() {
-    var vipTab by remember { mutableStateOf("midia") } // midia or cursos or certificados
+    var vipTab by remember { mutableStateOf("overview") } // overview, midia, cursos or certificados
     
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            FilterChip(
+                selected = vipTab == "overview",
+                onClick = { vipTab = "overview" },
+                label = { Text("Visão geral") }
+            )
             FilterChip(
                 selected = vipTab == "midia",
                 onClick = { vipTab = "midia" },
@@ -96,13 +101,66 @@ fun EditVipSection() {
         }
         
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            if (vipTab == "midia") {
+            if (vipTab == "overview") {
+                EditIbrOverviewSection()
+            } else if (vipTab == "midia") {
                 EditVipContentSection()
             } else if (vipTab == "cursos") {
                 EditVipIbrSection()
             } else {
                 EditIbrCertificatesSection()
             }
+        }
+    }
+}
+
+@Composable
+fun EditIbrOverviewSection() {
+    val totalCourses = ibrCoursesState.size
+    val totalLessons = ibrCoursesState.sumOf { it.chapters.size }
+    val totalIbrMembers = memberRequestsState.count { it.isIbr }
+    val certificatesPending = memberRequestsState.count { it.isIbr && it.ibrCertificateUrl.isBlank() && it.ibrCertificateStoragePath.isBlank() }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(bottom = 24.dp)
+    ) {
+        item {
+            Text("Central de gestão IBR", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text("Acompanhe os indicadores e acesse cada área do Instituto Bíblico Rhema.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                IbrAdminMetricCard("Cursos", totalCourses.toString(), Icons.Default.MenuBook, Modifier.weight(1f))
+                IbrAdminMetricCard("Aulas", totalLessons.toString(), Icons.Default.Class, Modifier.weight(1f))
+            }
+        }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                IbrAdminMetricCard("Alunos IBR", totalIbrMembers.toString(), Icons.Default.People, Modifier.weight(1f))
+                IbrAdminMetricCard("Certificados", certificatesPending.toString(), Icons.Default.EmojiEvents, Modifier.weight(1f))
+            }
+        }
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f)), modifier = Modifier.fillMaxWidth()) {
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.TipsAndUpdates, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Spacer(Modifier.width(10.dp))
+                    Text("Use as abas acima para administrar conteúdo, módulos/capítulos e certificados separadamente.", color = MaterialTheme.colorScheme.onPrimaryContainer, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun IbrAdminMetricCard(label: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier = Modifier) {
+    Card(modifier = modifier, shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.height(8.dp))
+            Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
