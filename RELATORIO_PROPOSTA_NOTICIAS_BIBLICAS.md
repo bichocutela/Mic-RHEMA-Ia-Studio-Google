@@ -1,6 +1,6 @@
 # Proposta editorial para as Notícias Bíblicas do MIC Rhema
 
-**Status:** auditoria editorial aplicada ao código em commit separado; o relatório continua fora do repositório para revisão. Os títulos das 30 notícias atuais foram reformulados, o catálogo de 45 pautas novas foi criado e a Central passou a exibir categorias e níveis com contagem de matérias.
+**Status:** auditoria editorial e atualização técnica consolidadas no repositório. Os títulos das 30 notícias atuais foram reformulados, o catálogo de 45 pautas novas foi criado, a Central passou a exibir categorias e níveis com contagem de matérias, e as melhorias finais do painel Admin e do IBR estão registradas na seção de atualização final.
 
 ## 1. Resumo executivo
 
