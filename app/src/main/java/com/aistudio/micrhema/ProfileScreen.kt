@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -146,7 +148,7 @@ fun ProfileScreen(
                 }
                 OutlinedButton(
                     onClick = { showBadgePicker = true },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, bottom = 16.dp)
+                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
                 ) {
                     Icon(Icons.Default.EmojiEvents, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
