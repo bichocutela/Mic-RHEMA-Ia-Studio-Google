@@ -267,8 +267,10 @@ fun AdminScreen() {
             }
         ) { paddingValues ->
             if (!isAuthenticated) {
+                var username by remember { mutableStateOf("") }
                 var password by remember { mutableStateOf("") }
                 var error by remember { mutableStateOf("") }
+                var isSigningIn by remember { mutableStateOf(false) }
                 Column(
                     modifier = Modifier.fillMaxSize().padding(paddingValues).padding(16.dp),
                     verticalArrangement = Arrangement.Center,
@@ -276,8 +278,17 @@ fun AdminScreen() {
                 ) {
                     Text("Acesso Restrito", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text("Digite a senha de administrador:", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Entre com o usuário e a senha de administrador:", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(modifier = Modifier.height(16.dp))
+                    OutlinedTextField(
+                        value = username,
+                        onValueChange = { username = it; error = "" },
+                        label = { Text("Usuário") },
+                        singleLine = true,
+                        enabled = !isSigningIn,
+                        modifier = Modifier.fillMaxWidth(0.8f)
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
                     OutlinedTextField(
                         value = password,
                         onValueChange = { password = it; error = "" },
@@ -286,20 +297,78 @@ fun AdminScreen() {
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password),
                         singleLine = true,
                         isError = error.isNotEmpty(),
+                        enabled = !isSigningIn,
                         modifier = Modifier.fillMaxWidth(0.8f)
                     )
                     if (error.isNotEmpty()) {
                         Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     }
                     Spacer(modifier = Modifier.height(16.dp))
-                    Button(onClick = {
-                        if (password == "igreja10" || loggedIn?.isAdmin == true) {
-                            isAuthenticated = true
-                        } else {
-                            error = "Senha incorreta"
-                        }
-                    }, modifier = Modifier.fillMaxWidth(0.8f)) {
-                        Text("Entrar")
+                    Button(
+                        enabled = !isSigningIn,
+                        onClick = {
+                            if (loggedIn?.isAdmin == true) {
+                                isAuthenticated = true
+                                return@Button
+                            }
+                            if (username.trim().lowercase() != "admin" || password != "igreja10") {
+                                error = "Informe o usuário admin e a senha correta."
+                                return@Button
+                            }
+
+                            isSigningIn = true
+                            error = ""
+                            val firebaseAuth = com.google.firebase.auth.FirebaseAuth.getInstance()
+                            val adminEmail = "admin@micrhema.app"
+                            val finishAdminLogin: () -> Unit = {
+                                val uid = firebaseAuth.currentUser?.uid
+                                if (uid.isNullOrBlank()) {
+                                    isSigningIn = false
+                                    error = "O Firebase não retornou o UID do administrador."
+                                } else {
+                                    com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                                        .collection("acessos_pendentes")
+                                        .document(uid)
+                                        .set(
+                                            mapOf(
+                                                "name" to "Administrador",
+                                                "phone" to "",
+                                                "email" to adminEmail,
+                                                "firebaseUid" to uid,
+                                                "isApproved" to true,
+                                                "isIbr" to false,
+                                                "isAdmin" to true,
+                                                "isVip" to false,
+                                                "status" to "aprovado",
+                                                "updatedAt" to System.currentTimeMillis()
+                                            ),
+                                            com.google.firebase.firestore.SetOptions.merge()
+                                        )
+                                        .addOnSuccessListener {
+                                            isSigningIn = false
+                                            isAuthenticated = true
+                                            MemberManager.syncFromFirestore(context)
+                                        }
+                                        .addOnFailureListener { firestoreError ->
+                                            isSigningIn = false
+                                            error = "O Firebase autenticou, mas recusou o cadastro do administrador: ${firestoreError.message ?: "verifique as regras do Firestore"}"
+                                        }
+                                }
+                            }
+                            val signIn = firebaseAuth.signInWithEmailAndPassword(adminEmail, password)
+                            signIn.addOnSuccessListener { finishAdminLogin() }
+                                .addOnFailureListener {
+                                    firebaseAuth.createUserWithEmailAndPassword(adminEmail, password)
+                                        .addOnSuccessListener { finishAdminLogin() }
+                                        .addOnFailureListener { createError ->
+                                            isSigningIn = false
+                                            error = "O Firebase não autenticou o administrador: ${createError.message ?: "verifique o provedor Email/Senha"}"
+                                        }
+                                }
+                        },
+                        modifier = Modifier.fillMaxWidth(0.8f)
+                    ) {
+                        if (isSigningIn) CircularProgressIndicator(modifier = Modifier.size(18.dp)) else Text("Entrar")
                     }
                 }
                 return@Scaffold
