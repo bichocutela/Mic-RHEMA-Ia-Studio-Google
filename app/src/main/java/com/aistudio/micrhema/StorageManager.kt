@@ -65,9 +65,13 @@ object StorageManager {
     private suspend fun firebaseIdToken(context: Context? = null): String = withContext(Dispatchers.IO) {
         val auth = FirebaseAuth.getInstance()
         val adminMode = adminAuthenticatedState.value
-        val user: com.google.firebase.auth.FirebaseUser = auth.currentUser?.takeIf { !it.isAnonymous || adminMode }
-            ?: if (adminMode) runCatching { auth.signInAnonymously().await().user }.getOrNull() else null
-            ?: throw IllegalStateException("Faça login com o código SMS do telefone aprovado antes de enviar arquivos.")
+        val user = (
+            if (adminMode) {
+                auth.currentUser ?: runCatching { auth.signInAnonymously().await().user }.getOrNull()
+            } else {
+                auth.currentUser?.takeIf { !it.isAnonymous }
+            }
+        ) ?: throw IllegalStateException("Faça login com o código SMS do telefone aprovado antes de enviar arquivos.")
 
         var token: String? = null
         var lastError: Exception? = null
