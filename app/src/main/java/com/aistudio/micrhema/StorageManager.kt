@@ -77,16 +77,16 @@ object StorageManager {
     }
 
     suspend fun resolveStorageTargetUid(context: Context? = null): String = withContext(Dispatchers.IO) {
+        if (adminAuthenticatedState.value) return@withContext "admin"
         val user = ensureFirebaseUser(context)
-        if (!adminAuthenticatedState.value) {
-            val memberContext = context
-                ?: throw IllegalStateException("O contexto do perfil não foi disponibilizado para vincular a sessão Firebase.")
-            MemberManager.bindFirebaseUidToLoggedInMember(memberContext, user.uid)
-        }
+        val memberContext = context
+            ?: throw IllegalStateException("O contexto do perfil não foi disponibilizado para vincular a sessão Firebase.")
+        MemberManager.bindFirebaseUidToLoggedInMember(memberContext, user.uid)
         user.uid
     }
 
     private suspend fun firebaseIdToken(context: Context? = null, forceRefresh: Boolean = false): String = withContext(Dispatchers.IO) {
+        if (adminAuthenticatedState.value) return@withContext ""
         val user = ensureFirebaseUser(context)
         val token = runCatching { user.getIdToken(forceRefresh).await().token }.getOrNull()
             ?.takeIf { it.isNotBlank() }
@@ -103,11 +103,7 @@ object StorageManager {
     ): okhttp3.Response = withContext(Dispatchers.IO) {
         var forceRefresh = false
         repeat(2) { attempt ->
-            val token = if (adminAuthenticatedState.value) {
-                runCatching { firebaseIdToken(context, forceRefresh) }.getOrDefault("")
-            } else {
-                firebaseIdToken(context, forceRefresh)
-            }
+            val token = firebaseIdToken(context, forceRefresh)
             val response = client.newCall(requestFactory(token)).execute()
             if (response.code != 401 || attempt == 1) return@withContext response
             response.close()
