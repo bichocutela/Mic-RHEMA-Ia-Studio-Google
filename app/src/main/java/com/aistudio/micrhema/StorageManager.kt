@@ -55,30 +55,44 @@ object StorageManager {
         return key
     }
 
-    private suspend fun firebaseIdToken(): String = withContext(Dispatchers.IO) {
-        val user = FirebaseAuth.getInstance().currentUser
-            ?: throw IllegalStateException("Não encontramos sua sessão do Firebase. Entre novamente para enviar arquivos.")
+    private suspend fun firebaseIdToken(context: Context? = null): String = withContext(Dispatchers.IO) {
+        val auth = FirebaseAuth.getInstance()
+        var user = auth.currentUser
+        if (user == null) {
+            user = runCatching { auth.signInAnonymously().await().user }.getOrNull()
+                ?: throw IllegalStateException("Não foi possível iniciar a sessão segura para enviar arquivos. Verifique sua conexão e tente novamente.")
+        }
 
+        var token: String? = null
         var lastError: Exception? = null
         repeat(2) { attempt ->
-            try {
-                val token = user.getIdToken(attempt == 1).await().token
-                if (!token.isNullOrBlank()) return@withContext token
-                lastError = IllegalStateException("O Firebase não retornou um token de sessão.")
-            } catch (error: Exception) {
-                lastError = error
-                Log.w(
-                    "StorageManager",
-                    if (attempt == 0) "Token Firebase indisponível; tentando renovar automaticamente" else "Renovação do token Firebase falhou",
-                    error
-                )
+            if (token.isNullOrBlank()) {
+                try {
+                    token = user?.getIdToken(attempt == 1)?.await()?.token
+                    if (token.isNullOrBlank()) {
+                        lastError = IllegalStateException("O Firebase não retornou um token de sessão.")
+                    }
+                } catch (error: Exception) {
+                    lastError = error
+                    Log.w(
+                        "StorageManager",
+                        if (attempt == 0) "Token Firebase indisponível; tentando renovar automaticamente" else "Renovação do token Firebase falhou",
+                        error
+                    )
+                }
             }
         }
 
-        throw IllegalStateException(
-            "Não foi possível renovar sua sessão para enviar a foto. Verifique sua conexão e tente novamente.",
-            lastError
-        )
+        val resolvedToken = token?.takeIf { it.isNotBlank() }
+            ?: throw IllegalStateException(
+                "Não foi possível renovar sua sessão para enviar o arquivo. Verifique sua conexão e tente novamente.",
+                lastError
+            )
+
+        if (context != null && user != null) {
+            MemberManager.bindFirebaseUidToLoggedInMember(context, user.uid)
+        }
+        resolvedToken
     }
 
     private fun mimeType(context: Context, uri: Uri): String =
@@ -156,7 +170,7 @@ object StorageManager {
             if (tempFile.length() > maxBytes) {
                 throw IllegalArgumentException("O arquivo excede o limite permitido para este tipo de documento.")
             }
-            val token = firebaseIdToken()
+            val token = firebaseIdToken(context)
             val body = MultipartBody.Builder()
                 .setType(MultipartBody.FORM)
                 .addFormDataPart("bucket", bucket)
@@ -207,8 +221,13 @@ object StorageManager {
         onProgress = onProgress
     )
 
-    suspend fun getSignedUrl(bucket: String, storagePath: String, targetUid: String): String = withContext(Dispatchers.IO) {
-        val token = firebaseIdToken()
+    suspend fun getSignedUrl(
+        bucket: String,
+        storagePath: String,
+        targetUid: String,
+        context: Context? = null
+    ): String = withContext(Dispatchers.IO) {
+        val token = firebaseIdToken(context)
         val payload = JSONObject()
             .put("operation", "signed-url")
             .put("bucket", bucket)
@@ -233,7 +252,7 @@ object StorageManager {
         storagePath: String,
         targetUid: String
     ): File = withContext(Dispatchers.IO) {
-        val signedUrl = getSignedUrl(bucket, storagePath, targetUid)
+        val signedUrl = getSignedUrl(bucket, storagePath, targetUid, context)
         val request = Request.Builder().url(signedUrl).get().build()
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
@@ -255,8 +274,8 @@ object StorageManager {
         }
     }
 
-    suspend fun deleteProfilePhoto(uid: String) = withContext(Dispatchers.IO) {
-        val token = firebaseIdToken()
+    suspend fun deleteProfilePhoto(uid: String, context: Context? = null) = withContext(Dispatchers.IO) {
+        val token = firebaseIdToken(context)
         val payload = JSONObject()
             .put("operation", "delete-profile")
             .put("bucket", PROFILE_BUCKET)
@@ -272,7 +291,7 @@ object StorageManager {
     }
 
     /** Nome mantido para compatibilidade, mas a operação já não usa Firebase Storage. */
-    suspend fun deleteProfilePhotoFromFirebase(uid: String) = deleteProfilePhoto(uid)
+    suspend fun deleteProfilePhotoFromFirebase(uid: String, context: Context? = null) = deleteProfilePhoto(uid, context)
 
     suspend fun saveProfilePhotoLocally(context: Context, uri: Uri, uid: String): String =
         withContext(Dispatchers.IO) {

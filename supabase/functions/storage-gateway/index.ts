@@ -114,21 +114,55 @@ function callerUid(claims: FirebaseClaims): string {
   return claims.user_id || claims.sub || "";
 }
 
-async function firestoreMemberDocument(uid: string, firebaseToken: string): Promise<Record<string, any> | null> {
-  const endpoint = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/acessos_pendentes/${encodeURIComponent(uid)}`;
+async function firestoreMemberDocumentById(documentId: string, firebaseToken: string): Promise<Record<string, any> | null> {
+  const endpoint = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/acessos_pendentes/${encodeURIComponent(documentId)}`;
   const response = await fetch(endpoint, {
     headers: { authorization: `Bearer ${firebaseToken}` },
   });
   if (response.status === 404) return null;
   if (!response.ok) {
-    console.warn("Firestore authorization lookup failed", response.status);
+    console.warn("Firestore document lookup failed", response.status);
     return null;
   }
   return await response.json() as Record<string, any>;
 }
 
+async function firestoreMemberDocumentByFirebaseUid(firebaseUid: string, firebaseToken: string): Promise<Record<string, any> | null> {
+  const endpoint = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents:runQuery`;
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${firebaseToken}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId: "acessos_pendentes" }],
+        where: {
+          fieldFilter: {
+            field: { fieldPath: "firebaseUid" },
+            op: "EQUAL",
+            value: { stringValue: firebaseUid },
+          },
+        },
+        limit: 1,
+      },
+    }),
+  });
+  if (!response.ok) {
+    console.warn("Firestore Firebase UID lookup failed", response.status);
+    return null;
+  }
+  const rows = await response.json() as Array<Record<string, any>>;
+  return rows.find((row) => row.document)?.document ?? null;
+}
+
+async function memberDocumentForFirebaseUid(uid: string, firebaseToken: string): Promise<Record<string, any> | null> {
+  return await firestoreMemberDocumentByFirebaseUid(uid, firebaseToken);
+}
+
 async function isAdmin(uid: string, firebaseToken: string): Promise<boolean> {
-  const document = await firestoreMemberDocument(uid, firebaseToken);
+  const document = await memberDocumentForFirebaseUid(uid, firebaseToken);
   return document?.fields?.isAdmin?.booleanValue === true;
 }
 
@@ -156,7 +190,8 @@ async function authorize(
 ): Promise<boolean> {
   const uid = callerUid(claims);
   if (!uid || !targetUid) throw new HttpError(400, "UID do usuário não informado.");
-  const owner = uid === targetUid;
+  const targetDocument = await firestoreMemberDocumentById(targetUid, firebaseToken);
+  const owner = uid === targetUid || targetDocument?.fields?.firebaseUid?.stringValue === uid;
   const admin = await isAdmin(uid, firebaseToken);
   if (bucket === "church-documents" && !admin && !allowOwnerDocumentRead) {
     throw new HttpError(403, "Somente administradores podem gerenciar documentos IBR.");

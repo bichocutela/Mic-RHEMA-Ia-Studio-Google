@@ -284,6 +284,7 @@ val rhemaMeaningState = mutableStateOf("Rhema é a palavra revelada de Deus, fal
 
 data class MemberRequest(
     var id: String = "",
+    var firebaseUid: String = "",
     var name: String = "",
     var phone: String = "",
     var email: String = "",
@@ -357,6 +358,7 @@ object MemberManager {
                 val newList = mutableListOf<MemberRequest>()
                 for (document in snapshot.documents) {
                     val id = document.id
+                    val firebaseUid = document.getString("firebaseUid") ?: ""
                     val name = document.getString("name") ?: ""
                     val phone = document.getString("phone") ?: ""
                     val rawIsApproved = document.getBoolean("isApproved") ?: false
@@ -383,6 +385,7 @@ object MemberManager {
                     val updatedAt = document.getLong("updatedAt") ?: 0L
                     newList.add(MemberRequest(
                         id = id,
+                        firebaseUid = firebaseUid,
                         name = name,
                         phone = phone,
                         email = email,
@@ -449,12 +452,12 @@ object MemberManager {
             members.forEach { member ->
                 val profileUrl = if (member.supabaseStoragePath.isNotBlank()) {
                     runCatching {
-                        StorageManager.getSignedUrl("profile-photos", member.supabaseStoragePath, member.id)
+                        StorageManager.getSignedUrl("profile-photos", member.supabaseStoragePath, member.id, context)
                     }.getOrNull().orEmpty()
                 } else ""
                 val certificateUrl = if (member.ibrCertificateStoragePath.isNotBlank()) {
                     runCatching {
-                        StorageManager.getSignedUrl("church-documents", member.ibrCertificateStoragePath, member.id)
+                        StorageManager.getSignedUrl("church-documents", member.ibrCertificateStoragePath, member.id, context)
                     }.getOrNull().orEmpty()
                 } else ""
                 if (profileUrl.isBlank() && certificateUrl.isBlank()) return@forEach
@@ -489,6 +492,7 @@ object MemberManager {
 
             val memberMap = hashMapOf<String, Any>(
                 "name" to member.name,
+                "firebaseUid" to member.firebaseUid,
                 "phone" to member.phone,
                 "email" to member.email,
                 "isApproved" to member.isApproved,
@@ -540,6 +544,7 @@ object MemberManager {
                     list.add(
                         MemberRequest(
                             id = obj.optString("id", ""),
+                            firebaseUid = obj.optString("firebaseUid", ""),
                             name = obj.optString("name", ""),
                             phone = obj.optString("phone", ""),
                             email = obj.optString("email", ""),
@@ -592,6 +597,7 @@ object MemberManager {
             memberRequestsState.forEach { member ->
                 val obj = org.json.JSONObject()
                 obj.put("id", member.id)
+                obj.put("firebaseUid", member.firebaseUid)
                 obj.put("name", member.name)
                 obj.put("phone", member.phone)
                 obj.put("email", member.email)
@@ -620,6 +626,23 @@ object MemberManager {
         }
     }
     
+    suspend fun bindFirebaseUidToLoggedInMember(context: android.content.Context, firebaseUid: String) {
+        val member = loggedInMemberState.value ?: return
+        if (firebaseUid.isBlank() || member.firebaseUid == firebaseUid) return
+
+        member.firebaseUid = firebaseUid
+        val index = memberRequestsState.indexOfFirst { it.id == member.id }
+        if (index >= 0) memberRequestsState[index] = member.copy()
+        loggedInMemberState.value = member.copy()
+        saveMembers(context)
+
+        if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
+            Firebase.firestore.collection("acessos_pendentes").document(member.id)
+                .set(mapOf("firebaseUid" to firebaseUid), com.google.firebase.firestore.SetOptions.merge())
+                .await()
+        }
+    }
+
     fun setLoggedInMember(context: android.content.Context, member: MemberRequest?) {
         loggedInMemberState.value = member
         loadIbrProgressFromFirestore()

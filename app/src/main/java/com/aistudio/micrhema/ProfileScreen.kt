@@ -231,7 +231,7 @@ fun ProfileScreen(
                                 coroutineScope.launch {
                                     try {
                                         if (previousStoragePath.isNotBlank() || previousPhotoUrl.startsWith("http://") || previousPhotoUrl.startsWith("https://")) {
-                                            StorageManager.deleteProfilePhoto(loggedInMember.id)
+                                            StorageManager.deleteProfilePhoto(loggedInMember.id, context)
                                         }
                                         StorageManager.deleteLocalProfilePhoto(context, loggedInMember.id)
                                         android.widget.Toast.makeText(context, "Foto removida do perfil sincronizado", android.widget.Toast.LENGTH_SHORT).show()

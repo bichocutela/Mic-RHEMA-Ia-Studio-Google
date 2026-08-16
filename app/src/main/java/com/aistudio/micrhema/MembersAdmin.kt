@@ -168,7 +168,7 @@ fun EditProfilesSection() {
                         if (rollbackIndex >= 0) memberRequestsState[rollbackIndex] = target
                         selectedMember = target
                         coroutineScope.launch {
-                            runCatching { StorageManager.deleteProfilePhoto(target.id) }
+                            runCatching { StorageManager.deleteProfilePhoto(target.id, context) }
                             isUploadingPhoto = false
                             Toast.makeText(context, "Não foi possível sincronizar a foto no perfil: ${error.message ?: "verifique sua conexão com o Supabase"}", Toast.LENGTH_LONG).show()
                         }
@@ -234,7 +234,7 @@ fun EditProfilesSection() {
                         coroutineScope.launch {
                             try {
                                 if (previousStoragePath.isNotBlank() || previousPhotoUrl.startsWith("http://") || previousPhotoUrl.startsWith("https://")) {
-                                    StorageManager.deleteProfilePhoto(member.id)
+                                    StorageManager.deleteProfilePhoto(member.id, context)
                                 }
                                 StorageManager.deleteLocalProfilePhoto(context, member.id)
                                 Toast.makeText(context, "Foto removida do perfil sincronizado", Toast.LENGTH_SHORT).show()
