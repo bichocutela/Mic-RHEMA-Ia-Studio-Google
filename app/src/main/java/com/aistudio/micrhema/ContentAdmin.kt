@@ -10,11 +10,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.AudioFile
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
@@ -37,9 +44,12 @@ fun EditMediaSection() {
     var isDeleting by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("Gerenciar Mídia", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Text("Adicione e edite livros, áudios, vídeos e álbuns da aba Mídia.", style = MaterialTheme.typography.bodyMedium)
-        
+        MediaAdminHeader(
+            totalItems = contentBooksState.size + contentAudiosState.size + contentVideosState.size + contentAlbumsState.size,
+            isUploading = isUploading,
+            uploadProgress = uploadProgress
+        )
+
         // ADD BOOK
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
@@ -50,8 +60,14 @@ fun EditMediaSection() {
                 GlassTextField(value = title, onValueChange = { title = it }, label = { Text("Título do Livro") }, modifier = Modifier.fillMaxWidth())
                 GlassTextField(value = author, onValueChange = { author = it }, label = { Text("Autor (e.g. PDF/Epub Simulado)") }, modifier = Modifier.fillMaxWidth())
                 LocalUploadField(value = coverUrl, onValueChange = { coverUrl = it }, label = "Capa do Livro (URL da imagem)", mimeType = "image/*")
+                if (coverUrl.isNotBlank()) {
+                    MediaImagePreview(url = coverUrl, label = "Prévia da capa")
+                }
                 var bookUrl by remember { mutableStateOf("") }
                 LocalUploadField(value = bookUrl, onValueChange = { bookUrl = it }, label = "Arquivo do Livro (URL ou PDF/Epub)", mimeType = "*/*")
+                if (bookUrl.isNotBlank()) {
+                    MediaFileStatus(name = bookUrl.substringAfterLast('/').ifBlank { "Arquivo do livro selecionado" }, type = "PDF/E-book", ready = bookUrl.startsWith("http") || bookUrl.startsWith("content:"))
+                }
                 GlassButton(onClick = {
                     if (isUploading) return@GlassButton
                     isUploading = true
@@ -84,18 +100,15 @@ fun EditMediaSection() {
         }
         
         if (contentBooksState.isNotEmpty()) {
-            Text("Livros Cadastrados", fontWeight = FontWeight.Bold)
+            MediaListHeading("Livros cadastrados", contentBooksState.size)
             contentBooksState.forEach { book ->
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(book.title, fontWeight = FontWeight.Bold)
-                        Text(book.author, style = MaterialTheme.typography.bodySmall)
-                    }
-                    Row {
-                        IconButton(onClick = { editingBook = book }) { Icon(Icons.Default.Edit, contentDescription = "Editar", tint = MaterialTheme.colorScheme.primary) }
-                        IconButton(onClick = { removeContentBook(book) }) { Icon(Icons.Default.Delete, contentDescription = "Excluir", tint = MaterialTheme.colorScheme.error) }
-                    }
-                }
+                MediaContentRow(
+                    title = book.title,
+                    subtitle = book.author,
+                    type = "Livro / PDF",
+                    onEdit = { editingBook = book },
+                    onDelete = { removeContentBook(book) }
+                )
             }
         }
         
@@ -149,18 +162,15 @@ fun EditMediaSection() {
         }
         
         if (contentAudiosState.isNotEmpty()) {
-            Text("Áudios Cadastrados", fontWeight = FontWeight.Bold)
+            MediaListHeading("Áudios cadastrados", contentAudiosState.size)
             contentAudiosState.forEach { audio ->
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(audio.title, fontWeight = FontWeight.Bold)
-                        Text(audio.artist, style = MaterialTheme.typography.bodySmall)
-                    }
-                    Row {
-                        IconButton(onClick = { editingAudio = audio }) { Icon(Icons.Default.Edit, contentDescription = "Editar", tint = MaterialTheme.colorScheme.primary) }
-                        IconButton(onClick = { removeContentAudio(audio) }) { Icon(Icons.Default.Delete, contentDescription = "Excluir", tint = MaterialTheme.colorScheme.error) }
-                    }
-                }
+                MediaContentRow(
+                    title = audio.title,
+                    subtitle = audio.artist,
+                    type = "Áudio",
+                    onEdit = { editingAudio = audio },
+                    onDelete = { removeContentAudio(audio) }
+                )
             }
         }
         
@@ -225,18 +235,15 @@ fun EditMediaSection() {
         }
         
         if (contentVideosState.isNotEmpty()) {
-            Text("Vídeos Cadastrados", fontWeight = FontWeight.Bold)
+            MediaListHeading("Vídeos cadastrados", contentVideosState.size)
             contentVideosState.forEach { video ->
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(video.title, fontWeight = FontWeight.Bold)
-                        Text(video.description, style = MaterialTheme.typography.bodySmall)
-                    }
-                    Row {
-                        IconButton(onClick = { editingVideo = video }) { Icon(Icons.Default.Edit, contentDescription = "Editar", tint = MaterialTheme.colorScheme.primary) }
-                        IconButton(onClick = { removeContentVideo(video) }) { Icon(Icons.Default.Delete, contentDescription = "Excluir", tint = MaterialTheme.colorScheme.error) }
-                    }
-                }
+                MediaContentRow(
+                    title = video.title,
+                    subtitle = video.description,
+                    type = "Vídeo",
+                    onEdit = { editingVideo = video },
+                    onDelete = { removeContentVideo(video) }
+                )
             }
         }
     
@@ -326,18 +333,15 @@ fun EditMediaSection() {
         }
         
         if (contentAlbumsState.isNotEmpty()) {
-            Text("Álbuns Cadastrados", fontWeight = FontWeight.Bold)
+            MediaListHeading("Álbuns cadastrados", contentAlbumsState.size)
             contentAlbumsState.forEach { album ->
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(album.title, fontWeight = FontWeight.Bold)
-                        Text(album.description, style = MaterialTheme.typography.bodySmall)
-                    }
-                    Row {
-                        IconButton(onClick = { editingAlbum = album }) { Icon(Icons.Default.Edit, contentDescription = "Editar", tint = MaterialTheme.colorScheme.primary) }
-                        IconButton(onClick = { albumToDelete = album }) { Icon(Icons.Default.Delete, contentDescription = "Excluir", tint = MaterialTheme.colorScheme.error) }
-                    }
-                }
+                MediaContentRow(
+                    title = album.title,
+                    subtitle = album.description,
+                    type = "Álbum",
+                    onEdit = { editingAlbum = album },
+                    onDelete = { albumToDelete = album }
+                )
             }
         }
     }
@@ -648,4 +652,144 @@ fun EditMediaSection() {
         )
     }
 
+}
+
+
+@Composable
+private fun MediaAdminHeader(totalItems: Int, isUploading: Boolean, uploadProgress: Float) {
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    shape = RoundedCornerShape(13.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(46.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                        Icon(Icons.Default.CloudUpload, contentDescription = "Gerenciar uploads", tint = MaterialTheme.colorScheme.onPrimary)
+                    }
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Central de Mídia", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Text("Livros, áudios, vídeos e álbuns", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f))
+                }
+                Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f)) {
+                    Text("$totalItems itens", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp))
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                MediaTypeBadge("PDF", Icons.Default.Description)
+                MediaTypeBadge("Imagem", Icons.Default.Image)
+                MediaTypeBadge("Áudio", Icons.Default.AudioFile)
+                MediaTypeBadge("Vídeo", Icons.Default.VideoLibrary)
+            }
+            if (isUploading) {
+                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Enviando arquivo para o Supabase...", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Text("${(uploadProgress * 100).toInt()}%", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    }
+                    LinearProgressIndicator(progress = { uploadProgress.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.primary)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MediaTypeBadge(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    Surface(shape = RoundedCornerShape(9.dp), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.66f)) {
+        Row(modifier = Modifier.padding(horizontal = 7.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.width(4.dp))
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface)
+        }
+    }
+}
+
+@Composable
+private fun MediaImagePreview(url: String, label: String) {
+    Card(shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth().height(150.dp)) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            coil.compose.AsyncImage(
+                model = url,
+                contentDescription = label,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+            Surface(
+                shape = RoundedCornerShape(topEnd = 10.dp, bottomEnd = 10.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.86f),
+                modifier = Modifier.align(Alignment.BottomStart)
+            ) {
+                Text(label, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun MediaFileStatus(name: String, type: String, ready: Boolean) {
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = if (ready) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.errorContainer,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                if (ready) Icons.Default.CheckCircle else Icons.Default.Description,
+                contentDescription = null,
+                tint = if (ready) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onErrorContainer,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(Modifier.width(9.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(if (ready) "Arquivo selecionado" else "Aguardando arquivo válido", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                Text("$type • ${name.takeLast(42)}", style = MaterialTheme.typography.bodySmall, maxLines = 1)
+            }
+        }
+    }
+}
+
+private fun mediaTypeIcon(type: String): androidx.compose.ui.graphics.vector.ImageVector = when (type.lowercase()) {
+    "book" -> Icons.Default.Description
+    "audio" -> Icons.Default.AudioFile
+    "video" -> Icons.Default.VideoLibrary
+    else -> Icons.Default.Image
+}
+
+@Composable
+private fun MediaContentRow(title: String, subtitle: String, type: String, onEdit: () -> Unit, onDelete: () -> Unit) {
+    Card(shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(42.dp)) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                    Icon(mediaTypeIcon(type), contentDescription = type, tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                }
+            }
+            Spacer(Modifier.width(11.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text(subtitle.ifBlank { "Sem descrição" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
+                Text(type, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+            }
+            IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, contentDescription = "Editar $title", tint = MaterialTheme.colorScheme.primary) }
+            IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, contentDescription = "Excluir $title", tint = MaterialTheme.colorScheme.error) }
+        }
+    }
+}
+
+@Composable
+private fun MediaListHeading(title: String, count: Int) {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+        Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+            Text(count.toString(), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp))
+        }
+    }
 }
