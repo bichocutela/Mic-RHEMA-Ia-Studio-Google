@@ -70,10 +70,12 @@ fun ProfileScreen(
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showAvatarPicker by remember { mutableStateOf(false) }
     var showAvatarPreview by remember { mutableStateOf(false) }
+    var showBadgePicker by remember { mutableStateOf(false) }
     val selectedAvatar = biblicalAvatarForId(selectedAvatarId)
     val equippedBadge = biblicalBadgeForId(equippedBadgeId)
+    val unlockedBadgeIds = loggedInMember.unlockedBadgeIds.ifEmpty { listOf(DEFAULT_BIBLICAL_BADGE_ID) }
 
-    LaunchedEffect(loggedInMember.id, loggedInMember.name, loggedInMember.phone, loggedInMember.address, loggedInMember.birthDate, loggedInMember.email, loggedInMember.avatarId, loggedInMember.equippedBadgeId) {
+    LaunchedEffect(loggedInMember.id, loggedInMember.name, loggedInMember.phone, loggedInMember.address, loggedInMember.birthDate, loggedInMember.email, loggedInMember.avatarId, loggedInMember.equippedBadgeId, loggedInMember.unlockedBadgeIds) {
         if (!isEditingName) name = loggedInMember.name
         if (!isEditingPhone) phone = loggedInMember.phone
         if (!isEditingAddress) address = loggedInMember.address
@@ -141,6 +143,14 @@ fun ProfileScreen(
                     TextButton(onClick = { showAvatarPicker = true }) {
                         Text("Trocar")
                     }
+                }
+                OutlinedButton(
+                    onClick = { showBadgePicker = true },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, bottom = 16.dp)
+                ) {
+                    Icon(Icons.Default.EmojiEvents, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Ver emblemas e níveis")
                 }
             }
 
@@ -340,6 +350,80 @@ fun ProfileScreen(
         )
     }
 
+    if (showBadgePicker) {
+        AlertDialog(
+            onDismissRequest = { showBadgePicker = false },
+            title = { Text("Emblemas e níveis") },
+            text = {
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 500.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(allBiblicalBadges) { badge ->
+                        val isUnlocked = badge.id in unlockedBadgeIds
+                        val isEquipped = badge.id == equippedBadgeId
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .then(if (isUnlocked) Modifier.clickable {
+                                    equippedBadgeId = badge.id
+                                    showBadgePicker = false
+                                    saveProfile(
+                                        loggedInMember,
+                                        name,
+                                        phone,
+                                        address,
+                                        birthDate,
+                                        loggedInMember.profilePhotoUrl,
+                                        context,
+                                        email = email,
+                                        avatarId = selectedAvatarId,
+                                        equippedBadgeId = badge.id,
+                                        showToast = false
+                                    )
+                                } else Modifier),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (isEquipped) MaterialTheme.colorScheme.primaryContainer
+                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isUnlocked) 0.55f else 0.25f)
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    if (isUnlocked) Icons.Default.EmojiEvents else Icons.Default.Lock,
+                                    contentDescription = null,
+                                    tint = if (isUnlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        if (badge.level != null) "Nível ${badge.level}: ${badge.name}" else badge.name,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (isUnlocked) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        if (isUnlocked) badge.description else "Bloqueado: ${badge.requirement}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                if (isEquipped) {
+                                    Icon(Icons.Default.CheckCircle, contentDescription = "Emblema equipado", tint = MaterialTheme.colorScheme.primary)
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showBadgePicker = false }) { Text("Fechar") }
+            }
+        )
+    }
+
     if (showLogoutDialog) {
         AlertDialog(
             onDismissRequest = { showLogoutDialog = false },
@@ -448,6 +532,7 @@ private fun saveProfile(
     email: String = member.email,
     profileStoragePath: String = member.supabaseStoragePath,
     avatarId: String = member.avatarId,
+    equippedBadgeId: String = member.equippedBadgeId,
     showToast: Boolean = true,
     onResult: ((synced: Boolean, error: Exception?) -> Unit)? = null
 ) {
@@ -459,6 +544,7 @@ private fun saveProfile(
     member.profilePhotoUrl = profilePhotoUrl
     member.supabaseStoragePath = profileStoragePath
     member.avatarId = avatarId.ifBlank { DEFAULT_BIBLICAL_AVATAR_ID }
+    member.equippedBadgeId = equippedBadgeId.ifBlank { DEFAULT_BIBLICAL_BADGE_ID }
     member.email = email.trim()
     member.updatedAt = System.currentTimeMillis()
     
@@ -487,6 +573,7 @@ private fun saveProfile(
             member.profilePhotoUrl = previousMember.profilePhotoUrl
             member.supabaseStoragePath = previousMember.supabaseStoragePath
             member.avatarId = previousMember.avatarId
+            member.equippedBadgeId = previousMember.equippedBadgeId
             member.email = previousMember.email
             member.updatedAt = previousMember.updatedAt
             loggedInMemberState.value = member.copy()
