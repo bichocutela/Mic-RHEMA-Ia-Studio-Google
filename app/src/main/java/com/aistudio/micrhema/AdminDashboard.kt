@@ -1,6 +1,7 @@
 package com.aistudio.micrhema
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -19,6 +20,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.animation.animateContentSize
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
@@ -196,13 +199,16 @@ fun AdminHeader(pendingCount: Int = 0, onMembersClick: (() -> Unit)? = null) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(54.dp)
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surface,
+                modifier = Modifier.size(72.dp)
             ) {
-                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                    Icon(Icons.Default.AdminPanelSettings, contentDescription = "Área administrativa", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(30.dp))
-                }
+                Image(
+                    painter = painterResource(id = R.drawable.mic_rhema_church_logo),
+                    contentDescription = "Logo do Ministério Igreja de Cristo Rhema",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize().padding(5.dp)
+                )
             }
             Spacer(Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
