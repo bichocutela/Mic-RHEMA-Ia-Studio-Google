@@ -24,6 +24,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 
 private fun formatBirthDateInput(value: String): String {
     val digits = value.filter { it.isDigit() }
@@ -67,6 +68,7 @@ fun ProfileScreen(
     var isEditingEmail by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showAvatarPicker by remember { mutableStateOf(false) }
+    var showAvatarPreview by remember { mutableStateOf(false) }
 
     LaunchedEffect(loggedInMember.id, loggedInMember.name, loggedInMember.phone, loggedInMember.address, loggedInMember.birthDate, loggedInMember.email, loggedInMember.avatarId) {
         if (!isEditingName) name = loggedInMember.name
@@ -121,14 +123,17 @@ fun ProfileScreen(
                 ) {
                     BiblicalAvatarImage(
                         avatar = selectedAvatar,
-                        modifier = Modifier.size(76.dp).clip(CircleShape),
-                        contentDescription = "Avatar bíblico de ${selectedAvatar.displayName}"
+                        modifier = Modifier
+                            .size(76.dp)
+                            .clip(CircleShape)
+                            .clickable { showAvatarPreview = true },
+                        contentDescription = "Ver avatar bíblico de ${selectedAvatar.displayName} em tamanho ampliado"
                     )
                     Spacer(modifier = Modifier.width(14.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Seu avatar bíblico", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         Text(selectedAvatar.displayName, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("Escolha um personagem para representar seu perfil.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Toque no avatar para ampliar.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     TextButton(onClick = { showAvatarPicker = true }) {
                         Text("Trocar")
@@ -228,6 +233,38 @@ fun ProfileScreen(
                 Text("Sair da conta", fontWeight = FontWeight.SemiBold)
             }
             Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+
+    if (showAvatarPreview) {
+        Dialog(onDismissRequest = { showAvatarPreview = false }) {
+            Surface(
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 8.dp
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text("Seu avatar bíblico", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    BiblicalAvatarImage(
+                        avatar = selectedAvatar,
+                        modifier = Modifier.size(240.dp).clip(CircleShape),
+                        contentDescription = "Avatar ampliado de ${selectedAvatar.displayName}"
+                    )
+                    Text(selectedAvatar.displayName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "Este é o avatar exibido no seu perfil.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    TextButton(onClick = { showAvatarPreview = false }) {
+                        Text("Fechar")
+                    }
+                }
+            }
         }
     }
 
