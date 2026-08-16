@@ -260,21 +260,12 @@ fun EditProfilesSection() {
 
 @Composable
 private fun MemberAvatar(member: MemberRequest, size: androidx.compose.ui.unit.Dp) {
-    if (member.profilePhotoUrl.isNotBlank()) {
-        coil.compose.AsyncImage(
-            model = member.profilePhotoUrl,
-            contentDescription = "Foto de ${member.name}",
-            modifier = Modifier.size(size).clip(CircleShape),
-            contentScale = ContentScale.Crop
-        )
-    } else {
-        Box(
-            modifier = Modifier.size(size).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(size / 2))
-        }
-    }
+    val avatar = biblicalAvatarForId(member.avatarId)
+    BiblicalAvatarImage(
+        avatar = avatar,
+        contentDescription = "Avatar bíblico de ${member.name}",
+        modifier = Modifier.size(size).clip(CircleShape)
+    )
 }
 
 @Composable
@@ -299,6 +290,7 @@ private fun MemberAdminDetailsDialog(
             ) {
                 MemberAvatar(member = member, size = 112.dp)
                 Text(member.name.ifBlank { "Sem nome" }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("Avatar bíblico: ${biblicalAvatarForId(member.avatarId).displayName}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (isUploadingPhoto) {
                     CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.primary)
                     Text("Salvando foto…", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -316,12 +308,16 @@ private fun MemberAdminDetailsDialog(
                 }
                 HorizontalDivider(modifier = Modifier.fillMaxWidth())
                 MemberInfoRow("Telefone", member.phone)
-                MemberInfoRow("E-mail", member.email)
+                MemberInfoRow("Nome completo do certificado IBR", member.ibrCertificateName)
+                MemberInfoRow("E-mail para certificado IBR", member.email)
                 MemberInfoRow("Endereço", member.address)
                 MemberInfoRow("Nascimento", member.birthDate)
                 MemberInfoRow("Status", member.status.ifBlank { if (member.isApproved) "Aprovado" else "Pendente" })
                 MemberInfoRow("Aluno IBR", if (member.isIbr) "Sim" else "Não")
                 MemberInfoRow("Administrador", if (member.isAdmin) "Sim" else "Não")
+                MemberInfoRow("Firebase UID", member.firebaseUid)
+                MemberInfoRow("Caminho da foto remota", member.supabaseStoragePath)
+                MemberInfoRow("Caminho do certificado", member.ibrCertificateStoragePath)
                 MemberInfoRow("Título", member.title)
                 MemberInfoRow("Tipo", member.type)
                 MemberInfoRow("Conteúdo", member.content)
@@ -330,6 +326,7 @@ private fun MemberAdminDetailsDialog(
                 if (member.createdAt > 0L) MemberInfoRow("Cadastrado em", dateFormat.format(java.util.Date(member.createdAt)))
                 if (member.updatedAt > 0L) MemberInfoRow("Atualizado em", dateFormat.format(java.util.Date(member.updatedAt)))
                 MemberInfoRow("Certificado IBR", member.ibrCertificateUrl)
+                MemberInfoRow("Foto remota legada", member.profilePhotoUrl)
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Fechar") } }

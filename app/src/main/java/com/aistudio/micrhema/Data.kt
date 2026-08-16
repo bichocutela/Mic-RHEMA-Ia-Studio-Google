@@ -301,6 +301,7 @@ data class MemberRequest(
     var content: String = "",
     var mediaUrl: String = "",
     var profilePhotoUrl: String = "",
+    var avatarId: String = DEFAULT_BIBLICAL_AVATAR_ID,
     var supabaseStoragePath: String = "",
     var address: String = "",
     var birthDate: String = "",
@@ -379,13 +380,14 @@ object MemberManager {
                     val content = document.getString("content") ?: ""
                     val mediaUrl = document.getString("mediaUrl") ?: ""
                     val remoteProfilePhotoUrl = document.getString("profilePhotoUrl") ?: ""
+                    val avatarId = document.getString("avatarId").orEmpty().ifBlank { DEFAULT_BIBLICAL_AVATAR_ID }
                     val supabaseStoragePath = document.getString("supabaseStoragePath") ?: ""
                     val profilePhotoUrl = resolveProfilePhotoUrl(context, id, remoteProfilePhotoUrl, supabaseStoragePath)
                     val address = document.getString("address") ?: ""
                     val birthDate = document.getString("birthDate") ?: ""
                     val createdAt = document.getLong("createdAt") ?: 0L
                     val updatedAt = document.getLong("updatedAt") ?: 0L
-                    newList.add(MemberRequest(
+                                            newList.add(MemberRequest(
                         id = id,
                         firebaseUid = firebaseUid,
                         name = name,
@@ -404,6 +406,8 @@ object MemberManager {
                         content = content,
                         mediaUrl = mediaUrl,
                         profilePhotoUrl = profilePhotoUrl,
+                        avatarId = avatarId,
+
                         supabaseStoragePath = supabaseStoragePath,
                         address = address,
                         birthDate = birthDate,
@@ -510,6 +514,7 @@ object MemberManager {
                 "type" to member.type,
                 "content" to member.content,
                 "mediaUrl" to member.mediaUrl,
+                "avatarId" to member.avatarId.ifBlank { DEFAULT_BIBLICAL_AVATAR_ID },
                 "address" to member.address,
                 "birthDate" to member.birthDate,
                 "createdAt" to member.createdAt,
@@ -565,6 +570,7 @@ object MemberManager {
                             content = obj.optString("content", ""),
                             mediaUrl = obj.optString("mediaUrl", ""),
                             profilePhotoUrl = obj.optString("profilePhotoUrl", ""),
+                            avatarId = obj.optString("avatarId", DEFAULT_BIBLICAL_AVATAR_ID).ifBlank { DEFAULT_BIBLICAL_AVATAR_ID },
                             supabaseStoragePath = obj.optString("supabaseStoragePath", ""),
                             address = obj.optString("address", ""),
                             birthDate = obj.optString("birthDate", ""),
@@ -619,6 +625,7 @@ object MemberManager {
                 obj.put("content", member.content)
                 obj.put("mediaUrl", member.mediaUrl)
                 obj.put("profilePhotoUrl", member.profilePhotoUrl)
+                obj.put("avatarId", member.avatarId.ifBlank { DEFAULT_BIBLICAL_AVATAR_ID })
                 obj.put("supabaseStoragePath", member.supabaseStoragePath)
                 obj.put("address", member.address)
                 obj.put("birthDate", member.birthDate)
@@ -1629,6 +1636,7 @@ suspend fun refreshHomeData() {
                     val content = memberSnapshot.getString("content") ?: ""
                     val mediaUrl = memberSnapshot.getString("mediaUrl") ?: ""
                     val remoteProfilePhotoUrl = memberSnapshot.getString("profilePhotoUrl") ?: ""
+                    val avatarId = memberSnapshot.getString("avatarId").orEmpty().ifBlank { DEFAULT_BIBLICAL_AVATAR_ID }
                     val supabaseStoragePath = memberSnapshot.getString("supabaseStoragePath") ?: ""
                     val profilePhotoUrl = remoteProfilePhotoUrl.takeIf { it.isNotBlank() }
                         ?: currentMember.profilePhotoUrl
@@ -1653,6 +1661,7 @@ suspend fun refreshHomeData() {
                         content = content,
                         mediaUrl = mediaUrl,
                         profilePhotoUrl = profilePhotoUrl,
+                        avatarId = avatarId,
                         supabaseStoragePath = supabaseStoragePath,
                         address = address,
                         birthDate = birthDate,

@@ -315,12 +315,11 @@ fun MainScreen() {
                             .clip(androidx.compose.foundation.shape.CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (member != null && member.profilePhotoUrl.isNotBlank()) {
-                            coil.compose.AsyncImage(
-                                model = member.profilePhotoUrl,
-                                contentDescription = "Foto de perfil",
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                        if (member != null) {
+                            BiblicalAvatarImage(
+                                avatar = biblicalAvatarForId(member.avatarId),
+                                contentDescription = "Avatar bíblico de ${member.name}",
+                                modifier = Modifier.fillMaxSize()
                             )
                         } else if (initial == "👤") {
                             Icon(

@@ -42,6 +42,7 @@ private fun memberFromLoginDocument(document: DocumentSnapshot): MemberRequest {
         isAdmin = document.getBoolean("isAdmin") ?: false,
         ibrCertificateUrl = document.getString("ibrCertificateUrl") ?: "",
         ibrCertificateStoragePath = document.getString("ibrCertificateStoragePath") ?: "",
+        avatarId = document.getString("avatarId").orEmpty().ifBlank { DEFAULT_BIBLICAL_AVATAR_ID },
         status = document.getString("status") ?: "pendente",
         address = document.getString("address") ?: "",
         birthDate = document.getString("birthDate") ?: "",

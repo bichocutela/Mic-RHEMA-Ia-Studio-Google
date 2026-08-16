@@ -1,6 +1,14 @@
 package com.aistudio.micrhema
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
@@ -10,6 +18,7 @@ import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -49,6 +58,7 @@ fun ProfileScreen(
     var address by remember { mutableStateOf(loggedInMember.address) }
     var birthDate by remember { mutableStateOf(formatBirthDateInput(loggedInMember.birthDate)) }
     var email by remember { mutableStateOf(loggedInMember.email) }
+    var selectedAvatarId by remember { mutableStateOf(loggedInMember.avatarId.ifBlank { DEFAULT_BIBLICAL_AVATAR_ID }) }
 
     var isEditingName by remember { mutableStateOf(false) }
     var isEditingPhone by remember { mutableStateOf(false) }
@@ -56,13 +66,15 @@ fun ProfileScreen(
     var isEditingBirthDate by remember { mutableStateOf(false) }
     var isEditingEmail by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
+    var showAvatarPicker by remember { mutableStateOf(false) }
 
-    LaunchedEffect(loggedInMember.id, loggedInMember.name, loggedInMember.phone, loggedInMember.address, loggedInMember.birthDate, loggedInMember.email) {
+    LaunchedEffect(loggedInMember.id, loggedInMember.name, loggedInMember.phone, loggedInMember.address, loggedInMember.birthDate, loggedInMember.email, loggedInMember.avatarId) {
         if (!isEditingName) name = loggedInMember.name
         if (!isEditingPhone) phone = loggedInMember.phone
         if (!isEditingAddress) address = loggedInMember.address
         if (!isEditingBirthDate) birthDate = formatBirthDateInput(loggedInMember.birthDate)
         if (!isEditingEmail) email = loggedInMember.email
+        selectedAvatarId = loggedInMember.avatarId.ifBlank { DEFAULT_BIBLICAL_AVATAR_ID }
     }
 
     Scaffold(
@@ -97,7 +109,34 @@ fun ProfileScreen(
             )
             Spacer(modifier = Modifier.height(16.dp))
 
-            Spacer(modifier = Modifier.height(32.dp))
+            val selectedAvatar = biblicalAvatarForId(selectedAvatarId)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    BiblicalAvatarImage(
+                        avatar = selectedAvatar,
+                        modifier = Modifier.size(76.dp).clip(CircleShape),
+                        contentDescription = "Avatar bíblico de ${selectedAvatar.displayName}"
+                    )
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Seu avatar bíblico", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(selectedAvatar.displayName, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Escolha um personagem para representar seu perfil.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    TextButton(onClick = { showAvatarPicker = true }) {
+                        Text("Trocar")
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
 
             // Profile Fields
             ProfileField(
@@ -190,6 +229,68 @@ fun ProfileScreen(
             }
             Spacer(modifier = Modifier.height(16.dp))
         }
+    }
+
+    if (showAvatarPicker) {
+        AlertDialog(
+            onDismissRequest = { showAvatarPicker = false },
+            title = { Text("Escolha seu avatar bíblico") },
+            text = {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(3),
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(biblicalAvatarCatalog) { avatar ->
+                        val isSelected = selectedAvatarId == avatar.id
+                        Column(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(16.dp))
+                                .then(
+                                    if (isSelected) Modifier.border(3.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(16.dp))
+                                    else Modifier
+                                )
+                                .clickable {
+                                    val previousAvatarId = loggedInMember.avatarId.ifBlank { DEFAULT_BIBLICAL_AVATAR_ID }
+                                    selectedAvatarId = avatar.id
+                                    showAvatarPicker = false
+                                    saveProfile(
+                                        loggedInMember,
+                                        name,
+                                        phone,
+                                        address,
+                                        birthDate,
+                                        loggedInMember.profilePhotoUrl,
+                                        context,
+                                        avatarId = avatar.id,
+                                        showToast = false
+                                    ) { synced, error ->
+                                        if (synced) {
+                                            android.widget.Toast.makeText(context, "Avatar ${avatar.displayName} salvo no seu perfil.", android.widget.Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            selectedAvatarId = previousAvatarId
+                                            android.widget.Toast.makeText(context, "Não foi possível salvar o avatar: ${error?.message ?: "verifique sua conexão"}", android.widget.Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                }
+                                .padding(4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            BiblicalAvatarImage(
+                                avatar = avatar,
+                                modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(CircleShape),
+                                contentDescription = avatar.displayName
+                            )
+                            Text(avatar.displayName, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAvatarPicker = false }) { Text("Fechar") }
+            }
+        )
     }
 
     if (showLogoutDialog) {
@@ -299,6 +400,7 @@ private fun saveProfile(
     context: android.content.Context,
     email: String = member.email,
     profileStoragePath: String = member.supabaseStoragePath,
+    avatarId: String = member.avatarId,
     showToast: Boolean = true,
     onResult: ((synced: Boolean, error: Exception?) -> Unit)? = null
 ) {
@@ -309,6 +411,7 @@ private fun saveProfile(
     member.birthDate = birthDate
     member.profilePhotoUrl = profilePhotoUrl
     member.supabaseStoragePath = profileStoragePath
+    member.avatarId = avatarId.ifBlank { DEFAULT_BIBLICAL_AVATAR_ID }
     member.email = email.trim()
     member.updatedAt = System.currentTimeMillis()
     
@@ -336,6 +439,7 @@ private fun saveProfile(
             member.birthDate = previousMember.birthDate
             member.profilePhotoUrl = previousMember.profilePhotoUrl
             member.supabaseStoragePath = previousMember.supabaseStoragePath
+            member.avatarId = previousMember.avatarId
             member.email = previousMember.email
             member.updatedAt = previousMember.updatedAt
             loggedInMemberState.value = member.copy()
