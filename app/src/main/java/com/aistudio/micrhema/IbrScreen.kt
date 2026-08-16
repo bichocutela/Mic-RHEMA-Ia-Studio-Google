@@ -106,11 +106,13 @@ fun IbrMainScreen(
                     }
                     
                     val progressPercent = if (totalModules > 0) completedModules.toFloat() / totalModules else 0f
-                    val nextLesson = courses
-                        .flatMap { course -> course.chapters.map { chapter -> course to chapter } }
-                        .firstOrNull { (course, chapter) ->
-                            ibrProgressState.none { it.courseId == course.id && it.chapterId == chapter.id && it.isCompleted }
-                        }
+                    val allLessons = courses.flatMap { course -> course.chapters.map { chapter -> course to chapter } }
+                    val nextLesson = allLessons.firstOrNull { (course, chapter) ->
+                        val progress = ibrProgressState.find { it.courseId == course.id && it.chapterId == chapter.id }
+                        progress != null && progress.lastPositionSeconds > 0 && !progress.isCompleted
+                    } ?: allLessons.firstOrNull { (course, chapter) ->
+                        ibrProgressState.none { it.courseId == course.id && it.chapterId == chapter.id && it.isCompleted }
+                    }
                     val localContext = LocalContext.current
                     
                     LazyColumn(
@@ -395,6 +397,21 @@ fun IbrModuleCard(course: IbrCourse, isLocked: Boolean, onClick: () -> Unit) {
     }
 }
 
+private fun markIbrChapterStarted(context: Context, course: IbrCourse, chapter: IbrChapter) {
+    val existing = ibrProgressState.find { it.courseId == course.id && it.chapterId == chapter.id }
+    if (existing == null) {
+        val progress = IbrProgress(
+            courseId = course.id,
+            chapterId = chapter.id,
+            lastPositionSeconds = 1,
+            totalDurationSeconds = chapter.durationMinutes * 60,
+            isCompleted = false
+        )
+        ibrProgressState.add(progress)
+        IbrDatabaseHelper(context).saveProgress(progress)
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun IbrCourseScreen(
@@ -443,6 +460,7 @@ fun IbrCourseScreen(
 
                     Card(
                         modifier = Modifier.fillMaxWidth().clickable {
+                            markIbrChapterStarted(context, course, chapter)
                             if (chapter.type == "VIDEO") {
                                 val url = if (chapter.isYoutube && chapter.videoUrl.isNotEmpty()) {
                                     if (chapter.videoUrl.startsWith("http")) chapter.videoUrl else "https://www.youtube.com/watch?v=${chapter.videoUrl}"
