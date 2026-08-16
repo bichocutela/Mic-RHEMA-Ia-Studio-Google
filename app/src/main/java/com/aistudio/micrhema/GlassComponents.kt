@@ -132,25 +132,43 @@ fun LocalUploadField(
     val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
 
     val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
-        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+        contract = androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
     ) { uri: android.net.Uri? ->
         if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
             isUploading.value = true
             coroutineScope.launch {
-                uploadProgress.floatValue = 0f
-                val url = com.aistudio.micrhema.StorageHelper.uploadFile(
-                    context = context,
-                    uri = uri,
-                    path = "uploads",
-                    onProgress = { progress -> uploadProgress.floatValue = progress },
-                    targetUid = targetUid
-                )
-                if (url != null) {
-                    onValueChange(url)
-                } else {
-                    android.widget.Toast.makeText(context, "Erro ao enviar arquivo", android.widget.Toast.LENGTH_SHORT).show()
+                try {
+                    uploadProgress.floatValue = 0f
+                    val url = com.aistudio.micrhema.StorageHelper.uploadFile(
+                        context = context,
+                        uri = uri,
+                        path = "uploads",
+                        onProgress = { progress -> uploadProgress.floatValue = progress.coerceIn(0f, 1f) },
+                        targetUid = targetUid
+                    )
+                    if (!url.isNullOrBlank()) {
+                        onValueChange(url)
+                        android.widget.Toast.makeText(context, "Arquivo enviado com sucesso.", android.widget.Toast.LENGTH_SHORT).show()
+                    } else {
+                        android.widget.Toast.makeText(context, "Não foi possível enviar o arquivo. Verifique o acesso administrativo e a conexão.", android.widget.Toast.LENGTH_LONG).show()
+                    }
+                } catch (error: Exception) {
+                    android.util.Log.e("LocalUploadField", "Falha no upload do arquivo selecionado", error)
+                    android.widget.Toast.makeText(
+                        context,
+                        "Não foi possível enviar o arquivo: ${error.message ?: "verifique a conexão e tente novamente"}",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                } finally {
+                    isUploading.value = false
+                    uploadProgress.floatValue = 0f
                 }
-                isUploading.value = false
             }
         }
     }
