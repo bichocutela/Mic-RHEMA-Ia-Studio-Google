@@ -22,6 +22,7 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
@@ -36,15 +37,17 @@ enum class AdminSection {
 
 @Composable
 fun AdminDashboard(onNavigate: (AdminSection) -> Unit, paddingValues: PaddingValues) {
+    val context = LocalContext.current
+    val adminUiPrefs = remember { context.getSharedPreferences("micrhema_admin_ui", android.content.Context.MODE_PRIVATE) }
     val approvedCount = memberRequestsState.count { it.isApproved || it.status == "aprovado" }
     val pendingCount = memberRequestsState.count { !it.isApproved && it.status != "aprovado" }
     val ibrCount = memberRequestsState.count { it.isIbr }
     val mediaCount = contentBooksState.size + contentAudiosState.size + contentVideosState.size + contentAlbumsState.size
-    var contentExpanded by remember { mutableStateOf(true) }
-    var teachingExpanded by remember { mutableStateOf(true) }
-    var churchExpanded by remember { mutableStateOf(true) }
-    var membersExpanded by remember { mutableStateOf(true) }
-    var systemExpanded by remember { mutableStateOf(false) }
+    var contentExpanded by remember { mutableStateOf(adminUiPrefs.getBoolean("category_content", false)) }
+    var teachingExpanded by remember { mutableStateOf(adminUiPrefs.getBoolean("category_teaching", false)) }
+    var churchExpanded by remember { mutableStateOf(adminUiPrefs.getBoolean("category_church", false)) }
+    var membersExpanded by remember { mutableStateOf(adminUiPrefs.getBoolean("category_members", false)) }
+    var systemExpanded by remember { mutableStateOf(adminUiPrefs.getBoolean("category_system", false)) }
 
     LazyColumn(
         contentPadding = PaddingValues(
@@ -151,7 +154,7 @@ fun AdminDashboard(onNavigate: (AdminSection) -> Unit, paddingValues: PaddingVal
 
         item { AdminSectionHeading(title = "Módulos administrativos", subtitle = "Gerencie o conteúdo e a estrutura do MIC Rhema.") }
 
-        item { AdminCategoryTitle("CONTEÚDO", contentExpanded) { contentExpanded = !contentExpanded } }
+        item { AdminCategoryTitle("CONTEÚDO", contentExpanded) { contentExpanded = !contentExpanded; adminUiPrefs.edit().putBoolean("category_content", contentExpanded).apply() } }
         if (contentExpanded) {
             item { AdminMenuItem("Devocionais", "Mensagens e reflexões", Icons.Default.Book, { onNavigate(AdminSection.DEVOTIONALS) }) }
             item { AdminMenuItem("Notícias", "Informativos e avisos", Icons.Default.Article, { onNavigate(AdminSection.NEWS) }) }
@@ -159,12 +162,12 @@ fun AdminDashboard(onNavigate: (AdminSection) -> Unit, paddingValues: PaddingVal
             item { AdminMenuItem("Planos Bíblicos", "Planos e jornadas de leitura", Icons.Default.MenuBook, { onNavigate(AdminSection.PLANS) }) }
         }
 
-        item { AdminCategoryTitle("ENSINO", teachingExpanded) { teachingExpanded = !teachingExpanded } }
+        item { AdminCategoryTitle("ENSINO", teachingExpanded) { teachingExpanded = !teachingExpanded; adminUiPrefs.edit().putBoolean("category_teaching", teachingExpanded).apply() } }
         if (teachingExpanded) {
             item { AdminMenuItem("Instituto Bíblico Rhema", "Cursos e formação bíblica", Icons.Default.WorkspacePremium, { onNavigate(AdminSection.IBR) }) }
         }
 
-        item { AdminCategoryTitle("IGREJA", churchExpanded) { churchExpanded = !churchExpanded } }
+        item { AdminCategoryTitle("IGREJA", churchExpanded) { churchExpanded = !churchExpanded; adminUiPrefs.edit().putBoolean("category_church", churchExpanded).apply() } }
         if (churchExpanded) {
             item { AdminMenuItem("Cultos", "Agenda e programação", Icons.Default.Event, { onNavigate(AdminSection.SERVICES) }) }
             item { AdminMenuItem("Destaques", "Banners e eventos da tela inicial", Icons.Default.ViewCarousel, { onNavigate(AdminSection.BANNERS) }) }
@@ -172,13 +175,13 @@ fun AdminDashboard(onNavigate: (AdminSection) -> Unit, paddingValues: PaddingVal
             item { AdminMenuItem("Equipe", "Líderes, pastores e ministérios", Icons.Default.Groups, { onNavigate(AdminSection.TEAM) }) }
         }
 
-        item { AdminCategoryTitle("MEMBROS", membersExpanded) { membersExpanded = !membersExpanded } }
+        item { AdminCategoryTitle("MEMBROS", membersExpanded) { membersExpanded = !membersExpanded; adminUiPrefs.edit().putBoolean("category_members", membersExpanded).apply() } }
         if (membersExpanded) {
             item { AdminMenuItem("Membros", "Aprovações e permissões", Icons.Default.People, { onNavigate(AdminSection.MEMBERS) }) }
             item { AdminMenuItem("Perfis dos Membros", "Dados e informações dos usuários", Icons.Default.AccountBox, { onNavigate(AdminSection.PROFILES) }) }
         }
 
-        item { AdminCategoryTitle("SISTEMA", systemExpanded) { systemExpanded = !systemExpanded } }
+        item { AdminCategoryTitle("SISTEMA", systemExpanded) { systemExpanded = !systemExpanded; adminUiPrefs.edit().putBoolean("category_system", systemExpanded).apply() } }
         if (systemExpanded) {
             item { AdminMenuItem("Abas do Aplicativo", "Organização dos atalhos e seções", Icons.Default.Tab, { onNavigate(AdminSection.TABS) }) }
             item { AdminMenuItem("Configurações", "Preferências gerais do aplicativo", Icons.Default.Settings, { onNavigate(AdminSection.SETTINGS) }) }
