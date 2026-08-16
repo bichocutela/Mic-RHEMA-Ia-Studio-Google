@@ -182,6 +182,21 @@ fun AdminScreen() {
             isAuthenticated = true
         }
     }
+
+    LaunchedEffect(isAuthenticated) {
+        if (isAuthenticated) {
+            MemberManager.syncFromFirestore(context)
+            val firebaseAuth = com.google.firebase.auth.FirebaseAuth.getInstance()
+            if (firebaseAuth.currentUser == null) {
+                firebaseAuth.signInAnonymously().addOnCompleteListener {
+                    if (it.isSuccessful) MemberManager.syncFromFirestore(context)
+                    else android.util.Log.w("AdminScreen", "Não foi possível autenticar a sessão interna do painel", it.exception)
+                }
+            } else {
+                MemberManager.syncFromFirestore(context)
+            }
+        }
+    }
     
     val adminUiPrefs = remember {
         context.getSharedPreferences("micrhema_admin_ui", android.content.Context.MODE_PRIVATE)

@@ -358,7 +358,14 @@ object MemberManager {
             val db = Firebase.firestore
 
             membersListener = db.collection("acessos_pendentes").addSnapshotListener { snapshot, e ->
-                if (e != null || snapshot == null) return@addSnapshotListener
+                if (e != null) {
+                    Log.e("MemberManager", "Falha ao sincronizar solicitações de membros", e)
+                    return@addSnapshotListener
+                }
+                if (snapshot == null) {
+                    Log.w("MemberManager", "Listener de solicitações retornou snapshot nulo")
+                    return@addSnapshotListener
+                }
                 val newList = mutableListOf<MemberRequest>()
                 for (document in snapshot.documents) {
                     val id = document.id
