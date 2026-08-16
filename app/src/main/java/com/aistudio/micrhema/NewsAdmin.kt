@@ -118,7 +118,7 @@ fun EditNewsSection() {
                 isUploading = true
                 scope.launch {
                     uploadProgress = 0f
-                    val uploadedUrl = StorageManager.uploadFile(context, uri, "news") { progress ->
+                    val uploadedUrl = StorageHelper.uploadFile(context, uri, "news") { progress ->
                         uploadProgress = progress
                     }
                     if (uploadedUrl.isNotEmpty()) {

@@ -12,10 +12,20 @@ const BUCKET_RULES = {
     maxBytes: 5 * 1024 * 1024,
     mimeTypes: new Set(["image/jpeg", "image/png", "image/webp"]),
   },
-  "church-documents": {
-    maxBytes: 50 * 1024 * 1024,
-    mimeTypes: new Set(["application/pdf"]),
-  },
+        "church-documents": {
+        maxBytes: 50 * 1024 * 1024,
+        mimeTypes: new Set(["application/pdf"]),
+      },
+      "media-assets": {
+        maxBytes: 50 * 1024 * 1024,
+        mimeTypes: new Set([
+          "image/jpeg", "image/png", "image/webp",
+          "application/pdf",
+          "audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/ogg", "audio/mp4", "audio/aac",
+          "video/mp4", "video/webm", "video/quicktime", "video/3gpp",
+        ]),
+      },
+
 } as const;
 
 type FirebaseClaims = {
@@ -43,7 +53,7 @@ function jsonResponse(body: Record<string, unknown>, status = 200): Response {
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store",
       "access-control-allow-origin": "*",
-      "access-control-allow-headers": "authorization, apikey, content-type",
+      "access-control-allow-headers": "authorization, apikey, content-type, x-rhema-admin-password",
       "access-control-allow-methods": "POST, OPTIONS",
     },
   });
@@ -208,6 +218,14 @@ function extensionForMime(mimeType: string): string {
   if (mimeType === "image/png") return "png";
   if (mimeType === "image/webp") return "webp";
   if (mimeType === "application/pdf") return "pdf";
+  if (mimeType === "audio/mpeg" || mimeType === "audio/mp3") return "mp3";
+  if (mimeType === "audio/wav" || mimeType === "audio/x-wav") return "wav";
+  if (mimeType === "audio/ogg") return "ogg";
+  if (mimeType === "audio/mp4" || mimeType === "audio/aac") return "m4a";
+  if (mimeType === "video/mp4") return "mp4";
+  if (mimeType === "video/webm") return "webm";
+  if (mimeType === "video/quicktime") return "mov";
+  if (mimeType === "video/3gpp") return "3gp";
   throw new HttpError(415, "Tipo de arquivo não permitido.");
 }
 
@@ -232,7 +250,9 @@ async function handleUpload(
   const extension = extensionForMime(mimeType);
   const objectPath = bucket === "profile-photos"
     ? `${targetUid}/profile.${extension}`
-    : `${targetUid}/certificate-${crypto.randomUUID()}.${extension}`;
+    : bucket === "media-assets"
+      ? `${targetUid}/media-${crypto.randomUUID()}.${extension}`
+      : `${targetUid}/certificate-${crypto.randomUUID()}.${extension}`;
   const storagePath = `${bucket}/${objectPath}`;
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -261,13 +281,16 @@ async function handleUpload(
     }
   }
 
-  const signed = await supabase.storage.from(bucket).createSignedUrl(objectPath, SIGNED_URL_TTL_SECONDS);
+  const publicUrl = `${supabaseUrl}/storage/v1/object/public/${bucket}/${objectPath}`;
+  const signed = bucket === "media-assets"
+    ? { data: { signedUrl: publicUrl } }
+    : await supabase.storage.from(bucket).createSignedUrl(objectPath, SIGNED_URL_TTL_SECONDS);
   return jsonResponse({
     ok: true,
     bucket,
     storage_path: storagePath,
     signed_url: signed.data?.signedUrl || "",
-    expires_in: SIGNED_URL_TTL_SECONDS,
+    expires_in: bucket === "media-assets" ? 0 : SIGNED_URL_TTL_SECONDS,
   });
 }
 
@@ -312,6 +335,16 @@ async function handleJsonOperation(
   }
 
   if (operation !== "signed-url") throw new HttpError(400, "Operação de armazenamento não suportada.");
+  if (bucket === "media-assets") {
+    const publicUrl = `${supabaseUrl}/storage/v1/object/public/${bucket}/${objectPath}`;
+    return jsonResponse({
+      ok: true,
+      bucket,
+      storage_path: `${bucket}/${objectPath}`,
+      signed_url: publicUrl,
+      expires_in: 0,
+    });
+  }
   const signed = await storage.createSignedUrl(objectPath, SIGNED_URL_TTL_SECONDS);
   if (signed.error || !signed.data?.signedUrl) throw new HttpError(404, "Arquivo não encontrado no Supabase.");
   return jsonResponse({

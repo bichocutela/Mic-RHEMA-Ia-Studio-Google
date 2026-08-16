@@ -457,7 +457,7 @@ fun EditBannersSection() {
             isUploading = true
             scope.launch {
                 uploadProgress = 0f
-                val uploadedUrl = StorageManager.uploadFile(context, uri, "banners") { progress ->
+                val uploadedUrl = StorageHelper.uploadFile(context, uri, "banners") { progress ->
                     uploadProgress = progress
                 }
                 if (uploadedUrl.isNotEmpty()) {
@@ -706,7 +706,7 @@ fun EditDonationsSection() {
             isUploading = true
             scope.launch {
                 uploadProgress = 0f
-                val uploadedUrl = StorageManager.uploadFile(context, uri, "donations") { progress ->
+                val uploadedUrl = StorageHelper.uploadFile(context, uri, "donations") { progress ->
                     uploadProgress = progress
                 }
                 if (uploadedUrl.isNotEmpty()) {

@@ -57,8 +57,8 @@ fun EditMediaSection() {
                     isUploading = true
                     coroutineScope.launch {
                         uploadProgress = 0f
-                        val finalCover = if (coverUrl.isNotBlank() && !coverUrl.startsWith("http")) StorageManager.uploadFile(context, android.net.Uri.parse(coverUrl), "books/covers") { progress -> uploadProgress = progress / 2f } else convertGoogleDriveUrl(coverUrl).ifEmpty { "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=500&q=80" }
-                        val finalBookUrl = if (bookUrl.isNotBlank() && !bookUrl.startsWith("http")) StorageManager.uploadFile(context, android.net.Uri.parse(bookUrl), "books/files") { progress -> uploadProgress = 0.5f + (progress / 2f) } else convertGoogleDriveUrl(bookUrl)
+                        val finalCover = if (coverUrl.isNotBlank() && !coverUrl.startsWith("http")) StorageHelper.uploadFile(context, android.net.Uri.parse(coverUrl), "books/covers") { progress -> uploadProgress = progress / 2f } else convertGoogleDriveUrl(coverUrl).ifEmpty { "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=500&q=80" }
+                        val finalBookUrl = if (bookUrl.isNotBlank() && !bookUrl.startsWith("http")) StorageHelper.uploadFile(context, android.net.Uri.parse(bookUrl), "books/files") { progress -> uploadProgress = 0.5f + (progress / 2f) } else convertGoogleDriveUrl(bookUrl)
                         addContentBook(ContentBook(id = System.currentTimeMillis().toString(), title = title, author = author, coverUrl = finalCover, contentText = "Conteúdo do livro carregado...", bookUrl = finalBookUrl))
                         title = ""
                         author = ""
@@ -118,8 +118,8 @@ fun EditMediaSection() {
                             isUploading = false
                             return@launch
                         }
-                        val finalCoverUrl = if (audioCover.isNotBlank() && !audioCover.startsWith("http")) StorageManager.uploadFile(context, android.net.Uri.parse(audioCover), "audios/covers") { progress -> uploadProgress = progress / 2f } else convertGoogleDriveUrl(audioCover).ifEmpty { "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80" }
-                        val finalAudioUrl = if (!audioUrl.startsWith("http")) StorageManager.uploadFile(context, android.net.Uri.parse(audioUrl), "audios/files") { progress -> uploadProgress = 0.5f + (progress / 2f) } else convertGoogleDriveUrl(audioUrl)
+                        val finalCoverUrl = if (audioCover.isNotBlank() && !audioCover.startsWith("http")) StorageHelper.uploadFile(context, android.net.Uri.parse(audioCover), "audios/covers") { progress -> uploadProgress = progress / 2f } else convertGoogleDriveUrl(audioCover).ifEmpty { "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80" }
+                        val finalAudioUrl = if (!audioUrl.startsWith("http")) StorageHelper.uploadFile(context, android.net.Uri.parse(audioUrl), "audios/files") { progress -> uploadProgress = 0.5f + (progress / 2f) } else convertGoogleDriveUrl(audioUrl)
                         addContentAudio(ContentAudio(id = System.currentTimeMillis().toString(), title = audioTitle, artist = audioArtist, audioUrl = finalAudioUrl, coverUrl = finalCoverUrl))
                         audioTitle = ""
                         audioArtist = ""
@@ -189,8 +189,8 @@ fun EditMediaSection() {
                     isUploading = true
                     coroutineScope.launch {
                         uploadProgress = 0f
-                        val finalThumbUploaded = if (videoThumb.isNotBlank() && !videoThumb.startsWith("http")) StorageManager.uploadFile(context, android.net.Uri.parse(videoThumb), "videos/covers") { progress -> uploadProgress = progress / 2f } else convertGoogleDriveUrl(videoThumb)
-                        val finalVideoUrl = if (videoUrl.isNotBlank() && !videoUrl.startsWith("http")) StorageManager.uploadFile(context, android.net.Uri.parse(videoUrl), "videos/files") { progress -> uploadProgress = 0.5f + (progress / 2f) } else convertGoogleDriveUrl(videoUrl).ifEmpty { "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" }
+                        val finalThumbUploaded = if (videoThumb.isNotBlank() && !videoThumb.startsWith("http")) StorageHelper.uploadFile(context, android.net.Uri.parse(videoThumb), "videos/covers") { progress -> uploadProgress = progress / 2f } else convertGoogleDriveUrl(videoThumb)
+                        val finalVideoUrl = if (videoUrl.isNotBlank() && !videoUrl.startsWith("http")) StorageHelper.uploadFile(context, android.net.Uri.parse(videoUrl), "videos/files") { progress -> uploadProgress = 0.5f + (progress / 2f) } else convertGoogleDriveUrl(videoUrl).ifEmpty { "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" }
                         val finalThumb = finalThumbUploaded
                         addContentVideo(ContentVideo(id = System.currentTimeMillis().toString(), title = videoTitle, description = videoDesc, videoUrl = finalVideoUrl, thumbnailUrl = finalThumb))
                         videoTitle = ""

@@ -29,9 +29,11 @@ data class StorageUploadResult(
 object StorageManager {
     private const val PROFILE_BUCKET = "profile-photos"
     private const val DOCUMENT_BUCKET = "church-documents"
+    private const val MEDIA_BUCKET = "media-assets"
     private const val STORAGE_GATEWAY_FUNCTION = "storage-gateway"
     private const val MAX_IMAGE_BYTES = 5L * 1024L * 1024L
     private const val MAX_DOCUMENT_BYTES = 50L * 1024L * 1024L
+    private const val MAX_MEDIA_BYTES = 50L * 1024L * 1024L
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(120, TimeUnit.SECONDS)
@@ -62,6 +64,18 @@ object StorageManager {
         return this
     }
 
+    suspend fun resolveStorageTargetUid(): String = withContext(Dispatchers.IO) {
+        val auth = FirebaseAuth.getInstance()
+        val currentUser = auth.currentUser
+        if (adminAuthenticatedState.value) {
+            val adminUser = currentUser ?: runCatching { auth.signInAnonymously().await().user }.getOrNull()
+            return@withContext adminUser?.uid
+                ?: throw IllegalStateException("Não foi possível preparar a sessão administrativa do Supabase. Saia e entre novamente no painel com a senha igreja10.")
+        }
+        return@withContext currentUser?.takeIf { !it.isAnonymous }?.uid
+            ?: throw IllegalStateException("Entre novamente no perfil autorizado antes de enviar arquivos.")
+    }
+
     private suspend fun firebaseIdToken(context: Context? = null): String = withContext(Dispatchers.IO) {
         val auth = FirebaseAuth.getInstance()
         val adminMode = adminAuthenticatedState.value
@@ -71,7 +85,8 @@ object StorageManager {
             } else {
                 auth.currentUser?.takeIf { !it.isAnonymous }
             }
-        ) ?: throw IllegalStateException("Faça login com o código SMS do telefone aprovado antes de enviar arquivos.")
+        ) ?: throw IllegalStateException("A sessão administrativa ou do membro expirou. Entre novamente antes de enviar arquivos.")
+
 
         var token: String? = null
         var lastError: Exception? = null
@@ -163,15 +178,24 @@ object StorageManager {
         onProgress: ((Float) -> Unit)? = null
     ): StorageUploadResult = withContext(Dispatchers.IO) {
         val mime = mimeType(context, uri)
-        val allowed = if (bucket == PROFILE_BUCKET) {
-            setOf("image/jpeg", "image/png", "image/webp")
-        } else {
-            setOf("application/pdf")
+        val allowed = when (bucket) {
+            PROFILE_BUCKET -> setOf("image/jpeg", "image/png", "image/webp")
+            DOCUMENT_BUCKET -> setOf("application/pdf")
+            MEDIA_BUCKET -> setOf(
+                "image/jpeg", "image/png", "image/webp",
+                "application/pdf",
+                "audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/ogg", "audio/mp4", "audio/aac",
+                "video/mp4", "video/webm", "video/quicktime", "video/3gpp"
+            )
+            else -> emptySet()
         }
         if (mime !in allowed) {
             throw IllegalArgumentException(
-                if (bucket == PROFILE_BUCKET) "Selecione uma imagem JPEG, PNG ou WebP."
-                else "Selecione um arquivo PDF."
+                when (bucket) {
+                    PROFILE_BUCKET -> "Selecione uma imagem JPEG, PNG ou WebP."
+                    DOCUMENT_BUCKET -> "Selecione um arquivo PDF."
+                    else -> "Selecione um formato de mídia compatível."
+                }
             )
         }
 
@@ -229,6 +253,20 @@ object StorageManager {
         bucket = DOCUMENT_BUCKET,
         targetUid = uid,
         maxBytes = MAX_DOCUMENT_BYTES,
+        onProgress = onProgress
+    )
+
+    suspend fun uploadMediaAsset(
+        context: Context,
+        uri: Uri,
+        uid: String,
+        onProgress: ((Float) -> Unit)? = null
+    ): StorageUploadResult = uploadToGateway(
+        context = context,
+        uri = uri,
+        bucket = MEDIA_BUCKET,
+        targetUid = uid,
+        maxBytes = MAX_MEDIA_BYTES,
         onProgress = onProgress
     )
 
@@ -329,51 +367,16 @@ object StorageManager {
         File(context.filesDir, "profile_photos/${uid}_profile.jpg").delete()
     }
 
-    /** Mantém uploads de mídia legados fora do escopo dos buckets privados de perfil/documentos. */
+    /** Compatibilidade para telas antigas: todos os uploads gerais agora usam o Supabase. */
     suspend fun uploadFile(
         context: Context,
         uri: Uri,
         path: String,
         onProgress: ((Float) -> Unit)? = null
-    ): String = withContext(Dispatchers.IO) {
-        var tempFile: File? = null
-        try {
-            tempFile = File(context.cacheDir, "legacy_upload_${System.currentTimeMillis()}")
-            context.contentResolver.openInputStream(uri)?.use { input ->
-                FileOutputStream(tempFile).use { output -> input.copyTo(output) }
-            } ?: return@withContext ""
-            if (!tempFile.exists() || tempFile.length() == 0L) return@withContext ""
-
-            val mimeType = context.contentResolver.getType(uri) ?: "application/octet-stream"
-            val extension = extensionForMime(mimeType).ifBlank {
-                when {
-                    mimeType.startsWith("video/") -> ".mp4"
-                    mimeType.startsWith("audio/") -> ".mp3"
-                    else -> ""
-                }
-            }
-            val uploadFile = if (extension.isNotEmpty()) {
-                File(tempFile.absolutePath + extension).also { tempFile.renameTo(it) }
-            } else tempFile
-            val requestBody = MultipartBody.Builder()
-                .setType(MultipartBody.FORM)
-                .addFormDataPart("reqtype", "fileupload")
-                .addFormDataPart("fileToUpload", uploadFile.name, uploadFile.asRequestBody(mimeType.toMediaTypeOrNull()))
-                .build()
-            onProgress?.invoke(0.3f)
-            val request = Request.Builder().url("https://catbox.moe/user/api.php").post(requestBody).build()
-            client.newCall(request).execute().use { response ->
-                val body = response.body?.string().orEmpty()
-                if (response.isSuccessful && body.isNotBlank()) {
-                    onProgress?.invoke(1f)
-                    body
-                } else ""
-            }
-        } catch (e: Exception) {
-            Log.e("StorageManager", "Upload legado falhou", e)
-            ""
-        } finally {
-            tempFile?.delete()
+    ): String {
+        val uid = resolveStorageTargetUid()
+        return uploadMediaAsset(context, uri, uid, onProgress).let { result ->
+            result.signedUrl.ifBlank { result.storagePath }
         }
     }
 }

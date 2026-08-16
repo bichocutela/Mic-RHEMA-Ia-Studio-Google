@@ -150,7 +150,8 @@ fun LocalUploadField(
                         uri = uri,
                         path = "uploads",
                         onProgress = { progress -> uploadProgress.floatValue = progress.coerceIn(0f, 1f) },
-                        targetUid = targetUid
+                        targetUid = targetUid,
+                        mimeTypeHint = mimeType
                     )
                     if (!url.isNullOrBlank()) {
                         onValueChange(url)

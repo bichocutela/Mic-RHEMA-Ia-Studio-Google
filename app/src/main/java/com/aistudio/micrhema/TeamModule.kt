@@ -355,7 +355,7 @@ fun TeamMemberDialog(
             isUploading = true
             uploadProgress = 0f
             scope.launch {
-                val uploadedUrl = StorageManager.uploadFile(context, uri, "equipe") { progress ->
+                val uploadedUrl = StorageHelper.uploadFile(context, uri, "equipe") { progress ->
                     uploadProgress = progress
                 }
                 if (uploadedUrl.isNotEmpty()) {
