@@ -125,7 +125,8 @@ fun IbrMainScreen(
                                 completedModules = completedModules,
                                 remainingModules = totalModules - completedModules,
                                 totalTime = totalTime,
-                                certificateUrl = loggedInMember.ibrCertificateUrl
+                                certificateUrl = loggedInMember.ibrCertificateUrl,
+                                recipientEmail = loggedInMember.email
                             )
                         }
                         if (nextLesson != null) {
@@ -177,7 +178,8 @@ fun IbrProgressCard(
     completedModules: Int,
     remainingModules: Int,
     totalTime: Int,
-    certificateUrl: String
+    certificateUrl: String,
+    recipientEmail: String
 ) {
     val animatedProgress by animateFloatAsState(targetValue = progress, animationSpec = tween(1000))
     val context = LocalContext.current
@@ -217,15 +219,11 @@ fun IbrProgressCard(
             HorizontalDivider(color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.1f))
             Spacer(modifier = Modifier.height(16.dp))
             
-            if (progress >= 1.0f) {
+            if (progress >= 1.0f && certificateUrl.isNotBlank()) {
                 Button(
                     onClick = {
-                        if (certificateUrl.isNotEmpty()) {
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(certificateUrl))
-                            context.startActivity(intent)
-                        } else {
-                            android.widget.Toast.makeText(context, "Seu certificado está sendo gerado pela secretaria. Aguarde!", android.widget.Toast.LENGTH_LONG).show()
-                        }
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(certificateUrl))
+                        context.startActivity(intent)
                     },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
@@ -234,6 +232,32 @@ fun IbrProgressCard(
                     Icon(Icons.Default.EmojiEvents, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Ver Certificado")
+                }
+                if (recipientEmail.isNotBlank()) {
+                    OutlinedButton(
+                        onClick = {
+                            val emailIntent = CertificateEmailShare.createLinkIntent(recipientEmail.trim(), certificateUrl)
+                            if (emailIntent.resolveActivity(context.packageManager) != null) context.startActivity(emailIntent)
+                            else android.widget.Toast.makeText(context, "Nenhum aplicativo de e-mail disponível.", android.widget.Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.Email, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Enviar por e-mail")
+                    }
+                }
+            } else if (progress >= 1.0f) {
+                OutlinedButton(
+                    onClick = { },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = false,
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.Schedule, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Certificado em processamento")
                 }
             } else {
                 OutlinedButton(
