@@ -60,6 +60,7 @@ fun ProfileScreen(
     var birthDate by remember { mutableStateOf(formatBirthDateInput(loggedInMember.birthDate)) }
     var email by remember { mutableStateOf(loggedInMember.email) }
     var selectedAvatarId by remember { mutableStateOf(loggedInMember.avatarId.ifBlank { DEFAULT_BIBLICAL_AVATAR_ID }) }
+    var equippedBadgeId by remember { mutableStateOf(loggedInMember.equippedBadgeId.ifBlank { DEFAULT_BIBLICAL_BADGE_ID }) }
 
     var isEditingName by remember { mutableStateOf(false) }
     var isEditingPhone by remember { mutableStateOf(false) }
@@ -70,14 +71,16 @@ fun ProfileScreen(
     var showAvatarPicker by remember { mutableStateOf(false) }
     var showAvatarPreview by remember { mutableStateOf(false) }
     val selectedAvatar = biblicalAvatarForId(selectedAvatarId)
+    val equippedBadge = biblicalBadgeForId(equippedBadgeId)
 
-    LaunchedEffect(loggedInMember.id, loggedInMember.name, loggedInMember.phone, loggedInMember.address, loggedInMember.birthDate, loggedInMember.email, loggedInMember.avatarId) {
+    LaunchedEffect(loggedInMember.id, loggedInMember.name, loggedInMember.phone, loggedInMember.address, loggedInMember.birthDate, loggedInMember.email, loggedInMember.avatarId, loggedInMember.equippedBadgeId) {
         if (!isEditingName) name = loggedInMember.name
         if (!isEditingPhone) phone = loggedInMember.phone
         if (!isEditingAddress) address = loggedInMember.address
         if (!isEditingBirthDate) birthDate = formatBirthDateInput(loggedInMember.birthDate)
         if (!isEditingEmail) email = loggedInMember.email
         selectedAvatarId = loggedInMember.avatarId.ifBlank { DEFAULT_BIBLICAL_AVATAR_ID }
+        equippedBadgeId = loggedInMember.equippedBadgeId.ifBlank { DEFAULT_BIBLICAL_BADGE_ID }
     }
 
     Scaffold(
@@ -121,18 +124,18 @@ fun ProfileScreen(
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    BiblicalAvatarImage(
+                    BiblicalAvatarWithBadge(
                         avatar = selectedAvatar,
-                        modifier = Modifier
-                            .size(76.dp)
-                            .clip(CircleShape)
-                            .clickable { showAvatarPreview = true },
+                        badge = equippedBadge,
+                        modifier = Modifier.size(96.dp),
+                        onClick = { showAvatarPreview = true },
                         contentDescription = "Ver avatar bíblico de ${selectedAvatar.displayName} em tamanho ampliado"
                     )
                     Spacer(modifier = Modifier.width(14.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Seu avatar bíblico", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         Text(selectedAvatar.displayName, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Nível ${equippedBadge.level ?: 1}: ${equippedBadge.name}", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                         Text("Toque no avatar para ampliar.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     TextButton(onClick = { showAvatarPicker = true }) {
@@ -249,14 +252,21 @@ fun ProfileScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text("Seu avatar bíblico", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    BiblicalAvatarImage(
+                    BiblicalAvatarWithBadge(
                         avatar = selectedAvatar,
-                        modifier = Modifier.size(240.dp).clip(CircleShape),
+                        badge = equippedBadge,
+                        modifier = Modifier.size(280.dp),
                         contentDescription = "Avatar ampliado de ${selectedAvatar.displayName}"
                     )
                     Text(selectedAvatar.displayName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "Este é o avatar exibido no seu perfil.",
+                        "Nível ${equippedBadge.level ?: 1}: ${equippedBadge.name}",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        equippedBadge.description,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
