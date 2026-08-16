@@ -320,6 +320,22 @@ fun IbrModuleCard(course: IbrCourse, isLocked: Boolean, onClick: () -> Unit) {
         colors = CardDefaults.cardColors(containerColor = if (isLocked) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
+            if (course.imageUrl.isNotBlank()) {
+                coil.compose.AsyncImage(
+                    model = course.imageUrl,
+                    contentDescription = "Capa do curso ${course.title}",
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(14.dp))
+                )
+            } else {
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(110.dp).clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.School, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(48.dp))
+                }
+            }
+            Spacer(modifier = Modifier.height(14.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(course.theme.ifEmpty { "Módulo" }, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 if (isLocked) {
