@@ -64,7 +64,9 @@ fun EditMembersSection() {
         Spacer(Modifier.height(10.dp))
         Text("${filteredMembers.size} membro(s) encontrado(s)", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
         Spacer(Modifier.height(6.dp))
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (filteredMembers.isEmpty()) {
+            AdminEmptyState("Nenhum membro encontrado", "Tente outro nome, telefone ou filtro de status.")
+        } else LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(items = filteredMembers, key = { it.id }) { member ->
                 Card(
                     modifier = Modifier.fillMaxWidth(),

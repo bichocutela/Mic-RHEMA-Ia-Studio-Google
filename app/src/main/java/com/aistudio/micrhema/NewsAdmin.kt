@@ -82,7 +82,9 @@ fun EditNewsSection() {
             }
         }
         Spacer(Modifier.height(8.dp))
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (filteredNews.isEmpty()) {
+            AdminEmptyState("Nenhuma notícia encontrada", "Tente outro título, livro, categoria ou nível.")
+        } else LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(filteredNews) { news ->
                 Card(
                     modifier = Modifier.fillMaxWidth().clickable { editingNews = news; showDialog = true },

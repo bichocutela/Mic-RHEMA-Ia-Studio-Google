@@ -64,6 +64,10 @@ fun EditMediaSection() {
             label = { Text("Buscar livro, áudio, vídeo ou álbum") }
         )
 
+        if (mediaSearchQuery.isNotBlank() && filteredBooks.isEmpty() && filteredAudios.isEmpty() && filteredVideos.isEmpty() && filteredAlbums.isEmpty()) {
+            AdminEmptyState("Nenhuma mídia encontrada", "Tente outro título, autor, artista ou descrição.")
+        }
+
         // ADD BOOK
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
