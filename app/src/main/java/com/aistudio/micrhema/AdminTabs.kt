@@ -51,29 +51,57 @@ fun AdminTabsScreen() {
         }
         
         if (showPreview) {
-            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Preview da Barra de Navegação", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp))
-                    
-                    NavigationBar {
-                        val bottomTabs = appTabsState.filter { it.isVisible && it.showInBottomBar }.sortedBy { it.order }
-                        bottomTabs.forEachIndexed { index, tab ->
-                            NavigationBarItem(
-                                selected = index == 0,
-                                onClick = { },
-                                enabled = false,
-                                icon = { Icon(getIconFromName(tab.iconName), contentDescription = null) },
-                                label = { Text(tab.title) }
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val bottomTabs = appTabsState.filter { it.isVisible && it.showInBottomBar }.sortedBy { it.order }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Visibility, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Prévia do menu inferior", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text(
+                                "Veja como as abas ativas aparecerão para os membros.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                        AssistChip(
+                            onClick = {},
+                            enabled = false,
+                            label = { Text("${bottomTabs.size}/5") }
+                        )
                     }
-                    
-                    if (appTabsState.filter { it.isVisible && it.showInBottomBar }.size > 5) {
+                    if (bottomTabs.isEmpty()) {
                         Text(
-                            "Atenção: A barra de navegação inferior padrão do Android suporta um máximo de 5 itens. Itens adicionais podem não ser exibidos corretamente ou quebrar o layout.",
+                            "Nenhuma aba está configurada para aparecer no menu inferior.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        NavigationBar {
+                            bottomTabs.take(5).forEachIndexed { index, tab ->
+                                NavigationBarItem(
+                                    selected = index == 0,
+                                    onClick = { },
+                                    enabled = false,
+                                    icon = { Icon(getIconFromName(tab.iconName), contentDescription = null) },
+                                    label = { Text(tab.title, maxLines = 1) }
+                                )
+                            }
+                        }
+                    }
+                    if (bottomTabs.size > 5) {
+                        Text(
+                            "Há ${bottomTabs.size} abas selecionadas, mas o menu inferior deve ter no máximo 5. Apenas as cinco primeiras aparecem na prévia.",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.padding(top = 8.dp)
+                            color = MaterialTheme.colorScheme.error
                         )
                     }
                 }
