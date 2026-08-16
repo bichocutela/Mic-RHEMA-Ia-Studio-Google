@@ -183,17 +183,50 @@ fun AdminScreen() {
         }
     }
 
+    fun activateRemoteAdminSession(auth: com.google.firebase.auth.FirebaseAuth) {
+        val uid = auth.currentUser?.uid
+        if (uid.isNullOrBlank()) return
+        com.google.firebase.firestore.FirebaseFirestore.getInstance()
+            .collection("acessos_pendentes")
+            .document(uid)
+            .set(
+                mapOf(
+                    "name" to "Administrador",
+                    "email" to "admin@micrhema.app",
+                    "firebaseUid" to uid,
+                    "isApproved" to true,
+                    "isIbr" to false,
+                    "isAdmin" to true,
+                    "isVip" to false,
+                    "status" to "aprovado",
+                    "updatedAt" to System.currentTimeMillis()
+                ),
+                com.google.firebase.firestore.SetOptions.merge()
+            )
+            .addOnSuccessListener { MemberManager.syncFromFirestore(context) }
+            .addOnFailureListener { error ->
+                android.util.Log.e("AdminScreen", "A sessão Firebase foi autenticada, mas o documento admin foi recusado", error)
+            }
+    }
+
     LaunchedEffect(isAuthenticated) {
         if (isAuthenticated) {
-            MemberManager.syncFromFirestore(context)
             val firebaseAuth = com.google.firebase.auth.FirebaseAuth.getInstance()
-            if (firebaseAuth.currentUser == null) {
-                firebaseAuth.signInAnonymously().addOnCompleteListener {
-                    if (it.isSuccessful) MemberManager.syncFromFirestore(context)
-                    else android.util.Log.w("AdminScreen", "Não foi possível autenticar a sessão interna do painel", it.exception)
-                }
+            val adminEmail = "admin@micrhema.app"
+            if (firebaseAuth.currentUser?.email == adminEmail) {
+                activateRemoteAdminSession(firebaseAuth)
             } else {
-                MemberManager.syncFromFirestore(context)
+                // Não reutilizar uma sessão anônima/local para o painel administrativo.
+                firebaseAuth.signOut()
+                firebaseAuth.signInWithEmailAndPassword(adminEmail, "igreja10")
+                    .addOnSuccessListener { activateRemoteAdminSession(firebaseAuth) }
+                    .addOnFailureListener {
+                        firebaseAuth.createUserWithEmailAndPassword(adminEmail, "igreja10")
+                            .addOnSuccessListener { activateRemoteAdminSession(firebaseAuth) }
+                            .addOnFailureListener { error ->
+                                android.util.Log.e("AdminScreen", "Falha ao autenticar a sessão remota do administrador", error)
+                            }
+                    }
             }
         }
     }
