@@ -73,8 +73,9 @@ fun AdminTabsScreen() {
         }
         Spacer(modifier = Modifier.height(16.dp))
 
+        val orderedTabs = appTabsState.sortedBy { it.order }
         LazyColumn {
-            items(appTabsState.sortedBy { it.order }) { tab ->
+            items(orderedTabs) { tab ->
                 Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                     Row(
                         modifier = Modifier.padding(16.dp).fillMaxWidth(),
@@ -113,6 +114,18 @@ fun AdminTabsScreen() {
                                 }
                             )
                             Spacer(modifier = Modifier.width(8.dp))
+                            IconButton(
+                                onClick = { moveAdminTab(tab.id, -1) },
+                                enabled = orderedTabs.indexOfFirst { it.id == tab.id } > 0
+                            ) {
+                                Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Mover ${tab.title} para cima")
+                            }
+                            IconButton(
+                                onClick = { moveAdminTab(tab.id, 1) },
+                                enabled = orderedTabs.indexOfFirst { it.id == tab.id } in 0 until (orderedTabs.size - 1)
+                            ) {
+                                Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Mover ${tab.title} para baixo")
+                            }
                             if (tab.systemRoute == null) {
                                 IconButton(onClick = {
                                     appTabsState.removeIf { it.id == tab.id }
@@ -225,4 +238,23 @@ fun AdminTabsScreen() {
             }
         )
     }
+}
+
+
+private fun moveAdminTab(tabId: String, direction: Int) {
+    val orderedTabs = appTabsState.sortedBy { it.order }
+    val currentIndex = orderedTabs.indexOfFirst { it.id == tabId }
+    val targetIndex = currentIndex + direction
+    if (currentIndex < 0 || targetIndex !in orderedTabs.indices) return
+
+    val current = orderedTabs[currentIndex]
+    val target = orderedTabs[targetIndex]
+    val currentIndexInState = appTabsState.indexOfFirst { it.id == current.id }
+    val targetIndexInState = appTabsState.indexOfFirst { it.id == target.id }
+    val updatedCurrent = current.copy(order = target.order)
+    val updatedTarget = target.copy(order = current.order)
+    if (currentIndexInState >= 0) appTabsState[currentIndexInState] = updatedCurrent
+    if (targetIndexInState >= 0) appTabsState[targetIndexInState] = updatedTarget
+    addAppTab(updatedCurrent)
+    addAppTab(updatedTarget)
 }

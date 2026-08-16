@@ -32,6 +32,11 @@ fun AdminDashboard(onNavigate: (AdminSection) -> Unit, paddingValues: PaddingVal
     val pendingCount = memberRequestsState.count { !it.isApproved && it.status != "aprovado" }
     val ibrCount = memberRequestsState.count { it.isIbr }
     val mediaCount = contentBooksState.size + contentAudiosState.size + contentVideosState.size + contentAlbumsState.size
+    var contentExpanded by remember { mutableStateOf(true) }
+    var teachingExpanded by remember { mutableStateOf(true) }
+    var churchExpanded by remember { mutableStateOf(true) }
+    var membersExpanded by remember { mutableStateOf(true) }
+    var systemExpanded by remember { mutableStateOf(false) }
 
     LazyColumn(
         contentPadding = PaddingValues(
@@ -138,29 +143,39 @@ fun AdminDashboard(onNavigate: (AdminSection) -> Unit, paddingValues: PaddingVal
 
         item { AdminSectionHeading(title = "Módulos administrativos", subtitle = "Gerencie o conteúdo e a estrutura do MIC Rhema.") }
 
-        item { AdminCategoryTitle("CONTEÚDO") }
-        item { AdminMenuItem("Devocionais", "Mensagens e reflexões", Icons.Default.Book, { onNavigate(AdminSection.DEVOTIONALS) }) }
-        item { AdminMenuItem("Notícias", "Informativos e avisos", Icons.Default.Article, { onNavigate(AdminSection.NEWS) }) }
-        item { AdminMenuItem("Mídia", "Áudios, vídeos, livros e álbuns", Icons.Default.PlayArrow, { onNavigate(AdminSection.MEDIA) }) }
-        item { AdminMenuItem("Planos Bíblicos", "Planos e jornadas de leitura", Icons.Default.MenuBook, { onNavigate(AdminSection.PLANS) }) }
+        item { AdminCategoryTitle("CONTEÚDO", contentExpanded) { contentExpanded = !contentExpanded } }
+        if (contentExpanded) {
+            item { AdminMenuItem("Devocionais", "Mensagens e reflexões", Icons.Default.Book, { onNavigate(AdminSection.DEVOTIONALS) }) }
+            item { AdminMenuItem("Notícias", "Informativos e avisos", Icons.Default.Article, { onNavigate(AdminSection.NEWS) }) }
+            item { AdminMenuItem("Mídia", "Áudios, vídeos, livros e álbuns", Icons.Default.PlayArrow, { onNavigate(AdminSection.MEDIA) }) }
+            item { AdminMenuItem("Planos Bíblicos", "Planos e jornadas de leitura", Icons.Default.MenuBook, { onNavigate(AdminSection.PLANS) }) }
+        }
 
-        item { AdminCategoryTitle("ENSINO") }
-        item { AdminMenuItem("Instituto Bíblico Rhema", "Cursos e formação bíblica", Icons.Default.WorkspacePremium, { onNavigate(AdminSection.IBR) }) }
+        item { AdminCategoryTitle("ENSINO", teachingExpanded) { teachingExpanded = !teachingExpanded } }
+        if (teachingExpanded) {
+            item { AdminMenuItem("Instituto Bíblico Rhema", "Cursos e formação bíblica", Icons.Default.WorkspacePremium, { onNavigate(AdminSection.IBR) }) }
+        }
 
-        item { AdminCategoryTitle("IGREJA") }
-        item { AdminMenuItem("Cultos", "Agenda e programação", Icons.Default.Event, { onNavigate(AdminSection.SERVICES) }) }
-        item { AdminMenuItem("Destaques", "Banners e eventos da tela inicial", Icons.Default.ViewCarousel, { onNavigate(AdminSection.BANNERS) }) }
-        item { AdminMenuItem("Dízimos e Ofertas", "Contas, PIX e informações", Icons.Default.MonetizationOn, { onNavigate(AdminSection.DONATIONS) }) }
-        item { AdminMenuItem("Equipe", "Líderes, pastores e ministérios", Icons.Default.Groups, { onNavigate(AdminSection.TEAM) }) }
+        item { AdminCategoryTitle("IGREJA", churchExpanded) { churchExpanded = !churchExpanded } }
+        if (churchExpanded) {
+            item { AdminMenuItem("Cultos", "Agenda e programação", Icons.Default.Event, { onNavigate(AdminSection.SERVICES) }) }
+            item { AdminMenuItem("Destaques", "Banners e eventos da tela inicial", Icons.Default.ViewCarousel, { onNavigate(AdminSection.BANNERS) }) }
+            item { AdminMenuItem("Dízimos e Ofertas", "Contas, PIX e informações", Icons.Default.MonetizationOn, { onNavigate(AdminSection.DONATIONS) }) }
+            item { AdminMenuItem("Equipe", "Líderes, pastores e ministérios", Icons.Default.Groups, { onNavigate(AdminSection.TEAM) }) }
+        }
 
-        item { AdminCategoryTitle("MEMBROS") }
-        item { AdminMenuItem("Membros", "Aprovações e permissões", Icons.Default.People, { onNavigate(AdminSection.MEMBERS) }) }
-        item { AdminMenuItem("Perfis dos Membros", "Dados e informações dos usuários", Icons.Default.AccountBox, { onNavigate(AdminSection.PROFILES) }) }
+        item { AdminCategoryTitle("MEMBROS", membersExpanded) { membersExpanded = !membersExpanded } }
+        if (membersExpanded) {
+            item { AdminMenuItem("Membros", "Aprovações e permissões", Icons.Default.People, { onNavigate(AdminSection.MEMBERS) }) }
+            item { AdminMenuItem("Perfis dos Membros", "Dados e informações dos usuários", Icons.Default.AccountBox, { onNavigate(AdminSection.PROFILES) }) }
+        }
 
-        item { AdminCategoryTitle("SISTEMA") }
-        item { AdminMenuItem("Abas do Aplicativo", "Organização dos atalhos e seções", Icons.Default.Tab, { onNavigate(AdminSection.TABS) }) }
-        item { AdminMenuItem("Configurações", "Preferências gerais do aplicativo", Icons.Default.Settings, { onNavigate(AdminSection.SETTINGS) }) }
-        item { AdminMenuItem("Sobre", "Informações institucionais", Icons.Default.Info, { onNavigate(AdminSection.ABOUT) }) }
+        item { AdminCategoryTitle("SISTEMA", systemExpanded) { systemExpanded = !systemExpanded } }
+        if (systemExpanded) {
+            item { AdminMenuItem("Abas do Aplicativo", "Organização dos atalhos e seções", Icons.Default.Tab, { onNavigate(AdminSection.TABS) }) }
+            item { AdminMenuItem("Configurações", "Preferências gerais do aplicativo", Icons.Default.Settings, { onNavigate(AdminSection.SETTINGS) }) }
+            item { AdminMenuItem("Sobre", "Informações institucionais", Icons.Default.Info, { onNavigate(AdminSection.ABOUT) }) }
+        }
     }
 }
 
@@ -294,8 +309,17 @@ fun AdminAttentionCard(message: String, actionText: String, icon: ImageVector, o
 }
 
 @Composable
-fun AdminCategoryTitle(title: String) {
-    Text(title, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 14.dp, bottom = 2.dp))
+fun AdminCategoryTitle(title: String, expanded: Boolean = true, onToggle: () -> Unit = {}) {
+    Surface(
+        shape = RoundedCornerShape(11.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+        modifier = Modifier.fillMaxWidth().clickable { onToggle() }
+    ) {
+        Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(title, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
+            Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, contentDescription = if (expanded) "Recolher $title" else "Expandir $title", tint = MaterialTheme.colorScheme.primary)
+        }
+    }
 }
 
 @Composable
