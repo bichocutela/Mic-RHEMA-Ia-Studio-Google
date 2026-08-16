@@ -175,9 +175,13 @@ object StorageManager {
         bucket: String,
         targetUid: String,
         maxBytes: Long,
-        onProgress: ((Float) -> Unit)? = null
+        onProgress: ((Float) -> Unit)? = null,
+        mimeTypeHint: String? = null
     ): StorageUploadResult = withContext(Dispatchers.IO) {
-        val mime = mimeType(context, uri)
+        val detectedMime = mimeType(context, uri)
+        val mime = mimeTypeHint?.lowercase()?.substringBefore(';')
+            ?.takeIf { it.isNotBlank() && it != "*/*" && !it.endsWith("/*") }
+            ?: detectedMime
         val allowed = when (bucket) {
             PROFILE_BUCKET -> setOf("image/jpeg", "image/png", "image/webp")
             DOCUMENT_BUCKET -> setOf("application/pdf")
@@ -246,28 +250,32 @@ object StorageManager {
         context: Context,
         uri: Uri,
         uid: String,
-        onProgress: ((Float) -> Unit)? = null
+        onProgress: ((Float) -> Unit)? = null,
+        mimeTypeHint: String? = null
     ): StorageUploadResult = uploadToGateway(
         context = context,
         uri = uri,
         bucket = DOCUMENT_BUCKET,
         targetUid = uid,
         maxBytes = MAX_DOCUMENT_BYTES,
-        onProgress = onProgress
+        onProgress = onProgress,
+        mimeTypeHint = mimeTypeHint
     )
 
     suspend fun uploadMediaAsset(
         context: Context,
         uri: Uri,
         uid: String,
-        onProgress: ((Float) -> Unit)? = null
+        onProgress: ((Float) -> Unit)? = null,
+        mimeTypeHint: String? = null
     ): StorageUploadResult = uploadToGateway(
         context = context,
         uri = uri,
         bucket = MEDIA_BUCKET,
         targetUid = uid,
         maxBytes = MAX_MEDIA_BYTES,
-        onProgress = onProgress
+        onProgress = onProgress,
+        mimeTypeHint = mimeTypeHint
     )
 
     suspend fun getSignedUrl(

@@ -25,10 +25,10 @@ object StorageHelper {
             }
 
             if (path == "uploads" && mimeType == "application/pdf" && !targetUid.isNullOrBlank()) {
-                StorageManager.uploadChurchDocument(context, uri, targetUid, onProgress).storagePath
+                StorageManager.uploadChurchDocument(context, uri, targetUid, onProgress, mimeType).storagePath
             } else {
                 val uid = targetUid ?: StorageManager.resolveStorageTargetUid()
-                StorageManager.uploadMediaAsset(context, uri, uid, onProgress).let { result ->
+                StorageManager.uploadMediaAsset(context, uri, uid, onProgress, mimeType).let { result ->
                     result.signedUrl.ifBlank { result.storagePath }
                 }
             }
