@@ -84,13 +84,12 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                 isVip = false,
                 isIbr = false
             )
-            // A solicitação oficial será lida pelo listener do Firestore.
-            // Mantemos apenas a sessão atual em memória para exibir o estado de envio.
-            MemberManager.setLoggedInMember(context, newRequest)
+            // A solicitação só será considerada criada depois da confirmação remota.
             MemberManager.saveToFirestore(
                 context,
                 newRequest,
                 onSuccess = {
+                    MemberManager.setLoggedInMember(context, newRequest)
                     isLoading = false
                     android.widget.Toast.makeText(context, "Solicitação enviada. Aguarde a aprovação do administrador.", android.widget.Toast.LENGTH_LONG).show()
                     onLoginSuccess()

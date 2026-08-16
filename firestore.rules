@@ -7,9 +7,17 @@ service cloud.firestore {
 
     function isAdmin() {
       return signedIn() && (
+        request.auth.token.email == 'admin@micrhema.app' ||
         request.auth.token.isAdmin == true ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true ||
+        get(/databases/$(database)/documents/acessos_pendentes/$(request.auth.uid)).data.isAdmin == true
       );
+    }
+
+    function newPendingRequest() {
+      return request.resource.data.isApproved == false
+        && request.resource.data.isIbr == false
+        && request.resource.data.isAdmin == false;
     }
 
     function isOwner(userId) {
@@ -124,9 +132,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Dados administrativos e pessoais não têm leitura pública global.
+    // Solicitações são criadas na nuvem como pendentes e só o ADM pode alterá-las.
     match /acessos_pendentes/{document} {
-      allow read, write: if isAdmin();
+      allow read: if signedIn();
+      allow create: if isAdmin() || (signedIn() && newPendingRequest());
+      allow update, delete: if isAdmin();
     }
     match /prayer_requests/{document} {
       allow create: if signedIn();
