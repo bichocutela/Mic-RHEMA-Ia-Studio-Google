@@ -39,6 +39,12 @@ fun EditMembersSection() {
     var newMemberName by remember { mutableStateOf("") }
     var newMemberPhone by remember { mutableStateOf("") }
     var isSavingMember by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        // A tela de membros sempre reabre a sincronização para listar os documentos atuais.
+        MemberManager.syncFromFirestore(context)
+    }
+
     val filteredMembers = memberRequestsState.filter { member ->
         val matchesQuery = searchQuery.isBlank() || member.name.contains(searchQuery, ignoreCase = true) || member.phone.contains(searchQuery, ignoreCase = true)
         val matchesStatus = when (statusFilter) {

@@ -474,13 +474,29 @@ object MemberManager {
             it.startsWith("http://") || it.startsWith("https://")
         }.orEmpty()
         saveMembers(context)
-        if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isEmpty()) {
-            onSuccess()
+        val firebaseReady = runCatching {
+            com.google.firebase.FirebaseApp.getApps(context).isNotEmpty()
+        }.getOrDefault(false)
+        if (!firebaseReady) {
+            onFailure(IllegalStateException("O Firebase não está inicializado nesta versão do aplicativo."))
             return
         }
+        val completed = java.util.concurrent.atomic.AtomicBoolean(false)
+        fun finishSuccess() {
+            if (completed.compareAndSet(false, true)) onSuccess()
+        }
+        fun finishFailure(error: Exception) {
+            if (completed.compareAndSet(false, true)) onFailure(error)
+        }
+
+        val timeoutHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        val timeoutRunnable = Runnable {
+            finishFailure(IllegalStateException("O Firebase demorou mais que 15 segundos para salvar. Verifique a conexão e as regras do Firestore."))
+        }
+        timeoutHandler.postDelayed(timeoutRunnable, 15_000L)
+
         try {
             val db = Firebase.firestore
-
             val memberMap = hashMapOf<String, Any>(
                 "name" to member.name,
                 "firebaseUid" to member.firebaseUid,
@@ -512,18 +528,37 @@ object MemberManager {
             } else if (member.profilePhotoUrl.isBlank() || remoteProfilePhotoUrl.isNotBlank()) {
                 memberMap["profilePhotoUrl"] = remoteProfilePhotoUrl
             }
-            db.collection("acessos_pendentes").document(member.id).set(memberMap, com.google.firebase.firestore.SetOptions.merge())
-                .addOnSuccessListener { 
-                    Log.d("MemberManager", "Document successfully written!") 
-                    onSuccess()
-                }
-                .addOnFailureListener { e -> 
-                    Log.w("MemberManager", "Error writing document", e)
-                    onFailure(e)
-                }
+
+            fun writeDocument() {
+                db.collection("acessos_pendentes").document(member.id)
+                    .set(memberMap, com.google.firebase.firestore.SetOptions.merge())
+                    .addOnSuccessListener {
+                        timeoutHandler.removeCallbacks(timeoutRunnable)
+                        Log.d("MemberManager", "Documento de membro gravado no Firestore")
+                        finishSuccess()
+                    }
+                    .addOnFailureListener { error ->
+                        timeoutHandler.removeCallbacks(timeoutRunnable)
+                        Log.e("MemberManager", "Falha ao gravar documento de membro", error)
+                        finishFailure(error)
+                    }
+            }
+
+            val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
+            if (auth.currentUser != null) {
+                writeDocument()
+            } else {
+                auth.signInAnonymously()
+                    .addOnSuccessListener { writeDocument() }
+                    .addOnFailureListener { error ->
+                        timeoutHandler.removeCallbacks(timeoutRunnable)
+                        finishFailure(error)
+                    }
+            }
         } catch (e: Exception) {
-            Log.e("MemberManager", "Firestore not initialized or error", e)
-            onFailure(e)
+            timeoutHandler.removeCallbacks(timeoutRunnable)
+            Log.e("MemberManager", "Erro ao preparar gravação no Firestore", e)
+            finishFailure(e)
         }
     }
 

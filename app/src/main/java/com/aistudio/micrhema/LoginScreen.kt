@@ -102,7 +102,10 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
             )
         }
 
-        if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
+        val firebaseReady = runCatching {
+            com.google.firebase.FirebaseApp.getApps(context).isNotEmpty()
+        }.getOrDefault(false)
+        if (firebaseReady) {
             com.google.firebase.firestore.FirebaseFirestore.getInstance()
                 .collection("acessos_pendentes")
                 .get()
