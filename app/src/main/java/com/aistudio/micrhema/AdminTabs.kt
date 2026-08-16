@@ -1,5 +1,6 @@
 package com.aistudio.micrhema
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -86,62 +87,109 @@ fun AdminTabsScreen() {
             contentPadding = PaddingValues(bottom = 24.dp)
         ) {
             items(orderedTabs) { tab ->
-                Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                    Row(
-                        modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                val tabTypeLabel = if (tab.systemRoute != null) "Sistema" else "Personalizada"
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (tab.isVisible) 0.55f else 0.3f)
+                    ),
+                    border = BorderStroke(
+                        1.dp,
+                        if (tab.isVisible) MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+                        else MaterialTheme.colorScheme.outlineVariant
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(tab.title, fontWeight = FontWeight.Bold)
-                            Text("Ícone: ${tab.iconName} | Tipo: ${tab.type.name}", style = MaterialTheme.typography.bodySmall)
-                            Text(if (tab.systemRoute != null) "Aba do Sistema" else "Aba Personalizada", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-                        }
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Menu Inferior", style = MaterialTheme.typography.labelSmall)
-                            Switch(
-                                checked = tab.showInBottomBar,
-                                onCheckedChange = { checked ->
-                                    val idx = appTabsState.indexOfFirst { it.id == tab.id }
-                                    if (idx != -1) {
-                                        val updated = tab.copy(showInBottomBar = checked)
-                                        appTabsState[idx] = updated
-                                        addAppTab(updated)
-                                    }
+                            Icon(
+                                getIconFromName(tab.iconName),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(tab.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                Text(
+                                    "$tabTypeLabel • Ícone ${tab.iconName}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            AssistChip(
+                                onClick = {},
+                                enabled = false,
+                                label = { Text(if (tab.isVisible) "Ativa" else "Oculta") },
+                                leadingIcon = {
+                                    Icon(
+                                        if (tab.isVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
                                 }
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Visível", style = MaterialTheme.typography.labelSmall)
-                            Switch(
-                                checked = tab.isVisible,
-                                onCheckedChange = { checked ->
-                                    val idx = appTabsState.indexOfFirst { it.id == tab.id }
-                                    if (idx != -1) {
-                                        val updated = tab.copy(isVisible = checked)
-                                        appTabsState[idx] = updated
-                                        addAppTab(updated)
-                                    }
+                        }
+                        HorizontalDivider()
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("Visível", style = MaterialTheme.typography.labelLarge)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Switch(
+                                        checked = tab.isVisible,
+                                        onCheckedChange = { checked ->
+                                            val idx = appTabsState.indexOfFirst { it.id == tab.id }
+                                            if (idx != -1) {
+                                                val updated = tab.copy(isVisible = checked)
+                                                appTabsState[idx] = updated
+                                                addAppTab(updated)
+                                            }
+                                        }
+                                    )
                                 }
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            IconButton(
-                                onClick = { moveAdminTab(tab.id, -1) },
-                                enabled = orderedTabs.indexOfFirst { it.id == tab.id } > 0
-                            ) {
-                                Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Mover ${tab.title} para cima")
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("Menu inferior", style = MaterialTheme.typography.labelLarge)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Switch(
+                                        checked = tab.showInBottomBar,
+                                        onCheckedChange = { checked ->
+                                            val idx = appTabsState.indexOfFirst { it.id == tab.id }
+                                            if (idx != -1) {
+                                                val updated = tab.copy(showInBottomBar = checked)
+                                                appTabsState[idx] = updated
+                                                addAppTab(updated)
+                                            }
+                                        }
+                                    )
+                                }
                             }
-                            IconButton(
-                                onClick = { moveAdminTab(tab.id, 1) },
-                                enabled = orderedTabs.indexOfFirst { it.id == tab.id } in 0 until (orderedTabs.size - 1)
-                            ) {
-                                Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Mover ${tab.title} para baixo")
-                            }
-                            if (tab.systemRoute == null) {
-                                IconButton(onClick = {
-                                    appTabsState.removeIf { it.id == tab.id }
-                                    removeAppTab(tab)
-                                }) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Remover", tint = MaterialTheme.colorScheme.error)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(
+                                    onClick = { moveAdminTab(tab.id, -1) },
+                                    enabled = orderedTabs.indexOfFirst { it.id == tab.id } > 0
+                                ) {
+                                    Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Mover ${tab.title} para cima")
+                                }
+                                IconButton(
+                                    onClick = { moveAdminTab(tab.id, 1) },
+                                    enabled = orderedTabs.indexOfFirst { it.id == tab.id } in 0 until (orderedTabs.size - 1)
+                                ) {
+                                    Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Mover ${tab.title} para baixo")
+                                }
+                                if (tab.systemRoute == null) {
+                                    IconButton(onClick = {
+                                        appTabsState.removeIf { it.id == tab.id }
+                                        removeAppTab(tab)
+                                    }) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Remover ${tab.title}", tint = MaterialTheme.colorScheme.error)
+                                    }
                                 }
                             }
                         }
