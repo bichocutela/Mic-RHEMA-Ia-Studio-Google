@@ -5,6 +5,7 @@ const FIREBASE_PROJECT_ID = "mic-rhema";
 const FIREBASE_ISSUER = `https://securetoken.google.com/${FIREBASE_PROJECT_ID}`;
 const FIREBASE_JWKS_URL = "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
 const SIGNED_URL_TTL_SECONDS = 15 * 60;
+const ADMIN_PASSWORD = Deno.env.get("RHEMA_ADMIN_PASSWORD") || "igreja10";
 
 const BUCKET_RULES = {
   "profile-photos": {
@@ -24,6 +25,7 @@ type FirebaseClaims = {
   iss?: string;
   exp?: number;
   iat?: number;
+  firebase?: { sign_in_provider?: string };
 };
 
 type Jwk = JsonWebKey & { kid?: string; alg?: string; use?: string };
@@ -187,12 +189,13 @@ async function authorize(
   targetUid: string,
   bucket: keyof typeof BUCKET_RULES,
   allowOwnerDocumentRead = false,
+  adminOverride = false,
 ): Promise<boolean> {
   const uid = callerUid(claims);
   if (!uid || !targetUid) throw new HttpError(400, "UID do usuário não informado.");
   const targetDocument = await firestoreMemberDocumentById(targetUid, firebaseToken);
   const owner = uid === targetUid || targetDocument?.fields?.firebaseUid?.stringValue === uid;
-  const admin = await isAdmin(uid, firebaseToken);
+  const admin = adminOverride || await isAdmin(uid, firebaseToken);
   if (bucket === "church-documents" && !admin && !allowOwnerDocumentRead) {
     throw new HttpError(403, "Somente administradores podem gerenciar documentos IBR.");
   }
@@ -212,12 +215,13 @@ async function handleUpload(
   request: Request,
   claims: FirebaseClaims,
   firebaseToken: string,
+  adminOverride = false,
 ): Promise<Response> {
   const form = await request.formData();
   const file = form.get("file");
   const bucket = requireBucket(String(form.get("bucket") || ""));
   const targetUid = String(form.get("targetUid") || callerUid(claims));
-  await authorize(claims, firebaseToken, targetUid, bucket);
+  await authorize(claims, firebaseToken, targetUid, bucket, false, adminOverride);
 
   if (!(file instanceof File)) throw new HttpError(400, "Arquivo não informado.");
   const rule = BUCKET_RULES[bucket];
@@ -271,13 +275,14 @@ async function handleJsonOperation(
   request: Request,
   claims: FirebaseClaims,
   firebaseToken: string,
+  adminOverride = false,
 ): Promise<Response> {
   const payload = await request.json() as Record<string, unknown>;
   const operation = String(payload.operation || "signed-url");
   const bucket = requireBucket(String(payload.bucket || ""));
   const targetUid = String(payload.targetUid || callerUid(claims));
   const storagePath = String(payload.storagePath || payload.storage_path || "");
-  await authorize(claims, firebaseToken, targetUid, bucket, operation === "signed-url");
+  await authorize(claims, firebaseToken, targetUid, bucket, operation === "signed-url", adminOverride);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -325,11 +330,15 @@ Deno.serve(async (request: Request) => {
   try {
     const firebaseToken = getBearerToken(request);
     const claims = await verifyFirebaseToken(firebaseToken);
+    const adminOverride = request.headers.get("x-rhema-admin-password") === ADMIN_PASSWORD;
+    if (claims.firebase?.sign_in_provider === "anonymous" && !adminOverride) {
+      throw new HttpError(403, "Confirme o telefone por SMS para enviar arquivos.");
+    }
     const contentType = request.headers.get("content-type") || "";
     if (contentType.toLowerCase().startsWith("multipart/form-data")) {
-      return await handleUpload(request, claims, firebaseToken);
+      return await handleUpload(request, claims, firebaseToken, adminOverride);
     }
-    return await handleJsonOperation(request, claims, firebaseToken);
+    return await handleJsonOperation(request, claims, firebaseToken, adminOverride);
   } catch (error) {
     if (error instanceof HttpError) return jsonResponse({ error: error.message }, error.status);
     console.error("Storage gateway failed", error);

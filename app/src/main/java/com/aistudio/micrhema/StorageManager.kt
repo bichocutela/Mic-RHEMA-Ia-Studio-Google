@@ -55,13 +55,19 @@ object StorageManager {
         return key
     }
 
+    private fun Request.Builder.withAdminAuthorization(): Request.Builder {
+        if (adminAuthenticatedState.value) {
+            header("X-Rhema-Admin-Password", "igreja10")
+        }
+        return this
+    }
+
     private suspend fun firebaseIdToken(context: Context? = null): String = withContext(Dispatchers.IO) {
         val auth = FirebaseAuth.getInstance()
-        var user = auth.currentUser
-        if (user == null) {
-            user = runCatching { auth.signInAnonymously().await().user }.getOrNull()
-                ?: throw IllegalStateException("Não foi possível iniciar a sessão segura para enviar arquivos. Verifique sua conexão e tente novamente.")
-        }
+        val adminMode = adminAuthenticatedState.value
+        val user = auth.currentUser?.takeIf { !it.isAnonymous || adminMode }
+            ?: if (adminMode) runCatching { auth.signInAnonymously().await().user }.getOrNull() else null
+            ?: throw IllegalStateException("Faça login com o código SMS do telefone aprovado antes de enviar arquivos.")
 
         var token: String? = null
         var lastError: Exception? = null
@@ -89,7 +95,7 @@ object StorageManager {
                 lastError
             )
 
-        if (context != null && user != null) {
+        if (context != null && !user.isAnonymous) {
             MemberManager.bindFirebaseUidToLoggedInMember(context, user.uid)
         }
         resolvedToken
@@ -181,6 +187,7 @@ object StorageManager {
                 .url(gatewayUrl())
                 .header("Authorization", "Bearer $token")
                 .header("apikey", publishableKey())
+                .withAdminAuthorization()
                 .post(body)
                 .build()
 
@@ -237,6 +244,7 @@ object StorageManager {
             .url(gatewayUrl())
             .header("Authorization", "Bearer $token")
             .header("apikey", publishableKey())
+            .withAdminAuthorization()
             .header("Content-Type", "application/json")
             .post(payload.toString().toRequestBody("application/json".toMediaTypeOrNull()))
             .build()
@@ -284,6 +292,7 @@ object StorageManager {
             .url(gatewayUrl())
             .header("Authorization", "Bearer $token")
             .header("apikey", publishableKey())
+            .withAdminAuthorization()
             .header("Content-Type", "application/json")
             .post(payload.toString().toRequestBody("application/json".toMediaTypeOrNull()))
             .build()

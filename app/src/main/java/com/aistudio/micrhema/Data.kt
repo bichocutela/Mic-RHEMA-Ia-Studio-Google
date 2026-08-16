@@ -286,6 +286,7 @@ data class MemberRequest(
     var id: String = "",
     var firebaseUid: String = "",
     var name: String = "",
+    var ibrCertificateName: String = "",
     var phone: String = "",
     var email: String = "",
     var isApproved: Boolean = false,
@@ -360,6 +361,7 @@ object MemberManager {
                     val id = document.id
                     val firebaseUid = document.getString("firebaseUid") ?: ""
                     val name = document.getString("name") ?: ""
+                    val ibrCertificateName = document.getString("ibrCertificateName") ?: ""
                     val phone = document.getString("phone") ?: ""
                     val rawIsApproved = document.getBoolean("isApproved") ?: false
                     val rawIsVip = document.getBoolean("isVip") ?: false
@@ -387,6 +389,7 @@ object MemberManager {
                         id = id,
                         firebaseUid = firebaseUid,
                         name = name,
+                        ibrCertificateName = ibrCertificateName,
                         phone = phone,
                         email = email,
                         isApproved = isApproved,
@@ -493,6 +496,7 @@ object MemberManager {
             val memberMap = hashMapOf<String, Any>(
                 "name" to member.name,
                 "firebaseUid" to member.firebaseUid,
+                "ibrCertificateName" to member.ibrCertificateName,
                 "phone" to member.phone,
                 "email" to member.email,
                 "isApproved" to member.isApproved,
@@ -546,6 +550,7 @@ object MemberManager {
                             id = obj.optString("id", ""),
                             firebaseUid = obj.optString("firebaseUid", ""),
                             name = obj.optString("name", ""),
+                            ibrCertificateName = obj.optString("ibrCertificateName", ""),
                             phone = obj.optString("phone", ""),
                             email = obj.optString("email", ""),
                             isApproved = obj.optBoolean("isApproved", false) || obj.optBoolean("isVip", false),
@@ -585,7 +590,7 @@ object MemberManager {
             val member = memberRequestsState.find { it.id == loggedInId }
             if (member != null) {
                 loggedInMemberState.value = member
-        loadIbrProgressFromFirestore()
+                loadIbrProgressFromFirestore()
             }
         }
     }
@@ -599,6 +604,7 @@ object MemberManager {
                 obj.put("id", member.id)
                 obj.put("firebaseUid", member.firebaseUid)
                 obj.put("name", member.name)
+                obj.put("ibrCertificateName", member.ibrCertificateName)
                 obj.put("phone", member.phone)
                 obj.put("email", member.email)
                 obj.put("isApproved", member.isApproved)
@@ -659,6 +665,7 @@ object MemberManager {
         val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
         if (member == null) {
             prefs.edit().remove(KEY_LOGGED_IN_ID).apply()
+            runCatching { com.google.firebase.auth.FirebaseAuth.getInstance().signOut() }
         } else {
             prefs.edit().putString(KEY_LOGGED_IN_ID, member.id).apply()
             UserSettingsManager.loadSettings(context)

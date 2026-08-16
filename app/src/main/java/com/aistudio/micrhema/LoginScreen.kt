@@ -1,22 +1,53 @@
 package com.aistudio.micrhema
 
-import android.app.Activity
-import android.content.Context
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.google.firebase.firestore.DocumentSnapshot
+
+private fun shortMemberName(fullName: String): String {
+    return fullName.trim()
+        .split(Regex("\\s+"))
+        .filter { it.isNotBlank() }
+        .take(2)
+        .joinToString(" ")
+}
+
+private fun memberFromLoginDocument(document: DocumentSnapshot): MemberRequest {
+    val rawName = document.getString("name") ?: ""
+    return MemberRequest(
+        id = document.id,
+        firebaseUid = document.getString("firebaseUid") ?: "",
+        name = shortMemberName(rawName),
+        ibrCertificateName = document.getString("ibrCertificateName").orEmpty().ifBlank { rawName },
+        phone = document.getString("phone") ?: "",
+        email = document.getString("email") ?: "",
+        isApproved = (document.getBoolean("isApproved") ?: false) || (document.getBoolean("isVip") ?: false),
+        isIbr = document.getBoolean("isIbr") ?: false,
+        isAdmin = document.getBoolean("isAdmin") ?: false,
+        ibrCertificateUrl = document.getString("ibrCertificateUrl") ?: "",
+        ibrCertificateStoragePath = document.getString("ibrCertificateStoragePath") ?: "",
+        status = document.getString("status") ?: "pendente",
+        address = document.getString("address") ?: "",
+        birthDate = document.getString("birthDate") ?: "",
+        supabaseStoragePath = document.getString("supabaseStoragePath") ?: ""
+    )
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -25,6 +56,75 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
     var isLoading by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    fun createAccessRequest() {
+        val completeName = name.trim()
+        val cleanPhone = phone.filter { it.isDigit() }
+        if (completeName.isBlank() || cleanPhone.length < 10) {
+            errorMessage = "Preencha seu nome completo e um telefone válido com DDD."
+            return
+        }
+        isLoading = true
+        errorMessage = null
+        val createNewRequest = {
+            val newRequest = MemberRequest(
+                id = java.util.UUID.randomUUID().toString(),
+                name = shortMemberName(completeName),
+                ibrCertificateName = completeName,
+                phone = cleanPhone,
+                isApproved = false,
+                isVip = false,
+                isIbr = false
+            )
+            memberRequestsState.add(newRequest)
+            MemberManager.saveMembers(context)
+            MemberManager.saveToFirestore(
+                context,
+                newRequest,
+                onSuccess = {
+                    isLoading = false
+                    android.widget.Toast.makeText(context, "Solicitação enviada. Aguarde a aprovação do administrador.", android.widget.Toast.LENGTH_LONG).show()
+                    onLoginSuccess()
+                },
+                onFailure = { error ->
+                    isLoading = false
+                    errorMessage = "Não foi possível enviar sua solicitação: ${error.message ?: "verifique sua conexão"}"
+                }
+            )
+        }
+
+        if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
+            com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                .collection("acessos_pendentes")
+                .get()
+                .addOnSuccessListener { snapshot ->
+                    val existing = snapshot.documents.firstOrNull {
+                        (it.getString("phone") ?: "").filter { character -> character.isDigit() } == cleanPhone
+                    }
+                    if (existing != null) {
+                        MemberManager.setLoggedInMember(context, memberFromLoginDocument(existing))
+                        isLoading = false
+                        android.widget.Toast.makeText(context, "Acesso recuperado.", android.widget.Toast.LENGTH_SHORT).show()
+                        onLoginSuccess()
+                    } else {
+                        createNewRequest()
+                    }
+                }
+                .addOnFailureListener {
+                    createNewRequest()
+                }
+        } else {
+            val existing = memberRequestsState.find { it.phone.filter { character -> character.isDigit() } == cleanPhone }
+            if (existing != null) {
+                MemberManager.setLoggedInMember(context, existing)
+                isLoading = false
+                onLoginSuccess()
+            } else {
+                createNewRequest()
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -36,173 +136,73 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
     ) {
         Spacer(modifier = Modifier.height(32.dp))
         Image(
-            painter = painterResource(id = R.drawable.img_rhema_logo),
-            contentDescription = "Logo",
-            modifier = Modifier.size(100.dp)
+            painter = painterResource(id = R.drawable.rhema_login_logo),
+            contentDescription = "Logo Ministério Igreja de Cristo Rhema",
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(210.dp)
+                .padding(horizontal = 12.dp),
+            contentScale = ContentScale.Fit
         )
-        Spacer(modifier = Modifier.height(16.dp))
-        Text("MIC Rhema", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Text("Ministério Igreja de Cristo Rhema", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                
-        Spacer(modifier = Modifier.height(32.dp))
-                
+        Spacer(modifier = Modifier.height(20.dp))
+
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
         ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text("Peça seu acesso", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
+            Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("Peça ou recupere seu acesso", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
                 Spacer(modifier = Modifier.height(12.dp))
-                Text("Preencha os dados abaixo para solicitar ou recuperar seu acesso às abas restritas.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "Informe seus dados para solicitar acesso ou recuperar seu perfil. A validação por SMS será solicitada somente se você tentar trocar sua foto.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Spacer(modifier = Modifier.height(24.dp))
-                                
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Nome e sobrenome") },
-                    placeholder = { Text("Ex: João Silva") },
+                    label = { Text("Nome completo") },
+                    supportingText = { Text("Se aprovado no IBR, será usado no certificado. No app exibiremos seu primeiro nome ou os dois primeiros nomes.") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                        capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words,
-                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Text
-                    )
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text)
                 )
-                                
                 Spacer(modifier = Modifier.height(16.dp))
-                                
                 OutlinedTextField(
                     value = phone,
-                    onValueChange = { phone = it },
+                    onValueChange = { phone = it.filter { character -> character.isDigit() }.take(13) },
                     label = { Text("Número de telefone com DDD") },
-                    placeholder = { Text("Ex: 11999999999") },
+                    placeholder = { Text("Ex: 84999832583") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     shape = RoundedCornerShape(12.dp),
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone
-                    )
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
-                                
                 Spacer(modifier = Modifier.height(24.dp))
-                                
                 Button(
-                    onClick = { 
-                        if (name.isBlank() || phone.isBlank()) {
-                            android.widget.Toast.makeText(context, "Preencha todos os campos", android.widget.Toast.LENGTH_SHORT).show()
-                            return@Button
-                        }
-                        isLoading = true
-                                                
-                        val cleanPhone = phone.replace(Regex("[^0-9]"), "")
-                        
-                        if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
-                            com.google.firebase.firestore.FirebaseFirestore.getInstance().collection("acessos_pendentes")
-                                .get()
-                                .addOnSuccessListener { snapshot ->
-                                    var existingDoc: MemberRequest? = null
-                                    for (doc in snapshot.documents) {
-                                        val docPhone = doc.getString("phone")?.replace(Regex("[^0-9]"), "") ?: ""
-                                        if (docPhone == cleanPhone) {
-                                            existingDoc = MemberRequest(
-                                                id = doc.id,
-                                                name = doc.getString("name") ?: "",
-                                                phone = doc.getString("phone") ?: "",
-                                                email = doc.getString("email") ?: "",
-                                                isApproved = (doc.getBoolean("isApproved") ?: false) || (doc.getBoolean("isVip") ?: false),
-                                                isVip = false,
-                                                isIbr = doc.getBoolean("isIbr") ?: false,
-                                                isAdmin = doc.getBoolean("isAdmin") ?: false
-                                            )
-                                            break
-                                        }
-                                    }
-                                    
-                                    if (existingDoc != null) {
-                                        MemberManager.setLoggedInMember(context, existingDoc)
-                                        android.widget.Toast.makeText(context, "Acesso recuperado!", android.widget.Toast.LENGTH_SHORT).show()
-                                        isLoading = false
-                                        onLoginSuccess()
-                                    } else {
-                                        val newReq = MemberRequest(
-                                            id = java.util.UUID.randomUUID().toString(),
-                                            name = name.trim(),
-                                            phone = phone.trim(),
-                                            isApproved = false,
-                                            isVip = false,
-                                            isIbr = false
-                                        )
-                                        memberRequestsState.add(newReq)
-                                        MemberManager.saveMembers(context)
-                                        MemberManager.saveToFirestore(context, newReq)
-                                        MemberManager.setLoggedInMember(context, newReq)
-                                        android.widget.Toast.makeText(context, "Solicitação Enviada", android.widget.Toast.LENGTH_LONG).show()
-                                        isLoading = false
-                                        onLoginSuccess()
-                                    }
-                                }
-                                .addOnFailureListener { e ->
-                                    // Se falhar o get() por regra de segurança (não pode ler todos),
-                                    // tentamos criar um novo direto
-                                    val newReq = MemberRequest(
-                                        id = java.util.UUID.randomUUID().toString(),
-                                        name = name.trim(),
-                                        phone = phone.trim(),
-                                        isApproved = false,
-                                        isVip = false,
-                                        isIbr = false
-                                    )
-                                    memberRequestsState.add(newReq)
-                                    MemberManager.saveMembers(context)
-                                    MemberManager.saveToFirestore(context, newReq)
-                                    MemberManager.setLoggedInMember(context, newReq)
-                                    android.widget.Toast.makeText(context, "Solicitação Enviada", android.widget.Toast.LENGTH_LONG).show()
-                                    isLoading = false
-                                    onLoginSuccess()
-                                }
-                        } else {
-                            val existing = memberRequestsState.find { it.phone.replace(Regex("[^0-9]"), "") == cleanPhone }
-                            if (existing != null) {
-                                MemberManager.setLoggedInMember(context, existing)
-                                android.widget.Toast.makeText(context, "Acesso recuperado!", android.widget.Toast.LENGTH_SHORT).show()
-                            } else {
-                                val newReq = MemberRequest(
-                                    id = java.util.UUID.randomUUID().toString(),
-                                    name = name.trim(),
-                                    phone = phone.trim(),
-                                    isApproved = false,
-                                    isVip = false,
-                                    isIbr = false
-                                )
-                                memberRequestsState.add(newReq)
-                                MemberManager.saveMembers(context)
-                                MemberManager.saveToFirestore(context, newReq)
-                                MemberManager.setLoggedInMember(context, newReq)
-                                android.widget.Toast.makeText(context, "Solicitação Enviada", android.widget.Toast.LENGTH_LONG).show()
-                            }
-                            isLoading = false
-                            onLoginSuccess()
-                        }
-                    },
+                    onClick = { createAccessRequest() },
                     modifier = Modifier.fillMaxWidth().height(50.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                     enabled = !isLoading
                 ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
-                    } else {
-                        Text("Enviar Solicitação", color = Color.White, fontWeight = FontWeight.Bold)
-                    }
+                    if (isLoading) CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                    else Text("Enviar Solicitação", color = Color.White, fontWeight = FontWeight.Bold)
                 }
-                                
+                errorMessage?.let {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(it, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
+                }
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("Após enviar, aguarde a aprovação do administrador para acessar os conteúdos.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                Text(
+                    "Após enviar, aguarde a aprovação do administrador para acessar os conteúdos.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
             }
         }
     }

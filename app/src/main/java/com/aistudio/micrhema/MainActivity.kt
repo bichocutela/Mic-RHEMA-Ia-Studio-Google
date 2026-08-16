@@ -113,14 +113,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
         try {
-            val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
-            if (auth.currentUser == null) {
-                auth.signInAnonymously()
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-        try {
             currentThemeMode.value = SettingsManager.getThemeMode(this)
             isOfflineModeState.value = SettingsManager.isOfflineMode(this)
             UserSettingsManager.loadSettings(this)

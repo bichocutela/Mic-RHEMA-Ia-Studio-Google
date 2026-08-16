@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.*
@@ -17,9 +18,24 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
+
+private fun formatBirthDateInput(value: String): String {
+    val digits = value.filter { it.isDigit() }
+    val normalized = when {
+        digits.length >= 8 -> digits.take(2) + digits.substring(2, 4) + digits.substring(6, 8)
+        else -> digits.take(6)
+    }
+    return buildString {
+        normalized.forEachIndexed { index, char ->
+            if (index == 2 || index == 4) append('/')
+            append(char)
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,7 +55,7 @@ fun ProfileScreen(
     var name by remember { mutableStateOf(loggedInMember.name) }
     var phone by remember { mutableStateOf(loggedInMember.phone) }
     var address by remember { mutableStateOf(loggedInMember.address) }
-    var birthDate by remember { mutableStateOf(loggedInMember.birthDate) }
+    var birthDate by remember { mutableStateOf(formatBirthDateInput(loggedInMember.birthDate)) }
     var profilePhotoUrl by remember { mutableStateOf(loggedInMember.profilePhotoUrl) }
     var profileStoragePath by remember { mutableStateOf(loggedInMember.supabaseStoragePath) }
     var email by remember { mutableStateOf(loggedInMember.email) }
@@ -50,16 +66,58 @@ fun ProfileScreen(
     var isEditingBirthDate by remember { mutableStateOf(false) }
     var isEditingEmail by remember { mutableStateOf(false) }
     var isUploading by remember { mutableStateOf(false) }
+    var pendingPhotoUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var showPhotoAuthDialog by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(loggedInMember.id, loggedInMember.name, loggedInMember.phone, loggedInMember.address, loggedInMember.birthDate, loggedInMember.email, loggedInMember.profilePhotoUrl, loggedInMember.supabaseStoragePath) {
         if (!isEditingName) name = loggedInMember.name
         if (!isEditingPhone) phone = loggedInMember.phone
         if (!isEditingAddress) address = loggedInMember.address
-        if (!isEditingBirthDate) birthDate = loggedInMember.birthDate
+        if (!isEditingBirthDate) birthDate = formatBirthDateInput(loggedInMember.birthDate)
         if (!isEditingEmail) email = loggedInMember.email
         profilePhotoUrl = loggedInMember.profilePhotoUrl
         profileStoragePath = loggedInMember.supabaseStoragePath
+    }
+
+    fun uploadOwnProfilePhoto(uri: android.net.Uri) {
+        isUploading = true
+        coroutineScope.launch {
+            try {
+                val upload = com.aistudio.micrhema.StorageManager.uploadProfilePhoto(context, uri, loggedInMember.id)
+                profilePhotoUrl = upload.signedUrl
+                profileStoragePath = upload.storagePath
+                saveProfile(
+                    loggedInMember,
+                    name,
+                    phone,
+                    address,
+                    birthDate,
+                    profilePhotoUrl,
+                    context,
+                    profileStoragePath = profileStoragePath,
+                    showToast = false
+                ) { synced, error ->
+                    val message = if (synced && profileStoragePath.isNotBlank()) {
+                        "Foto atualizada e sincronizada no perfil"
+                    } else if (synced) {
+                        "Perfil atualizado, mas confirme a configuração do armazenamento remoto"
+                    } else {
+                        "Não foi possível sincronizar o perfil: ${error?.message ?: "verifique sua conexão"}"
+                    }
+                    android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("ProfileScreen", "Erro ao fazer upload da foto", e)
+                android.widget.Toast.makeText(
+                    context,
+                    "Não foi possível atualizar a foto: ${e.message ?: "verifique sua conexão"}",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+            } finally {
+                isUploading = false
+            }
+        }
     }
 
     val imageLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -72,38 +130,12 @@ fun ProfileScreen(
                     android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
             }
-            isUploading = true
-            coroutineScope.launch {
-                try {
-                    val upload = com.aistudio.micrhema.StorageManager.uploadProfilePhoto(context, uri, loggedInMember.id)
-                    profilePhotoUrl = upload.signedUrl
-                    profileStoragePath = upload.storagePath
-                    saveProfile(
-                        loggedInMember,
-                        name,
-                        phone,
-                        address,
-                        birthDate,
-                        profilePhotoUrl,
-                        context,
-                        profileStoragePath = profileStoragePath,
-                        showToast = false
-                    ) { synced, error ->
-                        val message = if (synced && profileStoragePath.isNotBlank()) {
-                            "Foto atualizada e sincronizada no perfil"
-                        } else if (synced) {
-                            "Perfil atualizado, mas confirme a configuração do armazenamento remoto"
-                        } else {
-                            "Não foi possível sincronizar o perfil: ${error?.message ?: "verifique sua conexão"}"
-                        }
-                        android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
-                    }
-                } catch (e: Exception) {
-                    android.util.Log.e("ProfileScreen", "Erro ao fazer upload da foto", e)
-                    android.widget.Toast.makeText(context, "Erro ao atualizar foto: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
-                } finally {
-                    isUploading = false
-                }
+            val authenticated = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.isAnonymous == false
+            if (authenticated) {
+                uploadOwnProfilePhoto(uri)
+            } else {
+                pendingPhotoUri = uri
+                showPhotoAuthDialog = true
             }
         }
     }
@@ -270,7 +302,7 @@ fun ProfileScreen(
                 label = "Telefone",
                 value = phone,
                 isEditing = isEditingPhone,
-                onValueChange = { phone = it },
+                onValueChange = { phone = it.filter { character -> character.isDigit() }.take(15) },
                 onEditClick = { isEditingPhone = true },
                 onSaveClick = { 
                     isEditingPhone = false
@@ -294,7 +326,7 @@ fun ProfileScreen(
                 label = "Data de nascimento",
                 value = birthDate,
                 isEditing = isEditingBirthDate,
-                onValueChange = { birthDate = it },
+                onValueChange = { birthDate = formatBirthDateInput(it) },
                 onEditClick = { isEditingBirthDate = true },
                 onSaveClick = {
                     isEditingBirthDate = false
@@ -346,6 +378,22 @@ fun ProfileScreen(
         }
     }
 
+    if (showPhotoAuthDialog) {
+        ProfilePhotoAuthDialog(
+            member = loggedInMember,
+            onAuthenticated = {
+                showPhotoAuthDialog = false
+                val uri = pendingPhotoUri
+                pendingPhotoUri = null
+                if (uri != null) uploadOwnProfilePhoto(uri)
+            },
+            onDismiss = {
+                showPhotoAuthDialog = false
+                pendingPhotoUri = null
+            }
+        )
+    }
+
     if (showLogoutDialog) {
         AlertDialog(
             onDismissRequest = { showLogoutDialog = false },
@@ -381,6 +429,10 @@ fun ProfileField(
     onEditClick: () -> Unit,
     onSaveClick: () -> Unit
 ) {
+    val isPhoneField = label.equals("Telefone", ignoreCase = true)
+    val isBirthDateField = label.equals("Data de nascimento", ignoreCase = true)
+    val displayValue = if (isBirthDateField) formatBirthDateInput(value) else value
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -403,18 +455,29 @@ fun ProfileField(
             ) {
                 if (isEditing) {
                     OutlinedTextField(
-                        value = value,
-                        onValueChange = onValueChange,
+                        value = displayValue,
+                        onValueChange = { input ->
+                            when {
+                                isBirthDateField -> onValueChange(formatBirthDateInput(input))
+                                isPhoneField -> onValueChange(input.filter { character -> character.isDigit() }.take(15))
+                                else -> onValueChange(input)
+                            }
+                        },
                         modifier = Modifier.weight(1f),
                         singleLine = true,
-                        textStyle = MaterialTheme.typography.bodyLarge
+                        textStyle = MaterialTheme.typography.bodyLarge,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = if (isPhoneField || isBirthDateField) KeyboardType.Number else KeyboardType.Text
+                        ),
+                        placeholder = if (isBirthDateField) ({ Text("dd/mm/aa") }) else null,
+                        supportingText = if (isBirthDateField) ({ Text("Digite 6 números: dia, mês e ano") }) else null
                     )
                     IconButton(onClick = onSaveClick) {
                         Icon(Icons.Default.Check, contentDescription = "Salvar", tint = MaterialTheme.colorScheme.primary)
                     }
                 } else {
                     Text(
-                        text = value.takeIf { it.isNotBlank() } ?: "Não informado",
+                        text = displayValue.takeIf { it.isNotBlank() } ?: "Não informado",
                         style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier.weight(1f),
                         color = if (value.isNotBlank()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
