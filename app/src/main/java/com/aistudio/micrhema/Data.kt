@@ -913,6 +913,21 @@ fun loadContentFromFirebase(context: Context) {
                 contentBooksState.clear()
                     contentBooksState.addAll(list)
             }
+            db.collection("discipulado_pdfs")
+                .addSnapshotListener { snapshot, e ->
+                    if (e != null || snapshot == null) return@addSnapshotListener
+                    val list = snapshot.documents
+                        .mapNotNull { document ->
+                            runCatching { document.toObject(DiscipuladoPdf::class.java) }
+                                .getOrNull()
+                                ?.also { if (it.id.isBlank()) it.id = document.id }
+                        }
+                        .filter { it.isPublished }
+                        .sortedWith(compareBy<DiscipuladoPdf> { it.order }.thenByDescending { it.createdAt })
+                    discipuladoPdfsState.clear()
+                    discipuladoPdfsState.addAll(list)
+                }
+
             db.collection("settings").document("sync_trigger").addSnapshotListener { snapshot, e ->
                 if (e != null || snapshot == null || !snapshot.exists()) return@addSnapshotListener
                 dataSyncScope.launch {

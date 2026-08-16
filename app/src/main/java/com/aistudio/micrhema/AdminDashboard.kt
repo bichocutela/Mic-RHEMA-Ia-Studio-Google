@@ -29,7 +29,7 @@ import androidx.compose.ui.unit.dp
 
 enum class AdminSection {
     DASHBOARD,
-    DEVOTIONALS, NEWS, MEDIA, PLANS, IBR,
+    DEVOTIONALS, NEWS, MEDIA, PLANS, IBR, DISCIPULADO,
     SERVICES, BANNERS, DONATIONS,
     MEMBERS, PROFILES, TEAM,
     TABS, SETTINGS, ABOUT
@@ -160,6 +160,7 @@ fun AdminDashboard(onNavigate: (AdminSection) -> Unit, paddingValues: PaddingVal
             item { AdminMenuItem("Notícias", "Informativos e avisos", Icons.Default.Article, { onNavigate(AdminSection.NEWS) }) }
             item { AdminMenuItem("Mídia", "Áudios, vídeos, livros e álbuns", Icons.Default.PlayArrow, { onNavigate(AdminSection.MEDIA) }) }
             item { AdminMenuItem("Planos Bíblicos", "Planos e jornadas de leitura", Icons.Default.MenuBook, { onNavigate(AdminSection.PLANS) }) }
+            item { AdminMenuItem("Discipulado", "Biblioteca pública de estudos em PDF", Icons.Default.PictureAsPdf, { onNavigate(AdminSection.DISCIPULADO) }) }
         }
 
         item { AdminCategoryTitle("ENSINO", teachingExpanded) { teachingExpanded = !teachingExpanded; adminUiPrefs.edit().putBoolean("category_teaching", teachingExpanded).apply() } }

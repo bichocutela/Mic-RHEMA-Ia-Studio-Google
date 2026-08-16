@@ -295,6 +295,7 @@ fun AdminScreen() {
                     AdminSection.MEDIA -> "Mídia"
                     AdminSection.PLANS -> "Planos Bíblicos"
                     AdminSection.IBR -> "Instituto Bíblico Rhema"
+                    AdminSection.DISCIPULADO -> "Discipulado"
                     AdminSection.SERVICES -> "Cultos"
                     AdminSection.BANNERS -> "Destaques"
                     AdminSection.DONATIONS -> "Dízimos e Ofertas"
@@ -349,6 +350,7 @@ fun AdminScreen() {
                             AdminSection.NEWS -> EditNewsSection()
                             AdminSection.MEDIA -> EditMediaSection()
                             AdminSection.IBR -> EditVipSection()
+                            AdminSection.DISCIPULADO -> EditDiscipuladoSection()
                             AdminSection.TEAM -> EditTeamSection()
                             AdminSection.MEMBERS -> EditMembersSection()
                             AdminSection.ABOUT -> EditAboutSection()
