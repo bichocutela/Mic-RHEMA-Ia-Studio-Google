@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.VideoLibrary
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -41,13 +42,26 @@ fun EditMediaSection() {
     var editingVideo by remember { mutableStateOf<ContentVideo?>(null) }
     var editingAlbum by remember { mutableStateOf<ContentPhotoAlbum?>(null) }
     var albumToDelete by remember { mutableStateOf<ContentPhotoAlbum?>(null) }
-    var isDeleting by remember { mutableStateOf(false) }
-
+        var isDeleting by remember { mutableStateOf(false) }
+    var mediaSearchQuery by remember { mutableStateOf("") }
+    val filteredBooks = contentBooksState.filter { it.title.contains(mediaSearchQuery, ignoreCase = true) || it.author.contains(mediaSearchQuery, ignoreCase = true) }
+    val filteredAudios = contentAudiosState.filter { it.title.contains(mediaSearchQuery, ignoreCase = true) || it.artist.contains(mediaSearchQuery, ignoreCase = true) }
+    val filteredVideos = contentVideosState.filter { it.title.contains(mediaSearchQuery, ignoreCase = true) || it.description.contains(mediaSearchQuery, ignoreCase = true) }
+    val filteredAlbums = contentAlbumsState.filter { it.title.contains(mediaSearchQuery, ignoreCase = true) || it.description.contains(mediaSearchQuery, ignoreCase = true) }
     Column(modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+
         MediaAdminHeader(
             totalItems = contentBooksState.size + contentAudiosState.size + contentVideosState.size + contentAlbumsState.size,
             isUploading = isUploading,
             uploadProgress = uploadProgress
+        )
+        OutlinedTextField(
+            value = mediaSearchQuery,
+            onValueChange = { mediaSearchQuery = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Buscar na mídia") },
+            label = { Text("Buscar livro, áudio, vídeo ou álbum") }
         )
 
         // ADD BOOK
@@ -99,9 +113,9 @@ fun EditMediaSection() {
             }
         }
         
-        if (contentBooksState.isNotEmpty()) {
-            MediaListHeading("Livros cadastrados", contentBooksState.size)
-            contentBooksState.forEach { book ->
+        if (filteredBooks.isNotEmpty()) {
+            MediaListHeading("Livros cadastrados", filteredBooks.size)
+            filteredBooks.forEach { book ->
                 MediaContentRow(
                     title = book.title,
                     subtitle = book.author,
@@ -161,9 +175,9 @@ fun EditMediaSection() {
             }
         }
         
-        if (contentAudiosState.isNotEmpty()) {
-            MediaListHeading("Áudios cadastrados", contentAudiosState.size)
-            contentAudiosState.forEach { audio ->
+        if (filteredAudios.isNotEmpty()) {
+            MediaListHeading("Áudios cadastrados", filteredAudios.size)
+            filteredAudios.forEach { audio ->
                 MediaContentRow(
                     title = audio.title,
                     subtitle = audio.artist,
@@ -234,9 +248,9 @@ fun EditMediaSection() {
             }
         }
         
-        if (contentVideosState.isNotEmpty()) {
-            MediaListHeading("Vídeos cadastrados", contentVideosState.size)
-            contentVideosState.forEach { video ->
+        if (filteredVideos.isNotEmpty()) {
+            MediaListHeading("Vídeos cadastrados", filteredVideos.size)
+            filteredVideos.forEach { video ->
                 MediaContentRow(
                     title = video.title,
                     subtitle = video.description,
@@ -332,9 +346,9 @@ fun EditMediaSection() {
             }
         }
         
-        if (contentAlbumsState.isNotEmpty()) {
-            MediaListHeading("Álbuns cadastrados", contentAlbumsState.size)
-            contentAlbumsState.forEach { album ->
+        if (filteredAlbums.isNotEmpty()) {
+            MediaListHeading("Álbuns cadastrados", filteredAlbums.size)
+            filteredAlbums.forEach { album ->
                 MediaContentRow(
                     title = album.title,
                     subtitle = album.description,

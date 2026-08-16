@@ -8,6 +8,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -27,6 +28,13 @@ fun EditNewsSection() {
     val newsList = BibleNewsEditorial.withEditorialCatalog(
         if (bibleNewsState.isEmpty()) BibleNewsData.newsList else bibleNewsState.toList()
     )
+    var searchQuery by remember { mutableStateOf("") }
+    var intensityFilter by remember { mutableStateOf<Int?>(null) }
+    val filteredNews = newsList.filter { news ->
+        val matchesQuery = searchQuery.isBlank() || news.title.contains(searchQuery, ignoreCase = true) || news.book.contains(searchQuery, ignoreCase = true) || news.category.contains(searchQuery, ignoreCase = true)
+        val matchesIntensity = intensityFilter == null || news.intensity == intensityFilter
+        matchesQuery && matchesIntensity
+    }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -37,6 +45,24 @@ fun EditNewsSection() {
                 Text("Novo")
             }
         }
+        Spacer(Modifier.height(10.dp))
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Buscar notícias") },
+            label = { Text("Buscar por título, livro ou categoria") }
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            FilterChip(selected = intensityFilter == null, onClick = { intensityFilter = null }, label = { Text("Todas") })
+            (1..4).forEach { level ->
+                FilterChip(selected = intensityFilter == level, onClick = { intensityFilter = level }, label = { Text("Nível $level") })
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text("${filteredNews.size} notícia(s) encontrada(s)", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
         Spacer(Modifier.height(8.dp))
         Text(
             "Escolha uma notícia para ser enviada uma vez por dia ao meio-dia. Selecionar outra substitui a atual.",
@@ -57,7 +83,7 @@ fun EditNewsSection() {
         }
         Spacer(Modifier.height(8.dp))
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(newsList) { news ->
+            items(filteredNews) { news ->
                 Card(
                     modifier = Modifier.fillMaxWidth().clickable { editingNews = news; showDialog = true },
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -66,6 +92,10 @@ fun EditNewsSection() {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(news.title, fontWeight = FontWeight.Bold)
                             Text(news.book, style = MaterialTheme.typography.bodySmall)
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                AdminStatusChip("Nível ${news.intensity}", positive = news.intensity < 4)
+                                if (news.category.isNotBlank()) Text(news.category, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                            }
                             TextButton(
                                 onClick = {
                                     selectDailyNewsNotification(

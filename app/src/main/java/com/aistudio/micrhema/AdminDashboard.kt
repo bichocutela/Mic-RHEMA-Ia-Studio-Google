@@ -321,3 +321,20 @@ fun AdminMenuItem(title: String, subtitle: String, icon: ImageVector, onClick: (
         }
     }
 }
+
+
+@Composable
+fun AdminStatusChip(text: String, positive: Boolean = true) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = if (positive) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.errorContainer
+    ) {
+        Text(
+            text,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = if (positive) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onErrorContainer,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+        )
+    }
+}

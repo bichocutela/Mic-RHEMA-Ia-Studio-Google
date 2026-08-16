@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
@@ -30,11 +31,41 @@ import android.widget.Toast
 @Composable
 fun EditMembersSection() {
     val context = LocalContext.current
+    var searchQuery by remember { mutableStateOf("") }
+    var statusFilter by remember { mutableStateOf("Todos") }
+    val filteredMembers = memberRequestsState.filter { member ->
+        val matchesQuery = searchQuery.isBlank() || member.name.contains(searchQuery, ignoreCase = true) || member.phone.contains(searchQuery, ignoreCase = true)
+        val matchesStatus = when (statusFilter) {
+            "Pendentes" -> !member.isApproved && !member.isIbr
+            "Aprovados" -> member.isApproved || member.isIbr
+            "IBR" -> member.isIbr
+            else -> true
+        }
+        matchesQuery && matchesStatus
+    }
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Gerenciar Membros", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 16.dp))
-        
+        Text("Gerenciar Membros", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text("Aprovações, permissões e perfis sincronizados.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(12.dp))
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Buscar membros") },
+            label = { Text("Buscar por nome ou telefone") }
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("Todos", "Pendentes", "Aprovados", "IBR").forEach { filter ->
+                FilterChip(selected = statusFilter == filter, onClick = { statusFilter = filter }, label = { Text(filter) })
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        Text("${filteredMembers.size} membro(s) encontrado(s)", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.height(6.dp))
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(items = memberRequestsState, key = { it.id }) { member ->
+            items(items = filteredMembers, key = { it.id }) { member ->
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -45,11 +76,14 @@ fun EditMembersSection() {
                                 Text(member.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                                 Text(member.phone, style = MaterialTheme.typography.bodyMedium)
                             }
-                            if (member.isApproved || member.isIbr) {
-                                Text("Aprovado", style = MaterialTheme.typography.labelSmall, color = androidx.compose.ui.graphics.Color(0xFF4CAF50))
-                            } else {
-                                Text("Pendente", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
-                            }
+                            AdminStatusChip(
+                                text = when {
+                                    member.isIbr -> "IBR"
+                                    member.isApproved -> "Aprovado"
+                                    else -> "Pendente"
+                                },
+                                positive = member.isApproved || member.isIbr
+                            )
                         }
                         
                         Spacer(modifier = Modifier.height(8.dp))
