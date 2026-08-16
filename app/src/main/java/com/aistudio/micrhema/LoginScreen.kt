@@ -155,7 +155,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                 Text("Peça ou recupere seu acesso", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    "Informe seus dados para solicitar acesso ou recuperar seu perfil. A validação por SMS será solicitada somente se você tentar trocar sua foto.",
+                    "Informe seus dados para solicitar acesso ou recuperar seu perfil. O acesso normal usa apenas o nome e o telefone cadastrados.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

@@ -1,10 +1,7 @@
 package com.aistudio.micrhema
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -14,14 +11,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
-import kotlinx.coroutines.launch
 
 private fun formatBirthDateInput(value: String): String {
     val digits = value.filter { it.isDigit() }
@@ -49,15 +42,12 @@ fun ProfileScreen(
     }
 
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
     val scrollState = rememberScrollState()
 
     var name by remember { mutableStateOf(loggedInMember.name) }
     var phone by remember { mutableStateOf(loggedInMember.phone) }
     var address by remember { mutableStateOf(loggedInMember.address) }
     var birthDate by remember { mutableStateOf(formatBirthDateInput(loggedInMember.birthDate)) }
-    var profilePhotoUrl by remember { mutableStateOf(loggedInMember.profilePhotoUrl) }
-    var profileStoragePath by remember { mutableStateOf(loggedInMember.supabaseStoragePath) }
     var email by remember { mutableStateOf(loggedInMember.email) }
 
     var isEditingName by remember { mutableStateOf(false) }
@@ -65,79 +55,14 @@ fun ProfileScreen(
     var isEditingAddress by remember { mutableStateOf(false) }
     var isEditingBirthDate by remember { mutableStateOf(false) }
     var isEditingEmail by remember { mutableStateOf(false) }
-    var isUploading by remember { mutableStateOf(false) }
-    var pendingPhotoUri by remember { mutableStateOf<android.net.Uri?>(null) }
-    var showPhotoAuthDialog by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
 
-    LaunchedEffect(loggedInMember.id, loggedInMember.name, loggedInMember.phone, loggedInMember.address, loggedInMember.birthDate, loggedInMember.email, loggedInMember.profilePhotoUrl, loggedInMember.supabaseStoragePath) {
+    LaunchedEffect(loggedInMember.id, loggedInMember.name, loggedInMember.phone, loggedInMember.address, loggedInMember.birthDate, loggedInMember.email) {
         if (!isEditingName) name = loggedInMember.name
         if (!isEditingPhone) phone = loggedInMember.phone
         if (!isEditingAddress) address = loggedInMember.address
         if (!isEditingBirthDate) birthDate = formatBirthDateInput(loggedInMember.birthDate)
         if (!isEditingEmail) email = loggedInMember.email
-        profilePhotoUrl = loggedInMember.profilePhotoUrl
-        profileStoragePath = loggedInMember.supabaseStoragePath
-    }
-
-    fun uploadOwnProfilePhoto(uri: android.net.Uri) {
-        isUploading = true
-        coroutineScope.launch {
-            try {
-                val upload = com.aistudio.micrhema.StorageManager.uploadProfilePhoto(context, uri, loggedInMember.id)
-                profilePhotoUrl = upload.signedUrl
-                profileStoragePath = upload.storagePath
-                saveProfile(
-                    loggedInMember,
-                    name,
-                    phone,
-                    address,
-                    birthDate,
-                    profilePhotoUrl,
-                    context,
-                    profileStoragePath = profileStoragePath,
-                    showToast = false
-                ) { synced, error ->
-                    val message = if (synced && profileStoragePath.isNotBlank()) {
-                        "Foto atualizada e sincronizada no perfil"
-                    } else if (synced) {
-                        "Perfil atualizado, mas confirme a configuração do armazenamento remoto"
-                    } else {
-                        "Não foi possível sincronizar o perfil: ${error?.message ?: "verifique sua conexão"}"
-                    }
-                    android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
-                }
-            } catch (e: Exception) {
-                android.util.Log.e("ProfileScreen", "Erro ao fazer upload da foto", e)
-                android.widget.Toast.makeText(
-                    context,
-                    "Não foi possível atualizar a foto: ${e.message ?: "verifique sua conexão"}",
-                    android.widget.Toast.LENGTH_LONG
-                ).show()
-            } finally {
-                isUploading = false
-            }
-        }
-    }
-
-    val imageLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri != null) {
-            runCatching {
-                context.contentResolver.takePersistableUriPermission(
-                    uri,
-                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
-            }
-            val authenticated = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.isAnonymous == false
-            if (authenticated) {
-                uploadOwnProfilePhoto(uri)
-            } else {
-                pendingPhotoUri = uri
-                showPhotoAuthDialog = true
-            }
-        }
     }
 
     Scaffold(
@@ -164,124 +89,13 @@ fun ProfileScreen(
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Profile Photo
-            Box(
-                modifier = Modifier
-                    .size(120.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
-                    .clickable { imageLauncher.launch(arrayOf("image/*")) },
-                contentAlignment = Alignment.Center
-            ) {
-                if (profilePhotoUrl.isNotBlank()) {
-                    AsyncImage(
-                        model = profilePhotoUrl,
-                        contentDescription = "Foto de perfil",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    val initial = name.firstOrNull()?.toString()?.uppercase() ?: "👤"
-                    if (initial == "👤") {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(64.dp)
-                        )
-                    } else {
-                        Text(
-                            text = initial,
-                            style = MaterialTheme.typography.displayMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-                
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(4.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary)
-                        .padding(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.CameraAlt,
-                        contentDescription = "Alterar foto",
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-                
-                if (isUploading) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.5f), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(32.dp)
-                        )
-                    }
-                }
-            }
-            
-            if (profilePhotoUrl.isNotBlank()) {
-                TextButton(
-                    onClick = {
-                        if (isUploading) return@TextButton
-                        val previousPhotoUrl = profilePhotoUrl
-                        val previousStoragePath = profileStoragePath
-                        isUploading = true
-                        profilePhotoUrl = ""
-                        profileStoragePath = ""
-                        saveProfile(
-                            loggedInMember,
-                            name,
-                            phone,
-                            address,
-                            birthDate,
-                            profilePhotoUrl,
-                            context,
-                            profileStoragePath = profileStoragePath,
-                            showToast = false
-                        ) { synced, error ->
-                            if (!synced) {
-                                profilePhotoUrl = previousPhotoUrl
-                                profileStoragePath = previousStoragePath
-                                android.widget.Toast.makeText(
-                                    context,
-                                    "Não foi possível remover a foto do perfil: ${error?.message ?: "verifique sua conexão"}",
-                                    android.widget.Toast.LENGTH_LONG
-                                ).show()
-                                isUploading = false
-                            } else {
-                                coroutineScope.launch {
-                                    try {
-                                        if (previousStoragePath.isNotBlank() || previousPhotoUrl.startsWith("http://") || previousPhotoUrl.startsWith("https://")) {
-                                            StorageManager.deleteProfilePhoto(loggedInMember.id, context)
-                                        }
-                                        StorageManager.deleteLocalProfilePhoto(context, loggedInMember.id)
-                                        android.widget.Toast.makeText(context, "Foto removida do perfil sincronizado", android.widget.Toast.LENGTH_SHORT).show()
-                                    } catch (e: Exception) {
-                                        android.util.Log.w("ProfileScreen", "Perfil atualizado, mas não foi possível excluir o arquivo remoto", e)
-                                        android.widget.Toast.makeText(context, "Perfil atualizado, mas o arquivo remoto precisa ser removido no Supabase", android.widget.Toast.LENGTH_LONG).show()
-                                    } finally {
-                                        isUploading = false
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    modifier = Modifier.padding(top = 8.dp)
-                ) {
-                    Text("Remover Foto", color = MaterialTheme.colorScheme.error)
-                }
-            }
+            Text(
+                "Seus dados de acesso e informações pessoais",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(16.dp))
 
             Spacer(modifier = Modifier.height(32.dp))
 
@@ -294,7 +108,7 @@ fun ProfileScreen(
                 onEditClick = { isEditingName = true },
                 onSaveClick = { 
                     isEditingName = false
-                    saveProfile(loggedInMember, name, phone, address, birthDate, profilePhotoUrl, context)
+                    saveProfile(loggedInMember, name, phone, address, birthDate, loggedInMember.profilePhotoUrl, context)
                 }
             )
 
@@ -306,7 +120,7 @@ fun ProfileScreen(
                 onEditClick = { isEditingPhone = true },
                 onSaveClick = { 
                     isEditingPhone = false
-                    saveProfile(loggedInMember, name, phone, address, birthDate, profilePhotoUrl, context)
+                    saveProfile(loggedInMember, name, phone, address, birthDate, loggedInMember.profilePhotoUrl, context)
                 }
             )
 
@@ -318,7 +132,7 @@ fun ProfileScreen(
                 onEditClick = { isEditingAddress = true },
                 onSaveClick = { 
                     isEditingAddress = false
-                    saveProfile(loggedInMember, name, phone, address, birthDate, profilePhotoUrl, context)
+                    saveProfile(loggedInMember, name, phone, address, birthDate, loggedInMember.profilePhotoUrl, context)
                 }
             )
 
@@ -330,7 +144,7 @@ fun ProfileScreen(
                 onEditClick = { isEditingBirthDate = true },
                 onSaveClick = {
                     isEditingBirthDate = false
-                    saveProfile(loggedInMember, name, phone, address, birthDate, profilePhotoUrl, context)
+                    saveProfile(loggedInMember, name, phone, address, birthDate, loggedInMember.profilePhotoUrl, context)
                 }
             )
 
@@ -353,7 +167,7 @@ fun ProfileScreen(
                             phone,
                             address,
                             birthDate,
-                            profilePhotoUrl,
+                            loggedInMember.profilePhotoUrl,
                             context,
                             email = normalizedEmail
                         )
@@ -376,22 +190,6 @@ fun ProfileScreen(
             }
             Spacer(modifier = Modifier.height(16.dp))
         }
-    }
-
-    if (showPhotoAuthDialog) {
-        ProfilePhotoAuthDialog(
-            member = loggedInMember,
-            onAuthenticated = {
-                showPhotoAuthDialog = false
-                val uri = pendingPhotoUri
-                pendingPhotoUri = null
-                if (uri != null) uploadOwnProfilePhoto(uri)
-            },
-            onDismiss = {
-                showPhotoAuthDialog = false
-                pendingPhotoUri = null
-            }
-        )
     }
 
     if (showLogoutDialog) {
