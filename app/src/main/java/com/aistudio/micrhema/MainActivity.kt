@@ -593,7 +593,15 @@ fun MainScreen() {
                         onNavigateToCourse = { courseId -> navController.navigate("ibr_course/$courseId") }
                     ) 
                 }
-                composable(Screen.Discipulado.route) { DiscipuladoScreen() }
+                composable(Screen.Discipulado.route) {
+                    DiscipuladoScreen(
+                        onOpenPdf = { pdf -> navController.navigate("discipulado_pdf/${pdf.id}") }
+                    )
+                }
+                composable("discipulado_pdf/{pdfId}") { backStackEntry ->
+                    val pdfId = backStackEntry.arguments?.getString("pdfId") ?: return@composable
+                    DiscipuladoPdfReaderScreen(pdfId = pdfId, onBack = { navController.popBackStack() })
+                }
                 
                 composable("ibr_course/{courseId}") { backStackEntry ->
                     val courseId = backStackEntry.arguments?.getString("courseId") ?: return@composable

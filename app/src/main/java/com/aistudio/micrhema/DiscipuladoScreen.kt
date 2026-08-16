@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.MenuBook
@@ -26,6 +27,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -40,6 +42,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextAlign
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -93,6 +96,43 @@ fun DiscipuladoScreen(
                     DiscipuladoPdfCard(pdf = pdf, onClick = { onOpenPdf(pdf) })
                 }
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DiscipuladoPdfReaderScreen(
+    pdfId: String,
+    onBack: () -> Unit
+) {
+    val pdf = discipuladoPdfsState.firstOrNull { it.id == pdfId }
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(pdf?.title ?: "Estudo em PDF", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Voltar")
+                    }
+                }
+            )
+        }
+    ) { paddingValues ->
+        if (pdf == null) {
+            Box(
+                modifier = Modifier.fillMaxSize().padding(paddingValues),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("Estudo não encontrado.", color = MaterialTheme.colorScheme.error)
+            }
+        } else {
+            val source = pdf.fileUrl.ifBlank { pdf.storagePath }
+            PdfViewer(
+                bookUrl = source,
+                title = pdf.title,
+                modifier = Modifier.fillMaxSize().padding(paddingValues)
+            )
         }
     }
 }
@@ -180,7 +220,7 @@ private fun DiscipuladoEmptyState() {
                 "A liderança está preparando materiais em PDF para você estudar com calma e propósito.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                textAlign = TextAlign.Center
             )
         }
     }
