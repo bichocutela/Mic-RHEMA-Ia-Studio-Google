@@ -189,7 +189,8 @@ object LocalDataManager {
             editor.putString("devotionalsState", gson.toJson(devotionalsState.toList()))
             editor.putString("weeklyServicesState", gson.toJson(weeklyServicesState.toList()))
             editor.putString("eventsState", gson.toJson(eventsState.toList()))
-            editor.putString("memberRequestsState", gson.toJson(memberRequestsState.toList()))
+            // Solicitações de membros não são armazenadas localmente; vêm apenas do Firestore.
+            editor.remove("memberRequestsState")
             editor.putString("ibrCoursesState", gson.toJson(ibrCoursesState.toList()))
             
             editor.putString("contentBooksState", gson.toJson(contentBooksState.toList()))
