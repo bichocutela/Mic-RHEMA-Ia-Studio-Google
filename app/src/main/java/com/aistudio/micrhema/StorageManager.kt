@@ -120,8 +120,15 @@ object StorageManager {
         val detected = context.contentResolver.getType(uri)?.lowercase()?.substringBefore(';').orEmpty()
         if (detected.isNotBlank()) return detected
         val displayName = runCatching {
-            context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
-                ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0).orEmpty() else "" }
+            context.contentResolver.query(
+                uri,
+                arrayOf(android.provider.OpenableColumns.DISPLAY_NAME),
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0).orEmpty() else ""
+            }
         }.getOrDefault("")
         val extension = displayName.substringAfterLast('.', "").lowercase()
         return android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension).orEmpty().lowercase()
