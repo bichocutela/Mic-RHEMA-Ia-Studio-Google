@@ -1599,7 +1599,8 @@ suspend fun refreshHomeData() {
                     val mediaUrl = memberSnapshot.getString("mediaUrl") ?: ""
                     val remoteProfilePhotoUrl = memberSnapshot.getString("profilePhotoUrl") ?: ""
                     val supabaseStoragePath = memberSnapshot.getString("supabaseStoragePath") ?: ""
-                    val profilePhotoUrl = resolveProfilePhotoUrl(context, id, remoteProfilePhotoUrl, supabaseStoragePath)
+                    val profilePhotoUrl = remoteProfilePhotoUrl.takeIf { it.isNotBlank() }
+                        ?: currentMember.profilePhotoUrl
                     val address = memberSnapshot.getString("address") ?: ""
                     val birthDate = memberSnapshot.getString("birthDate") ?: ""
                     val createdAt = memberSnapshot.getLong("createdAt") ?: 0L
@@ -1628,7 +1629,6 @@ suspend fun refreshHomeData() {
                         updatedAt = updatedAt
                     )
                     loggedInMemberState.value = updatedMember
-                    refreshSignedStorageUrls(context, listOf(updatedMember))
                 }
             } catch (e: Exception) { e.printStackTrace() }
         }

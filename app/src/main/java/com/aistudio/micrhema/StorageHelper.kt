@@ -13,8 +13,8 @@ object StorageHelper {
         context: Context,
         uri: Uri,
         path: String,
-        onProgress: ((Float) -> Unit)? = null,
-        targetUid: String? = null
+        targetUid: String? = null,
+        onProgress: ((Float) -> Unit)? = null
     ): String? {
         if (uri.scheme == "http" || uri.scheme == "https") return uri.toString()
 
