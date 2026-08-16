@@ -846,10 +846,20 @@ fun EditVipIbrSection() {
         var progress: Float = 0f,
         var status: String = "Pendente"
     )
-    val bulkUploadQueue = remember { mutableStateListOf<BulkUploadTask>() }
+        val bulkUploadQueue = remember { mutableStateListOf<BulkUploadTask>() }
     val coroutineScope = rememberCoroutineScope()
-
+    var courseSearch by remember { mutableStateOf("") }
+    var courseThemeFilter by remember { mutableStateOf("Todos") }
+    val courseThemes = listOf("Todos") + ibrCoursesState.map { it.theme }.filter { it.isNotBlank() }.distinct().sorted()
+    val visibleCourses = ibrCoursesState
+        .filter { course ->
+            val query = courseSearch.trim()
+            (query.isBlank() || course.title.contains(query, ignoreCase = true) || course.description.contains(query, ignoreCase = true)) &&
+                (courseThemeFilter == "Todos" || course.theme == courseThemeFilter)
+        }
+        .sortedBy { it.title.lowercase() }
     LazyColumn(
+
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
@@ -1240,14 +1250,42 @@ fun EditVipIbrSection() {
         // 3. LIST OF EXISTING COURSES AND CHAPTERS
         item {
             Text("📚 Cursos e Aulas Ativas", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            GlassTextField(
+                value = courseSearch,
+                onValueChange = { courseSearch = it },
+                label = { Text("Buscar curso ou descrição") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                courseThemes.forEach { theme ->
+                    FilterChip(
+                        selected = courseThemeFilter == theme,
+                        onClick = { courseThemeFilter = theme },
+                        label = { Text(theme) }
+                    )
+                }
+            }
+            Text(
+                "${visibleCourses.size} curso(s) exibido(s) • ordem alfabética",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
 
-        if (ibrCoursesState.isEmpty()) {
+        if (visibleCourses.isEmpty()) {
             item {
-                Text("Nenhum curso ou aula cadastrado ainda.", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+                Text(
+                    if (ibrCoursesState.isEmpty()) "Nenhum curso ou aula cadastrado ainda." else "Nenhum curso corresponde à busca ou ao tema selecionado.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.Gray
+                )
             }
         } else {
-            items(ibrCoursesState) { course ->
+            items(visibleCourses) { course ->
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(32.dp),
