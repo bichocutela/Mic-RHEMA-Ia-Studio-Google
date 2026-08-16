@@ -330,3 +330,36 @@ Minha recomendação é aprovar a seguinte estrutura: **Home com cinco destaques
 Assim, as 500 notícias deixam de parecer um arquivo enorme e passam a funcionar como uma biblioteca editorial organizada. O usuário não precisa percorrer tudo: pode escolher **“quero algo para refletir”**, **“quero uma história de coragem”**, **“quero entender um conflito de poder”** ou **“quero uma notícia atual baseada em Provérbios”**.
 
 Esta seção é uma proposta de arquitetura e ainda não altera o aplicativo. A implementação deve ocorrer somente depois da aprovação dos nomes, categorias e níveis.
+
+
+## 12. Atualização final — Admin, IBR e infraestrutura
+
+### 12.1 Painel administrativo
+
+O painel administrativo recebeu cabeçalho com a identidade visual da igreja, cartões de métricas, ações rápidas, categorias expansíveis com persistência local e filtros para membros e notícias. As categorias permanecem recolhidas por padrão e a preferência do administrador é preservada entre acessos. O acesso administrativo continua usando a senha `igreja10`, sem alteração do fluxo acordado.
+
+### 12.2 Instituto Bíblico Rhema
+
+A área IBR foi reorganizada em visão geral, conteúdo, módulos e certificados. O aluno dispõe de cartão de continuidade, capas visuais, retomada da última aula e persistência do progresso. A experiência de vídeo, áudio e texto foi unificada, os módulos seguem progressão sequencial e os bloqueios exibem explicações visuais. O certificado mostra status, permite compartilhamento e mantém o e-mail destinado exclusivamente ao envio do certificado.
+
+No painel IBR, a lista de cursos possui busca por título ou descrição, filtro por tema, contagem de resultados e ordenação alfabética. Esses controles filtram somente a visualização e não removem nem alteram cursos ou capítulos.
+
+### 12.3 Supabase, Firebase e uploads
+
+Os uploads administrativos de imagens, capas, vídeos, áudios e PDFs utilizam o Supabase Storage por meio do gateway autorizado. O projeto não embute chaves `service_role` no APK nem no GitHub. A autenticação dos membros permanece simples, baseada em nome e telefone, sem SMS obrigatório; a sessão Firebase é vinculada quando necessária para sincronização. O administrador mantém o fluxo de acesso com `igreja10`.
+
+### 12.4 Limpeza de código temporário
+
+Foi removido do `VipAdmin.kt` o cartão de upload em lote que criava aulas fictícias, simulava progresso e usava a URL de demonstração Big Buck Bunny. O painel permanece com os campos reais de upload de capítulos, evitando conteúdo de teste em produção.
+
+### 12.5 Avatares bíblicos
+
+O catálogo de avatares já cadastrados inclui Davi, Ester, Daniel, Rute, Moisés, Noé, Maria, Paulo, Josué, Abraão, Sara, Rebeca, Jacó, José, Samuel, Elias, Isaías, Jeremias e João Batista. Timóteo, Priscila e Lídia continuam pendentes de geração por indisponibilidade temporária da cota diária de imagens; isso não impede a utilização dos avatares existentes nem a persistência da escolha no perfil.
+
+### 12.6 CI/CD e validação
+
+O commit `0ca6775` — `feat: add IBR course search and filters` — foi enviado para `main` e validado pelo GitHub Actions no workflow [31962341410](https://github.com/bichocutela/Mic-RHEMA-Ia-Studio-Google/actions/runs/31962341410), concluído com sucesso. A compilação, limpeza de configurações temporárias, upload do APK, extração da versão e criação da release foram executados sem falhas.
+
+### 12.7 Teste manual final recomendado
+
+No aparelho, o fluxo final deve ser conferido nesta ordem: aprovar um membro, entrar com nome e telefone, abrir um curso IBR, iniciar uma aula, sair e retornar para confirmar a retomada, concluir os capítulos sequenciais, abrir o certificado e testar o compartilhamento por e-mail com anexo. Também é recomendado testar um upload real de imagem e PDF pelo administrador e confirmar no painel o avatar e as informações sincronizadas do membro.
