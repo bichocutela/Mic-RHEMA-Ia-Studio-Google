@@ -75,7 +75,8 @@ fun ProfileScreen(
     var showBadgePicker by remember { mutableStateOf(false) }
     val selectedAvatar = biblicalAvatarForId(selectedAvatarId)
     val equippedBadge = biblicalBadgeForId(equippedBadgeId)
-    val unlockedBadgeIds = loggedInMember.unlockedBadgeIds.ifEmpty { listOf(DEFAULT_BIBLICAL_BADGE_ID) }
+    val badgeProgress = calculateBadgeProgress(loggedInMember)
+    val unlockedBadgeIds = badgeProgress.unlockedIds
 
     LaunchedEffect(loggedInMember.id, loggedInMember.name, loggedInMember.phone, loggedInMember.address, loggedInMember.birthDate, loggedInMember.email, loggedInMember.avatarId, loggedInMember.equippedBadgeId, loggedInMember.unlockedBadgeIds) {
         if (!isEditingName) name = loggedInMember.name
@@ -153,6 +154,51 @@ fun ProfileScreen(
                     Icon(Icons.Default.EmojiEvents, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Ver emblemas e níveis")
+                }
+            }
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)),
+                shape = RoundedCornerShape(20.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.EmojiEvents, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Progresso das conquistas", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    }
+                    Text(
+                        "${badgeProgress.completedIbrLessons} aulas IBR concluídas • ${badgeProgress.completedIbrCourses} cursos concluídos",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    badgeProgress.nextLevel?.let { nextBadge ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Próximo: ${nextBadge.name}", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                            Text("${(badgeProgress.progressToNextLevel * 100).toInt()}%", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                        }
+                        LinearProgressIndicator(
+                            progress = { badgeProgress.progressToNextLevel },
+                            modifier = Modifier.fillMaxWidth(),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            nextBadge.requirement,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } ?: Text(
+                        "Todos os níveis principais foram alcançados.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
             }
 
