@@ -129,7 +129,7 @@ object StorageManager {
             )?.use { cursor ->
                 if (cursor.moveToFirst()) cursor.getString(0).orEmpty() else ""
             }
-        }.getOrDefault("")
+        }.getOrDefault("").orEmpty()
         val extension = displayName.substringAfterLast('.', "").lowercase()
         return android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension).orEmpty().lowercase()
     }

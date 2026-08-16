@@ -22,7 +22,7 @@ object StorageHelper {
                 ?.use { cursor ->
                     if (cursor.moveToFirst()) cursor.getString(0).orEmpty() else ""
                 }
-        }.getOrDefault("")
+        }.getOrDefault("").orEmpty()
         val extension = displayName.substringAfterLast('.', "").lowercase()
         val extensionMime = android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension).orEmpty().lowercase()
         val resolvedMime = when {
