@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.google.firebase.FirebaseException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.PhoneAuthCredential
 import com.google.firebase.auth.PhoneAuthOptions
@@ -104,7 +105,7 @@ fun ProfilePhotoAuthDialog(
                 completeWithCredential(credential)
             }
 
-            override fun onVerificationFailed(exception: Exception) {
+            override fun onVerificationFailed(exception: FirebaseException) {
                 isLoading = false
                 errorMessage = "Não foi possível enviar o SMS. Se você não tem acesso a este número, a foto não poderá ser alterada."
             }

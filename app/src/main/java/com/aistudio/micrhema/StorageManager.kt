@@ -65,7 +65,7 @@ object StorageManager {
     private suspend fun firebaseIdToken(context: Context? = null): String = withContext(Dispatchers.IO) {
         val auth = FirebaseAuth.getInstance()
         val adminMode = adminAuthenticatedState.value
-        val user = auth.currentUser?.takeIf { !it.isAnonymous || adminMode }
+        val user: com.google.firebase.auth.FirebaseUser = auth.currentUser?.takeIf { !it.isAnonymous || adminMode }
             ?: if (adminMode) runCatching { auth.signInAnonymously().await().user }.getOrNull() else null
             ?: throw IllegalStateException("Faça login com o código SMS do telefone aprovado antes de enviar arquivos.")
 
@@ -74,7 +74,7 @@ object StorageManager {
         repeat(2) { attempt ->
             if (token.isNullOrBlank()) {
                 try {
-                    token = user?.getIdToken(attempt == 1)?.await()?.token
+                    token = user.getIdToken(attempt == 1).await().token
                     if (token.isNullOrBlank()) {
                         lastError = IllegalStateException("O Firebase não retornou um token de sessão.")
                     }
