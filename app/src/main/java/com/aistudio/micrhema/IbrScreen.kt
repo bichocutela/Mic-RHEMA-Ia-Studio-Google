@@ -106,6 +106,11 @@ fun IbrMainScreen(
                     }
                     
                     val progressPercent = if (totalModules > 0) completedModules.toFloat() / totalModules else 0f
+                    val nextLesson = courses
+                        .flatMap { course -> course.chapters.map { chapter -> course to chapter } }
+                        .firstOrNull { (course, chapter) ->
+                            ibrProgressState.none { it.courseId == course.id && it.chapterId == chapter.id && it.isCompleted }
+                        }
                     val localContext = LocalContext.current
                     
                     LazyColumn(
@@ -120,6 +125,15 @@ fun IbrMainScreen(
                                 totalTime = totalTime,
                                 certificateUrl = loggedInMember.ibrCertificateUrl
                             )
+                        }
+                        if (nextLesson != null) {
+                            item {
+                                IbrContinueStudyingCard(
+                                    course = nextLesson.first,
+                                    chapter = nextLesson.second,
+                                    onClick = { onNavigateToCourse(nextLesson.first.id) }
+                                )
+                            }
                         }
                         
                         var previousCourseCompleted = true
@@ -230,6 +244,41 @@ fun IbrProgressCard(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Certificado Bloqueado")
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun IbrContinueStudyingCard(course: IbrCourse, chapter: IbrChapter, onClick: () -> Unit) {
+    val chapterType = when (chapter.type) {
+        "VIDEO" -> "Vídeo"
+        "AUDIO" -> "Áudio"
+        "TEXT" -> "Leitura"
+        else -> "Aula"
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable { onClick() },
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+    ) {
+        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.PlayArrow, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(7.dp))
+                Text("CONTINUAR ESTUDANDO", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
+            }
+            Text(course.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
+            Text(chapter.title, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.82f), maxLines = 2)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f)) {
+                    Text(chapterType, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp))
+                }
+                Spacer(Modifier.width(8.dp))
+                Text("${chapter.durationMinutes} min", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.78f))
+                Spacer(Modifier.weight(1f))
+                Text("Abrir aula", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                Icon(Icons.Default.ChevronRight, contentDescription = "Abrir próxima aula", tint = MaterialTheme.colorScheme.onSecondaryContainer)
             }
         }
     }
