@@ -56,12 +56,29 @@ object StorageManager {
     }
 
     private suspend fun firebaseIdToken(): String = withContext(Dispatchers.IO) {
-        FirebaseAuth.getInstance().currentUser
-            ?.getIdToken(false)
-            ?.await()
-            ?.token
-            ?.takeIf { it.isNotBlank() }
-            ?: throw IllegalStateException("Sua sessão expirou. Entre novamente para enviar arquivos.")
+        val user = FirebaseAuth.getInstance().currentUser
+            ?: throw IllegalStateException("Não encontramos sua sessão do Firebase. Entre novamente para enviar arquivos.")
+
+        var lastError: Exception? = null
+        repeat(2) { attempt ->
+            try {
+                val token = user.getIdToken(attempt == 1).await().token
+                if (!token.isNullOrBlank()) return@withContext token
+                lastError = IllegalStateException("O Firebase não retornou um token de sessão.")
+            } catch (error: Exception) {
+                lastError = error
+                Log.w(
+                    "StorageManager",
+                    if (attempt == 0) "Token Firebase indisponível; tentando renovar automaticamente" else "Renovação do token Firebase falhou",
+                    error
+                )
+            }
+        }
+
+        throw IllegalStateException(
+            "Não foi possível renovar sua sessão para enviar a foto. Verifique sua conexão e tente novamente.",
+            lastError
+        )
     }
 
     private fun mimeType(context: Context, uri: Uri): String =
@@ -207,6 +224,34 @@ object StorageManager {
         client.newCall(request).execute().use { response ->
             responseJson(response).optString("signed_url").takeIf { it.isNotBlank() }
                 ?: throw IllegalStateException("O Supabase não retornou uma URL assinada.")
+        }
+    }
+
+    suspend fun downloadStorageFileToCache(
+        context: Context,
+        bucket: String,
+        storagePath: String,
+        targetUid: String
+    ): File = withContext(Dispatchers.IO) {
+        val signedUrl = getSignedUrl(bucket, storagePath, targetUid)
+        val request = Request.Builder().url(signedUrl).get().build()
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw IllegalStateException("Não foi possível baixar o certificado para anexá-lo ao e-mail.")
+            }
+            val body = response.body ?: throw IllegalStateException("O certificado não possui conteúdo para anexar.")
+            if (body.contentLength() > MAX_DOCUMENT_BYTES) {
+                throw IllegalStateException("O certificado excede o limite permitido para compartilhamento.")
+            }
+            val destination = File(context.cacheDir, "certificado_ibr_${targetUid}_${System.currentTimeMillis()}.pdf")
+            body.byteStream().use { input ->
+                FileOutputStream(destination).use { output -> input.copyTo(output) }
+            }
+            if (!destination.exists() || destination.length() == 0L) {
+                destination.delete()
+                throw IllegalStateException("O certificado baixado está vazio.")
+            }
+            destination
         }
     }
 

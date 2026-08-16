@@ -42,19 +42,22 @@ fun ProfileScreen(
     var birthDate by remember { mutableStateOf(loggedInMember.birthDate) }
     var profilePhotoUrl by remember { mutableStateOf(loggedInMember.profilePhotoUrl) }
     var profileStoragePath by remember { mutableStateOf(loggedInMember.supabaseStoragePath) }
+    var email by remember { mutableStateOf(loggedInMember.email) }
 
     var isEditingName by remember { mutableStateOf(false) }
     var isEditingPhone by remember { mutableStateOf(false) }
     var isEditingAddress by remember { mutableStateOf(false) }
     var isEditingBirthDate by remember { mutableStateOf(false) }
+    var isEditingEmail by remember { mutableStateOf(false) }
     var isUploading by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
 
-    LaunchedEffect(loggedInMember.id, loggedInMember.name, loggedInMember.phone, loggedInMember.address, loggedInMember.birthDate, loggedInMember.profilePhotoUrl, loggedInMember.supabaseStoragePath) {
+    LaunchedEffect(loggedInMember.id, loggedInMember.name, loggedInMember.phone, loggedInMember.address, loggedInMember.birthDate, loggedInMember.email, loggedInMember.profilePhotoUrl, loggedInMember.supabaseStoragePath) {
         if (!isEditingName) name = loggedInMember.name
         if (!isEditingPhone) phone = loggedInMember.phone
         if (!isEditingAddress) address = loggedInMember.address
         if (!isEditingBirthDate) birthDate = loggedInMember.birthDate
+        if (!isEditingEmail) email = loggedInMember.email
         profilePhotoUrl = loggedInMember.profilePhotoUrl
         profileStoragePath = loggedInMember.supabaseStoragePath
     }
@@ -293,9 +296,36 @@ fun ProfileScreen(
                 isEditing = isEditingBirthDate,
                 onValueChange = { birthDate = it },
                 onEditClick = { isEditingBirthDate = true },
-                onSaveClick = { 
+                onSaveClick = {
                     isEditingBirthDate = false
                     saveProfile(loggedInMember, name, phone, address, birthDate, profilePhotoUrl, context)
+                }
+            )
+
+            ProfileField(
+                label = "E-mail para envio do certificado IBR",
+                value = email,
+                isEditing = isEditingEmail,
+                onValueChange = { email = it },
+                onEditClick = { isEditingEmail = true },
+                onSaveClick = {
+                    val normalizedEmail = email.trim()
+                    if (normalizedEmail.isNotBlank() && !android.util.Patterns.EMAIL_ADDRESS.matcher(normalizedEmail).matches()) {
+                        android.widget.Toast.makeText(context, "Digite um e-mail válido para receber o certificado.", android.widget.Toast.LENGTH_LONG).show()
+                    } else {
+                        email = normalizedEmail
+                        isEditingEmail = false
+                        saveProfile(
+                            loggedInMember,
+                            name,
+                            phone,
+                            address,
+                            birthDate,
+                            profilePhotoUrl,
+                            context,
+                            email = normalizedEmail
+                        )
+                    }
                 }
             )
 
@@ -406,6 +436,7 @@ private fun saveProfile(
     birthDate: String,
     profilePhotoUrl: String,
     context: android.content.Context,
+    email: String = member.email,
     profileStoragePath: String = member.supabaseStoragePath,
     showToast: Boolean = true,
     onResult: ((synced: Boolean, error: Exception?) -> Unit)? = null
@@ -417,6 +448,7 @@ private fun saveProfile(
     member.birthDate = birthDate
     member.profilePhotoUrl = profilePhotoUrl
     member.supabaseStoragePath = profileStoragePath
+    member.email = email.trim()
     member.updatedAt = System.currentTimeMillis()
     
     // Update local state to reflect instantly in Drawer
@@ -443,6 +475,7 @@ private fun saveProfile(
             member.birthDate = previousMember.birthDate
             member.profilePhotoUrl = previousMember.profilePhotoUrl
             member.supabaseStoragePath = previousMember.supabaseStoragePath
+            member.email = previousMember.email
             member.updatedAt = previousMember.updatedAt
             loggedInMemberState.value = member.copy()
             val failedIndex = memberRequestsState.indexOfFirst { it.id == member.id }

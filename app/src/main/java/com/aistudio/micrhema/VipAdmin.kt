@@ -1,5 +1,6 @@
 package com.aistudio.micrhema
 
+import android.content.Intent
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -1353,6 +1354,8 @@ fun EditIbrCertificatesSection() {
     val context = LocalContext.current
     var uploadCertificateForUser by remember { mutableStateOf<MemberRequest?>(null) }
     var uploadUrl by remember { mutableStateOf("") }
+    var emailingMemberId by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
     
     val totalIbrCourses = ibrCoursesState.size
     
@@ -1415,11 +1418,62 @@ fun EditIbrCertificatesSection() {
                                 Spacer(modifier = Modifier.height(8.dp))
                             }
                             
-                            Button(onClick = { 
+                            val hasCertificate = member.ibrCertificateStoragePath.isNotBlank() || member.ibrCertificateUrl.startsWith("http://") || member.ibrCertificateUrl.startsWith("https://")
+                            Button(onClick = {
                                 uploadCertificateForUser = member
                                 uploadUrl = member.ibrCertificateStoragePath.ifBlank { member.ibrCertificateUrl }
                             }, modifier = Modifier.fillMaxWidth()) {
-                                Text(if (member.ibrCertificateUrl.isEmpty() && member.ibrCertificateStoragePath.isEmpty()) "Fazer Upload do Certificado" else "Alterar Certificado")
+                                Text(if (!hasCertificate) "Fazer Upload do Certificado" else "Alterar Certificado")
+                            }
+
+                            if (hasCertificate) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedButton(
+                                    onClick = {
+                                        val recipient = member.email.trim()
+                                        if (!android.util.Patterns.EMAIL_ADDRESS.matcher(recipient).matches()) {
+                                            Toast.makeText(context, "Informe um e-mail válido no perfil deste membro antes de enviar.", Toast.LENGTH_LONG).show()
+                                        } else if (emailingMemberId == null) {
+                                            emailingMemberId = member.id
+                                            scope.launch {
+                                                try {
+                                                    val emailIntent = if (member.ibrCertificateStoragePath.isNotBlank()) {
+                                                        val certificateFile = StorageManager.downloadStorageFileToCache(
+                                                            context = context,
+                                                            bucket = "church-documents",
+                                                            storagePath = member.ibrCertificateStoragePath,
+                                                            targetUid = member.id
+                                                        )
+                                                        CertificateEmailShare.createIntent(context, recipient, certificateFile)
+                                                    } else {
+                                                        CertificateEmailShare.createLinkIntent(recipient, member.ibrCertificateUrl)
+                                                    }
+                                                    if (emailIntent.resolveActivity(context.packageManager) == null) {
+                                                        Toast.makeText(context, "Nenhum aplicativo de e-mail disponível neste aparelho.", Toast.LENGTH_LONG).show()
+                                                    } else {
+                                                        context.startActivity(Intent.createChooser(emailIntent, "Enviar certificado por e-mail"))
+                                                        Toast.makeText(context, "E-mail preparado. Toque em Enviar no aplicativo de e-mail.", Toast.LENGTH_LONG).show()
+                                                    }
+                                                } catch (error: Exception) {
+                                                    Toast.makeText(context, "Não foi possível preparar o certificado: ${error.message ?: "verifique sua conexão"}", Toast.LENGTH_LONG).show()
+                                                } finally {
+                                                    emailingMemberId = null
+                                                }
+                                            }
+                                        }
+                                    },
+                                    enabled = emailingMemberId == null,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(if (emailingMemberId == member.id) "Preparando certificado..." else "Enviar certificado por e-mail")
+                                }
+                                if (member.email.isBlank()) {
+                                    Text(
+                                        "Informe o e-mail no perfil do membro para habilitar o envio.",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
                     }
