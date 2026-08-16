@@ -302,6 +302,8 @@ data class MemberRequest(
     var mediaUrl: String = "",
     var profilePhotoUrl: String = "",
     var avatarId: String = DEFAULT_BIBLICAL_AVATAR_ID,
+    var unlockedBadgeIds: List<String> = listOf(DEFAULT_BIBLICAL_BADGE_ID),
+    var equippedBadgeId: String = DEFAULT_BIBLICAL_BADGE_ID,
     var supabaseStoragePath: String = "",
     var address: String = "",
     var birthDate: String = "",
@@ -515,6 +517,8 @@ object MemberManager {
                 "content" to member.content,
                 "mediaUrl" to member.mediaUrl,
                 "avatarId" to member.avatarId.ifBlank { DEFAULT_BIBLICAL_AVATAR_ID },
+                "unlockedBadgeIds" to member.unlockedBadgeIds.ifEmpty { listOf(DEFAULT_BIBLICAL_BADGE_ID) },
+                "equippedBadgeId" to member.equippedBadgeId.ifBlank { DEFAULT_BIBLICAL_BADGE_ID },
                 "address" to member.address,
                 "birthDate" to member.birthDate,
                 "createdAt" to member.createdAt,
@@ -571,6 +575,10 @@ object MemberManager {
                             mediaUrl = obj.optString("mediaUrl", ""),
                             profilePhotoUrl = obj.optString("profilePhotoUrl", ""),
                             avatarId = obj.optString("avatarId", DEFAULT_BIBLICAL_AVATAR_ID).ifBlank { DEFAULT_BIBLICAL_AVATAR_ID },
+                            unlockedBadgeIds = obj.optJSONArray("unlockedBadgeIds")?.let { array ->
+                                List(array.length()) { index -> array.optString(index) }.filter { it.isNotBlank() }
+                            }?.ifEmpty { listOf(DEFAULT_BIBLICAL_BADGE_ID) } ?: listOf(DEFAULT_BIBLICAL_BADGE_ID),
+                            equippedBadgeId = obj.optString("equippedBadgeId", DEFAULT_BIBLICAL_BADGE_ID).ifBlank { DEFAULT_BIBLICAL_BADGE_ID },
                             supabaseStoragePath = obj.optString("supabaseStoragePath", ""),
                             address = obj.optString("address", ""),
                             birthDate = obj.optString("birthDate", ""),
@@ -625,6 +633,8 @@ object MemberManager {
                 obj.put("mediaUrl", member.mediaUrl)
                 obj.put("profilePhotoUrl", member.profilePhotoUrl)
                 obj.put("avatarId", member.avatarId.ifBlank { DEFAULT_BIBLICAL_AVATAR_ID })
+                obj.put("unlockedBadgeIds", org.json.JSONArray(member.unlockedBadgeIds.ifEmpty { listOf(DEFAULT_BIBLICAL_BADGE_ID) }))
+                obj.put("equippedBadgeId", member.equippedBadgeId.ifBlank { DEFAULT_BIBLICAL_BADGE_ID })
                 obj.put("supabaseStoragePath", member.supabaseStoragePath)
                 obj.put("address", member.address)
                 obj.put("birthDate", member.birthDate)
@@ -1646,6 +1656,12 @@ suspend fun refreshHomeData() {
                     val mediaUrl = memberSnapshot.getString("mediaUrl") ?: ""
                     val remoteProfilePhotoUrl = memberSnapshot.getString("profilePhotoUrl") ?: ""
                     val avatarId = memberSnapshot.getString("avatarId").orEmpty().ifBlank { DEFAULT_BIBLICAL_AVATAR_ID }
+                    val unlockedBadgeIds = (memberSnapshot.get("unlockedBadgeIds") as? List<*>)
+                        ?.mapNotNull { it as? String }
+                        ?.filter { it.isNotBlank() }
+                        ?.ifEmpty { listOf(DEFAULT_BIBLICAL_BADGE_ID) }
+                        ?: listOf(DEFAULT_BIBLICAL_BADGE_ID)
+                    val equippedBadgeId = memberSnapshot.getString("equippedBadgeId").orEmpty().ifBlank { DEFAULT_BIBLICAL_BADGE_ID }
                     val supabaseStoragePath = memberSnapshot.getString("supabaseStoragePath") ?: ""
                     val profilePhotoUrl = remoteProfilePhotoUrl.takeIf { it.isNotBlank() }
                         ?: currentMember.profilePhotoUrl
@@ -1671,6 +1687,8 @@ suspend fun refreshHomeData() {
                         mediaUrl = mediaUrl,
                         profilePhotoUrl = profilePhotoUrl,
                         avatarId = avatarId,
+                        unlockedBadgeIds = unlockedBadgeIds,
+                        equippedBadgeId = equippedBadgeId,
                         supabaseStoragePath = supabaseStoragePath,
                         address = address,
                         birthDate = birthDate,

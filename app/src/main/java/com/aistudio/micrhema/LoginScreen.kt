@@ -43,6 +43,12 @@ private fun memberFromLoginDocument(document: DocumentSnapshot): MemberRequest {
         ibrCertificateUrl = document.getString("ibrCertificateUrl") ?: "",
         ibrCertificateStoragePath = document.getString("ibrCertificateStoragePath") ?: "",
         avatarId = document.getString("avatarId").orEmpty().ifBlank { DEFAULT_BIBLICAL_AVATAR_ID },
+        unlockedBadgeIds = (document.get("unlockedBadgeIds") as? List<*>)
+            ?.mapNotNull { it as? String }
+            ?.filter { it.isNotBlank() }
+            ?.ifEmpty { listOf(DEFAULT_BIBLICAL_BADGE_ID) }
+            ?: listOf(DEFAULT_BIBLICAL_BADGE_ID),
+        equippedBadgeId = document.getString("equippedBadgeId").orEmpty().ifBlank { DEFAULT_BIBLICAL_BADGE_ID },
         status = document.getString("status") ?: "pendente",
         address = document.getString("address") ?: "",
         birthDate = document.getString("birthDate") ?: "",
