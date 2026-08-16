@@ -993,8 +993,9 @@ fun loadContentFromFirebase(context: Context) {
         db.collection("app_tabs").addSnapshotListener { snapshot, e ->
             if (e != null || snapshot == null) return@addSnapshotListener
             val list = snapshot.documents.mapNotNull { try { it.toObject(AppTab::class.java) } catch(ex: Exception) { null } }
+            val normalizedTabs = ensureDiscipuladoTab(list)
             appTabsState.clear()
-                appTabsState.addAll(list.sortedBy { it.order })
+                appTabsState.addAll(normalizedTabs.sortedBy { it.order })
         }
         
         db.collection("equipe").orderBy("order").addSnapshotListener { snapshot, e ->
@@ -1069,6 +1070,23 @@ data class CustomTabContent(
     var type: String = "" // "PDF", "VIDEO", "PHOTO", "MUSIC"
 )
 
+data class DiscipuladoPdf(
+    var id: String = "",
+    var title: String = "",
+    var subtitle: String = "",
+    var description: String = "",
+    var category: String = "Estudos bíblicos",
+    var coverUrl: String = "",
+    var storagePath: String = "",
+    var fileUrl: String = "",
+    var pageCount: Int = 0,
+    var order: Int = 0,
+    var isPublished: Boolean = true,
+    var createdAt: Long = System.currentTimeMillis()
+)
+
+val discipuladoPdfsState = androidx.compose.runtime.mutableStateListOf<DiscipuladoPdf>()
+
 data class AppTab(
     var id: String = "",
     var title: String = "",
@@ -1107,6 +1125,16 @@ fun addRecentlyViewed(item: RecentlyViewedItem) {
 
 val appTabsState = androidx.compose.runtime.mutableStateListOf<AppTab>()
 
+fun ensureDiscipuladoTab(tabs: List<AppTab>): List<AppTab> {
+    if (tabs.any { it.id == "discipulado_tab" || it.systemRoute == Screen.Discipulado.route }) return tabs
+    val insertOrder = (tabs.firstOrNull { it.systemRoute == Screen.Ibr.route }?.order ?: 4) + 1
+    val shifted = tabs.map { tab ->
+        if (tab.order >= insertOrder) tab.copy(order = tab.order + 1) else tab
+    }.toMutableList()
+    shifted.add(AppTab("discipulado_tab", "Discipulado", "MenuBook", false, true, false, insertOrder, TabContentType.SYSTEM, Screen.Discipulado.route))
+    return shifted
+}
+
 fun initializeTabs() {
     if (appTabsState.isNotEmpty()) return
     val defaultTabs = listOf(
@@ -1115,15 +1143,16 @@ fun initializeTabs() {
         AppTab("2", "Cultos", "DateRange", false, true, true, 2, TabContentType.SYSTEM, Screen.Services.route),
         AppTab("3", "Devocionais", "Book", false, true, false, 3, TabContentType.SYSTEM, Screen.Devotionals.route),
         AppTab("4", "Cursos IBR", "School", false, true, false, 4, TabContentType.SYSTEM, Screen.Ibr.route),
-        AppTab("5", "Mídia", "PlayArrow", false, true, false, 5, TabContentType.SYSTEM, Screen.Content.route),
-        AppTab("6", "Pedidos de Oração", "Favorite", false, true, true, 6, TabContentType.SYSTEM, Screen.Prayer.route),
-        AppTab("plans_tab", "Planos", "List", false, true, true, 7, TabContentType.SYSTEM, "plans"),
-        AppTab("team_tab", "Equipe", "Groups", false, true, false, 8, TabContentType.SYSTEM, Screen.Team.route),
-        AppTab("7", "Membros", "Person", false, true, false, 9, TabContentType.SYSTEM, Screen.Members.route),
-        AppTab("8", "Sobre", "Info", false, true, false, 10, TabContentType.SYSTEM, Screen.About.route),
-        AppTab("settings_tab", "Configurações", "Settings", false, true, false, 11, TabContentType.SYSTEM, Screen.Settings.route),
-        AppTab("10", "Dízimos e Ofertas", "VolunteerActivism", false, true, true, 12, TabContentType.SYSTEM, Screen.Donations.route),
-        AppTab("admin_tab", "Área ADM", "Lock", false, true, false, 13, TabContentType.SYSTEM, Screen.Admin.route)
+        AppTab("discipulado_tab", "Discipulado", "MenuBook", false, true, false, 5, TabContentType.SYSTEM, Screen.Discipulado.route),
+        AppTab("5", "Mídia", "PlayArrow", false, true, false, 6, TabContentType.SYSTEM, Screen.Content.route),
+        AppTab("6", "Pedidos de Oração", "Favorite", false, true, true, 7, TabContentType.SYSTEM, Screen.Prayer.route),
+        AppTab("plans_tab", "Planos", "List", false, true, true, 8, TabContentType.SYSTEM, "plans"),
+        AppTab("team_tab", "Equipe", "Groups", false, true, false, 9, TabContentType.SYSTEM, Screen.Team.route),
+        AppTab("7", "Membros", "Person", false, true, false, 10, TabContentType.SYSTEM, Screen.Members.route),
+        AppTab("8", "Sobre", "Info", false, true, false, 11, TabContentType.SYSTEM, Screen.About.route),
+        AppTab("settings_tab", "Configurações", "Settings", false, true, false, 12, TabContentType.SYSTEM, Screen.Settings.route),
+        AppTab("10", "Dízimos e Ofertas", "VolunteerActivism", false, true, true, 13, TabContentType.SYSTEM, Screen.Donations.route),
+        AppTab("admin_tab", "Área ADM", "Lock", false, true, false, 14, TabContentType.SYSTEM, Screen.Admin.route)
     )
     appTabsState.addAll(defaultTabs)
 }

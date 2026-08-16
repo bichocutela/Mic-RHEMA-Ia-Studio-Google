@@ -84,6 +84,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     object Prayer : Screen("prayer", "Oração", Icons.Default.Favorite)
     object Members : Screen("members", "Membros", Icons.Default.People)
     object Ibr : Screen("ibr", "IBR", Icons.Default.Group)
+    object Discipulado : Screen("discipulado", "Discipulado", Icons.Default.MenuBook)
     object Plans : Screen("plans", "Planos", Icons.Default.List)
     object Team : Screen("equipe", "Equipe", Icons.Default.Group)
     object About : Screen("about", "Sobre", Icons.Default.Info)
@@ -101,6 +102,7 @@ val drawerItems = listOf(
     Screen.Prayer,
     Screen.Members,
     Screen.Ibr,
+    Screen.Discipulado,
     Screen.About,
     Screen.Donations,
     Screen.Settings,
@@ -591,6 +593,7 @@ fun MainScreen() {
                         onNavigateToCourse = { courseId -> navController.navigate("ibr_course/$courseId") }
                     ) 
                 }
+                composable(Screen.Discipulado.route) { DiscipuladoScreen() }
                 
                 composable("ibr_course/{courseId}") { backStackEntry ->
                     val courseId = backStackEntry.arguments?.getString("courseId") ?: return@composable
