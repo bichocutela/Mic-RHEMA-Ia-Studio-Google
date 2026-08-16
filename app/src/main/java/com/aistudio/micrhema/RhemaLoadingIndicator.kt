@@ -61,7 +61,7 @@ fun RhemaLoadingIndicator(
                 verticalArrangement = Arrangement.Center
             ) {
                 Image(
-                    painter = painterResource(id = R.drawable.rhema_loading_logo),
+                    painter = painterResource(id = R.drawable.rhema_loading_logo_new),
                     contentDescription = "Ministério Igreja de Cristo Rhema",
                     modifier = Modifier
                         .size(132.dp)
