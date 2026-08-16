@@ -1372,7 +1372,31 @@ fun EditIbrCertificatesSection() {
                                     Icon(Icons.Default.PendingActions, contentDescription = "Pendente", tint = MaterialTheme.colorScheme.error)
                                 }
                             }
-                            
+
+                            val memberBadgeProgress = calculateBadgeProgress(member)
+                            val memberBadge = biblicalBadgeForId(member.equippedBadgeId)
+                            Card(
+                                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Default.EmojiEvents, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("Nível ${memberBadge.level ?: 1}: ${memberBadge.name}", fontWeight = FontWeight.SemiBold)
+                                        Text(
+                                            "${memberBadgeProgress.unlockedIds.size} emblemas desbloqueados • ${memberBadgeProgress.completedIbrCourses} cursos concluídos",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Text("${memberBadgeProgress.completedIbrLessons} aulas", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                }
+                            }
+
                             Spacer(modifier = Modifier.height(12.dp))
                             
                             if (member.ibrCertificateUrl.isNotEmpty() || member.ibrCertificateStoragePath.isNotEmpty()) {
