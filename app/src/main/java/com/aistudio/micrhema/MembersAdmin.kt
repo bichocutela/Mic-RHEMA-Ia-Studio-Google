@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.CameraAlt
 
@@ -22,6 +23,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.layout.ContentScale
@@ -33,6 +35,10 @@ fun EditMembersSection() {
     val context = LocalContext.current
     var searchQuery by remember { mutableStateOf("") }
     var statusFilter by remember { mutableStateOf("Todos") }
+    var showAddMemberDialog by remember { mutableStateOf(false) }
+    var newMemberName by remember { mutableStateOf("") }
+    var newMemberPhone by remember { mutableStateOf("") }
+    var isSavingMember by remember { mutableStateOf(false) }
     val filteredMembers = memberRequestsState.filter { member ->
         val matchesQuery = searchQuery.isBlank() || member.name.contains(searchQuery, ignoreCase = true) || member.phone.contains(searchQuery, ignoreCase = true)
         val matchesStatus = when (statusFilter) {
@@ -44,8 +50,25 @@ fun EditMembersSection() {
         matchesQuery && matchesStatus
     }
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Gerenciar Membros", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Text("Aprovações, permissões e perfis sincronizados.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Gerenciar Membros", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("Aprovações, permissões e perfis sincronizados.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Button(onClick = {
+                newMemberName = ""
+                newMemberPhone = ""
+                showAddMemberDialog = true
+            }) {
+                Icon(Icons.Default.Person, contentDescription = null)
+                Spacer(Modifier.width(6.dp))
+                Text("Adicionar")
+            }
+        }
         Spacer(Modifier.height(12.dp))
         OutlinedTextField(
             value = searchQuery,
@@ -158,6 +181,84 @@ fun EditMembersSection() {
                 }
             }
         }
+    }
+
+    if (showAddMemberDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!isSavingMember) showAddMemberDialog = false },
+            title = { Text("Adicionar membro") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "O cadastro será enviado ao Firestore como Pendente. O acesso só será liberado após a aprovação do ADM.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = newMemberName,
+                        onValueChange = { newMemberName = it },
+                        label = { Text("Nome completo") },
+                        singleLine = true,
+                        enabled = !isSavingMember
+                    )
+                    OutlinedTextField(
+                        value = newMemberPhone,
+                        onValueChange = { newMemberPhone = it.filter(Char::isDigit).take(11) },
+                        label = { Text("Número de telefone") },
+                        placeholder = { Text("DDD + número") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        singleLine = true,
+                        enabled = !isSavingMember
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = !isSavingMember && newMemberName.trim().isNotBlank() && newMemberPhone.filter(Char::isDigit).length >= 10,
+                    onClick = {
+                        val completeName = newMemberName.trim()
+                        val cleanPhone = newMemberPhone.filter(Char::isDigit)
+                        val duplicate = memberRequestsState.any { it.phone.filter(Char::isDigit) == cleanPhone }
+                        if (duplicate) {
+                            Toast.makeText(context, "Já existe um membro com este telefone.", Toast.LENGTH_LONG).show()
+                        } else {
+                            isSavingMember = true
+                        val member = MemberRequest(
+                            id = java.util.UUID.randomUUID().toString(),
+                            name = completeName,
+                            ibrCertificateName = completeName,
+                            phone = cleanPhone,
+                            isApproved = false,
+                            isVip = false,
+                            isIbr = false,
+                            status = "pendente",
+                            createdAt = System.currentTimeMillis(),
+                            updatedAt = System.currentTimeMillis()
+                        )
+                        MemberManager.saveToFirestore(
+                            context = context,
+                            member = member,
+                            onSuccess = {
+                                isSavingMember = false
+                                showAddMemberDialog = false
+                                Toast.makeText(context, "Membro cadastrado como pendente.", Toast.LENGTH_SHORT).show()
+                                MemberManager.syncFromFirestore(context)
+                            },
+                            onFailure = { error ->
+                                isSavingMember = false
+                                Toast.makeText(context, "Não foi possível cadastrar: ${error.message ?: "verifique a conexão"}", Toast.LENGTH_LONG).show()
+                            }
+                        )
+                        }
+                    }
+                ) {
+                    if (isSavingMember) CircularProgressIndicator(modifier = Modifier.size(18.dp)) else Text("Cadastrar pendente")
+                }
+            },
+            dismissButton = {
+                TextButton(enabled = !isSavingMember, onClick = { showAddMemberDialog = false }) { Text("Cancelar") }
+            }
+        )
     }
 }
 
