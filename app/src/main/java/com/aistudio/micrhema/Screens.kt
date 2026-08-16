@@ -183,7 +183,20 @@ fun AdminScreen() {
         }
     }
     
-    var adminFontScale by remember { mutableFloatStateOf(1f) }
+    val adminUiPrefs = remember {
+        context.getSharedPreferences("micrhema_admin_ui", android.content.Context.MODE_PRIVATE)
+    }
+    var adminFontScale by remember {
+        mutableFloatStateOf(
+            adminUiPrefs.getFloat("admin_font_scale", 1f).coerceIn(0.8f, 1.5f)
+        )
+    }
+
+    fun updateAdminFontScale(value: Float) {
+        val normalized = value.coerceIn(0.8f, 1.5f)
+        adminFontScale = normalized
+        adminUiPrefs.edit().putFloat("admin_font_scale", normalized).apply()
+    }
     
     // O painel herda o mesmo esquema global para refletir Claro/Escuro e a cor de destaque escolhida.
     val appColorScheme = MaterialTheme.colorScheme
@@ -221,11 +234,11 @@ fun AdminScreen() {
                     ) {
                         Text("Painel Administrativo", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { if (adminFontScale > 0.8f) adminFontScale -= 0.1f }) {
+                            IconButton(onClick = { updateAdminFontScale(adminFontScale - 0.1f) }) {
                                 Icon(Icons.Filled.Clear, contentDescription = "Diminuir Fonte", tint = MaterialTheme.colorScheme.onSurface)
                             }
                             Text("Aa", fontSize = 16.sp * adminFontScale, color = MaterialTheme.colorScheme.onSurface)
-                            IconButton(onClick = { if (adminFontScale < 1.5f) adminFontScale += 0.1f }) {
+                            IconButton(onClick = { updateAdminFontScale(adminFontScale + 0.1f) }) {
                                 Icon(Icons.Filled.Add, contentDescription = "Aumentar Fonte", tint = MaterialTheme.colorScheme.onSurface)
                             }
                             IconButton(onClick = { 
