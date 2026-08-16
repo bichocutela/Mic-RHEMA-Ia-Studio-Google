@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,6 +39,10 @@ enum class AdminSection {
 @Composable
 fun AdminDashboard(onNavigate: (AdminSection) -> Unit, paddingValues: PaddingValues) {
     val context = LocalContext.current
+    LaunchedEffect(Unit) {
+        // Sempre reabrir a leitura remota ao entrar no dashboard, sem usar estado local.
+        MemberManager.syncFromFirestore(context)
+    }
     val adminUiPrefs = remember { context.getSharedPreferences("micrhema_admin_ui", android.content.Context.MODE_PRIVATE) }
     val approvedCount = memberRequestsState.count { it.isApproved || it.status == "aprovado" }
     val pendingCount = memberRequestsState.count { !it.isApproved && it.status != "aprovado" }
