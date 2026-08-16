@@ -1400,7 +1400,7 @@ fun EditIbrCertificatesSection() {
                                     Text(member.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                                     Text(member.email.ifEmpty { "Sem e-mail" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
-                                if (member.ibrCertificateUrl.isNotEmpty()) {
+                                if (member.ibrCertificateUrl.isNotEmpty() || member.ibrCertificateStoragePath.isNotEmpty()) {
                                     Icon(Icons.Default.Verified, contentDescription = "Certificado Enviado", tint = Color(0xFF4CAF50))
                                 } else {
                                     Icon(Icons.Default.PendingActions, contentDescription = "Pendente", tint = MaterialTheme.colorScheme.error)
@@ -1409,17 +1409,17 @@ fun EditIbrCertificatesSection() {
                             
                             Spacer(modifier = Modifier.height(12.dp))
                             
-                            if (member.ibrCertificateUrl.isNotEmpty()) {
+                            if (member.ibrCertificateUrl.isNotEmpty() || member.ibrCertificateStoragePath.isNotEmpty()) {
                                 Text("Certificado enviado:", style = MaterialTheme.typography.labelSmall)
-                                Text(member.ibrCertificateUrl, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                                Text(member.ibrCertificateUrl.ifBlank { member.ibrCertificateStoragePath }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                                 Spacer(modifier = Modifier.height(8.dp))
                             }
                             
                             Button(onClick = { 
-                                uploadCertificateForUser = member 
-                                uploadUrl = member.ibrCertificateUrl
+                                uploadCertificateForUser = member
+                                uploadUrl = member.ibrCertificateStoragePath.ifBlank { member.ibrCertificateUrl }
                             }, modifier = Modifier.fillMaxWidth()) {
-                                Text(if (member.ibrCertificateUrl.isEmpty()) "Fazer Upload do Certificado" else "Alterar Certificado")
+                                Text(if (member.ibrCertificateUrl.isEmpty() && member.ibrCertificateStoragePath.isEmpty()) "Fazer Upload do Certificado" else "Alterar Certificado")
                             }
                         }
                     }
@@ -1437,14 +1437,20 @@ fun EditIbrCertificatesSection() {
                     LocalUploadField(
                         value = uploadUrl,
                         onValueChange = { uploadUrl = it },
-                        label = "Upload PDF ou Imagem",
-                        mimeType = "*/*"
+                        label = "Upload de PDF",
+                        mimeType = "application/pdf",
+                        targetUid = uploadCertificateForUser!!.id
                     )
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
-                    val updatedMember = uploadCertificateForUser!!.copy(ibrCertificateUrl = uploadUrl)
+                    val storagePath = uploadUrl.takeIf { it.startsWith("church-documents/") }.orEmpty()
+                    val legacyUrl = uploadUrl.takeIf { it.startsWith("http://") || it.startsWith("https://") }.orEmpty()
+                    val updatedMember = uploadCertificateForUser!!.copy(
+                        ibrCertificateUrl = if (storagePath.isNotBlank()) "" else legacyUrl,
+                        ibrCertificateStoragePath = storagePath
+                    )
                     val index = memberRequestsState.indexOfFirst { it.id == updatedMember.id }
                     if (index != -1) {
                         memberRequestsState[index] = updatedMember

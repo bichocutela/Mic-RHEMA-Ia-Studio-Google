@@ -291,12 +291,14 @@ data class MemberRequest(
     var isIbr: Boolean = false,
     var isAdmin: Boolean = false,
     var ibrCertificateUrl: String = "",
+    var ibrCertificateStoragePath: String = "",
     var status: String = "pendente",
     var title: String = "",
     var type: String = "acesso",
     var content: String = "",
     var mediaUrl: String = "",
     var profilePhotoUrl: String = "",
+    var supabaseStoragePath: String = "",
     var address: String = "",
     var birthDate: String = "",
     var createdAt: Long = 0L,
@@ -365,13 +367,15 @@ object MemberManager {
                     val email = document.getString("email") ?: ""
                     val isAdmin = document.getBoolean("isAdmin") ?: false
                     val ibrCertificateUrl = document.getString("ibrCertificateUrl") ?: ""
+                    val ibrCertificateStoragePath = document.getString("ibrCertificateStoragePath") ?: ""
                     val status = document.getString("status") ?: if (isApproved || isIbr) "aprovado" else "pendente"
                     val title = document.getString("title") ?: ""
                     val type = document.getString("type") ?: "acesso"
                     val content = document.getString("content") ?: ""
                     val mediaUrl = document.getString("mediaUrl") ?: ""
                     val remoteProfilePhotoUrl = document.getString("profilePhotoUrl") ?: ""
-                    val profilePhotoUrl = resolveProfilePhotoUrl(context, id, remoteProfilePhotoUrl)
+                    val supabaseStoragePath = document.getString("supabaseStoragePath") ?: ""
+                    val profilePhotoUrl = resolveProfilePhotoUrl(context, id, remoteProfilePhotoUrl, supabaseStoragePath)
                     val address = document.getString("address") ?: ""
                     val birthDate = document.getString("birthDate") ?: ""
                     val createdAt = document.getLong("createdAt") ?: 0L
@@ -386,12 +390,14 @@ object MemberManager {
                         isIbr = isIbr,
                         isAdmin = isAdmin,
                         ibrCertificateUrl = ibrCertificateUrl,
+                        ibrCertificateStoragePath = ibrCertificateStoragePath,
                         status = status,
                         title = title,
                         type = type,
                         content = content,
                         mediaUrl = mediaUrl,
                         profilePhotoUrl = profilePhotoUrl,
+                        supabaseStoragePath = supabaseStoragePath,
                         address = address,
                         birthDate = birthDate,
                         createdAt = createdAt,
@@ -401,6 +407,7 @@ object MemberManager {
                 memberRequestsState.clear()
                 memberRequestsState.addAll(newList)
                 saveMembers(context)
+                refreshSignedStorageUrls(context, newList)
 
                 val loggedInId = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
                         .getString(KEY_LOGGED_IN_ID, "") ?: ""
@@ -425,10 +432,46 @@ object MemberManager {
         }
     }
 
-    private fun resolveProfilePhotoUrl(context: android.content.Context, memberId: String, remoteUrl: String): String {
+    private fun resolveProfilePhotoUrl(
+        context: android.content.Context,
+        memberId: String,
+        remoteUrl: String,
+        storagePath: String
+    ): String {
         if (remoteUrl.startsWith("http://") || remoteUrl.startsWith("https://")) return remoteUrl
         val localUrl = StorageManager.getLocalProfilePhotoUri(context, memberId)
-        return localUrl.ifBlank { if (remoteUrl.startsWith("file://")) "" else remoteUrl }
+        return localUrl.ifBlank { if (remoteUrl.startsWith("file://") || storagePath.isNotBlank()) "" else remoteUrl }
+    }
+
+    private fun refreshSignedStorageUrls(context: android.content.Context, members: List<MemberRequest>) {
+        dataSyncScope.launch {
+            members.forEach { member ->
+                val profileUrl = if (member.supabaseStoragePath.isNotBlank()) {
+                    runCatching {
+                        StorageManager.getSignedUrl("profile-photos", member.supabaseStoragePath, member.id)
+                    }.getOrNull().orEmpty()
+                } else ""
+                val certificateUrl = if (member.ibrCertificateStoragePath.isNotBlank()) {
+                    runCatching {
+                        StorageManager.getSignedUrl("church-documents", member.ibrCertificateStoragePath, member.id)
+                    }.getOrNull().orEmpty()
+                } else ""
+                if (profileUrl.isBlank() && certificateUrl.isBlank()) return@forEach
+                kotlinx.coroutines.withContext(Dispatchers.Main.immediate) {
+                    val index = memberRequestsState.indexOfFirst { it.id == member.id }
+                    if (index >= 0) {
+                        val current = memberRequestsState[index]
+                        val updated = current.copy(
+                            profilePhotoUrl = if (profileUrl.isNotBlank() && current.supabaseStoragePath == member.supabaseStoragePath) profileUrl else current.profilePhotoUrl,
+                            ibrCertificateUrl = if (certificateUrl.isNotBlank() && current.ibrCertificateStoragePath == member.ibrCertificateStoragePath) certificateUrl else current.ibrCertificateUrl
+                        )
+                        memberRequestsState[index] = updated
+                        if (loggedInMemberState.value?.id == member.id) loggedInMemberState.value = updated.copy()
+                        saveMembers(context)
+                    }
+                }
+            }
+        }
     }
 
     fun saveToFirestore(context: android.content.Context, member: MemberRequest, onSuccess: () -> Unit = {}, onFailure: (Exception) -> Unit = {}) {
@@ -451,7 +494,8 @@ object MemberManager {
                 "isVip" to false,
                 "isIbr" to member.isIbr,
                 "isAdmin" to member.isAdmin,
-                "ibrCertificateUrl" to member.ibrCertificateUrl,
+                "ibrCertificateUrl" to if (member.ibrCertificateStoragePath.isBlank()) member.ibrCertificateUrl else "",
+                "ibrCertificateStoragePath" to member.ibrCertificateStoragePath,
                 "status" to member.status.ifBlank { if (member.isApproved || member.isIbr) "aprovado" else "pendente" },
                 "title" to member.title,
                 "type" to member.type,
@@ -460,9 +504,12 @@ object MemberManager {
                 "address" to member.address,
                 "birthDate" to member.birthDate,
                 "createdAt" to member.createdAt,
-                "updatedAt" to member.updatedAt
+                "updatedAt" to member.updatedAt,
+                "supabaseStoragePath" to member.supabaseStoragePath
             )
-            if (member.profilePhotoUrl.isBlank() || remoteProfilePhotoUrl.isNotBlank()) {
+            if (member.supabaseStoragePath.isNotBlank()) {
+                memberMap["profilePhotoUrl"] = ""
+            } else if (member.profilePhotoUrl.isBlank() || remoteProfilePhotoUrl.isNotBlank()) {
                 memberMap["profilePhotoUrl"] = remoteProfilePhotoUrl
             }
             db.collection("acessos_pendentes").document(member.id).set(memberMap, com.google.firebase.firestore.SetOptions.merge())
@@ -500,12 +547,14 @@ object MemberManager {
                             isIbr = obj.optBoolean("isIbr", false),
                             isAdmin = obj.optBoolean("isAdmin", false),
                             ibrCertificateUrl = obj.optString("ibrCertificateUrl", ""),
+                            ibrCertificateStoragePath = obj.optString("ibrCertificateStoragePath", ""),
                             status = obj.optString("status", "pendente"),
                             title = obj.optString("title", ""),
                             type = obj.optString("type", "acesso"),
                             content = obj.optString("content", ""),
                             mediaUrl = obj.optString("mediaUrl", ""),
                             profilePhotoUrl = obj.optString("profilePhotoUrl", ""),
+                            supabaseStoragePath = obj.optString("supabaseStoragePath", ""),
                             address = obj.optString("address", ""),
                             birthDate = obj.optString("birthDate", ""),
                             createdAt = obj.optLong("createdAt", 0L),
@@ -550,12 +599,14 @@ object MemberManager {
                 obj.put("isIbr", member.isIbr)
                 obj.put("isAdmin", member.isAdmin)
                 obj.put("ibrCertificateUrl", member.ibrCertificateUrl)
+                obj.put("ibrCertificateStoragePath", member.ibrCertificateStoragePath)
                 obj.put("status", member.status)
                 obj.put("title", member.title)
                 obj.put("type", member.type)
                 obj.put("content", member.content)
                 obj.put("mediaUrl", member.mediaUrl)
                 obj.put("profilePhotoUrl", member.profilePhotoUrl)
+                obj.put("supabaseStoragePath", member.supabaseStoragePath)
                 obj.put("address", member.address)
                 obj.put("birthDate", member.birthDate)
                 obj.put("createdAt", member.createdAt)
@@ -1540,14 +1591,15 @@ suspend fun refreshHomeData() {
                     val email = memberSnapshot.getString("email") ?: ""
                     val isAdmin = memberSnapshot.getBoolean("isAdmin") ?: false
                     val ibrCertificateUrl = memberSnapshot.getString("ibrCertificateUrl") ?: ""
+                    val ibrCertificateStoragePath = memberSnapshot.getString("ibrCertificateStoragePath") ?: ""
                     val status = memberSnapshot.getString("status") ?: if (effectiveApproved || isIbr) "aprovado" else "pendente"
                     val title = memberSnapshot.getString("title") ?: ""
                     val type = memberSnapshot.getString("type") ?: "acesso"
                     val content = memberSnapshot.getString("content") ?: ""
                     val mediaUrl = memberSnapshot.getString("mediaUrl") ?: ""
                     val remoteProfilePhotoUrl = memberSnapshot.getString("profilePhotoUrl") ?: ""
-                    val profilePhotoUrl = remoteProfilePhotoUrl.takeIf { it.isNotBlank() }
-                        ?: currentMember.profilePhotoUrl
+                    val supabaseStoragePath = memberSnapshot.getString("supabaseStoragePath") ?: ""
+                    val profilePhotoUrl = resolveProfilePhotoUrl(context, id, remoteProfilePhotoUrl, supabaseStoragePath)
                     val address = memberSnapshot.getString("address") ?: ""
                     val birthDate = memberSnapshot.getString("birthDate") ?: ""
                     val createdAt = memberSnapshot.getLong("createdAt") ?: 0L
@@ -1562,18 +1614,21 @@ suspend fun refreshHomeData() {
                         isIbr = isIbr,
                         isAdmin = isAdmin,
                         ibrCertificateUrl = ibrCertificateUrl,
+                        ibrCertificateStoragePath = ibrCertificateStoragePath,
                         status = status,
                         title = title,
                         type = type,
                         content = content,
                         mediaUrl = mediaUrl,
                         profilePhotoUrl = profilePhotoUrl,
+                        supabaseStoragePath = supabaseStoragePath,
                         address = address,
                         birthDate = birthDate,
                         createdAt = createdAt,
                         updatedAt = updatedAt
                     )
                     loggedInMemberState.value = updatedMember
+                    refreshSignedStorageUrls(context, listOf(updatedMember))
                 }
             } catch (e: Exception) { e.printStackTrace() }
         }

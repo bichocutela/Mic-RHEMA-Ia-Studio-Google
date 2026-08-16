@@ -41,6 +41,7 @@ fun ProfileScreen(
     var address by remember { mutableStateOf(loggedInMember.address) }
     var birthDate by remember { mutableStateOf(loggedInMember.birthDate) }
     var profilePhotoUrl by remember { mutableStateOf(loggedInMember.profilePhotoUrl) }
+    var profileStoragePath by remember { mutableStateOf(loggedInMember.supabaseStoragePath) }
 
     var isEditingName by remember { mutableStateOf(false) }
     var isEditingPhone by remember { mutableStateOf(false) }
@@ -49,12 +50,13 @@ fun ProfileScreen(
     var isUploading by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
 
-    LaunchedEffect(loggedInMember.id, loggedInMember.name, loggedInMember.phone, loggedInMember.address, loggedInMember.birthDate, loggedInMember.profilePhotoUrl) {
+    LaunchedEffect(loggedInMember.id, loggedInMember.name, loggedInMember.phone, loggedInMember.address, loggedInMember.birthDate, loggedInMember.profilePhotoUrl, loggedInMember.supabaseStoragePath) {
         if (!isEditingName) name = loggedInMember.name
         if (!isEditingPhone) phone = loggedInMember.phone
         if (!isEditingAddress) address = loggedInMember.address
         if (!isEditingBirthDate) birthDate = loggedInMember.birthDate
         profilePhotoUrl = loggedInMember.profilePhotoUrl
+        profileStoragePath = loggedInMember.supabaseStoragePath
     }
 
     val imageLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -70,8 +72,9 @@ fun ProfileScreen(
             isUploading = true
             coroutineScope.launch {
                 try {
-                    val uploadedUrl = com.aistudio.micrhema.StorageManager.uploadProfilePhotoToFirebase(context, uri, loggedInMember.id)
-                    profilePhotoUrl = uploadedUrl
+                    val upload = com.aistudio.micrhema.StorageManager.uploadProfilePhoto(context, uri, loggedInMember.id)
+                    profilePhotoUrl = upload.signedUrl
+                    profileStoragePath = upload.storagePath
                     saveProfile(
                         loggedInMember,
                         name,
@@ -80,9 +83,10 @@ fun ProfileScreen(
                         birthDate,
                         profilePhotoUrl,
                         context,
+                        profileStoragePath = profileStoragePath,
                         showToast = false
                     ) { synced, error ->
-                        val message = if (synced && uploadedUrl.startsWith("http")) {
+                        val message = if (synced && profileStoragePath.isNotBlank()) {
                             "Foto atualizada e sincronizada no perfil"
                         } else if (synced) {
                             "Perfil atualizado, mas confirme a configuração do armazenamento remoto"
@@ -196,8 +200,10 @@ fun ProfileScreen(
                     onClick = {
                         if (isUploading) return@TextButton
                         val previousPhotoUrl = profilePhotoUrl
+                        val previousStoragePath = profileStoragePath
                         isUploading = true
                         profilePhotoUrl = ""
+                        profileStoragePath = ""
                         saveProfile(
                             loggedInMember,
                             name,
@@ -206,10 +212,12 @@ fun ProfileScreen(
                             birthDate,
                             profilePhotoUrl,
                             context,
+                            profileStoragePath = profileStoragePath,
                             showToast = false
                         ) { synced, error ->
                             if (!synced) {
                                 profilePhotoUrl = previousPhotoUrl
+                                profileStoragePath = previousStoragePath
                                 android.widget.Toast.makeText(
                                     context,
                                     "Não foi possível remover a foto do perfil: ${error?.message ?: "verifique sua conexão"}",
@@ -219,14 +227,14 @@ fun ProfileScreen(
                             } else {
                                 coroutineScope.launch {
                                     try {
-                                        if (previousPhotoUrl.startsWith("http://") || previousPhotoUrl.startsWith("https://")) {
-                                            StorageManager.deleteProfilePhotoFromFirebase(loggedInMember.id)
+                                        if (previousStoragePath.isNotBlank() || previousPhotoUrl.startsWith("http://") || previousPhotoUrl.startsWith("https://")) {
+                                            StorageManager.deleteProfilePhoto(loggedInMember.id)
                                         }
                                         StorageManager.deleteLocalProfilePhoto(context, loggedInMember.id)
                                         android.widget.Toast.makeText(context, "Foto removida do perfil sincronizado", android.widget.Toast.LENGTH_SHORT).show()
                                     } catch (e: Exception) {
                                         android.util.Log.w("ProfileScreen", "Perfil atualizado, mas não foi possível excluir o arquivo remoto", e)
-                                        android.widget.Toast.makeText(context, "Perfil atualizado, mas o arquivo remoto precisa ser removido no Firebase", android.widget.Toast.LENGTH_LONG).show()
+                                        android.widget.Toast.makeText(context, "Perfil atualizado, mas o arquivo remoto precisa ser removido no Supabase", android.widget.Toast.LENGTH_LONG).show()
                                     } finally {
                                         isUploading = false
                                     }
@@ -398,6 +406,7 @@ private fun saveProfile(
     birthDate: String,
     profilePhotoUrl: String,
     context: android.content.Context,
+    profileStoragePath: String = member.supabaseStoragePath,
     showToast: Boolean = true,
     onResult: ((synced: Boolean, error: Exception?) -> Unit)? = null
 ) {
@@ -407,6 +416,7 @@ private fun saveProfile(
     member.address = address
     member.birthDate = birthDate
     member.profilePhotoUrl = profilePhotoUrl
+    member.supabaseStoragePath = profileStoragePath
     member.updatedAt = System.currentTimeMillis()
     
     // Update local state to reflect instantly in Drawer
@@ -432,6 +442,7 @@ private fun saveProfile(
             member.address = previousMember.address
             member.birthDate = previousMember.birthDate
             member.profilePhotoUrl = previousMember.profilePhotoUrl
+            member.supabaseStoragePath = previousMember.supabaseStoragePath
             member.updatedAt = previousMember.updatedAt
             loggedInMemberState.value = member.copy()
             val failedIndex = memberRequestsState.indexOfFirst { it.id == member.id }

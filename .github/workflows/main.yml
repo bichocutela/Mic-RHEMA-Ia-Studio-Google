@@ -33,6 +33,15 @@ jobs:
         run: |
           echo "${{ secrets.MICRHEMA_KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
 
+      - name: Configurar variáveis públicas do Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          cp .env.example .env
+          if [ -n "$SUPABASE_URL" ]; then sed -i "s|^SUPABASE_URL=.*|SUPABASE_URL=$SUPABASE_URL|" .env; fi
+          if [ -n "$SUPABASE_ANON_KEY" ]; then sed -i "s|^SUPABASE_ANON_KEY=.*|SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY|" .env; fi
+
       - name: Calcular AUTO_BUILD_NUMBER
         run: |
           AUTO_BUILD_NUMBER=$((517 + ${{ github.run_number }}))
@@ -48,9 +57,10 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon --stacktrace
 
-      - name: Remover chave de assinatura
+      - name: Remover arquivos temporários de configuração
         if: always()
-        run: rm -f release.keystore
+        run: rm -f release.keystore .env
+
 
       - name: Upload do APK
         uses: actions/upload-artifact@v4

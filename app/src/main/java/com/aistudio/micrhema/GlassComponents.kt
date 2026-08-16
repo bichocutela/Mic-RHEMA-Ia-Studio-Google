@@ -123,6 +123,7 @@ fun LocalUploadField(
     onValueChange: (String) -> Unit,
     label: String,
     mimeType: String,
+    targetUid: String? = null,
     modifier: Modifier = Modifier
 ) {
     val isUploading = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
@@ -137,9 +138,13 @@ fun LocalUploadField(
             isUploading.value = true
             coroutineScope.launch {
                 uploadProgress.floatValue = 0f
-                val url = com.aistudio.micrhema.StorageHelper.uploadFile(context, uri, "uploads") { progress ->
-                    uploadProgress.floatValue = progress
-                }
+                val url = com.aistudio.micrhema.StorageHelper.uploadFile(
+                    context = context,
+                    uri = uri,
+                    path = "uploads",
+                    onProgress = { progress -> uploadProgress.floatValue = progress },
+                    targetUid = targetUid
+                )
                 if (url != null) {
                     onValueChange(url)
                 } else {
@@ -154,7 +159,7 @@ fun LocalUploadField(
         value = value,
         onValueChange = onValueChange,
         label = { Text(label) },
-        placeholder = { Text("Cole URL do Google Drive ou clique na pasta ➡️") },
+        placeholder = { Text("Cole uma URL legada ou selecione um arquivo") },
         modifier = modifier.fillMaxWidth(),
         trailingIcon = {
             if (isUploading.value) {

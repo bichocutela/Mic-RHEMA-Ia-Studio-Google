@@ -147,8 +147,12 @@ fun EditProfilesSection() {
         isUploadingPhoto = true
         coroutineScope.launch {
             try {
-                val uploadedUrl = StorageManager.uploadProfilePhotoToFirebase(context, uri, target.id)
-                val updated = target.copy(profilePhotoUrl = uploadedUrl, updatedAt = System.currentTimeMillis())
+                val upload = StorageManager.uploadProfilePhoto(context, uri, target.id)
+                val updated = target.copy(
+                    profilePhotoUrl = upload.signedUrl,
+                    supabaseStoragePath = upload.storagePath,
+                    updatedAt = System.currentTimeMillis()
+                )
                 val index = memberRequestsState.indexOfFirst { it.id == target.id }
                 if (index >= 0) memberRequestsState[index] = updated
                 selectedMember = updated
@@ -164,9 +168,9 @@ fun EditProfilesSection() {
                         if (rollbackIndex >= 0) memberRequestsState[rollbackIndex] = target
                         selectedMember = target
                         coroutineScope.launch {
-                            runCatching { StorageManager.deleteProfilePhotoFromFirebase(target.id) }
+                            runCatching { StorageManager.deleteProfilePhoto(target.id) }
                             isUploadingPhoto = false
-                            Toast.makeText(context, "Não foi possível sincronizar a foto no perfil: ${error.message ?: "verifique as regras do Firebase"}", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, "Não foi possível sincronizar a foto no perfil: ${error.message ?: "verifique sua conexão com o Supabase"}", Toast.LENGTH_LONG).show()
                         }
                     }
                 )
@@ -217,8 +221,9 @@ fun EditProfilesSection() {
             onRemovePhoto = {
                 if (isUploadingPhoto) return@MemberAdminDetailsDialog
                 val previousPhotoUrl = member.profilePhotoUrl
+                val previousStoragePath = member.supabaseStoragePath
                 isUploadingPhoto = true
-                val updated = member.copy(profilePhotoUrl = "", updatedAt = System.currentTimeMillis())
+                val updated = member.copy(profilePhotoUrl = "", supabaseStoragePath = "", updatedAt = System.currentTimeMillis())
                 val index = memberRequestsState.indexOfFirst { it.id == member.id }
                 if (index >= 0) memberRequestsState[index] = updated
                 selectedMember = updated
@@ -228,13 +233,13 @@ fun EditProfilesSection() {
                     onSuccess = {
                         coroutineScope.launch {
                             try {
-                                if (previousPhotoUrl.startsWith("http://") || previousPhotoUrl.startsWith("https://")) {
-                                    StorageManager.deleteProfilePhotoFromFirebase(member.id)
+                                if (previousStoragePath.isNotBlank() || previousPhotoUrl.startsWith("http://") || previousPhotoUrl.startsWith("https://")) {
+                                    StorageManager.deleteProfilePhoto(member.id)
                                 }
                                 StorageManager.deleteLocalProfilePhoto(context, member.id)
                                 Toast.makeText(context, "Foto removida do perfil sincronizado", Toast.LENGTH_SHORT).show()
                             } catch (error: Exception) {
-                                Toast.makeText(context, "Perfil atualizado, mas o arquivo remoto precisa ser removido no Firebase", Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, "Perfil atualizado, mas o arquivo remoto precisa ser removido no Supabase", Toast.LENGTH_LONG).show()
                             } finally {
                                 isUploadingPhoto = false
                             }
@@ -244,7 +249,7 @@ fun EditProfilesSection() {
                         if (index >= 0) memberRequestsState[index] = member
                         selectedMember = member
                         isUploadingPhoto = false
-                        Toast.makeText(context, "Não foi possível remover a foto do perfil: ${error.message ?: "verifique as regras do Firebase"}", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, "Não foi possível remover a foto do perfil: ${error.message ?: "verifique sua conexão com o Supabase"}", Toast.LENGTH_LONG).show()
                     }
                 )
             },
