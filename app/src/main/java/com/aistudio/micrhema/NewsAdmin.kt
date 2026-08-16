@@ -117,14 +117,18 @@ fun EditNewsSection() {
             if (uri != null) {
                 isUploading = true
                 scope.launch {
-                    uploadProgress = 0f
-                    val uploadedUrl = StorageHelper.uploadFile(context, uri, "news") { progress ->
-                        uploadProgress = progress
-                    }
-                    if (uploadedUrl.isNotEmpty()) {
+                    try {
+                        uploadProgress = 0f
+                        val uploadedUrl = StorageHelper.uploadFile(context, uri, "news", mimeTypeHint = "image/*") { progress ->
+                            uploadProgress = progress
+                        }
+                        if (uploadedUrl.isBlank()) throw IllegalStateException("O Supabase não retornou a URL da notícia.")
                         imageUrl = uploadedUrl
+                    } catch (error: Exception) {
+                        android.widget.Toast.makeText(context, "Upload da imagem não concluído: ${error.message ?: "verifique a conexão"}", android.widget.Toast.LENGTH_LONG).show()
+                    } finally {
+                        isUploading = false
                     }
-                    isUploading = false
                 }
             }
         }

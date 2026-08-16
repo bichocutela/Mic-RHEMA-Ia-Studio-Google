@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { createRemoteJWKSet, errors as joseErrors, jwtVerify } from "npm:jose@5.10.0";
 
 const FIREBASE_PROJECT_ID = "mic-rhema";
 const FIREBASE_ISSUER = `https://securetoken.google.com/${FIREBASE_PROJECT_ID}`;
@@ -41,10 +42,12 @@ type FirebaseClaims = {
 type Jwk = JsonWebKey & { kid?: string; alg?: string; use?: string };
 
 class HttpError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(public status: number, message: string, public reasonCode?: string) {
     super(message);
   }
 }
+
+const FIREBASE_JWKS = createRemoteJWKSet(new URL(FIREBASE_JWKS_URL));
 
 function jsonResponse(body: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -53,7 +56,7 @@ function jsonResponse(body: Record<string, unknown>, status = 200): Response {
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store",
       "access-control-allow-origin": "*",
-      "access-control-allow-headers": "authorization, apikey, content-type, x-rhema-admin-password",
+      "access-control-allow-headers": "authorization, apikey, content-type, x-rhema-admin-password, x-rhema-bucket, x-rhema-operation",
       "access-control-allow-methods": "POST, OPTIONS",
     },
   });
@@ -72,54 +75,44 @@ function decodeJsonPart<T>(value: string): T {
 function getBearerToken(request: Request): string {
   const value = request.headers.get("authorization") ?? "";
   const match = value.match(/^Bearer\s+(.+)$/i);
-  if (!match) throw new HttpError(401, "Token Firebase ausente.");
+  if (!match) throw new HttpError(401, "Token Firebase ausente.", "TOKEN_MISSING");
+  if (match[1].split(".").length !== 3) throw new HttpError(401, "Formato do token Firebase inválido.", "TOKEN_FORMAT_INVALID");
   return match[1];
 }
 
 async function verifyFirebaseToken(token: string): Promise<FirebaseClaims> {
-  const parts = token.split(".");
-  if (parts.length !== 3) throw new HttpError(401, "Token Firebase inválido.");
-
-  const header = decodeJsonPart<{ alg?: string; kid?: string }>(parts[0]);
-  const claims = decodeJsonPart<FirebaseClaims>(parts[1]);
-  if (header.alg !== "RS256" || !header.kid) throw new HttpError(401, "Algoritmo do token Firebase não suportado.");
-
-  const now = Math.floor(Date.now() / 1000);
-  if (
-    claims.aud !== FIREBASE_PROJECT_ID ||
-    claims.iss !== FIREBASE_ISSUER ||
-    !claims.sub ||
-    claims.sub.length > 128 ||
-    typeof claims.exp !== "number" ||
-    claims.exp <= now ||
-    typeof claims.iat !== "number" ||
-    claims.iat > now + 60
-  ) {
-    throw new HttpError(401, "Token Firebase expirado ou emitido para outro projeto.");
+  try {
+    const result = await jwtVerify(token, FIREBASE_JWKS, {
+      issuer: FIREBASE_ISSUER,
+      audience: FIREBASE_PROJECT_ID,
+      algorithms: ["RS256"],
+    });
+    const claims = result.payload as FirebaseClaims;
+    if (!claims.sub || claims.sub.length > 128) {
+      throw new HttpError(401, "Identificador do token Firebase inválido.", "TOKEN_FORMAT_INVALID");
+    }
+    return claims;
+  } catch (error) {
+    if (error instanceof HttpError) throw error;
+    if (error instanceof joseErrors.JWTExpired) {
+      throw new HttpError(401, "Token Firebase expirado.", "TOKEN_EXPIRED");
+    }
+    if (error instanceof joseErrors.JWKSNoMatchingKey) {
+      throw new HttpError(401, "Chave pública do token Firebase não encontrada.", "TOKEN_SIGNATURE_INVALID");
+    }
+    if (error instanceof joseErrors.JWKSInvalid) {
+      throw new HttpError(503, "Não foi possível consultar as chaves públicas do Firebase.", "FIREBASE_JWKS_ERROR");
+    }
+    if (error instanceof joseErrors.JWTClaimValidationFailed) {
+      const message = error.message.toLowerCase();
+      const code = message.includes("issuer") ? "TOKEN_ISSUER_INVALID" : message.includes("audience") ? "TOKEN_AUDIENCE_INVALID" : "TOKEN_FORMAT_INVALID";
+      throw new HttpError(401, "Token Firebase emitido para outro projeto ou com claims inválidos.", code);
+    }
+    if (error instanceof joseErrors.JWSInvalid || error instanceof joseErrors.JOSEAlgNotAllowed) {
+      throw new HttpError(401, "Assinatura ou algoritmo do token Firebase inválido.", "TOKEN_SIGNATURE_INVALID");
+    }
+    throw new HttpError(401, "Token Firebase inválido.", "TOKEN_FORMAT_INVALID");
   }
-
-  const keysResponse = await fetch(FIREBASE_JWKS_URL);
-  if (!keysResponse.ok) throw new HttpError(503, "Não foi possível consultar as chaves públicas do Firebase.");
-  const keySet = await keysResponse.json() as { keys?: Jwk[] };
-  const jwk = keySet.keys?.find((candidate) => candidate.kid === header.kid);
-  if (!jwk) throw new HttpError(401, "Chave pública do token Firebase não encontrada.");
-
-  const publicKey = await crypto.subtle.importKey(
-    "jwk",
-    jwk,
-    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
-    false,
-    ["verify"],
-  );
-  const valid = await crypto.subtle.verify(
-    { name: "RSASSA-PKCS1-v1_5" },
-    publicKey,
-    decodeBase64Url(parts[2]),
-    new TextEncoder().encode(`${parts[0]}.${parts[1]}`),
-  );
-  if (!valid) throw new HttpError(401, "Assinatura do token Firebase inválida.");
-
-  return claims;
 }
 
 function callerUid(claims: FirebaseClaims): string {
@@ -202,9 +195,15 @@ async function authorize(
   adminOverride = false,
 ): Promise<boolean> {
   const uid = callerUid(claims);
-  if (!uid || !targetUid) throw new HttpError(400, "UID do usuário não informado.");
+  if (!uid || !targetUid) throw new HttpError(400, "UID do usuário não informado.", "UID_MISSING");
+  if (adminOverride) return true;
+  const anonymous = claims.firebase?.sign_in_provider === "anonymous";
+  const linkedMember = anonymous ? await memberDocumentForFirebaseUid(uid, firebaseToken) : null;
+  if (anonymous && !adminOverride && !linkedMember) {
+    throw new HttpError(403, "Sessão Firebase anônima ainda não está vinculada ao perfil do membro.", "MEMBER_NOT_BOUND");
+  }
   const targetDocument = await firestoreMemberDocumentById(targetUid, firebaseToken);
-  const owner = uid === targetUid || targetDocument?.fields?.firebaseUid?.stringValue === uid;
+  const owner = uid === targetUid || targetDocument?.fields?.firebaseUid?.stringValue === uid || linkedMember != null;
   const admin = adminOverride || await isAdmin(uid, firebaseToken);
   if (bucket === "church-documents" && !admin && !allowOwnerDocumentRead) {
     throw new HttpError(403, "Somente administradores podem gerenciar documentos IBR.");
@@ -361,20 +360,29 @@ Deno.serve(async (request: Request) => {
   if (request.method !== "POST") return jsonResponse({ error: "Método não permitido." }, 405);
 
   try {
-    const firebaseToken = getBearerToken(request);
-    const claims = await verifyFirebaseToken(firebaseToken);
     const adminOverride = request.headers.get("x-rhema-admin-password") === ADMIN_PASSWORD;
-    if (claims.firebase?.sign_in_provider === "anonymous" && !adminOverride) {
-      throw new HttpError(403, "Confirme o telefone por SMS para enviar arquivos.");
-    }
+    const firebaseToken = adminOverride ? "" : getBearerToken(request);
+    const claims = adminOverride
+      ? { sub: "rhema-admin", user_id: "rhema-admin" } satisfies FirebaseClaims
+      : await verifyFirebaseToken(firebaseToken);
     const contentType = request.headers.get("content-type") || "";
     if (contentType.toLowerCase().startsWith("multipart/form-data")) {
       return await handleUpload(request, claims, firebaseToken, adminOverride);
     }
     return await handleJsonOperation(request, claims, firebaseToken, adminOverride);
   } catch (error) {
-    if (error instanceof HttpError) return jsonResponse({ error: error.message }, error.status);
-    console.error("Storage gateway failed", error);
-    return jsonResponse({ error: "Erro interno ao processar o armazenamento." }, 500);
+    if (error instanceof HttpError) {
+      const body: Record<string, unknown> = { error: error.message };
+      if (error.reasonCode) body.code = error.reasonCode;
+      console.warn("Storage gateway rejected request", JSON.stringify({
+        reasonCode: error.reasonCode || "UNCLASSIFIED",
+        status: error.status,
+        bucket: request.headers.get("x-rhema-bucket") || undefined,
+        operation: request.headers.get("x-rhema-operation") || undefined,
+      }));
+      return jsonResponse(body, error.status);
+    }
+    console.error("Storage gateway failed", error instanceof Error ? error.message : "unknown");
+    return jsonResponse({ error: "Erro interno ao processar o armazenamento.", code: "INTERNAL_ERROR" }, 500);
   }
 });

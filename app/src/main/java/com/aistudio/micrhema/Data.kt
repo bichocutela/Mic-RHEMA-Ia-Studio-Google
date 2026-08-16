@@ -595,8 +595,7 @@ object MemberManager {
         if (loggedInId.isNotEmpty()) {
             val member = memberRequestsState.find { it.id == loggedInId }
             if (member != null) {
-                loggedInMemberState.value = member
-                loadIbrProgressFromFirestore()
+                setLoggedInMember(context, member)
             }
         }
     }
@@ -676,6 +675,16 @@ object MemberManager {
         } else {
             prefs.edit().putString(KEY_LOGGED_IN_ID, member.id).apply()
             UserSettingsManager.loadSettings(context)
+            dataSyncScope.launch {
+                runCatching {
+                    val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
+                    val firebaseUser = auth.currentUser
+                        ?: auth.signInAnonymously().await().user
+                    firebaseUser?.let { bindFirebaseUidToLoggedInMember(context, it.uid) }
+                }.onFailure { error ->
+                    Log.w("MemberManager", "Não foi possível preparar a sessão Firebase do perfil", error)
+                }
+            }
         }
     }
 }

@@ -26,6 +26,12 @@ data class StorageUploadResult(
     val expiresInSeconds: Long = 15 * 60L
 )
 
+class StorageGatewayException(
+    val httpCode: Int,
+    val reasonCode: String?,
+    message: String
+) : IllegalStateException(message)
+
 object StorageManager {
     private const val PROFILE_BUCKET = "profile-photos"
     private const val DOCUMENT_BUCKET = "church-documents"
@@ -64,64 +70,62 @@ object StorageManager {
         return this
     }
 
-    suspend fun resolveStorageTargetUid(): String = withContext(Dispatchers.IO) {
+    private suspend fun ensureFirebaseUser(context: Context? = null): com.google.firebase.auth.FirebaseUser = withContext(Dispatchers.IO) {
         val auth = FirebaseAuth.getInstance()
-        val currentUser = auth.currentUser
-        if (adminAuthenticatedState.value) {
-            val adminUser = currentUser ?: runCatching { auth.signInAnonymously().await().user }.getOrNull()
-            return@withContext adminUser?.uid
-                ?: throw IllegalStateException("Não foi possível preparar a sessão administrativa do Supabase. Saia e entre novamente no painel com a senha igreja10.")
-        }
-        return@withContext currentUser?.takeIf { !it.isAnonymous }?.uid
-            ?: throw IllegalStateException("Entre novamente no perfil autorizado antes de enviar arquivos.")
+        val user = auth.currentUser ?: runCatching { auth.signInAnonymously().await().user }.getOrNull()
+        user ?: throw IllegalStateException("Não foi possível preparar a sessão Firebase para o armazenamento.")
     }
 
-    private suspend fun firebaseIdToken(context: Context? = null): String = withContext(Dispatchers.IO) {
-        val auth = FirebaseAuth.getInstance()
-        val adminMode = adminAuthenticatedState.value
-        val user = (
-            if (adminMode) {
-                auth.currentUser ?: runCatching { auth.signInAnonymously().await().user }.getOrNull()
-            } else {
-                auth.currentUser?.takeIf { !it.isAnonymous }
-            }
-        ) ?: throw IllegalStateException("A sessão administrativa ou do membro expirou. Entre novamente antes de enviar arquivos.")
-
-
-        var token: String? = null
-        var lastError: Exception? = null
-        repeat(2) { attempt ->
-            if (token.isNullOrBlank()) {
-                try {
-                    token = user.getIdToken(attempt == 1).await().token
-                    if (token.isNullOrBlank()) {
-                        lastError = IllegalStateException("O Firebase não retornou um token de sessão.")
-                    }
-                } catch (error: Exception) {
-                    lastError = error
-                    Log.w(
-                        "StorageManager",
-                        if (attempt == 0) "Token Firebase indisponível; tentando renovar automaticamente" else "Renovação do token Firebase falhou",
-                        error
-                    )
-                }
-            }
+    suspend fun resolveStorageTargetUid(context: Context? = null): String = withContext(Dispatchers.IO) {
+        val user = ensureFirebaseUser(context)
+        if (!adminAuthenticatedState.value) {
+            val memberContext = context
+                ?: throw IllegalStateException("O contexto do perfil não foi disponibilizado para vincular a sessão Firebase.")
+            MemberManager.bindFirebaseUidToLoggedInMember(memberContext, user.uid)
         }
+        user.uid
+    }
 
-        val resolvedToken = token?.takeIf { it.isNotBlank() }
-            ?: throw IllegalStateException(
-                "Não foi possível renovar sua sessão para enviar o arquivo. Verifique sua conexão e tente novamente.",
-                lastError
-            )
-
-        if (context != null && !user.isAnonymous) {
+    private suspend fun firebaseIdToken(context: Context? = null, forceRefresh: Boolean = false): String = withContext(Dispatchers.IO) {
+        val user = ensureFirebaseUser(context)
+        val token = runCatching { user.getIdToken(forceRefresh).await().token }.getOrNull()
+            ?.takeIf { it.isNotBlank() }
+            ?: throw IllegalStateException("O Firebase não retornou um token de sessão.")
+        if (context != null && !adminAuthenticatedState.value) {
             MemberManager.bindFirebaseUidToLoggedInMember(context, user.uid)
         }
-        resolvedToken
+        token
     }
 
-    private fun mimeType(context: Context, uri: Uri): String =
-        context.contentResolver.getType(uri)?.lowercase()?.substringBefore(';') ?: ""
+    private suspend fun executeGatewayRequest(
+        context: Context?,
+        requestFactory: suspend (String) -> Request
+    ): okhttp3.Response = withContext(Dispatchers.IO) {
+        var forceRefresh = false
+        repeat(2) { attempt ->
+            val token = if (adminAuthenticatedState.value) {
+                runCatching { firebaseIdToken(context, forceRefresh) }.getOrDefault("")
+            } else {
+                firebaseIdToken(context, forceRefresh)
+            }
+            val response = client.newCall(requestFactory(token)).execute()
+            if (response.code != 401 || attempt == 1) return@withContext response
+            response.close()
+            forceRefresh = true
+        }
+        error("O gateway não retornou uma resposta válida.")
+    }
+
+    private fun mimeType(context: Context, uri: Uri): String {
+        val detected = context.contentResolver.getType(uri)?.lowercase()?.substringBefore(';').orEmpty()
+        if (detected.isNotBlank()) return detected
+        val displayName = runCatching {
+            context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
+                ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0).orEmpty() else "" }
+        }.getOrDefault("")
+        val extension = displayName.substringAfterLast('.', "").lowercase()
+        return android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension).orEmpty().lowercase()
+    }
 
     private fun extensionForMime(mime: String): String = when (mime) {
         "image/jpeg" -> ".jpg"
@@ -153,7 +157,11 @@ object StorageManager {
             JSONObject().put("error", "Resposta inválida do armazenamento remoto.")
         }
         if (!response.isSuccessful) {
-            throw IllegalStateException(json.optString("error").ifBlank { "Falha HTTP ${response.code} no armazenamento remoto." })
+            throw StorageGatewayException(
+                httpCode = response.code,
+                reasonCode = json.optString("code").ifBlank { null },
+                message = json.optString("error").ifBlank { "Falha HTTP ${response.code} no armazenamento remoto." }
+            )
         }
         return json
     }
@@ -208,23 +216,25 @@ object StorageManager {
             if (tempFile.length() > maxBytes) {
                 throw IllegalArgumentException("O arquivo excede o limite permitido para este tipo de documento.")
             }
-            val token = firebaseIdToken(context)
             val body = MultipartBody.Builder()
                 .setType(MultipartBody.FORM)
                 .addFormDataPart("bucket", bucket)
                 .addFormDataPart("targetUid", targetUid)
                 .addFormDataPart("file", tempFile.name, tempFile.asRequestBody(mime.toMediaTypeOrNull()))
                 .build()
-            val request = Request.Builder()
-                .url(gatewayUrl())
-                .header("Authorization", "Bearer $token")
-                .header("apikey", publishableKey())
-                .withAdminAuthorization()
-                .post(body)
-                .build()
 
             onProgress?.invoke(0.25f)
-            client.newCall(request).execute().use { response ->
+            executeGatewayRequest(context) { token ->
+                Request.Builder()
+                    .url(gatewayUrl())
+                    .header("Authorization", "Bearer $token")
+                    .header("apikey", publishableKey())
+                    .header("X-Rhema-Bucket", bucket)
+                    .header("X-Rhema-Operation", "upload")
+                    .withAdminAuthorization()
+                    .post(body)
+                    .build()
+            }.use { response ->
                 onProgress?.invoke(0.85f)
                 val result = resultFromJson(responseJson(response), bucket)
                 onProgress?.invoke(1f)
@@ -284,21 +294,23 @@ object StorageManager {
         targetUid: String,
         context: Context? = null
     ): String = withContext(Dispatchers.IO) {
-        val token = firebaseIdToken(context)
         val payload = JSONObject()
             .put("operation", "signed-url")
             .put("bucket", bucket)
             .put("storagePath", storagePath)
             .put("targetUid", targetUid)
-        val request = Request.Builder()
-            .url(gatewayUrl())
-            .header("Authorization", "Bearer $token")
-            .header("apikey", publishableKey())
-            .withAdminAuthorization()
-            .header("Content-Type", "application/json")
-            .post(payload.toString().toRequestBody("application/json".toMediaTypeOrNull()))
-            .build()
-        client.newCall(request).execute().use { response ->
+        executeGatewayRequest(context) { token ->
+            Request.Builder()
+                .url(gatewayUrl())
+                .header("Authorization", "Bearer $token")
+                .header("apikey", publishableKey())
+                .header("X-Rhema-Bucket", bucket)
+                .header("X-Rhema-Operation", "signed-url")
+                .withAdminAuthorization()
+                .header("Content-Type", "application/json")
+                .post(payload.toString().toRequestBody("application/json".toMediaTypeOrNull()))
+                .build()
+        }.use { response ->
             responseJson(response).optString("signed_url").takeIf { it.isNotBlank() }
                 ?: throw IllegalStateException("O Supabase não retornou uma URL assinada.")
         }
@@ -333,20 +345,22 @@ object StorageManager {
     }
 
     suspend fun deleteProfilePhoto(uid: String, context: Context? = null) = withContext(Dispatchers.IO) {
-        val token = firebaseIdToken(context)
         val payload = JSONObject()
             .put("operation", "delete-profile")
             .put("bucket", PROFILE_BUCKET)
             .put("targetUid", uid)
-        val request = Request.Builder()
-            .url(gatewayUrl())
-            .header("Authorization", "Bearer $token")
-            .header("apikey", publishableKey())
-            .withAdminAuthorization()
-            .header("Content-Type", "application/json")
-            .post(payload.toString().toRequestBody("application/json".toMediaTypeOrNull()))
-            .build()
-        client.newCall(request).execute().use { response -> responseJson(response) }
+        executeGatewayRequest(context) { token ->
+            Request.Builder()
+                .url(gatewayUrl())
+                .header("Authorization", "Bearer $token")
+                .header("apikey", publishableKey())
+                .header("X-Rhema-Bucket", PROFILE_BUCKET)
+                .header("X-Rhema-Operation", "delete-profile")
+                .withAdminAuthorization()
+                .header("Content-Type", "application/json")
+                .post(payload.toString().toRequestBody("application/json".toMediaTypeOrNull()))
+                .build()
+        }.use { response -> responseJson(response) }
     }
 
     /** Nome mantido para compatibilidade, mas a operação já não usa Firebase Storage. */
@@ -382,7 +396,7 @@ object StorageManager {
         path: String,
         onProgress: ((Float) -> Unit)? = null
     ): String {
-        val uid = resolveStorageTargetUid()
+        val uid = resolveStorageTargetUid(context)
         return uploadMediaAsset(context, uri, uid, onProgress).let { result ->
             result.signedUrl.ifBlank { result.storagePath }
         }

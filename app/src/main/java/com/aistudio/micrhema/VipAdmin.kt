@@ -198,15 +198,20 @@ fun EditVipContentSection() {
                     if (isUploading) return@GlassButton
                     isUploading = true
                     coroutineScope.launch {
-                        uploadProgress = 0f
-                        val finalCover = if (coverUrl.isNotBlank() && !coverUrl.startsWith("http")) StorageHelper.uploadFile(context, android.net.Uri.parse(coverUrl), "books/covers") { progress -> uploadProgress = progress / 2f } else convertGoogleDriveUrl(coverUrl).ifEmpty { "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=500&q=80" }
-                        val finalBookUrl = if (bookUrl.isNotBlank() && !bookUrl.startsWith("http")) StorageHelper.uploadFile(context, android.net.Uri.parse(bookUrl), "books/files") { progress -> uploadProgress = 0.5f + (progress / 2f) } else convertGoogleDriveUrl(bookUrl)
-                        addVipBook(ContentBook(id = System.currentTimeMillis().toString(), title = title, author = author, coverUrl = finalCover, contentText = "Conteúdo do livro carregado...", bookUrl = finalBookUrl))
-                        title = ""
-                        author = ""
-                        coverUrl = ""
-                        bookUrl = ""
-                        isUploading = false
+                        try {
+                            uploadProgress = 0f
+                            val finalCover = if (coverUrl.isNotBlank() && !coverUrl.startsWith("http")) StorageHelper.uploadFile(context, android.net.Uri.parse(coverUrl), "books/covers") { progress -> uploadProgress = progress / 2f } else convertGoogleDriveUrl(coverUrl).ifEmpty { "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=500&q=80" }
+                            val finalBookUrl = if (bookUrl.isNotBlank() && !bookUrl.startsWith("http")) StorageHelper.uploadFile(context, android.net.Uri.parse(bookUrl), "books/files") { progress -> uploadProgress = 0.5f + (progress / 2f) } else convertGoogleDriveUrl(bookUrl)
+                            addVipBook(ContentBook(id = System.currentTimeMillis().toString(), title = title, author = author, coverUrl = finalCover, contentText = "Conteúdo do livro carregado...", bookUrl = finalBookUrl))
+                            title = ""
+                            author = ""
+                            coverUrl = ""
+                            bookUrl = ""
+                        } catch (error: Exception) {
+                            android.widget.Toast.makeText(context, "Upload do livro não concluído: ${error.message ?: "verifique a conexão"}", android.widget.Toast.LENGTH_LONG).show()
+                        } finally {
+                            isUploading = false
+                        }
                     }
                 }, modifier = Modifier.padding(top = 8.dp)) {
                     Text("Salvar Livro")
@@ -307,14 +312,18 @@ fun EditVipContentSection() {
                     if (isUploading) return@GlassButton
                     isUploading = true
                     coroutineScope.launch {
-                        uploadProgress = 0f
-                        val finalVideoUrl = if (videoUrl.isNotBlank() && !videoUrl.startsWith("http")) StorageHelper.uploadFile(context, android.net.Uri.parse(videoUrl), "videos/files") { progress -> uploadProgress = progress } else convertGoogleDriveUrl(videoUrl).ifEmpty { "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" }
-                        val finalThumb = ""
-                        addVipVideo(ContentVideo(id = System.currentTimeMillis().toString(), title = videoTitle, description = videoDesc, videoUrl = finalVideoUrl, thumbnailUrl = finalThumb))
-                        videoTitle = ""
-                        videoDesc = ""
-                        videoUrl = ""
-                        isUploading = false
+                        try {
+                            uploadProgress = 0f
+                            val finalVideoUrl = if (videoUrl.isNotBlank() && !videoUrl.startsWith("http")) StorageHelper.uploadFile(context, android.net.Uri.parse(videoUrl), "videos/files") { progress -> uploadProgress = progress } else convertGoogleDriveUrl(videoUrl).ifEmpty { "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" }
+                            addVipVideo(ContentVideo(id = System.currentTimeMillis().toString(), title = videoTitle, description = videoDesc, videoUrl = finalVideoUrl, thumbnailUrl = ""))
+                            videoTitle = ""
+                            videoDesc = ""
+                            videoUrl = ""
+                        } catch (error: Exception) {
+                            android.widget.Toast.makeText(context, "Upload do vídeo não concluído: ${error.message ?: "verifique a conexão"}", android.widget.Toast.LENGTH_LONG).show()
+                        } finally {
+                            isUploading = false
+                        }
                     }
                 }, modifier = Modifier.padding(top = 8.dp)) {
                     Text("Salvar Vídeo")
@@ -359,13 +368,16 @@ fun EditVipContentSection() {
                     if (uri != null) {
                         isUploadingCover = true
                         scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                            coverProgress = 0f
-                            val url = StorageHelper.uploadFile(context, uri, "covers") { progress -> coverProgress = progress }
-                            kotlinx.coroutines.Dispatchers.Main.let {
-                                kotlinx.coroutines.withContext(it) {
-                                    isUploadingCover = false
-                                    if (url != null) customCoverUrl = url
+                            try {
+                                coverProgress = 0f
+                                val url = StorageHelper.uploadFile(context, uri, "covers", mimeTypeHint = "image/*") { progress -> coverProgress = progress }
+                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { customCoverUrl = url }
+                            } catch (error: Exception) {
+                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                    android.widget.Toast.makeText(context, "Upload da capa não concluído: ${error.message ?: "verifique a conexão"}", android.widget.Toast.LENGTH_LONG).show()
                                 }
+                            } finally {
+                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { isUploadingCover = false }
                             }
                         }
                     }
@@ -606,24 +618,27 @@ fun EditVipContentSection() {
             if (uri != null) {
                 isUploadingPhoto = true
                 scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                    photoProgress = 0f
-                    val url = StorageHelper.uploadFile(context, uri, "album_photos") { progress -> photoProgress = progress }
-                    kotlinx.coroutines.Dispatchers.Main.let {
-                        kotlinx.coroutines.withContext(it) {
-                            isUploadingPhoto = false
-                            if (url != null) {
-                                val updatedAlbum = editingAlbum!!.copy(
-                                    photos = editingAlbum!!.photos + AlbumPhoto(url = url, caption = ""),
-                                    coverUrl = editingAlbum!!.coverUrl ?: url
-                                )
-                                val index = vipAlbumsState.indexOfFirst { it.id == editingAlbum!!.id }
-                                if (index != -1) {
-                                    vipAlbumsState[index] = updatedAlbum
-                                    addVipAlbum(updatedAlbum)
-                                    editingAlbum = updatedAlbum
-                                }
+                    try {
+                        photoProgress = 0f
+                        val url = StorageHelper.uploadFile(context, uri, "album_photos", mimeTypeHint = "image/*") { progress -> photoProgress = progress }
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                            val updatedAlbum = editingAlbum!!.copy(
+                                photos = editingAlbum!!.photos + AlbumPhoto(url = url, caption = ""),
+                                coverUrl = editingAlbum!!.coverUrl ?: url
+                            )
+                            val index = vipAlbumsState.indexOfFirst { it.id == editingAlbum!!.id }
+                            if (index != -1) {
+                                vipAlbumsState[index] = updatedAlbum
+                                addVipAlbum(updatedAlbum)
+                                editingAlbum = updatedAlbum
                             }
                         }
+                    } catch (error: Exception) {
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                            android.widget.Toast.makeText(context, "Upload da foto não concluído: ${error.message ?: "verifique a conexão"}", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    } finally {
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { isUploadingPhoto = false }
                     }
                 }
             }

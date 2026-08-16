@@ -456,19 +456,23 @@ fun EditBannersSection() {
         if (uri != null) {
             isUploading = true
             scope.launch {
-                uploadProgress = 0f
-                val uploadedUrl = StorageHelper.uploadFile(context, uri, "banners") { progress ->
-                    uploadProgress = progress
-                }
-                if (uploadedUrl.isNotEmpty()) {
+                try {
+                    uploadProgress = 0f
+                    val uploadedUrl = StorageHelper.uploadFile(context, uri, "banners", mimeTypeHint = "image/*") { progress ->
+                        uploadProgress = progress
+                    }
+                    if (uploadedUrl.isBlank()) throw IllegalStateException("O Supabase não retornou a URL do banner.")
                     val newItem = CarouselItem(
                         id = java.util.UUID.randomUUID().toString(),
                         imageUrl = uploadedUrl,
                         eventDate = ""
                     )
                     addCarouselItem(newItem)
+                } catch (error: Exception) {
+                    android.widget.Toast.makeText(context, "Upload do banner não concluído: ${error.message ?: "verifique a conexão"}", android.widget.Toast.LENGTH_LONG).show()
+                } finally {
+                    isUploading = false
                 }
-                isUploading = false
             }
         }
     }
@@ -705,14 +709,18 @@ fun EditDonationsSection() {
         if (uri != null) {
             isUploading = true
             scope.launch {
-                uploadProgress = 0f
-                val uploadedUrl = StorageHelper.uploadFile(context, uri, "donations") { progress ->
-                    uploadProgress = progress
-                }
-                if (uploadedUrl.isNotEmpty()) {
+                try {
+                    uploadProgress = 0f
+                    val uploadedUrl = StorageHelper.uploadFile(context, uri, "donations", mimeTypeHint = "image/*") { progress ->
+                        uploadProgress = progress
+                    }
+                    if (uploadedUrl.isBlank()) throw IllegalStateException("O Supabase não retornou a URL do QR Code.")
                     qrCodeUrl = uploadedUrl
+                } catch (error: Exception) {
+                    android.widget.Toast.makeText(context, "Upload do QR Code não concluído: ${error.message ?: "verifique a conexão"}", android.widget.Toast.LENGTH_LONG).show()
+                } finally {
+                    isUploading = false
                 }
-                isUploading = false
             }
         }
     }

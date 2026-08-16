@@ -355,13 +355,17 @@ fun TeamMemberDialog(
             isUploading = true
             uploadProgress = 0f
             scope.launch {
-                val uploadedUrl = StorageHelper.uploadFile(context, uri, "equipe") { progress ->
-                    uploadProgress = progress
-                }
-                if (uploadedUrl.isNotEmpty()) {
+                try {
+                    val uploadedUrl = StorageHelper.uploadFile(context, uri, "equipe", mimeTypeHint = "image/*") { progress ->
+                        uploadProgress = progress
+                    }
+                    if (uploadedUrl.isBlank()) throw IllegalStateException("O Supabase não retornou a URL da equipe.")
                     imageUrl = uploadedUrl
+                } catch (error: Exception) {
+                    android.widget.Toast.makeText(context, "Upload da imagem não concluído: ${error.message ?: "verifique a conexão"}", android.widget.Toast.LENGTH_LONG).show()
+                } finally {
+                    isUploading = false
                 }
-                isUploading = false
             }
         }
     }

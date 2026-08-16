@@ -56,15 +56,20 @@ fun EditMediaSection() {
                     if (isUploading) return@GlassButton
                     isUploading = true
                     coroutineScope.launch {
-                        uploadProgress = 0f
-                        val finalCover = if (coverUrl.isNotBlank() && !coverUrl.startsWith("http")) StorageHelper.uploadFile(context, android.net.Uri.parse(coverUrl), "books/covers") { progress -> uploadProgress = progress / 2f } else convertGoogleDriveUrl(coverUrl).ifEmpty { "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=500&q=80" }
-                        val finalBookUrl = if (bookUrl.isNotBlank() && !bookUrl.startsWith("http")) StorageHelper.uploadFile(context, android.net.Uri.parse(bookUrl), "books/files") { progress -> uploadProgress = 0.5f + (progress / 2f) } else convertGoogleDriveUrl(bookUrl)
-                        addContentBook(ContentBook(id = System.currentTimeMillis().toString(), title = title, author = author, coverUrl = finalCover, contentText = "Conteúdo do livro carregado...", bookUrl = finalBookUrl))
-                        title = ""
-                        author = ""
-                        coverUrl = ""
-                        bookUrl = ""
-                        isUploading = false
+                        try {
+                            uploadProgress = 0f
+                            val finalCover = if (coverUrl.isNotBlank() && !coverUrl.startsWith("http")) StorageHelper.uploadFile(context, android.net.Uri.parse(coverUrl), "books/covers") { progress -> uploadProgress = progress / 2f } else convertGoogleDriveUrl(coverUrl).ifEmpty { "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=500&q=80" }
+                            val finalBookUrl = if (bookUrl.isNotBlank() && !bookUrl.startsWith("http")) StorageHelper.uploadFile(context, android.net.Uri.parse(bookUrl), "books/files") { progress -> uploadProgress = 0.5f + (progress / 2f) } else convertGoogleDriveUrl(bookUrl)
+                            addContentBook(ContentBook(id = System.currentTimeMillis().toString(), title = title, author = author, coverUrl = finalCover, contentText = "Conteúdo do livro carregado...", bookUrl = finalBookUrl))
+                            title = ""
+                            author = ""
+                            coverUrl = ""
+                            bookUrl = ""
+                        } catch (error: Exception) {
+                            android.widget.Toast.makeText(context, "Upload não concluído: ${error.message ?: "verifique a conexão"}", android.widget.Toast.LENGTH_LONG).show()
+                        } finally {
+                            isUploading = false
+                        }
                     }
                 }, modifier = Modifier.padding(top = 8.dp)) {
                     if (isUploading) {
@@ -112,20 +117,24 @@ fun EditMediaSection() {
                     if (isUploading) return@GlassButton
                     isUploading = true
                     coroutineScope.launch {
-                        uploadProgress = 0f
-                        if (audioUrl.isBlank()) {
-                            android.widget.Toast.makeText(context, "Informe ou selecione um arquivo de áudio.", android.widget.Toast.LENGTH_SHORT).show()
+                        try {
+                            uploadProgress = 0f
+                            if (audioUrl.isBlank()) {
+                                android.widget.Toast.makeText(context, "Informe ou selecione um arquivo de áudio.", android.widget.Toast.LENGTH_SHORT).show()
+                                return@launch
+                            }
+                            val finalCoverUrl = if (audioCover.isNotBlank() && !audioCover.startsWith("http")) StorageHelper.uploadFile(context, android.net.Uri.parse(audioCover), "audios/covers") { progress -> uploadProgress = progress / 2f } else convertGoogleDriveUrl(audioCover).ifEmpty { "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80" }
+                            val finalAudioUrl = if (!audioUrl.startsWith("http")) StorageHelper.uploadFile(context, android.net.Uri.parse(audioUrl), "audios/files") { progress -> uploadProgress = 0.5f + (progress / 2f) } else convertGoogleDriveUrl(audioUrl)
+                            addContentAudio(ContentAudio(id = System.currentTimeMillis().toString(), title = audioTitle, artist = audioArtist, audioUrl = finalAudioUrl, coverUrl = finalCoverUrl))
+                            audioTitle = ""
+                            audioArtist = ""
+                            audioUrl = ""
+                            audioCover = ""
+                        } catch (error: Exception) {
+                            android.widget.Toast.makeText(context, "Upload não concluído: ${error.message ?: "verifique a conexão"}", android.widget.Toast.LENGTH_LONG).show()
+                        } finally {
                             isUploading = false
-                            return@launch
                         }
-                        val finalCoverUrl = if (audioCover.isNotBlank() && !audioCover.startsWith("http")) StorageHelper.uploadFile(context, android.net.Uri.parse(audioCover), "audios/covers") { progress -> uploadProgress = progress / 2f } else convertGoogleDriveUrl(audioCover).ifEmpty { "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80" }
-                        val finalAudioUrl = if (!audioUrl.startsWith("http")) StorageHelper.uploadFile(context, android.net.Uri.parse(audioUrl), "audios/files") { progress -> uploadProgress = 0.5f + (progress / 2f) } else convertGoogleDriveUrl(audioUrl)
-                        addContentAudio(ContentAudio(id = System.currentTimeMillis().toString(), title = audioTitle, artist = audioArtist, audioUrl = finalAudioUrl, coverUrl = finalCoverUrl))
-                        audioTitle = ""
-                        audioArtist = ""
-                        audioUrl = ""
-                        audioCover = ""
-                        isUploading = false
                     }
                 }, modifier = Modifier.padding(top = 8.dp)) {
                     if (isUploading) {
@@ -188,16 +197,20 @@ fun EditMediaSection() {
                     if (isUploading) return@GlassButton
                     isUploading = true
                     coroutineScope.launch {
-                        uploadProgress = 0f
-                        val finalThumbUploaded = if (videoThumb.isNotBlank() && !videoThumb.startsWith("http")) StorageHelper.uploadFile(context, android.net.Uri.parse(videoThumb), "videos/covers") { progress -> uploadProgress = progress / 2f } else convertGoogleDriveUrl(videoThumb)
-                        val finalVideoUrl = if (videoUrl.isNotBlank() && !videoUrl.startsWith("http")) StorageHelper.uploadFile(context, android.net.Uri.parse(videoUrl), "videos/files") { progress -> uploadProgress = 0.5f + (progress / 2f) } else convertGoogleDriveUrl(videoUrl).ifEmpty { "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" }
-                        val finalThumb = finalThumbUploaded
-                        addContentVideo(ContentVideo(id = System.currentTimeMillis().toString(), title = videoTitle, description = videoDesc, videoUrl = finalVideoUrl, thumbnailUrl = finalThumb))
-                        videoTitle = ""
-                        videoDesc = ""
-                        videoUrl = ""
-                        videoThumb = ""
-                        isUploading = false
+                        try {
+                            uploadProgress = 0f
+                            val finalThumbUploaded = if (videoThumb.isNotBlank() && !videoThumb.startsWith("http")) StorageHelper.uploadFile(context, android.net.Uri.parse(videoThumb), "videos/covers") { progress -> uploadProgress = progress / 2f } else convertGoogleDriveUrl(videoThumb)
+                            val finalVideoUrl = if (videoUrl.isNotBlank() && !videoUrl.startsWith("http")) StorageHelper.uploadFile(context, android.net.Uri.parse(videoUrl), "videos/files") { progress -> uploadProgress = 0.5f + (progress / 2f) } else convertGoogleDriveUrl(videoUrl).ifEmpty { "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" }
+                            addContentVideo(ContentVideo(id = System.currentTimeMillis().toString(), title = videoTitle, description = videoDesc, videoUrl = finalVideoUrl, thumbnailUrl = finalThumbUploaded))
+                            videoTitle = ""
+                            videoDesc = ""
+                            videoUrl = ""
+                            videoThumb = ""
+                        } catch (error: Exception) {
+                            android.widget.Toast.makeText(context, "Upload não concluído: ${error.message ?: "verifique a conexão"}", android.widget.Toast.LENGTH_LONG).show()
+                        } finally {
+                            isUploading = false
+                        }
                     }
                 }, modifier = Modifier.padding(top = 8.dp)) {
                     if (isUploading) {
@@ -500,24 +513,27 @@ fun EditMediaSection() {
             if (uri != null) {
                 isUploadingPhoto = true
                 scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                    photoProgress = 0f
-                    val url = StorageHelper.uploadFile(context, uri, "album_photos") { progress -> photoProgress = progress }
-                    kotlinx.coroutines.Dispatchers.Main.let {
-                        kotlinx.coroutines.withContext(it) {
-                            isUploadingPhoto = false
-                            if (url != null) {
-                                val updatedAlbum = editingAlbum!!.copy(
-                                    photos = editingAlbum!!.photos + AlbumPhoto(url = url, caption = ""),
-                                    coverUrl = editingAlbum!!.coverUrl ?: url
-                                )
-                                val index = contentAlbumsState.indexOfFirst { it.id == editingAlbum!!.id }
-                                if (index != -1) {
-                                    contentAlbumsState[index] = updatedAlbum
-                                            addContentPhotoAlbum(updatedAlbum)
-                                    editingAlbum = updatedAlbum
-                                }
+                    try {
+                        photoProgress = 0f
+                        val url = StorageHelper.uploadFile(context, uri, "album_photos", mimeTypeHint = "image/*") { progress -> photoProgress = progress }
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                            val updatedAlbum = editingAlbum!!.copy(
+                                photos = editingAlbum!!.photos + AlbumPhoto(url = url, caption = ""),
+                                coverUrl = editingAlbum!!.coverUrl ?: url
+                            )
+                            val index = contentAlbumsState.indexOfFirst { it.id == editingAlbum!!.id }
+                            if (index != -1) {
+                                contentAlbumsState[index] = updatedAlbum
+                                addContentPhotoAlbum(updatedAlbum)
+                                editingAlbum = updatedAlbum
                             }
                         }
+                    } catch (error: Exception) {
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                            android.widget.Toast.makeText(context, "Upload da foto não concluído: ${error.message ?: "verifique a conexão"}", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    } finally {
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { isUploadingPhoto = false }
                     }
                 }
             }
