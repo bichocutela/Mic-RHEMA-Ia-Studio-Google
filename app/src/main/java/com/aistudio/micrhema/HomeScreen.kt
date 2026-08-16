@@ -268,7 +268,7 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
                         Card(
                             modifier = Modifier
                                 .fillParentMaxWidth()
-                                .height(180.dp)
+                                .aspectRatio(16f / 9f)
                                 .clickable {
                                     onNavigate(
                                         if (banner.tag.equals("EVENTO", ignoreCase = true)) {
@@ -281,12 +281,16 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
                             shape = RoundedCornerShape(16.dp),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                         ) {
-                            Box(modifier = Modifier.fillMaxSize()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                            ) {
                                 AsyncImage(
                                     model = banner.imageUrl?.takeIf { it.isNotBlank() },
                                     contentDescription = banner.title,
                                     modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
+                                    contentScale = ContentScale.Fit
                                 )
                                 Box(
                                     modifier = Modifier
