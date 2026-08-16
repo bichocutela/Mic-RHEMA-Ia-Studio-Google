@@ -2,7 +2,6 @@ package com.aistudio.micrhema
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -35,7 +34,7 @@ fun BiblicalAvatarWithBadge(
         modifier = clickableModifier,
         contentAlignment = Alignment.Center
     ) {
-        androidx.compose.foundation.Canvas(modifier = Modifier.matchParentSize()) {
+        androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
             drawBadgeFrame(badge)
         }
         BiblicalAvatarImage(
