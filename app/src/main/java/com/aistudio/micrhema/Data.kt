@@ -136,7 +136,8 @@ data class CarouselItem(
     var date: String = "",
     var tag: String = "", // "EVENTO" ou "NOTÍCIA"
     var imageUrl: String? = null,
-    var eventDate: String = "" // Formato: yyyy-MM-dd
+    var eventDate: String = "", // Formato: yyyy-MM-dd
+    var eventInfo: String = "" // Informação explícita que libera o clique do evento
 )
 
 // Global mutable states

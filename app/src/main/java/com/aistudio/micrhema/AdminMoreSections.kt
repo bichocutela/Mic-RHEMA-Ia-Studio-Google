@@ -523,6 +523,11 @@ fun EditBannersSection() {
                             } else {
                                 Text("🔴 Expirado - Evento: $formattedDate", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                             }
+                            Text(
+                                text = if (banner.eventInfo.isNotBlank()) "Clique ativo: evento configurado" else "Sem clique: nenhum evento informado",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (banner.eventInfo.isNotBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                         IconButton(onClick = {
                             removeCarouselItem(banner)
@@ -581,6 +586,7 @@ fun EditBannersSection() {
 @Composable
 fun BannerEditDialog(banner: CarouselItem, onDismiss: () -> Unit, onSave: (CarouselItem) -> Unit) {
     var imageUrl by remember { mutableStateOf(banner.imageUrl ?: "") }
+    var eventInfo by remember { mutableStateOf(banner.eventInfo) }
     var eventDate by remember { mutableStateOf(banner.eventDate) }
     
     var showDatePicker by remember { mutableStateOf(false) }
@@ -602,6 +608,17 @@ fun BannerEditDialog(banner: CarouselItem, onDismiss: () -> Unit, onSave: (Carou
                     onValueChange = { imageUrl = it },
                     label = { Text("URL da Imagem") },
                     modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = eventInfo,
+                    onValueChange = { eventInfo = it },
+                    label = { Text("Informações do evento (opcional)") },
+                    placeholder = { Text("Ex.: Culto especial no domingo, às 18h, no templo") },
+                    supportingText = { Text("Se preenchido, o banner ficará clicável e abrirá a área de cultos.") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
+                    maxLines = 4
                 )
                 
                 val formattedDate = if (eventDate.isNotEmpty()) {
@@ -634,7 +651,13 @@ fun BannerEditDialog(banner: CarouselItem, onDismiss: () -> Unit, onSave: (Carou
         confirmButton = {
             Button(onClick = {
                 val finalUrl = convertGoogleDriveUrl(imageUrl)
-                onSave(banner.copy(imageUrl = finalUrl, eventDate = eventDate))
+                onSave(
+                    banner.copy(
+                        imageUrl = finalUrl,
+                        eventDate = eventDate,
+                        eventInfo = eventInfo.trim()
+                    )
+                )
             }) {
                 Text("Salvar")
             }

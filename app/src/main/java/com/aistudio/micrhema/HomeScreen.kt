@@ -265,19 +265,15 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     items(validBanners) { banner ->
+                        val hasEventInfo = banner.eventInfo.isNotBlank()
                         Card(
                             modifier = Modifier
                                 .fillParentMaxWidth()
                                 .aspectRatio(16f / 9f)
-                                .clickable {
-                                    onNavigate(
-                                        if (banner.tag.equals("EVENTO", ignoreCase = true)) {
-                                            Screen.Services.route
-                                        } else {
-                                            "news_list"
-                                        }
-                                    )
-                                },
+                                .clickable(
+                                    enabled = hasEventInfo,
+                                    onClick = { onNavigate(Screen.Services.route) }
+                                ),
                             shape = RoundedCornerShape(16.dp),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                         ) {
@@ -292,38 +288,42 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
                                     modifier = Modifier.fillMaxSize(),
                                     contentScale = ContentScale.Fit
                                 )
-                                Box(
-                                    modifier = Modifier
-                                        .align(Alignment.BottomCenter)
-                                        .fillMaxWidth()
-                                        .background(Color.Black.copy(alpha = 0.58f))
-                                        .padding(horizontal = 14.dp, vertical = 10.dp)
-                                ) {
-                                    Column {
-                                        if (banner.tag.isNotBlank()) {
-                                            Text(
-                                                text = banner.tag,
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = Color.White.copy(alpha = 0.8f),
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
-                                        Text(
-                                            text = banner.title.ifBlank { "Destaque da igreja" },
-                                            style = MaterialTheme.typography.titleSmall,
-                                            color = Color.White,
-                                            fontWeight = FontWeight.Bold,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                        if (banner.description.isNotBlank()) {
-                                            Text(
-                                                text = banner.description,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = Color.White.copy(alpha = 0.85f),
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
+                                if (banner.tag.isNotBlank() || banner.title.isNotBlank() || banner.description.isNotBlank()) {
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.BottomCenter)
+                                            .fillMaxWidth()
+                                            .background(Color.Black.copy(alpha = 0.58f))
+                                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                                    ) {
+                                        Column {
+                                            if (banner.tag.isNotBlank()) {
+                                                Text(
+                                                    text = banner.tag,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = Color.White.copy(alpha = 0.8f),
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                            if (banner.title.isNotBlank()) {
+                                                Text(
+                                                    text = banner.title,
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    color = Color.White,
+                                                    fontWeight = FontWeight.Bold,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                            if (banner.description.isNotBlank()) {
+                                                Text(
+                                                    text = banner.description,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = Color.White.copy(alpha = 0.85f),
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
                                         }
                                     }
                                 }
