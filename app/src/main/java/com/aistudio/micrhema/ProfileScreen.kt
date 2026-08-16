@@ -69,6 +69,7 @@ fun ProfileScreen(
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showAvatarPicker by remember { mutableStateOf(false) }
     var showAvatarPreview by remember { mutableStateOf(false) }
+    val selectedAvatar = biblicalAvatarForId(selectedAvatarId)
 
     LaunchedEffect(loggedInMember.id, loggedInMember.name, loggedInMember.phone, loggedInMember.address, loggedInMember.birthDate, loggedInMember.email, loggedInMember.avatarId) {
         if (!isEditingName) name = loggedInMember.name
@@ -111,7 +112,6 @@ fun ProfileScreen(
             )
             Spacer(modifier = Modifier.height(16.dp))
 
-            val selectedAvatar = biblicalAvatarForId(selectedAvatarId)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp),
