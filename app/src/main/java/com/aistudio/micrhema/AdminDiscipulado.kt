@@ -29,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -110,6 +111,15 @@ fun EditDiscipuladoSection() {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(pdf.title, fontWeight = FontWeight.Bold)
                                 Text(pdf.category, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                                if (pdf.description.isNotBlank()) {
+                                    Text(
+                                        pdf.description,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                             }
                             IconButton(onClick = {
                                 Firebase.firestore.collection("discipulado_pdfs").document(pdf.id).delete()
@@ -130,10 +140,26 @@ fun EditDiscipuladoSection() {
             title = { Text("Publicar estudo em PDF") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Título") }, singleLine = true)
+                    OutlinedTextField(
+                        value = title,
+                        onValueChange = { title = it },
+                        label = { Text("Título do estudo *") },
+                        placeholder = { Text("Ex.: Fundamentos da Fé") },
+                        supportingText = { Text("O título será exibido na biblioteca pública.") },
+                        singleLine = true,
+                        isError = title.isBlank()
+                    )
                     OutlinedTextField(value = subtitle, onValueChange = { subtitle = it }, label = { Text("Subtítulo") }, singleLine = true)
                     OutlinedTextField(value = category, onValueChange = { category = it }, label = { Text("Categoria") }, singleLine = true)
-                    OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Descrição") }, minLines = 3)
+                    OutlinedTextField(
+                        value = description,
+                        onValueChange = { description = it },
+                        label = { Text("Descrição do estudo") },
+                        placeholder = { Text("Explique brevemente o que o aluno encontrará neste PDF.") },
+                        supportingText = { Text("A descrição é opcional e aparecerá no cartão do estudo.") },
+                        minLines = 4,
+                        maxLines = 6
+                    )
                 }
             },
             confirmButton = {
