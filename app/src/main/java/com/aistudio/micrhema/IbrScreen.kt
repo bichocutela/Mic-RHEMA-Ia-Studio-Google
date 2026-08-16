@@ -397,6 +397,14 @@ fun IbrModuleCard(course: IbrCourse, isLocked: Boolean, onClick: () -> Unit) {
     }
 }
 
+private fun markIbrChapterCompleted(context: Context, course: IbrCourse, chapter: IbrChapter) {
+    val existing = ibrProgressState.find { it.courseId == course.id && it.chapterId == chapter.id }
+    val progress = existing ?: IbrProgress(course.id, chapter.id, 0, chapter.durationMinutes * 60, false)
+    progress.isCompleted = true
+    if (existing == null) ibrProgressState.add(progress)
+    IbrDatabaseHelper(context).saveProgress(progress)
+}
+
 private fun markIbrChapterStarted(context: Context, course: IbrCourse, chapter: IbrChapter) {
     val existing = ibrProgressState.find { it.courseId == course.id && it.chapterId == chapter.id }
     if (existing == null) {
@@ -417,7 +425,7 @@ private fun markIbrChapterStarted(context: Context, course: IbrCourse, chapter: 
 fun IbrCourseScreen(
     courseId: String,
     onBack: () -> Unit,
-    onNavigateToText: (String, String) -> Unit
+    onNavigateToLesson: (String, String) -> Unit
 ) {
     val context = LocalContext.current
     val course = ibrCoursesState.find { it.id == courseId }
@@ -461,32 +469,7 @@ fun IbrCourseScreen(
                     Card(
                         modifier = Modifier.fillMaxWidth().clickable {
                             markIbrChapterStarted(context, course, chapter)
-                            if (chapter.type == "VIDEO") {
-                                val url = if (chapter.isYoutube && chapter.videoUrl.isNotEmpty()) {
-                                    if (chapter.videoUrl.startsWith("http")) chapter.videoUrl else "https://www.youtube.com/watch?v=${chapter.videoUrl}"
-                                } else chapter.videoUrl
-                                
-                                try {
-                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                                    context.startActivity(intent)
-                                } catch(e: Exception) {
-                                    android.widget.Toast.makeText(context, "Erro ao abrir link", android.widget.Toast.LENGTH_SHORT).show()
-                                }
-
-                            } else if (chapter.type == "AUDIO") {
-                                val track = AudioTrack(
-                                    id = chapter.id,
-                                    title = chapter.title,
-                                    subtitle = course.title,
-                                    audioUrl = chapter.audioUrl,
-                                    coverUrl = course.imageUrl.ifEmpty { "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80" }
-                                )
-                                GlobalAudioPlayer.playTrack(context, track)
-                                android.widget.Toast.makeText(context, "O progresso será concluído após a reprodução real do áudio.", android.widget.Toast.LENGTH_SHORT).show()
-
-                            } else if (chapter.type == "TEXT") {
-                                onNavigateToText(course.id, chapter.id)
-                            }
+                            onNavigateToLesson(course.id, chapter.id)
                         },
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(
@@ -618,6 +601,117 @@ fun IbrTextScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(if (isCompleted) "Leitura concluída" else "Concluir leitura")
+            }
+        }
+    }
+}
+
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun IbrLessonScreen(
+    courseId: String,
+    chapterId: String,
+    onBack: () -> Unit
+) {
+    val context = LocalContext.current
+    val course = ibrCoursesState.find { it.id == courseId }
+    val chapter = course?.chapters?.find { it.id == chapterId }
+    if (course == null || chapter == null) {
+        onBack()
+        return
+    }
+    if (chapter.type == "TEXT") {
+        IbrTextScreen(courseId = courseId, chapterId = chapterId, onBack = onBack)
+        return
+    }
+
+    val existingProgress = ibrProgressState.find { it.courseId == course.id && it.chapterId == chapter.id }
+    var isCompleted by remember { mutableStateOf(existingProgress?.isCompleted == true) }
+    val typeLabel = if (chapter.type == "VIDEO") "Vídeo-aula" else "Áudio-aula"
+    val typeIcon = if (chapter.type == "VIDEO") Icons.Default.PlayCircle else Icons.Default.Headphones
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Aula IBR", fontWeight = FontWeight.Bold) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, contentDescription = "Voltar") } },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.background
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier.fillMaxSize().padding(paddingValues).verticalScroll(rememberScrollState()).padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Box(
+                modifier = Modifier.fillMaxWidth().height(190.dp).clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(typeIcon, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(74.dp))
+            }
+            Text(course.title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            Text(chapter.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text(chapter.description.ifBlank { "Acompanhe esta aula do curso e marque como concluída ao terminar." }, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
+                    Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(typeIcon, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                        Spacer(Modifier.width(6.dp))
+                        Text(typeLabel, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                    }
+                }
+                Spacer(Modifier.width(10.dp))
+                Text("${chapter.durationMinutes} min", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (chapter.type == "VIDEO") {
+                Button(
+                    onClick = {
+                        val url = if (chapter.isYoutube && chapter.videoUrl.isNotEmpty() && !chapter.videoUrl.startsWith("http")) "https://www.youtube.com/watch?v=${chapter.videoUrl}" else chapter.videoUrl
+                        try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                        catch (_: Exception) { android.widget.Toast.makeText(context, "Não foi possível abrir o vídeo.", android.widget.Toast.LENGTH_SHORT).show() }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.PlayArrow, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Abrir vídeo")
+                }
+            } else {
+                OutlinedButton(
+                    onClick = {
+                        val track = AudioTrack(
+                            id = chapter.id,
+                            title = chapter.title,
+                            subtitle = course.title,
+                            audioUrl = chapter.audioUrl,
+                            coverUrl = course.imageUrl
+                        )
+                        GlobalAudioPlayer.playTrack(context, track)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.Headphones, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Reproduzir áudio")
+                }
+            }
+            Button(
+                onClick = {
+                    markIbrChapterCompleted(context, course, chapter)
+                    isCompleted = true
+                },
+                enabled = !isCompleted,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = if (isCompleted) Color(0xFF4CAF50) else MaterialTheme.colorScheme.primary),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Icon(if (isCompleted) Icons.Default.CheckCircle else Icons.Default.Check, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text(if (isCompleted) "Aula concluída" else "Marcar como concluída")
             }
         }
     }

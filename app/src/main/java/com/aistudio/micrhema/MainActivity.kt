@@ -597,14 +597,14 @@ fun MainScreen() {
                     IbrCourseScreen(
                         courseId = courseId,
                         onBack = { navController.popBackStack() },
-                        onNavigateToText = { cid, chid -> navController.navigate("ibr_text/$cid/$chid") }
+                        onNavigateToLesson = { cid, chid -> navController.navigate("ibr_lesson/$cid/$chid") }
                     )
                 }
                 
-                composable("ibr_text/{courseId}/{chapterId}") { backStackEntry ->
+                composable("ibr_lesson/{courseId}/{chapterId}") { backStackEntry ->
                     val courseId = backStackEntry.arguments?.getString("courseId") ?: return@composable
                     val chapterId = backStackEntry.arguments?.getString("chapterId") ?: return@composable
-                    IbrTextScreen(
+                    IbrLessonScreen(
                         courseId = courseId,
                         chapterId = chapterId,
                         onBack = { navController.popBackStack() }
