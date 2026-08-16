@@ -20,29 +20,36 @@ fun AdminTabsScreen() {
 
     var showPreview by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Gerenciamento de Abas", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(
+                "Organize a navegação principal do aplicativo.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f)
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { showPreview = !showPreview }) {
+                FilledTonalButton(onClick = { showPreview = !showPreview }) {
                     Icon(if (showPreview) Icons.Default.VisibilityOff else Icons.Default.Visibility, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(if (showPreview) "Ocultar Preview" else "Preview")
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(if (showPreview) "Ocultar" else "Visualizar")
                 }
                 Button(onClick = { showAddDialog = true }) {
-                    Icon(Icons.Default.Add, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Nova Aba")
+                    Icon(Icons.Default.Add, contentDescription = "Adicionar aba")
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Adicionar")
                 }
             }
         }
         
         if (showPreview) {
-            Spacer(modifier = Modifier.height(16.dp))
             Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Preview da Barra de Navegação", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp))
@@ -71,10 +78,13 @@ fun AdminTabsScreen() {
                 }
             }
         }
-        Spacer(modifier = Modifier.height(16.dp))
 
         val orderedTabs = appTabsState.sortedBy { it.order }
-        LazyColumn {
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(bottom = 24.dp)
+        ) {
             items(orderedTabs) { tab ->
                 Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                     Row(
