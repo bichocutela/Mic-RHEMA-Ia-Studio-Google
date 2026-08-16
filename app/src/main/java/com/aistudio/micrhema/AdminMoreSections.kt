@@ -233,19 +233,67 @@ fun EditDevotionalsSection() {
     val scope = rememberCoroutineScope()
     var showDialog by remember { mutableStateOf(false) }
     var editingDevotional by remember { mutableStateOf<Devotional?>(null) }
-    
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("Gerenciar Devocionais", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+    val sortedDevotionals = devotionalsState.sortedWith(
+        compareByDescending<Devotional> { it.timestamp }.thenByDescending { it.date }
+    )
+    val mediaCount = devotionalsState.count { it.mediaUrl.isNotBlank() }
+
+    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Devocionais", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text(
+                    "Alimente a fé da igreja com uma nova palavra para cada dia.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             Button(onClick = { showDialog = true; editingDevotional = null }) {
-                Icon(Icons.Default.Add, contentDescription = "Adicionar")
-                Spacer(Modifier.width(4.dp))
-                Text("Novo")
+                Icon(Icons.Default.Add, contentDescription = "Adicionar devocional")
+                Spacer(Modifier.width(6.dp))
+                Text("Novo devocional")
             }
         }
+
         Spacer(Modifier.height(16.dp))
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(devotionalsState) { dev ->
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            DevotionalMetricCard(
+                modifier = Modifier.weight(1f),
+                label = "Publicados",
+                value = devotionalsState.size.toString(),
+                icon = Icons.Default.DateRange
+            )
+            DevotionalMetricCard(
+                modifier = Modifier.weight(1f),
+                label = "Com mídia",
+                value = mediaCount.toString(),
+                icon = Icons.Default.Refresh
+            )
+            DevotionalMetricCard(
+                modifier = Modifier.weight(1f),
+                label = "Status",
+                value = if (devotionalsState.isEmpty()) "Vazio" else "Ativo",
+                icon = Icons.Default.Edit
+            )
+        }
+
+        Spacer(Modifier.height(18.dp))
+        Text("Conteúdos recentes", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(8.dp))
+
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.weight(1f)
+        ) {
+            items(sortedDevotionals) { dev ->
                 Card(
                     modifier = Modifier.fillMaxWidth().clickable { editingDevotional = dev; showDialog = true },
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -323,6 +371,27 @@ fun EditDevotionalsSection() {
             },
             dismissButton = { TextButton(onClick = { showDialog = false }) { Text("Cancelar") } }
         )
+    }
+}
+
+@Composable
+private fun DevotionalMetricCard(
+    modifier: Modifier,
+    label: String,
+    value: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector
+) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)),
+        shape = MaterialTheme.shapes.large
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.height(6.dp))
+            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 
