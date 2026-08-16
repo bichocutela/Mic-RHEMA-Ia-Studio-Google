@@ -311,32 +311,8 @@ data class MemberRequest(
     var updatedAt: Long = 0L
 )
 
-val memberRequestsState = mutableStateListOf<MemberRequest>(
-    MemberRequest(
-        id = "1",
-        name = "Carlos Oliveira",
-        phone = "11999999999",
-        isApproved = true,
-        isVip = false,
-        isIbr = false
-    ),
-    MemberRequest(
-        id = "2",
-        name = "Ana Costa",
-        phone = "11888888888",
-        isApproved = true,
-        isVip = false,
-        isIbr = true
-    ),
-    MemberRequest(
-        id = "3",
-        name = "Marcos Souza",
-        phone = "11777777777",
-        isApproved = false,
-        isVip = false,
-        isIbr = false
-    )
-)
+// A lista oficial é preenchida exclusivamente pelo listener do Firestore.
+val memberRequestsState = mutableStateListOf<MemberRequest>()
 
 val loggedInMemberState = mutableStateOf<MemberRequest?>(null)
 val adminAuthenticatedState = androidx.compose.runtime.mutableStateOf(false)
@@ -374,16 +350,15 @@ object MemberManager {
                     val ibrCertificateName = document.getString("ibrCertificateName") ?: ""
                     val phone = document.getString("phone") ?: ""
                     val rawIsApproved = document.getBoolean("isApproved") ?: false
-                    val rawIsVip = document.getBoolean("isVip") ?: false
-                    val effectiveApproved = rawIsApproved || rawIsVip
-                    val isVip = false
-                    val isApproved = effectiveApproved
+                    // VIP não aprova automaticamente o acesso. A aprovação é explícita pelo ADM.
+                    val isVip = document.getBoolean("isVip") ?: false
+                    val isApproved = rawIsApproved
                     val isIbr = document.getBoolean("isIbr") ?: false
                     val email = document.getString("email") ?: ""
                     val isAdmin = document.getBoolean("isAdmin") ?: false
                     val ibrCertificateUrl = document.getString("ibrCertificateUrl") ?: ""
                     val ibrCertificateStoragePath = document.getString("ibrCertificateStoragePath") ?: ""
-                    val status = document.getString("status") ?: if (isApproved || isIbr) "aprovado" else "pendente"
+                    val status = if (isApproved || isIbr) "aprovado" else "pendente"
                     val title = document.getString("title") ?: ""
                     val type = document.getString("type") ?: "acesso"
                     val content = document.getString("content") ?: ""
@@ -552,107 +527,26 @@ object MemberManager {
         }
     }
 
+    /**
+     * A lista de membros não é restaurada do aparelho. O Firestore é a única fonte
+     * de verdade; este método mantém apenas a compatibilidade com chamadas antigas
+     * e restaura a sessão depois que o listener remoto carregar os dados.
+     */
     fun loadMembers(context: android.content.Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
-        val serialized = prefs.getString(KEY_MEMBERS, "") ?: ""
-        if (serialized.isNotEmpty()) {
-            try {
-                val jsonArray = org.json.JSONArray(serialized)
-                val list = mutableListOf<MemberRequest>()
-                for (i in 0 until jsonArray.length()) {
-                    val obj = jsonArray.getJSONObject(i)
-                    list.add(
-                        MemberRequest(
-                            id = obj.optString("id", ""),
-                            firebaseUid = obj.optString("firebaseUid", ""),
-                            name = obj.optString("name", ""),
-                            ibrCertificateName = obj.optString("ibrCertificateName", ""),
-                            phone = obj.optString("phone", ""),
-                            email = obj.optString("email", ""),
-                            isApproved = obj.optBoolean("isApproved", false) || obj.optBoolean("isVip", false),
-                            isVip = false,
-                            isIbr = obj.optBoolean("isIbr", false),
-                            isAdmin = obj.optBoolean("isAdmin", false),
-                            ibrCertificateUrl = obj.optString("ibrCertificateUrl", ""),
-                            ibrCertificateStoragePath = obj.optString("ibrCertificateStoragePath", ""),
-                            status = obj.optString("status", "pendente"),
-                            title = obj.optString("title", ""),
-                            type = obj.optString("type", "acesso"),
-                            content = obj.optString("content", ""),
-                            mediaUrl = obj.optString("mediaUrl", ""),
-                            profilePhotoUrl = obj.optString("profilePhotoUrl", ""),
-                            avatarId = obj.optString("avatarId", DEFAULT_BIBLICAL_AVATAR_ID).ifBlank { DEFAULT_BIBLICAL_AVATAR_ID },
-                            unlockedBadgeIds = obj.optJSONArray("unlockedBadgeIds")?.let { array ->
-                                List(array.length()) { index -> array.optString(index) }.filter { it.isNotBlank() }
-                            }?.ifEmpty { listOf(DEFAULT_BIBLICAL_BADGE_ID) } ?: listOf(DEFAULT_BIBLICAL_BADGE_ID),
-                            equippedBadgeId = obj.optString("equippedBadgeId", DEFAULT_BIBLICAL_BADGE_ID).ifBlank { DEFAULT_BIBLICAL_BADGE_ID },
-                            supabaseStoragePath = obj.optString("supabaseStoragePath", ""),
-                            address = obj.optString("address", ""),
-                            birthDate = obj.optString("birthDate", ""),
-                            createdAt = obj.optLong("createdAt", 0L),
-                            updatedAt = obj.optLong("updatedAt", 0L)
-                        )
-                    )
-                }
-                if (list.isNotEmpty()) {
-                memberRequestsState.clear()
-                memberRequestsState.addAll(list)
-            }
-            } catch (e: Exception) {
-                e.printStackTrace()
-                // Se der erro no formato antigo, limpa para não mostrar lixo
-                prefs.edit().remove(KEY_MEMBERS).apply()
-                memberRequestsState.clear()
-            }
-        }
-        
+        prefs.edit().remove(KEY_MEMBERS).apply()
         val loggedInId = prefs.getString(KEY_LOGGED_IN_ID, "") ?: ""
         if (loggedInId.isNotEmpty()) {
-            val member = memberRequestsState.find { it.id == loggedInId }
-            if (member != null) {
-                setLoggedInMember(context, member)
-            }
+            memberRequestsState.find { it.id == loggedInId }?.let { setLoggedInMember(context, it) }
         }
     }
 
+    /** A lista de membros nunca é salva localmente; toda alteração deve ir para o Firestore. */
     fun saveMembers(context: android.content.Context) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
-        try {
-            val jsonArray = org.json.JSONArray()
-            memberRequestsState.forEach { member ->
-                val obj = org.json.JSONObject()
-                obj.put("id", member.id)
-                obj.put("firebaseUid", member.firebaseUid)
-                obj.put("name", member.name)
-                obj.put("ibrCertificateName", member.ibrCertificateName)
-                obj.put("phone", member.phone)
-                obj.put("email", member.email)
-                obj.put("isApproved", member.isApproved)
-                obj.put("isVip", false)
-                obj.put("isIbr", member.isIbr)
-                obj.put("isAdmin", member.isAdmin)
-                obj.put("ibrCertificateUrl", member.ibrCertificateUrl)
-                obj.put("ibrCertificateStoragePath", member.ibrCertificateStoragePath)
-                obj.put("status", member.status)
-                obj.put("title", member.title)
-                obj.put("type", member.type)
-                obj.put("content", member.content)
-                obj.put("mediaUrl", member.mediaUrl)
-                obj.put("profilePhotoUrl", member.profilePhotoUrl)
-                obj.put("avatarId", member.avatarId.ifBlank { DEFAULT_BIBLICAL_AVATAR_ID })
-                obj.put("unlockedBadgeIds", org.json.JSONArray(member.unlockedBadgeIds.ifEmpty { listOf(DEFAULT_BIBLICAL_BADGE_ID) }))
-                obj.put("equippedBadgeId", member.equippedBadgeId.ifBlank { DEFAULT_BIBLICAL_BADGE_ID })
-                obj.put("supabaseStoragePath", member.supabaseStoragePath)
-                obj.put("address", member.address)
-                obj.put("birthDate", member.birthDate)
-                obj.put("createdAt", member.createdAt)
-                obj.put("updatedAt", member.updatedAt)
-                jsonArray.put(obj)
-            }
-            prefs.edit().putString(KEY_MEMBERS, jsonArray.toString()).apply()
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+            .edit()
+            .remove(KEY_MEMBERS)
+            .apply()
     }
     
     suspend fun bindFirebaseUidToLoggedInMember(context: android.content.Context, firebaseUid: String) {
@@ -1693,14 +1587,13 @@ suspend fun refreshHomeData() {
                     val name = memberSnapshot.getString("name") ?: ""
                     val phone = memberSnapshot.getString("phone") ?: ""
                     val rawIsApproved = memberSnapshot.getBoolean("isApproved") ?: false
-                    val isVip = memberSnapshot.getBoolean("isVip") ?: false
-                    val effectiveApproved = rawIsApproved || isVip
+                    val effectiveApproved = rawIsApproved
                     val isIbr = memberSnapshot.getBoolean("isIbr") ?: false
                     val email = memberSnapshot.getString("email") ?: ""
                     val isAdmin = memberSnapshot.getBoolean("isAdmin") ?: false
                     val ibrCertificateUrl = memberSnapshot.getString("ibrCertificateUrl") ?: ""
                     val ibrCertificateStoragePath = memberSnapshot.getString("ibrCertificateStoragePath") ?: ""
-                    val status = memberSnapshot.getString("status") ?: if (effectiveApproved || isIbr) "aprovado" else "pendente"
+                    val status = if (effectiveApproved || isIbr) "aprovado" else "pendente"
                     val title = memberSnapshot.getString("title") ?: ""
                     val type = memberSnapshot.getString("type") ?: "acesso"
                     val content = memberSnapshot.getString("content") ?: ""

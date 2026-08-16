@@ -37,7 +37,7 @@ private fun memberFromLoginDocument(document: DocumentSnapshot): MemberRequest {
         ibrCertificateName = document.getString("ibrCertificateName").orEmpty().ifBlank { rawName },
         phone = document.getString("phone") ?: "",
         email = document.getString("email") ?: "",
-        isApproved = (document.getBoolean("isApproved") ?: false) || (document.getBoolean("isVip") ?: false),
+        isApproved = document.getBoolean("isApproved") ?: false,
         isIbr = document.getBoolean("isIbr") ?: false,
         isAdmin = document.getBoolean("isAdmin") ?: false,
         ibrCertificateUrl = document.getString("ibrCertificateUrl") ?: "",
@@ -84,8 +84,9 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                 isVip = false,
                 isIbr = false
             )
-            memberRequestsState.add(newRequest)
-            MemberManager.saveMembers(context)
+            // A solicitação oficial será lida pelo listener do Firestore.
+            // Mantemos apenas a sessão atual em memória para exibir o estado de envio.
+            MemberManager.setLoggedInMember(context, newRequest)
             MemberManager.saveToFirestore(
                 context,
                 newRequest,

@@ -76,15 +76,6 @@ object LocalDataManager {
                 eventsState.addAll(list)
             }
 
-            // MemberRequests
-            val membersJson = prefs.getString("memberRequestsState", null)
-            if (membersJson != null) {
-                val type = object : TypeToken<List<MemberRequest>>() {}.type
-                val list: List<MemberRequest> = gson.fromJson(membersJson, type)
-                memberRequestsState.clear()
-                memberRequestsState.addAll(list)
-            }
-            
             // IbrCourses
             val ibrJson = prefs.getString("ibrCoursesState", null)
             if (ibrJson != null) {
