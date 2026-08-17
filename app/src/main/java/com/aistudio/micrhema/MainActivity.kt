@@ -794,7 +794,11 @@ fun MainScreen() {
                     Text(if (notification.badges.size == 1) "Novo emblema conquistado!" else "Novos emblemas conquistados!")
                 },
                 text = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
                         Text(
                             if (notification.badges.size == 1) "Parabéns! Você avançou na sua jornada." else "Parabéns! Você avançou em vários objetivos.",
                             fontWeight = FontWeight.SemiBold
@@ -818,10 +822,16 @@ fun MainScreen() {
                             }
                         }
                         Spacer(modifier = Modifier.height(10.dp))
-                        Text(
-                            "Vá ao Meu Perfil para ativar o emblema e exibir sua nova moldura.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            Text(
+                                "Vá ao Meu Perfil para ativar o emblema e exibir sua nova moldura.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        ConfettiBurst(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .zIndex(1f)
                         )
                     }
                 },
