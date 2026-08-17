@@ -719,8 +719,15 @@ fun MainScreen() {
                         initialBook = book,
                         initialChapter = chapter,
                         initialVersion = version,
-                        onOpenBible = { selectedBook, selectedChapter, selectedVersion ->
-                            navController.navigate(YouVersionLinks.internalRoute(selectedBook, selectedChapter, selectedVersion))
+                        onOpenBible = { selectedBook, selectedChapter, selectedVersion, selectedVerse ->
+                            navController.navigate(
+                                YouVersionLinks.internalRoute(
+                                    selectedBook,
+                                    selectedChapter,
+                                    selectedVersion,
+                                    selectedVerse
+                                )
+                            )
                         }
                     )
                 }
@@ -855,5 +862,4 @@ fun MainScreen() {
         }
     }
 }
-
 

@@ -53,6 +53,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -60,6 +61,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -128,6 +130,15 @@ fun BollsBibleScreen(
         if (verses.isEmpty()) {
             errorMessage = "Não foi possível carregar este capítulo. Verifique sua conexão e tente novamente."
         } else {
+            BibleReadingPreferences.saveLastReading(
+                context,
+                BibleReadingPreferences.ReadingPosition(
+                    book = currentBook,
+                    chapter = currentChapter,
+                    verse = selectedTargetVerse ?: verses.first().verse,
+                    version = currentVersion
+                )
+            )
             BadgeActivityTracker.record(
                 context,
                 BadgeActivityKeys.BIBLE_CHAPTERS,
@@ -140,6 +151,26 @@ fun BollsBibleScreen(
     LaunchedEffect(verses, selectedTargetVerse) {
         val index = selectedTargetVerse?.let { target -> verses.indexOfFirst { it.verse == target } } ?: -1
         if (index >= 0) listState.animateScrollToItem(index)
+    }
+
+    LaunchedEffect(verses, currentBook, currentChapter, currentVersion) {
+        if (verses.isNotEmpty()) {
+            snapshotFlow { listState.firstVisibleItemIndex }
+                .distinctUntilChanged()
+                .collect { index ->
+                    verses.getOrNull(index)?.let { visibleVerse ->
+                        BibleReadingPreferences.saveLastReading(
+                            context,
+                            BibleReadingPreferences.ReadingPosition(
+                                book = currentBook,
+                                chapter = currentChapter,
+                                verse = visibleVerse.verse,
+                                version = currentVersion
+                            )
+                        )
+                    }
+                }
+        }
     }
 
     fun openSelectedReference() {

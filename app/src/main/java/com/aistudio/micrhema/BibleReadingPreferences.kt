@@ -12,8 +12,19 @@ object BibleReadingPreferences {
     private const val KEY_BOOKMARK_CHAPTER = "bookmark_chapter"
     private const val KEY_BOOKMARK_VERSE = "bookmark_verse"
     private const val KEY_BOOKMARK_VERSION = "bookmark_version"
+    private const val KEY_LAST_BOOK = "last_reading_book"
+    private const val KEY_LAST_CHAPTER = "last_reading_chapter"
+    private const val KEY_LAST_VERSE = "last_reading_verse"
+    private const val KEY_LAST_VERSION = "last_reading_version"
 
     data class Bookmark(
+        val book: String,
+        val chapter: Int,
+        val verse: Int,
+        val version: String
+    )
+
+    data class ReadingPosition(
         val book: String,
         val chapter: Int,
         val verse: Int,
@@ -71,6 +82,37 @@ object BibleReadingPreferences {
             .remove(KEY_BOOKMARK_CHAPTER)
             .remove(KEY_BOOKMARK_VERSE)
             .remove(KEY_BOOKMARK_VERSION)
+            .apply()
+    }
+
+    fun saveLastReading(context: Context, position: ReadingPosition) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_LAST_BOOK, position.book)
+            .putInt(KEY_LAST_CHAPTER, position.chapter)
+            .putInt(KEY_LAST_VERSE, position.verse)
+            .putString(KEY_LAST_VERSION, position.version)
+            .apply()
+    }
+
+    fun getLastReading(context: Context): ReadingPosition? {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val book = prefs.getString(KEY_LAST_BOOK, null)?.takeIf { it.isNotBlank() } ?: return null
+        return ReadingPosition(
+            book = book,
+            chapter = prefs.getInt(KEY_LAST_CHAPTER, 1),
+            verse = prefs.getInt(KEY_LAST_VERSE, 1),
+            version = prefs.getString(KEY_LAST_VERSION, "ARA") ?: "ARA"
+        )
+    }
+
+    fun clearLastReading(context: Context) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .remove(KEY_LAST_BOOK)
+            .remove(KEY_LAST_CHAPTER)
+            .remove(KEY_LAST_VERSE)
+            .remove(KEY_LAST_VERSION)
             .apply()
     }
 
