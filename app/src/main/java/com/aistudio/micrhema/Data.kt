@@ -103,6 +103,7 @@ data class Devotional(
 
 data class ChurchService(
     var id: String = "",
+    var date: String = "",
     var day: String = "",
     var dayShort: String = "",
     var time: String = "",

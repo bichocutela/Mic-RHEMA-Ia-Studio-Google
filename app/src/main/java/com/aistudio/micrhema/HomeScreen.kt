@@ -54,6 +54,8 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
     val context = LocalContext.current
     
     val currentMember = loggedInMemberState.value
+    var selectedService by remember { mutableStateOf<ChurchService?>(null) }
+    var selectedEventInfo by remember { mutableStateOf<String?>(null) }
     
     // Data filtering for Banners
     val today = LocalDate.now()
@@ -222,7 +224,7 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp)
-                    .clickable { onNavigate(Screen.Services.route) },
+                    .clickable { selectedService = targetService },
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             ) {
@@ -272,7 +274,7 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
                                 .aspectRatio(16f / 9f)
                                 .clickable(
                                     enabled = hasEventInfo,
-                                    onClick = { onNavigate(Screen.Services.route) }
+                                    onClick = { selectedEventInfo = banner.eventInfo }
                                 ),
                             shape = RoundedCornerShape(16.dp),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -437,7 +439,7 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
             ) {
                 items(validServices) { service ->
                     Card(
-                        modifier = Modifier.width(200.dp).clickable { onNavigate(Screen.Services.route) },
+                        modifier = Modifier.width(200.dp).clickable { selectedService = service },
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                     ) {
@@ -450,6 +452,9 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
                             Column {
                                 Text(service.title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
                                 Text(service.time, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                if (service.date.isNotBlank()) {
+                                    Text(formatChurchServiceDate(service.date), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
                             }
                         }
                     }
@@ -495,6 +500,43 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
     }
     }
     
+    selectedEventInfo?.let { eventInfo ->
+        AlertDialog(
+            onDismissRequest = { selectedEventInfo = null },
+            title = { Text("Informações do evento") },
+            text = { Text(eventInfo, style = MaterialTheme.typography.bodyLarge) },
+            confirmButton = {
+                TextButton(onClick = { selectedEventInfo = null }) { Text("Fechar") }
+            }
+        )
+    }
+
+    selectedService?.let { service ->
+        AlertDialog(
+            onDismissRequest = { selectedService = null },
+            title = { Text(service.title) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "${service.day} às ${service.time}",
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (service.date.isNotBlank()) {
+                        Text(formatChurchServiceDate(service.date), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Text(
+                        service.description.ifBlank { "A descrição deste culto ainda não foi cadastrada." },
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { selectedService = null }) { Text("Fechar") }
+            }
+        )
+    }
+
     // Mood Bottom Sheet
     if (showMoodSelector) {
         ModalBottomSheet(

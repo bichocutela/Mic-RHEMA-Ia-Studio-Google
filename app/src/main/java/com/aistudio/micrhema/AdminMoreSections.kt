@@ -159,6 +159,7 @@ fun EditPlansSection() {
 }
 
 // SERVICES (Cultos)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditServicesSection() {
     var showDialog by remember { mutableStateOf(false) }
@@ -196,26 +197,102 @@ fun EditServicesSection() {
     
     if (showDialog) {
         var title by remember { mutableStateOf(editingService?.title ?: "") }
-        var day by remember { mutableStateOf(editingService?.day ?: "") }
+        var date by remember { mutableStateOf(editingService?.date ?: "") }
         var time by remember { mutableStateOf(editingService?.time ?: "") }
+        var description by remember { mutableStateOf(editingService?.description ?: "") }
         var mediaUrl by remember { mutableStateOf(editingService?.mediaUrl ?: "") }
-        
+        var showDatePicker by remember { mutableStateOf(false) }
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = date.takeIf { it.isNotBlank() }?.let {
+                runCatching {
+                    java.time.LocalDate.parse(it).atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli()
+                }.getOrNull()
+            }
+        )
+        val formattedDate = date.takeIf { it.isNotBlank() }?.let {
+            runCatching {
+                val parsed = java.time.LocalDate.parse(it)
+                "${parsed.dayOfMonth.toString().padStart(2, '0')}/${parsed.monthValue.toString().padStart(2, '0')}/${parsed.year}"
+            }.getOrDefault(it)
+        } ?: "Selecionar data no calendário"
+
         AlertDialog(
             onDismissRequest = { showDialog = false },
             title = { Text(if (editingService == null) "Novo Culto" else "Editar Culto") },
             text = {
                 Column {
-                    OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Título (ex: Culto da Família)") })
-                    OutlinedTextField(value = day, onValueChange = { day = it }, label = { Text("Dia (ex: Domingo)") })
-                    OutlinedTextField(value = time, onValueChange = { time = it }, label = { Text("Horário (ex: 18:30)") })
-                    OutlinedTextField(value = mediaUrl, onValueChange = { mediaUrl = it }, label = { Text("URL do Vídeo (YouTube)") })
+                    OutlinedTextField(
+                        value = title,
+                        onValueChange = { title = it },
+                        label = { Text("Título (ex: Culto da Família)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = formattedDate,
+                        onValueChange = { },
+                        readOnly = true,
+                        label = { Text("Data do culto") },
+                        supportingText = { Text("Toque no calendário para escolher a data") },
+                        trailingIcon = {
+                            IconButton(onClick = { showDatePicker = true }) {
+                                Icon(Icons.Default.DateRange, contentDescription = "Abrir calendário")
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (date.isNotBlank()) {
+                        TextButton(onClick = { date = "" }) { Text("Remover data") }
+                    }
+                    OutlinedTextField(
+                        value = time,
+                        onValueChange = { time = it },
+                        label = { Text("Horário (ex: 18:30)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = description,
+                        onValueChange = { description = it },
+                        label = { Text("Descrição do culto") },
+                        placeholder = { Text("Explique o que acontecerá neste culto") },
+                        minLines = 3,
+                        maxLines = 5,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = mediaUrl,
+                        onValueChange = { mediaUrl = it },
+                        label = { Text("URL do Vídeo (YouTube)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
-                    if (title.isNotEmpty()) {
-                        val newService = ChurchService(id = editingService?.id ?: java.util.UUID.randomUUID().toString(), title = title, day = day, time = time, dayShort = day.take(3).uppercase(), mediaUrl = mediaUrl)
-                        
+                    if (title.isNotBlank()) {
+                        val parsedDate = date.takeIf { it.isNotBlank() }?.let { value ->
+                            runCatching { java.time.LocalDate.parse(value) }.getOrNull()
+                        }
+                        val dayName = parsedDate?.let {
+                            when (it.dayOfWeek) {
+                                java.time.DayOfWeek.MONDAY -> "Segunda-feira"
+                                java.time.DayOfWeek.TUESDAY -> "Terça-feira"
+                                java.time.DayOfWeek.WEDNESDAY -> "Quarta-feira"
+                                java.time.DayOfWeek.THURSDAY -> "Quinta-feira"
+                                java.time.DayOfWeek.FRIDAY -> "Sexta-feira"
+                                java.time.DayOfWeek.SATURDAY -> "Sábado"
+                                java.time.DayOfWeek.SUNDAY -> "Domingo"
+                            }
+                        } ?: editingService?.day.orEmpty()
+                        val newService = ChurchService(
+                            id = editingService?.id ?: java.util.UUID.randomUUID().toString(),
+                            date = date,
+                            title = title.trim(),
+                            day = dayName,
+                            time = time.trim(),
+                            dayShort = dayName.take(3).uppercase(),
+                            description = description.trim(),
+                            mediaUrl = mediaUrl.trim()
+                        )
                         addChurchService(newService)
                         showDialog = false
                     }
@@ -223,6 +300,28 @@ fun EditServicesSection() {
             },
             dismissButton = { TextButton(onClick = { showDialog = false }) { Text("Cancelar") } }
         )
+
+        if (showDatePicker) {
+            DatePickerDialog(
+                onDismissRequest = { showDatePicker = false },
+                confirmButton = {
+                    TextButton(onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            date = java.time.Instant.ofEpochMilli(millis)
+                                .atZone(java.time.ZoneOffset.UTC)
+                                .toLocalDate()
+                                .toString()
+                        }
+                        showDatePicker = false
+                    }) { Text("OK") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDatePicker = false }) { Text("Cancelar") }
+                }
+            ) {
+                DatePicker(state = datePickerState)
+            }
+        }
     }
 }
 

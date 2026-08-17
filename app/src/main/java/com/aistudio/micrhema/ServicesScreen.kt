@@ -23,6 +23,7 @@ fun ServicesScreen() {
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
         var isRefreshing by remember { mutableStateOf(false) }
+        var selectedService by remember { mutableStateOf<ChurchService?>(null) }
         val coroutineScope = rememberCoroutineScope()
         
         androidx.compose.material3.pulltorefresh.PullToRefreshBox(
@@ -69,7 +70,9 @@ fun ServicesScreen() {
             ) {
                 items(weeklyServicesState) { service ->
                     Card(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { selectedService = service },
                         shape = RoundedCornerShape(20.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                     ) {
@@ -87,11 +90,18 @@ fun ServicesScreen() {
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.primary
                             )
-                            if (service.description.isNotBlank()) {
-                                Spacer(modifier = Modifier.height(16.dp))
+                            if (service.date.isNotBlank()) {
                                 Text(
-                                    text = service.description,
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    text = formatChurchServiceDate(service.date),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            if (service.description.isNotBlank()) {
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    text = "Toque para ver a descrição",
+                                    style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
@@ -121,4 +131,35 @@ fun ServicesScreen() {
         }
     }
     } // PullToRefreshBox
+
+    selectedService?.let { service ->
+        AlertDialog(
+            onDismissRequest = { selectedService = null },
+            title = { Text(service.title) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "${service.day} às ${service.time}",
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (service.date.isNotBlank()) {
+                        Text(formatChurchServiceDate(service.date), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Text(
+                        service.description.ifBlank { "A descrição deste culto ainda não foi cadastrada." },
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { selectedService = null }) { Text("Fechar") }
+            }
+        )
+    }
 }
+
+private fun formatChurchServiceDate(date: String): String = runCatching {
+    val parsed = java.time.LocalDate.parse(date)
+    "Data: ${parsed.dayOfMonth.toString().padStart(2, '0')}/${parsed.monthValue.toString().padStart(2, '0')}/${parsed.year}"
+}.getOrDefault(date)
