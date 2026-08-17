@@ -99,3 +99,31 @@ jobs:
           name: MicRhema ${{ env.VERSION_NAME }}
           files: ${{ env.APK_PATH }}
           make_latest: true
+
+      - name: Notificar nova versão via Supabase
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          VERSION_NAME: ${{ env.VERSION_NAME }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_URL}" ] || [ -z "${SUPABASE_ANON_KEY}" ]; then
+            echo "Secrets do Supabase ausentes; notificação de atualização ignorada."
+            exit 0
+          fi
+          RELEASE_URL="https://github.com/bichocutela/Mic-RHEMA-Ia-Studio-Google/releases/tag/v${VERSION_NAME}"
+          jq -n \
+            --arg topic "all_users" \
+            --arg title "Tem atualização nova!" \
+            --arg body "O MIC Rhema ${VERSION_NAME} já está disponível. Toque para conferir." \
+            --arg version "${VERSION_NAME}" \
+            --arg url "${RELEASE_URL}" \
+            '{topic:$topic,title:$title,body:$body,data:{category:"app_update",version:$version,url:$url}}' > /tmp/mic-rhema-notification.json
+          curl --fail-with-body --silent --show-error \
+            -X POST "${SUPABASE_URL%/}/functions/v1/notify-fcm" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            -H "Content-Type: application/json" \
+            --data @/tmp/mic-rhema-notification.json
+          rm -f /tmp/mic-rhema-notification.json

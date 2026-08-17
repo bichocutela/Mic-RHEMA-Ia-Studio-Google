@@ -1136,6 +1136,7 @@ fun loadIbrProgressFromFirestore() {
 fun addContentBook(item: ContentBook) {
     if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
         Firebase.firestore.collection("conteudos_books").document(item.id).set(item)
+            .addOnSuccessListener { NotificationDispatcher.enqueue("all_users", "Foi adicionado o livro", item.title, "conteudos_books", item.id) }
     }
 }
 fun removeContentBook(item: ContentBook) {
@@ -1147,6 +1148,7 @@ fun removeContentBook(item: ContentBook) {
 fun addContentAudio(item: ContentAudio) {
     if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
         Firebase.firestore.collection("conteudos_audios").document(item.id).set(item)
+            .addOnSuccessListener { NotificationDispatcher.enqueue("all_users", "Foi adicionado um áudio em mídia", item.title, "conteudos_audios", item.id) }
     }
 }
 fun removeContentAudio(item: ContentAudio) {
@@ -1158,6 +1160,7 @@ fun removeContentAudio(item: ContentAudio) {
 fun addContentVideo(item: ContentVideo) {
     if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
         Firebase.firestore.collection("conteudos_videos").document(item.id).set(item)
+            .addOnSuccessListener { NotificationDispatcher.enqueue("all_users", "Foi adicionado o vídeo", item.title, "conteudos_videos", item.id) }
     }
 }
 fun removeContentVideo(item: ContentVideo) {
@@ -1180,6 +1183,7 @@ fun removeContentPhotoAlbum(item: ContentPhotoAlbum) {
 fun addIbrCourse(item: IbrCourse) {
     if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
         Firebase.firestore.collection("ibr_courses").document(item.id).set(item)
+            .addOnSuccessListener { NotificationDispatcher.enqueue("ibr_users", "Novo conteúdo IBR disponível", item.title, "ibr_courses", item.id) }
     }
 }
 fun removeIbrCourse(item: IbrCourse) {
@@ -1204,6 +1208,7 @@ fun addDevotional(context: android.content.Context, item: Devotional) {
         Firebase.firestore.collection("devocionais").document(item.id).set(item)
             .addOnSuccessListener {
                 android.widget.Toast.makeText(context, "Devocional salvo com sucesso!", android.widget.Toast.LENGTH_SHORT).show()
+                NotificationDispatcher.enqueue("all_users", "Novo devocional disponível", item.title, "devocionais", item.id)
                 // Update timestamp for GlobalStateManager
                 Firebase.firestore.collection("settings").document("sync_trigger").set(mapOf("timestamp" to System.currentTimeMillis()))
             }
@@ -1228,6 +1233,7 @@ fun removeDevotional(context: android.content.Context, item: Devotional) {
 fun addChurchService(item: ChurchService) {
     if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
         Firebase.firestore.collection("cultos_agenda").document(item.id).set(item)
+            .addOnSuccessListener { NotificationDispatcher.enqueue("all_users", "Hoje tem ${item.title}", "Confira a programação e os horários.", "cultos_agenda", item.id) }
     }
 }
 fun removeChurchService(item: ChurchService) {
