@@ -182,6 +182,24 @@ fun MainScreen() {
         if (loggedInMemberState.value != null) {
             loadFavoritesFromFirestore()
         }
+
+        // Conteúdos gerais chegam a todos; conteúdos segmentados só chegam
+        // aos usuários autenticados no grupo correspondente.
+        runCatching {
+            val messaging = com.google.firebase.messaging.FirebaseMessaging.getInstance()
+            if (loggedInMemberState.value != null) {
+                messaging.subscribeToTopic("members_users")
+            } else {
+                messaging.unsubscribeFromTopic("members_users")
+            }
+            if (loggedInMemberState.value?.isIbr == true) {
+                messaging.subscribeToTopic("ibr_users")
+            } else {
+                messaging.unsubscribeFromTopic("ibr_users")
+            }
+        }.onFailure {
+            android.util.Log.w("MainActivity", "Não foi possível atualizar os tópicos segmentados", it)
+        }
     }
 
     LaunchedEffect(Unit) {

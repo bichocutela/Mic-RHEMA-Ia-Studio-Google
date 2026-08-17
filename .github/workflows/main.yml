@@ -89,6 +89,9 @@ jobs:
       - name: Publicar regras do Firestore
         run: firebase deploy --only firestore:rules --project mic-rhema --non-interactive
 
+      - name: Publicar notificações do Firebase
+        run: firebase deploy --only functions --project mic-rhema --non-interactive
+
       - name: Remover arquivos temporários de configuração
         if: always()
         run: rm -f release.keystore .env app/google-services.json
@@ -120,3 +123,30 @@ jobs:
           name: MicRhema ${{ env.VERSION_NAME }}
           files: ${{ env.APK_PATH }}
           make_latest: true
+
+      - name: Obter token para Firebase Cloud Messaging
+        id: fcm-token
+        uses: google-github-actions/get-access-token@v2
+        with:
+          credentials_json: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}'
+          scopes: https://www.googleapis.com/auth/firebase.messaging
+
+      - name: Notificar nova atualização para todos os aparelhos
+        env:
+          FCM_ACCESS_TOKEN: ${{ steps.fcm-token.outputs.access_token }}
+          VERSION_NAME: ${{ env.VERSION_NAME }}
+        run: |
+          set -euo pipefail
+          RELEASE_URL="https://github.com/bichocutela/Mic-RHEMA-Ia-Studio-Google/releases/tag/v${VERSION_NAME}"
+          PAYLOAD=$(jq -n \
+            --arg title "Tem atualização nova!" \
+            --arg body "O MIC Rhema ${VERSION_NAME} já está disponível. Toque para conferir." \
+            --arg version "${VERSION_NAME}" \
+            --arg url "$RELEASE_URL" \
+            '{message:{topic:"all_users",notification:{title:$title,body:$body},data:{category:"content_updates",version:$version,url:$url}}}')
+          curl --fail-with-body --silent --show-error \
+            -X POST \
+            -H "Authorization: Bearer ${FCM_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json; UTF-8" \
+            "https://fcm.googleapis.com/v1/projects/mic-rhema/messages:send" \
+            --data "$PAYLOAD"
