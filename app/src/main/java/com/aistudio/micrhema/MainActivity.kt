@@ -341,14 +341,14 @@ fun MainScreen() {
                     Box(
                         modifier = Modifier
                             .size(48.dp)
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), androidx.compose.foundation.shape.CircleShape)
-                            .clip(androidx.compose.foundation.shape.CircleShape),
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), androidx.compose.foundation.shape.CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         if (member != null) {
-                            BiblicalAvatarImage(
+                            BiblicalAvatarWithBadge(
                                 avatar = biblicalAvatarForId(member.avatarId),
-                                contentDescription = "Avatar bíblico de ${member.name}",
+                                badge = biblicalBadgeForId(member.equippedBadgeId),
+                                contentDescription = "Avatar bíblico de ${member.name} com emblema equipado",
                                 modifier = Modifier.fillMaxSize()
                             )
                         } else if (initial == "👤") {
@@ -391,6 +391,9 @@ fun MainScreen() {
                 }
                 
                 Spacer(Modifier.height(8.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+
+                DrawerBadgesSection(member = member)
                 HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
                 
                 val groupsMapping = listOf(
