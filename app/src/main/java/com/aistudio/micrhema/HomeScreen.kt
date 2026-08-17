@@ -69,6 +69,21 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
         }
     }
     
+    val bannerListState = rememberLazyListState()
+    val bannerIds = validBanners.map { it.id }
+    val bannerRotationMillis = adminAppSettingsState.value.bannerRotationSeconds.coerceIn(3L, 12L) * 1_000L
+
+    LaunchedEffect(bannerIds, bannerRotationMillis) {
+        if (validBanners.size > 1) {
+            while (true) {
+                delay(bannerRotationMillis)
+                val currentIndex = bannerListState.firstVisibleItemIndex.coerceIn(0, validBanners.lastIndex)
+                val nextIndex = if (currentIndex >= validBanners.lastIndex) 0 else currentIndex + 1
+                bannerListState.animateScrollToItem(nextIndex)
+            }
+        }
+    }
+
     // Sort logic for Services
     val dayMap = mapOf(
         "Domingo" to DayOfWeek.SUNDAY,
@@ -256,26 +271,22 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
             }
         }
 
-        // 2. Destaques / Banners
+        // 2. Carrossel de banners configurado pelo painel administrativo
         if (validBanners.isNotEmpty()) {
-            val bannerListState = rememberLazyListState()
             Column {
                 LazyRow(
                     state = bannerListState,
                     contentPadding = PaddingValues(horizontal = 20.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(0.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    items(validBanners) { banner ->
+                    items(validBanners, key = { it.id }) { banner ->
                         val hasEventInfo = banner.eventInfo.isNotBlank()
                         Card(
                             modifier = Modifier
                                 .fillParentMaxWidth()
                                 .aspectRatio(16f / 9f)
-                                .clickable(
-                                    enabled = hasEventInfo,
-                                    onClick = { selectedEventInfo = banner.eventInfo }
-                                ),
+                                .clickable(enabled = hasEventInfo) { selectedEventInfo = banner.eventInfo },
                             shape = RoundedCornerShape(16.dp),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                         ) {
@@ -333,21 +344,27 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
                         }
                     }
                 }
-                
+
                 if (validBanners.size > 1) {
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.Center
                     ) {
-                        val currentItem = bannerListState.firstVisibleItemIndex
+                        val currentItem = bannerListState.firstVisibleItemIndex.coerceIn(0, validBanners.lastIndex)
                         validBanners.indices.forEach { index ->
-                            val color = if (index == currentItem) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                            val selected = index == currentItem
                             Box(
                                 modifier = Modifier
                                     .padding(horizontal = 4.dp)
-                                    .size(8.dp)
-                                    .background(color, CircleShape)
+                                    .size(width = if (selected) 22.dp else 8.dp, height = 8.dp)
+                                    .background(
+                                        if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.28f),
+                                        CircleShape
+                                    )
+                                    .clickable {
+                                        coroutineScope.launch { bannerListState.animateScrollToItem(index) }
+                                    }
                             )
                         }
                     }

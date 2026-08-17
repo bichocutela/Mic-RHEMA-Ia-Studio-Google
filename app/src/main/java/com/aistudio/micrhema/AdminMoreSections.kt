@@ -560,7 +560,8 @@ fun EditSettingsSection() {
                 saveAdminAppSettings(
                     settings = AdminAppSettings(
                         notificationsEnabled = notificationsEnabled,
-                        showDonationsTab = showDonationsTab
+                        showDonationsTab = showDonationsTab,
+                        bannerRotationSeconds = remoteSettings.bannerRotationSeconds
                     ),
                     onSuccess = {
                         savingSettings = false
@@ -649,7 +650,10 @@ fun EditBannersSection() {
         Text("Gerenciar Banners (Destaques)", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Text("Adicione imagens no formato 16:9 para a tela inicial.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f))
         Spacer(Modifier.height(16.dp))
-        
+
+        BannerRotationSpeedCard()
+        Spacer(Modifier.height(16.dp))
+
         LazyColumn(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -963,6 +967,65 @@ fun EditDonationsSection() {
                 CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
             } else {
                 Text("Salvar Configurações")
+            }
+        }
+    }
+}
+
+/** Configuração sincronizada de intervalo para a rotação suave da Home. */
+@Composable
+private fun BannerRotationSpeedCard() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val remoteSettings = adminAppSettingsState.value
+    var seconds by remember(remoteSettings.updatedAt, remoteSettings.bannerRotationSeconds) {
+        mutableFloatStateOf(remoteSettings.bannerRotationSeconds.coerceIn(3L, 12L).toFloat())
+    }
+    var saving by remember { mutableStateOf(false) }
+    val roundedSeconds = seconds.toInt().coerceIn(3, 12)
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Velocidade do carrossel", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(
+                "Os banners avançarão suavemente a cada $roundedSeconds segundos em todos os aparelhos.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.78f),
+                modifier = Modifier.padding(top = 4.dp)
+            )
+            Slider(
+                value = seconds,
+                onValueChange = { seconds = it },
+                valueRange = 3f..12f,
+                steps = 8,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+            )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("Mais rápido", style = MaterialTheme.typography.labelSmall)
+                Text("Mais calmo", style = MaterialTheme.typography.labelSmall)
+            }
+            Button(
+                onClick = {
+                    saving = true
+                    saveAdminAppSettings(
+                        settings = remoteSettings.copy(bannerRotationSeconds = roundedSeconds.toLong()),
+                        onSuccess = {
+                            saving = false
+                            android.widget.Toast.makeText(context, "Velocidade do carrossel sincronizada", android.widget.Toast.LENGTH_SHORT).show()
+                        },
+                        onFailure = { error ->
+                            saving = false
+                            android.widget.Toast.makeText(context, "Não foi possível salvar: ${error.message ?: "verifique a conexão"}", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    )
+                },
+                enabled = !saving,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+            ) {
+                if (saving) CircularProgressIndicator(modifier = Modifier.size(18.dp), color = MaterialTheme.colorScheme.onPrimary)
+                else Text("Salvar velocidade")
             }
         }
     }

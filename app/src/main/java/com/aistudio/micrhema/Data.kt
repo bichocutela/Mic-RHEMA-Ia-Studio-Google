@@ -778,6 +778,7 @@ val isOfflineModeState = androidx.compose.runtime.mutableStateOf(false)
 data class AdminAppSettings(
     var notificationsEnabled: Boolean = true,
     var showDonationsTab: Boolean = true,
+    var bannerRotationSeconds: Long = 6L,
     var updatedAt: Long = 0L
 )
 
@@ -791,6 +792,7 @@ fun loadAdminAppSettings() {
             val settings = AdminAppSettings(
                 notificationsEnabled = snapshot.getBoolean("notificationsEnabled") ?: true,
                 showDonationsTab = snapshot.getBoolean("showDonationsTab") ?: true,
+                bannerRotationSeconds = (snapshot.getLong("bannerRotationSeconds") ?: 6L).coerceIn(3L, 12L),
                 updatedAt = snapshot.getLong("updatedAt") ?: 0L
             )
             adminAppSettingsState.value = settings
@@ -826,6 +828,7 @@ fun saveAdminAppSettings(
         mapOf(
             "notificationsEnabled" to persistedSettings.notificationsEnabled,
             "showDonationsTab" to persistedSettings.showDonationsTab,
+            "bannerRotationSeconds" to persistedSettings.bannerRotationSeconds.coerceIn(3L, 12L),
             "updatedAt" to persistedSettings.updatedAt
         ),
         com.google.firebase.firestore.SetOptions.merge()
