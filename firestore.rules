@@ -16,8 +16,10 @@ service cloud.firestore {
 
     function newPendingRequest() {
       return request.resource.data.isApproved == false
+        && request.resource.data.isVip == false
         && request.resource.data.isIbr == false
-        && request.resource.data.isAdmin == false;
+        && request.resource.data.isAdmin == false
+        && request.resource.data.status == "pendente";
     }
 
     function isOwner(userId) {
@@ -132,10 +134,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Solicitações são criadas na nuvem como pendentes e só o ADM pode alterá-las.
+    // Qualquer pessoa pode pedir acesso, mas só com o perfil pendente e sem privilégios.
+    // A aprovação, o IBR e qualquer alteração permanecem exclusivamente administrativos.
     match /acessos_pendentes/{document} {
-      allow read: if signedIn();
-      allow create: if isAdmin() || (signedIn() && newPendingRequest());
+      allow read: if signedIn() || isAdmin();
+      allow create: if newPendingRequest() || isAdmin();
       allow update, delete: if isAdmin();
     }
     match /prayer_requests/{document} {
