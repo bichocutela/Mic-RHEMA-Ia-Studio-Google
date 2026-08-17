@@ -579,6 +579,59 @@ object MemberManager {
         }
     }
 
+
+    /**
+     * Cria um pedido de acesso estritamente pendente. Esta rota não reutiliza a
+     * persistência de perfil, que é administrativa e pode conter campos protegidos.
+     */
+    fun submitPendingAccessRequest(
+        context: android.content.Context,
+        request: MemberRequest,
+        onSuccess: () -> Unit = {},
+        onFailure: (Exception) -> Unit = {}
+    ) {
+        val firebaseReady = runCatching {
+            com.google.firebase.FirebaseApp.getApps(context).isNotEmpty()
+        }.getOrDefault(false)
+        if (!firebaseReady) {
+            onFailure(IllegalStateException("O Firebase não está inicializado nesta versão do aplicativo."))
+            return
+        }
+
+        val now = System.currentTimeMillis()
+        request.isApproved = false
+        request.isVip = false
+        request.isIbr = false
+        request.isAdmin = false
+        request.status = "pendente"
+        request.createdAt = now
+        request.updatedAt = now
+
+        val pendingData = hashMapOf<String, Any>(
+            "name" to request.name,
+            "ibrCertificateName" to request.ibrCertificateName,
+            "phone" to request.phone,
+            "email" to "",
+            "isApproved" to false,
+            "isVip" to false,
+            "isIbr" to false,
+            "isAdmin" to false,
+            "status" to "pendente",
+            "type" to "acesso",
+            "avatarId" to request.avatarId.ifBlank { DEFAULT_BIBLICAL_AVATAR_ID },
+            "createdAt" to now,
+            "updatedAt" to now
+        )
+
+        Firebase.firestore.collection("acessos_pendentes").document(request.id)
+            .set(pendingData)
+            .addOnSuccessListener { onSuccess() }
+            .addOnFailureListener { error ->
+                Log.e("MemberManager", "Falha ao criar solicitação pendente", error)
+                onFailure(error)
+            }
+    }
+
     /**
      * A lista de membros não é restaurada do aparelho. O Firestore é a única fonte
      * de verdade; este método mantém apenas a compatibilidade com chamadas antigas

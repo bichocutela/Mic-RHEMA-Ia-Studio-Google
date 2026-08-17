@@ -88,8 +88,8 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                 isVip = false,
                 isIbr = false
             )
-            // A solicitação só será considerada criada depois da confirmação remota.
-            MemberManager.saveToFirestore(
+            // O pedido público grava somente os campos pendentes permitidos pela regra.
+            MemberManager.submitPendingAccessRequest(
                 context,
                 newRequest,
                 onSuccess = {

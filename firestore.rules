@@ -137,7 +137,7 @@ service cloud.firestore {
     // Qualquer pessoa pode pedir acesso, mas só com o perfil pendente e sem privilégios.
     // A aprovação, o IBR e qualquer alteração permanecem exclusivamente administrativos.
     match /acessos_pendentes/{document} {
-      allow read: if signedIn() || isAdmin();
+      allow read: if isAdmin();
       allow create: if newPendingRequest() || isAdmin();
       allow update, delete: if isAdmin();
     }
