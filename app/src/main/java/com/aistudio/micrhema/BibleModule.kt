@@ -85,7 +85,7 @@ fun BibleScreen(
     val rememberedPosition = remember { BibleReadingPreferences.getLastReading(context) }
 
     var selectedBook by rememberSaveable { mutableStateOf(initialValidBook ?: "Gênesis") }
-    var expandedBook by rememberSaveable { mutableStateOf(initialValidBook ?: "Gênesis") }
+    var expandedBook by rememberSaveable { mutableStateOf<String?>(initialValidBook ?: "Gênesis") }
     var expandedChapter by rememberSaveable { mutableStateOf<Int?>(null) }
     var selectedVersion by rememberSaveable { mutableStateOf(normalizedInitialVersion) }
     var availableVerses by remember(selectedBook, expandedChapter, selectedVersion) {

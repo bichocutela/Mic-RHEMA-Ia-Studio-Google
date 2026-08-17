@@ -819,3 +819,9 @@ val PrayingHandsIcon: ImageVector
             close()
         }
     }.build()
+
+
+private fun formatChurchServiceDate(date: String): String = runCatching {
+    val parsed = LocalDate.parse(date)
+    "Data: ${parsed.dayOfMonth.toString().padStart(2, '0')}/${parsed.monthValue.toString().padStart(2, '0')}/${parsed.year}"
+}.getOrDefault(date)

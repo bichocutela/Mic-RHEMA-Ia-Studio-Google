@@ -19,11 +19,11 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ServicesScreen() {
+    var selectedService by remember { mutableStateOf<ChurchService?>(null) }
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
         var isRefreshing by remember { mutableStateOf(false) }
-        var selectedService by remember { mutableStateOf<ChurchService?>(null) }
         val coroutineScope = rememberCoroutineScope()
         
         androidx.compose.material3.pulltorefresh.PullToRefreshBox(
