@@ -78,10 +78,12 @@ jobs:
           fi
 
       - name: Autenticar no Firebase/Google Cloud
+        id: google-auth
         uses: google-github-actions/auth@v3
         with:
           credentials_json: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}'
           project_id: mic-rhema
+          token_format: access_token
 
       - name: Instalar Firebase CLI
         run: npm install --global firebase-tools
@@ -124,16 +126,9 @@ jobs:
           files: ${{ env.APK_PATH }}
           make_latest: true
 
-      - name: Obter token para Firebase Cloud Messaging
-        id: fcm-token
-        uses: google-github-actions/get-access-token@v2
-        with:
-          credentials_json: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}'
-          scopes: https://www.googleapis.com/auth/firebase.messaging
-
       - name: Notificar nova atualização para todos os aparelhos
         env:
-          FCM_ACCESS_TOKEN: ${{ steps.fcm-token.outputs.access_token }}
+          FCM_ACCESS_TOKEN: ${{ steps.google-auth.outputs.access_token }}
           VERSION_NAME: ${{ env.VERSION_NAME }}
         run: |
           set -euo pipefail

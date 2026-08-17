@@ -103,9 +103,19 @@ object NotificationHelper {
     }
 
     fun scheduleIbrContentSync(context: Context) {
-        val request = PeriodicWorkRequestBuilder<IbrContentWorker>(1, TimeUnit.HOURS).build()
+        val request = androidx.work.PeriodicWorkRequestBuilder<IbrContentWorker>(1, TimeUnit.HOURS).build()
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             "IbrContentWorker",
+            androidx.work.ExistingPeriodicWorkPolicy.KEEP,
+            request
+        )
+    }
+
+    fun scheduleAppUpdateCheck(context: Context) {
+        val request = androidx.work.PeriodicWorkRequestBuilder<AppUpdateWorker>(12, TimeUnit.HOURS)
+            .build()
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            "AppUpdateWorker",
             androidx.work.ExistingPeriodicWorkPolicy.KEEP,
             request
         )
@@ -120,6 +130,7 @@ object NotificationHelper {
             scheduleDailyNews(context)
             scheduleMediaSync(context)
             scheduleIbrContentSync(context)
+            scheduleAppUpdateCheck(context)
         } else {
             workManager.cancelUniqueWork("DailyDevotionalReminder")
             workManager.cancelUniqueWork("DevotionalSyncWorker")
@@ -127,6 +138,7 @@ object NotificationHelper {
             workManager.cancelUniqueWork("MiddayNewsWorker")
             workManager.cancelUniqueWork("MediaUpdateWorker")
             workManager.cancelUniqueWork("IbrContentWorker")
+            workManager.cancelUniqueWork("AppUpdateWorker")
         }
     }
 
