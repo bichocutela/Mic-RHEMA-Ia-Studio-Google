@@ -1,7 +1,9 @@
 package com.aistudio.micrhema
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -243,6 +245,52 @@ fun NewsListScreen(onNavigateToDetail: (Int) -> Unit, onBack: () -> Unit) {
 }
 
 @Composable
+fun BibleNewsImage(
+    news: BibleNews,
+    modifier: Modifier,
+    contentDescription: String?
+) {
+    val resolvedUrl = remember(news.id, news.imageUrl) { BibleNewsVisuals.imageUrlFor(news) }
+    var imageFailed by remember(news.id, resolvedUrl) { mutableStateOf(false) }
+    Box(
+        modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant),
+        contentAlignment = Alignment.Center
+    ) {
+        if (!imageFailed) {
+            AsyncImage(
+                model = resolvedUrl,
+                contentDescription = contentDescription,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+                colorFilter = BibleNewsVisuals.monochromeFilter,
+                onError = { imageFailed = true }
+            )
+        }
+        if (imageFailed) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    Icons.Default.MenuBook,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.height(38.dp)
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    "${news.book} • ${news.category}",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun NewsCard(news: BibleNews, onClick: () -> Unit) {
     Card(
         modifier = Modifier
@@ -252,18 +300,14 @@ private fun NewsCard(news: BibleNews, onClick: () -> Unit) {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column {
-            if (news.imageUrl.isNotBlank()) {
-                AsyncImage(
-                    model = news.imageUrl,
-                    contentDescription = news.title,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(180.dp)
-                        .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)),
-                    contentScale = ContentScale.Crop,
-                    colorFilter = BibleNewsVisuals.monochromeFilter
-                )
-            }
+            BibleNewsImage(
+                news = news,
+                contentDescription = news.title,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp)
+                    .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+            )
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -350,17 +394,13 @@ fun NewsDetailScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
         ) {
-            if (news.imageUrl.isNotBlank()) {
-                AsyncImage(
-                    model = news.imageUrl,
-                    contentDescription = news.title,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(280.dp),
-                    contentScale = ContentScale.Crop,
-                    colorFilter = BibleNewsVisuals.monochromeFilter
-                )
-            }
+            BibleNewsImage(
+                news = news,
+                contentDescription = news.title,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(280.dp)
+            )
             Column(
                 modifier = Modifier
                     .fillMaxSize()

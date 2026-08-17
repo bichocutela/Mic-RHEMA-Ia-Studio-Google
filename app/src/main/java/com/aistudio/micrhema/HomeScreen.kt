@@ -410,12 +410,10 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                     ) {
                         Column {
-                            AsyncImage(
-                                model = news.imageUrl,
+                            BibleNewsImage(
+                                news = news,
                                 contentDescription = news.title,
-                                modifier = Modifier.fillMaxWidth().height(120.dp),
-                                contentScale = ContentScale.Crop,
-                                colorFilter = BibleNewsVisuals.monochromeFilter
+                                modifier = Modifier.fillMaxWidth().height(120.dp)
                             )
                             Column(modifier = Modifier.padding(12.dp)) {
                                 Text(news.title, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)

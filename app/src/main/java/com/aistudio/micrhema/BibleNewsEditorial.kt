@@ -71,7 +71,21 @@ object BibleNewsEditorial {
         items.map(::decorate)
             .groupBy { editorialKey(it) }
             .values
-            .map { group -> group.maxByOrNull { it.publishedAt } ?: group.first() }
+            .map { group ->
+                val selected = group.maxByOrNull { it.publishedAt } ?: group.first()
+                if (selected.imageUrl.isNotBlank()) selected
+                else group.firstOrNull { it.imageUrl.isNotBlank() }?.copy(
+                    title = selected.title,
+                    summary = selected.summary,
+                    category = selected.category,
+                    intensity = selected.intensity,
+                    tags = selected.tags,
+                    contentWarning = selected.contentWarning,
+                    publishedAt = selected.publishedAt,
+                    featured = selected.featured,
+                    storyKey = selected.storyKey
+                ) ?: selected
+            }
             .sortedByDescending { it.publishedAt }
 
     fun withEditorialCatalog(items: List<BibleNews>): List<BibleNews> =

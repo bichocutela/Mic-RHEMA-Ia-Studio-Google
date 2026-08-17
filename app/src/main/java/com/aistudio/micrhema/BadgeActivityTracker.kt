@@ -2,6 +2,7 @@ package com.aistudio.micrhema
 
 import android.content.Context
 import android.os.SystemClock
+import androidx.compose.runtime.mutableStateOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -10,6 +11,10 @@ import kotlin.math.max
 import kotlin.math.min
 
 /** Atividades reais que alimentam as missões dos emblemas. */
+data class BadgeAwardNotification(val badges: List<BiblicalBadge>)
+
+val badgeAwardNotificationState = mutableStateOf<BadgeAwardNotification?>(null)
+
 object BadgeActivityKeys {
     const val PLANS = "plans"
     const val PLAN_THEMES = "plan_themes"
@@ -69,6 +74,13 @@ object BadgeActivityTracker {
         updatedActivities[activity] = ids.distinct()
         val activityMember = member.copy(badgeActivityIds = updatedActivities)
         val calculated = calculateBadgeProgress(activityMember)
+        val previousUnlockedIds = member.unlockedBadgeIds.toSet()
+        val newlyUnlocked = calculated.unlockedIds
+            .filterNot { it in previousUnlockedIds }
+            .mapNotNull { id -> biblicalBadgeForId(id).takeIf { it.id == id } }
+        if (newlyUnlocked.isNotEmpty()) {
+            badgeAwardNotificationState.value = BadgeAwardNotification(newlyUnlocked)
+        }
         val updatedMember = activityMember.copy(unlockedBadgeIds = calculated.unlockedIds)
         val index = memberRequestsState.indexOfFirst { it.id == member.id }
         if (index >= 0) memberRequestsState[index] = updatedMember
