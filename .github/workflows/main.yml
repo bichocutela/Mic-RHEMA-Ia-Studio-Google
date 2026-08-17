@@ -83,7 +83,6 @@ jobs:
         with:
           credentials_json: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}'
           project_id: mic-rhema
-          token_format: access_token
 
       - name: Instalar Firebase CLI
         run: npm install --global firebase-tools
@@ -128,10 +127,12 @@ jobs:
 
       - name: Notificar nova atualização para todos os aparelhos
         env:
-          FCM_ACCESS_TOKEN: ${{ steps.google-auth.outputs.access_token }}
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.google-auth.outputs.credentials_file_path }}
           VERSION_NAME: ${{ env.VERSION_NAME }}
         run: |
           set -euo pipefail
+          gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS" --project=mic-rhema >/dev/null
+          FCM_ACCESS_TOKEN="$(gcloud auth print-access-token)"
           RELEASE_URL="https://github.com/bichocutela/Mic-RHEMA-Ia-Studio-Google/releases/tag/v${VERSION_NAME}"
           PAYLOAD=$(jq -n \
             --arg title "Tem atualização nova!" \
