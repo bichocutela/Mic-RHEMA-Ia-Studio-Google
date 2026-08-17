@@ -1,20 +1,23 @@
 package com.aistudio.micrhema
 
-import android.app.DownloadManager
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.net.Uri
-import android.os.Environment
 import android.provider.Settings
 import androidx.core.content.FileProvider
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.awaitClose
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
+import java.util.concurrent.TimeUnit
 
 sealed class DownloadState {
     object Idle : DownloadState()
@@ -23,123 +26,126 @@ sealed class DownloadState {
     data class Error(val message: String) : DownloadState()
 }
 
+/**
+ * Baixa o APK da release em arquivo temporário, valida se é um pacote instalável
+ * do próprio MIC Rhema e só então entrega o arquivo ao instalador do Android.
+ */
 class UpdateDownloader(private val context: Context) {
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(25, TimeUnit.SECONDS)
+        .readTimeout(90, TimeUnit.SECONDS)
+        .followRedirects(true)
+        .followSslRedirects(true)
+        .build()
+
+    private fun updateDirectory(): File = File(context.cacheDir, "updates").apply { mkdirs() }
+
+    private fun updateFile(version: String): File = File(updateDirectory(), "MIC-Rhema-v$version.apk")
 
     fun downloadUpdate(url: String, version: String): Flow<DownloadState> = callbackFlow {
-        val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-        val fileName = "MIC-Rhema-v$version.apk"
-        val request = DownloadManager.Request(Uri.parse(url)).apply {
-            setTitle("Atualizando MIC Rhema")
-            setDescription("Baixando nova versão...")
-            setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, fileName)
-            setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-        }
+        val scope = CoroutineScope(Dispatchers.IO)
+        val target = updateFile(version)
+        val temporary = File(target.parentFile, "${target.name}.part")
 
-        var downloadId: Long = -1
-        try {
-            downloadId = downloadManager.enqueue(request)
-            trySend(DownloadState.Downloading(0))
-        } catch (e: Exception) {
-            trySend(DownloadState.Error("Falha ao iniciar download: ${e.localizedMessage}"))
-            close()
-            return@callbackFlow
-        }
+        scope.launch {
+            try {
+                temporary.delete()
+                target.delete()
+                trySend(DownloadState.Downloading(0))
 
-        val receiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                val id = intent?.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1)
-                if (id == downloadId) {
-                    val query = DownloadManager.Query().setFilterById(downloadId)
-                    val cursor = downloadManager.query(query)
-                    if (cursor != null && cursor.moveToFirst()) {
-                        val statusIndex = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)
-                        val status = if (statusIndex >= 0) cursor.getInt(statusIndex) else -1
-                        if (status == DownloadManager.STATUS_SUCCESSFUL) {
-                            trySend(DownloadState.Downloaded)
-                        } else if (status == DownloadManager.STATUS_FAILED) {
-                            val reasonIndex = cursor.getColumnIndex(DownloadManager.COLUMN_REASON)
-                            val reason = if (reasonIndex >= 0) cursor.getInt(reasonIndex) else -1
-                            trySend(DownloadState.Error("Falha no download (código: $reason)"))
+                val response = client.newCall(Request.Builder().url(url).build()).execute()
+                response.use { httpResponse ->
+                    if (!httpResponse.isSuccessful) {
+                        throw IOException("O servidor não disponibilizou o APK (código ${httpResponse.code}).")
+                    }
+                    val body = httpResponse.body ?: throw IOException("O servidor retornou um arquivo vazio.")
+
+                    val totalBytes = body.contentLength()
+                    body.byteStream().use { input ->
+                        FileOutputStream(temporary).use { output ->
+                            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                            var downloadedBytes = 0L
+                            var lastProgress = -1
+                            while (true) {
+                                val read = input.read(buffer)
+                                if (read <= 0) break
+                                output.write(buffer, 0, read)
+                                downloadedBytes += read
+                                if (totalBytes > 0L) {
+                                    val progress = ((downloadedBytes * 100L) / totalBytes).toInt().coerceIn(0, 100)
+                                    if (progress != lastProgress) {
+                                        lastProgress = progress
+                                        trySend(DownloadState.Downloading(progress))
+                                    }
+                                }
+                            }
+                            output.flush()
                         }
                     }
-                    cursor?.close()
                 }
-            }
-        }
 
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            context.registerReceiver(receiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE), Context.RECEIVER_EXPORTED)
-        } else {
-            context.registerReceiver(receiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE))
-        }
-
-        // Loop para checar progresso periodicamente
-        var isRunning = true
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-            while (isRunning) {
-                val query = DownloadManager.Query().setFilterById(downloadId)
-                val cursor = downloadManager.query(query)
-                if (cursor != null && cursor.moveToFirst()) {
-                    val bytesDownloadedIndex = cursor.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)
-                    val bytesTotalIndex = cursor.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES)
-                    val statusIndex = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)
-                    
-                    val bytesDownloaded = if (bytesDownloadedIndex >= 0) cursor.getInt(bytesDownloadedIndex) else 0
-                    val bytesTotal = if (bytesTotalIndex >= 0) cursor.getInt(bytesTotalIndex) else 1
-                    val status = if (statusIndex >= 0) cursor.getInt(statusIndex) else -1
-                    
-                    if (status == DownloadManager.STATUS_SUCCESSFUL || status == DownloadManager.STATUS_FAILED) {
-                        isRunning = false
-                    } else if (bytesTotal > 0) {
-                        val progress = ((bytesDownloaded * 100L) / bytesTotal).toInt()
-                        trySend(DownloadState.Downloading(progress))
-                    }
+                val validationError = validateApk(temporary)
+                if (validationError != null) {
+                    temporary.delete()
+                    trySend(DownloadState.Error(validationError))
+                    close()
+                    return@launch
                 }
-                cursor?.close()
-                delay(500)
+                if (!temporary.renameTo(target)) {
+                    temporary.copyTo(target, overwrite = true)
+                    temporary.delete()
+                }
+                trySend(DownloadState.Downloaded)
+            } catch (error: Exception) {
+                temporary.delete()
+                trySend(DownloadState.Error("Não foi possível baixar a atualização: ${error.message ?: "verifique a conexão"}"))
+            } finally {
+                close()
             }
         }
 
-        awaitClose {
-            isRunning = false
-            try {
-                context.unregisterReceiver(receiver)
-            } catch (e: Exception) {
-                // Ignore
-            }
-        }
+        awaitClose { scope.cancel() }
     }
 
-    fun installApk(version: String) {
-        val fileName = "MIC-Rhema-v$version.apk"
-        val file = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), fileName)
-        if (!file.exists()) return
+    private fun validateApk(file: File): String? {
+        if (!file.exists() || file.length() < 1024L) {
+            return "O arquivo baixado está incompleto. Tente novamente."
+        }
+        val packageInfo = context.packageManager.getPackageArchiveInfo(file.absolutePath, 0)
+            ?: return "O arquivo baixado não é um APK válido. Tente novamente."
+        if (packageInfo.packageName != context.packageName) {
+            return "O arquivo baixado não pertence ao MIC Rhema. Tente novamente."
+        }
+        return null
+    }
 
-        if (!file.name.endsWith(".apk")) return
+    fun installApk(version: String): Boolean {
+        val file = updateFile(version)
+        val validationError = validateApk(file)
+        if (validationError != null) return false
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O &&
+            !context.packageManager.canRequestPackageInstalls()
+        ) {
+            val settingsIntent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                data = Uri.parse("package:${context.packageName}")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(settingsIntent)
+            return false
+        }
 
         val uri = FileProvider.getUriForFile(
             context,
             "${context.packageName}.fileprovider",
             file
         )
-
         val intent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, "application/vnd.android.package-archive")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
-
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            if (!context.packageManager.canRequestPackageInstalls()) {
-                val settingsIntent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
-                    data = Uri.parse("package:${context.packageName}")
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                context.startActivity(settingsIntent)
-                return
-            }
-        }
-
         context.startActivity(intent)
+        return true
     }
 }
