@@ -33,7 +33,10 @@ val biblicalAvatarCatalog: List<BiblicalAvatar> = listOf(
     BiblicalAvatar("elias", "Elias", R.drawable.avatar_elias),
     BiblicalAvatar("isaias", "Isaías", R.drawable.avatar_isaias),
     BiblicalAvatar("jeremias", "Jeremias", R.drawable.avatar_jeremias),
-    BiblicalAvatar("joao_batista", "João Batista", R.drawable.avatar_joao_batista)
+    BiblicalAvatar("joao_batista", "João Batista", R.drawable.avatar_joao_batista),
+    BiblicalAvatar("timoteo", "Timóteo", R.drawable.avatar_timoteo),
+    BiblicalAvatar("priscila", "Priscila", R.drawable.avatar_priscila),
+    BiblicalAvatar("lidia", "Lídia", R.drawable.avatar_lidia)
 )
 
 const val DEFAULT_BIBLICAL_AVATAR_ID = "davi"
