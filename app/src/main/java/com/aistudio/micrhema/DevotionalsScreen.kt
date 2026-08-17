@@ -178,6 +178,9 @@ fun DevotionalCard(devotional: Devotional, onClick: () -> Unit) {
 @Composable
 fun DevotionalDetailScreen(devotional: Devotional, onBack: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(devotional.id) {
+        BadgeActivityTracker.record(context, BadgeActivityKeys.DEVOTIONALS, devotional.id)
+    }
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->

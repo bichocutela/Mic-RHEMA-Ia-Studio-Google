@@ -176,6 +176,16 @@ fun ProfileScreen(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    Text(
+                        "${badgeProgress.activityCounts[BadgeActivityKeys.DEVOTIONALS] ?: 0} devocionais • ${badgeProgress.activityCounts[BadgeActivityKeys.BOOKS] ?: 0} livros • ${badgeProgress.activityCounts[BadgeActivityKeys.VIDEOS] ?: 0} vídeos • ${badgeProgress.activityCounts[BadgeActivityKeys.BIBLE_CHAPTERS] ?: 0} capítulos",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        "${badgeProgress.activityCounts[BadgeActivityKeys.PLAN_THEMES] ?: 0} temas • ${badgeProgress.activityCounts[BadgeActivityKeys.BIBLE_NEWS] ?: 0} notícias • ${badgeProgress.activityCounts[BadgeActivityKeys.AUDIOS] ?: 0} áudios • ${badgeProgress.activeMinutes} min ativos",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     badgeProgress.nextLevel?.let { nextBadge ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),

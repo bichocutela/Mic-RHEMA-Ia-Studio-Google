@@ -127,6 +127,12 @@ fun BollsBibleScreen(
         verses = BollsBibleApi.getChapter(currentBook, currentChapter, currentVersion)
         if (verses.isEmpty()) {
             errorMessage = "Não foi possível carregar este capítulo. Verifique sua conexão e tente novamente."
+        } else {
+            BadgeActivityTracker.record(
+                context,
+                BadgeActivityKeys.BIBLE_CHAPTERS,
+                "${currentVersion}:${currentBook}:${currentChapter}"
+            )
         }
         isLoading = false
     }

@@ -304,6 +304,7 @@ data class MemberRequest(
     var avatarId: String = DEFAULT_BIBLICAL_AVATAR_ID,
     var unlockedBadgeIds: List<String> = listOf(DEFAULT_BIBLICAL_BADGE_ID),
     var equippedBadgeId: String = DEFAULT_BIBLICAL_BADGE_ID,
+    var badgeActivityIds: Map<String, List<String>> = emptyMap(),
     var supabaseStoragePath: String = "",
     var address: String = "",
     var birthDate: String = "",
@@ -365,6 +366,17 @@ object MemberManager {
                     val mediaUrl = document.getString("mediaUrl") ?: ""
                     val remoteProfilePhotoUrl = document.getString("profilePhotoUrl") ?: ""
                     val avatarId = document.getString("avatarId").orEmpty().ifBlank { DEFAULT_BIBLICAL_AVATAR_ID }
+                    val unlockedBadgeIds = (document.get("unlockedBadgeIds") as? List<*>)
+                        ?.mapNotNull { it?.toString() }
+                        ?.filter { it.isNotBlank() }
+                        ?.ifEmpty { listOf(DEFAULT_BIBLICAL_BADGE_ID) }
+                        ?: listOf(DEFAULT_BIBLICAL_BADGE_ID)
+                    val equippedBadgeId = document.getString("equippedBadgeId").orEmpty().ifBlank { DEFAULT_BIBLICAL_BADGE_ID }
+                    val badgeActivityIds = (document.get("badgeActivityIds") as? Map<*, *>).orEmpty().mapNotNull { (key, value) ->
+                        val activity = key?.toString()?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                        val ids = (value as? List<*>)?.mapNotNull { it?.toString() } ?: emptyList()
+                        activity to ids
+                    }.toMap()
                     val supabaseStoragePath = document.getString("supabaseStoragePath") ?: ""
                     val profilePhotoUrl = resolveProfilePhotoUrl(context, id, remoteProfilePhotoUrl, supabaseStoragePath)
                     val address = document.getString("address") ?: ""
@@ -391,6 +403,9 @@ object MemberManager {
                         mediaUrl = mediaUrl,
                         profilePhotoUrl = profilePhotoUrl,
                         avatarId = avatarId,
+                        unlockedBadgeIds = unlockedBadgeIds,
+                        equippedBadgeId = equippedBadgeId,
+                        badgeActivityIds = badgeActivityIds,
 
                         supabaseStoragePath = supabaseStoragePath,
                         address = address,
@@ -517,6 +532,7 @@ object MemberManager {
                 "avatarId" to member.avatarId.ifBlank { DEFAULT_BIBLICAL_AVATAR_ID },
                 "unlockedBadgeIds" to member.unlockedBadgeIds.ifEmpty { listOf(DEFAULT_BIBLICAL_BADGE_ID) },
                 "equippedBadgeId" to member.equippedBadgeId.ifBlank { DEFAULT_BIBLICAL_BADGE_ID },
+                "badgeActivityIds" to member.badgeActivityIds,
                 "address" to member.address,
                 "birthDate" to member.birthDate,
                 "createdAt" to member.createdAt,
@@ -603,6 +619,7 @@ object MemberManager {
 
     fun setLoggedInMember(context: android.content.Context, member: MemberRequest?) {
         loggedInMemberState.value = member
+        member?.let { BadgeActivityTracker.reconcile(context, it) }
         loadIbrProgressFromFirestore()
         context.getSharedPreferences("micrhema_member_session", android.content.Context.MODE_PRIVATE)
             .edit()
@@ -1647,6 +1664,10 @@ suspend fun refreshHomeData() {
                         ?.ifEmpty { listOf(DEFAULT_BIBLICAL_BADGE_ID) }
                         ?: listOf(DEFAULT_BIBLICAL_BADGE_ID)
                     val equippedBadgeId = memberSnapshot.getString("equippedBadgeId").orEmpty().ifBlank { DEFAULT_BIBLICAL_BADGE_ID }
+                    val badgeActivityIds = (memberSnapshot.get("badgeActivityIds") as? Map<*, *>).orEmpty().mapNotNull { (key, value) ->
+                        val activity = key?.toString()?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                        activity to ((value as? List<*>)?.mapNotNull { it?.toString() } ?: emptyList())
+                    }.toMap()
                     val supabaseStoragePath = memberSnapshot.getString("supabaseStoragePath") ?: ""
                     val profilePhotoUrl = remoteProfilePhotoUrl.takeIf { it.isNotBlank() }
                         ?: currentMember.profilePhotoUrl
@@ -1674,6 +1695,7 @@ suspend fun refreshHomeData() {
                         avatarId = avatarId,
                         unlockedBadgeIds = unlockedBadgeIds,
                         equippedBadgeId = equippedBadgeId,
+                        badgeActivityIds = badgeActivityIds,
                         supabaseStoragePath = supabaseStoragePath,
                         address = address,
                         birthDate = birthDate,

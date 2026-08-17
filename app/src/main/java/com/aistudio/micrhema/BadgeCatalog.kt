@@ -50,7 +50,7 @@ val biblicalLevelBadges: List<BiblicalBadge> = listOf(
         level = 2,
         frameStyle = BadgeFrameStyle.SEEDLING,
         accentColorHex = 0xFF66BB6A,
-        requirement = "Completar 7 conteúdos devocionais"
+        requirement = "Ler 3 devocionais e concluir 1 tema de plano"
     ),
     BiblicalBadge(
         id = "discipulo",
@@ -60,7 +60,7 @@ val biblicalLevelBadges: List<BiblicalBadge> = listOf(
         level = 3,
         frameStyle = BadgeFrameStyle.STAR,
         accentColorHex = 0xFF42A5F5,
-        requirement = "Concluir o primeiro plano bíblico"
+        requirement = "Concluir 1 plano, 3 temas e ler 3 capítulos da Bíblia"
     ),
     BiblicalBadge(
         id = "perseverante",
@@ -70,7 +70,7 @@ val biblicalLevelBadges: List<BiblicalBadge> = listOf(
         level = 4,
         frameStyle = BadgeFrameStyle.OLIVE_BRANCH,
         accentColorHex = 0xFF9CCC65,
-        requirement = "Manter 30 dias de estudo ou devocional"
+        requirement = "Acumular 60 minutos ativos e realizar 10 atividades"
     ),
     BiblicalBadge(
         id = "estudante_rhema",
@@ -80,7 +80,7 @@ val biblicalLevelBadges: List<BiblicalBadge> = listOf(
         level = 5,
         frameStyle = BadgeFrameStyle.GOLDEN_BOOK,
         accentColorHex = 0xFFFFC107,
-        requirement = "Concluir um curso IBR"
+        requirement = "Ler 3 livros, assistir 3 vídeos e ouvir 2 áudios"
     ),
     BiblicalBadge(
         id = "mestre_da_palavra",
@@ -90,7 +90,7 @@ val biblicalLevelBadges: List<BiblicalBadge> = listOf(
         level = 6,
         frameStyle = BadgeFrameStyle.MASTER_WORD,
         accentColorHex = 0xFFFFA000,
-        requirement = "Concluir três cursos IBR"
+        requirement = "Concluir 1 curso IBR, ler 3 notícias e 10 capítulos da Bíblia"
     ),
     BiblicalBadge(
         id = "guardiao_da_fe",
@@ -100,7 +100,7 @@ val biblicalLevelBadges: List<BiblicalBadge> = listOf(
         level = 7,
         frameStyle = BadgeFrameStyle.GUARDIAN_SHIELD,
         accentColorHex = 0xFF8D6E63,
-        requirement = "Conquistar os níveis anteriores e participar de ações da igreja"
+        requirement = "Realizar todas as atividades e acumular 180 minutos ativos"
     )
 )
 

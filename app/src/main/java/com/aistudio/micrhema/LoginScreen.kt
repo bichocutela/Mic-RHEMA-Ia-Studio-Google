@@ -49,6 +49,10 @@ private fun memberFromLoginDocument(document: DocumentSnapshot): MemberRequest {
             ?.ifEmpty { listOf(DEFAULT_BIBLICAL_BADGE_ID) }
             ?: listOf(DEFAULT_BIBLICAL_BADGE_ID),
         equippedBadgeId = document.getString("equippedBadgeId").orEmpty().ifBlank { DEFAULT_BIBLICAL_BADGE_ID },
+        badgeActivityIds = (document.get("badgeActivityIds") as? Map<*, *>).orEmpty().mapNotNull { (key, value) ->
+            val activity = key?.toString()?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            activity to ((value as? List<*>)?.mapNotNull { it?.toString() } ?: emptyList())
+        }.toMap(),
         status = document.getString("status") ?: "pendente",
         address = document.getString("address") ?: "",
         birthDate = document.getString("birthDate") ?: "",

@@ -441,6 +441,7 @@ private fun markIbrChapterCompleted(context: Context, course: IbrCourse, chapter
     progress.isCompleted = true
     if (existing == null) ibrProgressState.add(progress)
     IbrDatabaseHelper(context).saveProgress(progress)
+    syncIbrProgressToFirestore(progress)
 }
 
 private fun markIbrChapterStarted(context: Context, course: IbrCourse, chapter: IbrChapter) {

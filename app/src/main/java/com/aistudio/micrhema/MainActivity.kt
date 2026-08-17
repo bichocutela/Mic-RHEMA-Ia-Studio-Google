@@ -111,6 +111,16 @@ val drawerItems = listOf(
 )
 
 class MainActivity : ComponentActivity() {
+    override fun onStart() {
+        super.onStart()
+        BadgeActivityTracker.startActiveSession()
+    }
+
+    override fun onStop() {
+        BadgeActivityTracker.stopActiveSession(this)
+        super.onStop()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)

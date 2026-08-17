@@ -326,6 +326,10 @@ fun NewsDetailScreen(
     onNavigateToBible: (String, Int, String?) -> Unit
 ) {
     val news = decoratedBibleNews().find { it.id == newsId } ?: return
+    val context = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(news.id) {
+        BadgeActivityTracker.record(context, BadgeActivityKeys.BIBLE_NEWS, news.id.toString())
+    }
 
     Scaffold(
         modifier = Modifier.padding(bottom = 80.dp),

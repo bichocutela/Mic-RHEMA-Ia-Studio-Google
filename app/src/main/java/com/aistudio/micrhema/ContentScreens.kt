@@ -205,11 +205,13 @@ fun ContentScreen(initialType: String? = null, initialId: String? = null) {
                 0 -> BooksList(selectedBook, searchQuery, isLocalLoading, onBookSelected = { 
                     selectedBook = it
                     if (it != null) {
+                        BadgeActivityTracker.record(context, BadgeActivityKeys.BOOKS, it.id)
                         addRecentlyViewed(RecentlyViewedItem(it.id, it.title, it.author, it.coverUrl, ContentType.BOOK, it.isCached, it.progress))
                     }
                 })
                 1 -> AudiosList(null, searchQuery, isLocalLoading, onAudioSelected = {
                     if (it != null) {
+                        BadgeActivityTracker.record(context, BadgeActivityKeys.AUDIOS, it.id)
                         addRecentlyViewed(RecentlyViewedItem(it.id, it.title, it.artist, it.coverUrl, ContentType.AUDIO, it.isCached, it.progress))
                         GlobalAudioPlayer.playTrack(
                             context,
@@ -227,6 +229,7 @@ fun ContentScreen(initialType: String? = null, initialId: String? = null) {
                 2 -> VideosList(selectedVideo, searchQuery, isLocalLoading, onVideoSelected = {
                     selectedVideo = it
                     if (it != null) {
+                        BadgeActivityTracker.record(context, BadgeActivityKeys.VIDEOS, it.id)
                         addRecentlyViewed(RecentlyViewedItem(it.id, it.title, it.description, it.thumbnailUrl, ContentType.VIDEO, it.isCached, it.progress))
                     }
                 })

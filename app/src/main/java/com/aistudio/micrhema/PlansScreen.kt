@@ -32,6 +32,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlansScreen(initialThemeName: String? = null, onNavigateToBible: (String, Int) -> Unit = { _, _ -> }) {
+    val badgeContext = androidx.compose.ui.platform.LocalContext.current
     var selectedCategory by remember { mutableStateOf<PlanCategory?>(null) }
     var selectedTheme by remember { mutableStateOf<PlanTheme?>(null) }
     
@@ -79,7 +80,13 @@ fun PlansScreen(initialThemeName: String? = null, onNavigateToBible: (String, In
     } else if (selectedCategory != null) {
         CategoryScreen(category = selectedCategory!!, onBack = { selectedCategory = null }, onThemeClick = { selectedTheme = it })
     } else {
-        MainPlansScreen(onCategoryClick = { selectedCategory = it }, onThemeClick = { selectedTheme = it })
+        MainPlansScreen(
+            onCategoryClick = {
+                BadgeActivityTracker.record(badgeContext, BadgeActivityKeys.PLANS, it.name)
+                selectedCategory = it
+            },
+            onThemeClick = { selectedTheme = it }
+        )
     }
 }
 
@@ -278,6 +285,7 @@ fun CategoryScreen(category: PlanCategory, onBack: () -> Unit, onThemeClick: (Pl
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ThemeDetailScreen(theme: PlanTheme, onBack: () -> Unit, onGoToVerse: (String) -> Unit = {}) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     Scaffold(
         topBar = {
             TopAppBar(
@@ -352,8 +360,12 @@ fun ThemeDetailScreen(theme: PlanTheme, onBack: () -> Unit, onGoToVerse: (String
                 
                 Spacer(modifier = Modifier.height(40.dp))
                 
-                Button(
-                    onClick = onBack,
+                                    Button(
+                    onClick = {
+                        BadgeActivityTracker.record(context, BadgeActivityKeys.PLAN_THEMES, theme.title)
+                        onBack()
+                    },
+
                     modifier = Modifier.fillMaxWidth().height(56.dp),
                     shape = RoundedCornerShape(28.dp)
                 ) {
