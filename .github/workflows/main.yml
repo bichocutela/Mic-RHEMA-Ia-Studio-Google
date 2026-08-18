@@ -119,7 +119,8 @@ jobs:
             --arg body "O MIC Rhema ${VERSION_NAME} já está disponível. Toque para conferir." \
             --arg version "${VERSION_NAME}" \
             --arg url "${RELEASE_URL}" \
-            '{topic:$topic,title:$title,body:$body,data:{category:"app_update",version:$version,url:$url}}' > /tmp/mic-rhema-notification.json
+            --arg destination "about" \
+            '{topic:$topic,title:$title,body:$body,data:{category:"app_update",version:$version,url:$url,destination:$destination}}' > /tmp/mic-rhema-notification.json
           curl --fail-with-body --silent --show-error \
             -X POST "${SUPABASE_URL%/}/functions/v1/notify-fcm" \
             -H "apikey: ${SUPABASE_ANON_KEY}" \

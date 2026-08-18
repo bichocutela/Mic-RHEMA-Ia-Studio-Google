@@ -22,6 +22,7 @@ class FCMService : FirebaseMessagingService() {
             ?: remoteMessage.data["message"]
             ?: "Nova mensagem"
         val category = NotificationHelper.categoryFrom(remoteMessage.data["category"])
+        val destinationRoute = remoteMessage.data["destination"] ?: remoteMessage.data["route"]
 
         if (remoteMessage.notification != null || remoteMessage.data.isNotEmpty()) {
             NotificationHelper.showNotification(
@@ -29,7 +30,8 @@ class FCMService : FirebaseMessagingService() {
                 title = title,
                 message = message,
                 category = category,
-                respectPreferences = true
+                respectPreferences = true,
+                destinationRoute = destinationRoute
             )
         }
     }
@@ -40,7 +42,6 @@ class FCMService : FirebaseMessagingService() {
     }
 
     private fun sendRegistrationToServer(token: String?) {
-        // O token fica disponível para futura integração de envio segmentado.
         Log.d(TAG, "sendRegistrationTokenToServer($token)")
     }
 

@@ -22,6 +22,7 @@ object NotificationHelper {
     private const val CHANNEL_ID = "micrhema_notifications"
     private const val CHANNEL_NAME = "Notificações MIC Rhema"
     private const val CHANNEL_DESCRIPTION = "Alertas de novos devocionais, eventos e notícias"
+    const val EXTRA_NOTIFICATION_DESTINATION = "notification_destination"
     private var notificationId = 100
 
     fun scheduleDailyReminder(context: Context) {
@@ -270,7 +271,8 @@ object NotificationHelper {
         title: String,
         message: String,
         category: Category = Category.GENERAL,
-        respectPreferences: Boolean = true
+        respectPreferences: Boolean = true,
+        destinationRoute: String? = null
     ) {
         if (respectPreferences && !isAllowed(context, category)) return
         createNotificationChannel(context)
@@ -283,6 +285,7 @@ object NotificationHelper {
 
         val intent = android.content.Intent(context, MainActivity::class.java).apply {
             flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
+            destinationRoute?.takeIf { it.isNotBlank() }?.let { putExtra(EXTRA_NOTIFICATION_DESTINATION, it) }
         }
         val pendingIntent: android.app.PendingIntent = android.app.PendingIntent.getActivity(
             context,

@@ -26,7 +26,8 @@ class AppUpdateWorker(
                             title = "Tem atualização nova!",
                             message = "O MIC Rhema ${info.latestVersion} já está disponível.",
                             category = NotificationHelper.Category.CONTENT_UPDATES,
-                            respectPreferences = true
+                            respectPreferences = true,
+                            destinationRoute = Screen.About.route
                         )
                         prefs.edit()
                             .putString("last_notified_version", info.latestVersion)

@@ -158,6 +158,7 @@ service cloud.firestore {
       }
     }
 
+
     // Coleções administrativas legadas mantidas somente para compatibilidade.
     match /services/{document} {
       allow read: if true;

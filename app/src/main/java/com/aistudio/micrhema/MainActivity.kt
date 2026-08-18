@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.core.view.WindowCompat
@@ -95,6 +96,8 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     object Profile : Screen("profile", "Meu Perfil", Icons.Default.Person)
 }
 
+val notificationDestinationState = mutableStateOf<String?>(null)
+
 val drawerItems = listOf(
     Screen.Home,
     Screen.Devotionals,
@@ -111,6 +114,18 @@ val drawerItems = listOf(
 )
 
 class MainActivity : ComponentActivity() {
+    private fun captureNotificationDestination(source: Intent?) {
+        notificationDestinationState.value = source
+            ?.getStringExtra(NotificationHelper.EXTRA_NOTIFICATION_DESTINATION)
+            ?.takeIf { it == Screen.About.route }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        captureNotificationDestination(intent)
+    }
+
     override fun onStart() {
         super.onStart()
         BadgeActivityTracker.startActiveSession()
@@ -123,6 +138,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        captureNotificationDestination(intent)
         androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false)
         try {
             currentThemeMode.value = SettingsManager.getThemeMode(this)
@@ -279,6 +295,15 @@ fun MainScreen() {
     }
 
     val navController = rememberNavController()
+    LaunchedEffect(notificationDestinationState.value) {
+        if (notificationDestinationState.value == Screen.About.route) {
+            navController.navigate(Screen.About.route) {
+                popUpTo(navController.graph.startDestinationId)
+                launchSingleTop = true
+            }
+            notificationDestinationState.value = null
+        }
+    }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
         var currentRoute by remember { mutableStateOf(Screen.Home.route) }
