@@ -42,6 +42,14 @@ data class AudioTrack(
 )
 
 object GlobalAudioPlayer {
+    private data class SavedAudioPlayback(
+        val track: AudioTrack,
+        val positionMs: Long
+    )
+
+    private const val PLAYBACK_PREFS = "micrhema_audio_playback"
+    private const val LAST_PLAYBACK_KEY = "last_playback"
+
     val currentTrack = mutableStateOf<AudioTrack?>(null)
     val isPlaying = mutableStateOf(false)
     val isBuffering = mutableStateOf(false)
@@ -52,6 +60,66 @@ object GlobalAudioPlayer {
 
     private var playerController: Player? = null
     private var mediaControllerFuture: com.google.common.util.concurrent.ListenableFuture<androidx.media3.session.MediaController>? = null
+    private val sleepTimerHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var sleepTimerRunnable: Runnable? = null
+    private var scheduledSleepTimerMinutes = -1
+    private var autoResumeAttempted = false
+
+    fun applySettings(context: Context, settings: UserSettings) {
+        val speed = settings.playbackSpeed.coerceIn(0.75f, 2.0f)
+        playbackSpeed.value = speed
+        playerController?.playbackParameters = PlaybackParameters(speed)
+
+        val requestedMinutes = settings.sleepTimer.coerceAtLeast(0)
+        if (requestedMinutes == scheduledSleepTimerMinutes) return
+
+        sleepTimerRunnable?.let(sleepTimerHandler::removeCallbacks)
+        sleepTimerRunnable = null
+        scheduledSleepTimerMinutes = requestedMinutes
+
+        if (requestedMinutes > 0) {
+            sleepTimerRunnable = Runnable {
+                playerController?.pause()
+                isPlaying.value = false
+                scheduledSleepTimerMinutes = 0
+            }.also { timer ->
+                sleepTimerHandler.postDelayed(timer, requestedMinutes * 60_000L)
+            }
+        }
+    }
+
+    fun restoreLastPlaybackIfEnabled(context: Context) {
+        if (!currentSettingsState.value.autoStartLastPlayback || autoResumeAttempted) return
+        autoResumeAttempted = true
+        getLastPlayback(context)?.let { saved ->
+            playTrack(context, saved.track, saved.positionMs)
+        }
+    }
+
+    private fun saveLastPlayback(context: Context, track: AudioTrack, positionMs: Long) {
+        val saved = SavedAudioPlayback(track = track, positionMs = positionMs.coerceAtLeast(0L))
+        context.applicationContext
+            .getSharedPreferences(PLAYBACK_PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putString(LAST_PLAYBACK_KEY, com.google.gson.Gson().toJson(saved))
+            .apply()
+    }
+
+    private fun getLastPlayback(context: Context): SavedAudioPlayback? {
+        val json = context.applicationContext
+            .getSharedPreferences(PLAYBACK_PREFS, Context.MODE_PRIVATE)
+            .getString(LAST_PLAYBACK_KEY, null)
+            ?: return null
+        return runCatching { com.google.gson.Gson().fromJson(json, SavedAudioPlayback::class.java) }.getOrNull()
+    }
+
+    private fun clearLastPlayback(context: Context) {
+        context.applicationContext
+            .getSharedPreferences(PLAYBACK_PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .remove(LAST_PLAYBACK_KEY)
+            .apply()
+    }
 
     fun getOrCreatePlayer(context: Context, onReady: (Player) -> Unit) {
         val appContext = context.applicationContext
@@ -197,9 +265,14 @@ object GlobalAudioPlayer {
         }, androidx.core.content.ContextCompat.getMainExecutor(appContext))
     }
 
-    fun playTrack(context: Context, track: AudioTrack) {
+    fun playTrack(context: Context, track: AudioTrack, startPositionMs: Long = 0L) {
+        applySettings(context, currentSettingsState.value)
         getOrCreatePlayer(context) { player ->
             if (currentTrack.value?.id == track.id && currentTrack.value?.audioUrl == track.audioUrl) {
+                if (startPositionMs > 0L) {
+                    player.seekTo(startPositionMs)
+                    currentPositionMs.value = startPositionMs
+                }
                 if (!player.isPlaying) {
                     player.play()
                 } else {
@@ -230,7 +303,12 @@ object GlobalAudioPlayer {
             player.setMediaItem(mediaItem)
             player.prepare()
             player.playbackParameters = PlaybackParameters(playbackSpeed.value)
+            if (startPositionMs > 0L) {
+                player.seekTo(startPositionMs)
+                currentPositionMs.value = startPositionMs
+            }
             player.playWhenReady = true
+            saveLastPlayback(context, track, startPositionMs)
         }
     }
 
@@ -268,10 +346,10 @@ object GlobalAudioPlayer {
     }
 
     fun setSpeed(context: Context, speed: Float) {
-        playbackSpeed.value = speed
-        getOrCreatePlayer(context) { player ->
-            player.playbackParameters = PlaybackParameters(speed)
-        }
+        UserSettingsManager.saveSettings(
+            context,
+            currentSettingsState.value.copy(playbackSpeed = speed.coerceIn(0.75f, 2.0f))
+        )
     }
 
     fun stopAndClose(context: Context) {
@@ -281,6 +359,7 @@ object GlobalAudioPlayer {
             currentTrack.value = null
             isPlaying.value = false
             isExpanded.value = false
+            clearLastPlayback(context)
         }
     }
 
@@ -289,6 +368,7 @@ object GlobalAudioPlayer {
         currentPositionMs.value = player.currentPosition.coerceAtLeast(0L)
         durationMs.value = player.duration.coerceAtLeast(0L)
         playbackSpeed.value = player.playbackParameters.speed
+        currentTrack.value?.let { track -> saveLastPlayback(context, track, currentPositionMs.value) }
     }
 }
 
@@ -453,6 +533,8 @@ fun ExpandedAudioPlayerModal() {
     val currentPos = GlobalAudioPlayer.currentPositionMs.value
     val duration = GlobalAudioPlayer.durationMs.value
     val currentSpeed = GlobalAudioPlayer.playbackSpeed.value
+    val skipTimeMs = currentSettingsState.value.skipTime.coerceIn(10, 30) * 1000L
+    val skipTimeLabel = currentSettingsState.value.skipTime.coerceIn(10, 30)
 
     var isUserSeeking by remember { mutableStateOf(false) }
     var sliderPos by remember { mutableFloatStateOf(0f) }
@@ -580,12 +662,12 @@ fun ExpandedAudioPlayerModal() {
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         IconButton(
-                            onClick = { GlobalAudioPlayer.seekBackward(context, 10000L) },
+                            onClick = { GlobalAudioPlayer.seekBackward(context, skipTimeMs) },
                             modifier = Modifier.size(36.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Replay10,
-                                contentDescription = "Voltar 10s",
+                                contentDescription = "Voltar ${skipTimeLabel}s",
                                 modifier = Modifier.size(24.dp),
                                 tint = MaterialTheme.colorScheme.onSurface
                             )
@@ -617,12 +699,12 @@ fun ExpandedAudioPlayerModal() {
                         }
 
                         IconButton(
-                            onClick = { GlobalAudioPlayer.seekForward(context, 10000L) },
+                            onClick = { GlobalAudioPlayer.seekForward(context, skipTimeMs) },
                             modifier = Modifier.size(36.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Forward10,
-                                contentDescription = "Avançar 10s",
+                                contentDescription = "Avançar ${skipTimeLabel}s",
                                 modifier = Modifier.size(24.dp),
                                 tint = MaterialTheme.colorScheme.onSurface
                             )

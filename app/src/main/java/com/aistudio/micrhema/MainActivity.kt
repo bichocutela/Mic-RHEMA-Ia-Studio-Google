@@ -216,6 +216,10 @@ fun MainScreen() {
         // Permission handled
     }
 
+    LaunchedEffect(Unit) {
+        GlobalAudioPlayer.restoreLastPlaybackIfEnabled(context)
+    }
+
 
     LaunchedEffect(loggedInMemberState.value) {
         favoriteItemsState.clear()
@@ -902,4 +906,3 @@ fun MainScreen() {
         }
     }
 }
-

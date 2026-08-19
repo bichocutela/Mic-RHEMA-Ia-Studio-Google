@@ -1,6 +1,10 @@
 package com.aistudio.micrhema
 
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.os.Build
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.Player
@@ -12,9 +16,21 @@ import com.google.common.collect.ImmutableList
 
 class AudioService : MediaSessionService() {
     private var mediaSession: MediaSession? = null
+    private var screenReceiverRegistered = false
+    private val screenOffReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (
+                intent.action == Intent.ACTION_SCREEN_OFF &&
+                !UserSettingsManager.getStoredSettings(this@AudioService).continuePlaybackWhenLocked
+            ) {
+                mediaSession?.player?.pause()
+            }
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
+        val settings = UserSettingsManager.getStoredSettings(this)
         val audioAttributes = AudioAttributes.Builder()
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
             .setUsage(C.USAGE_MEDIA)
@@ -23,8 +39,8 @@ class AudioService : MediaSessionService() {
         val player = ExoPlayer.Builder(this)
             .setAudioAttributes(audioAttributes, true)
             .setHandleAudioBecomingNoisy(true)
-            .setSeekBackIncrementMs(10000)
-            .setSeekForwardIncrementMs(30000)
+            .setSeekBackIncrementMs(settings.skipTime.coerceIn(10, 30) * 1000L)
+            .setSeekForwardIncrementMs(settings.skipTime.coerceIn(10, 30) * 1000L)
             .setMediaSourceFactory(
                 androidx.media3.exoplayer.source.DefaultMediaSourceFactory(
                     ExoPlayerCache.getCacheDataSourceFactory(this)
@@ -35,13 +51,13 @@ class AudioService : MediaSessionService() {
         val rewindButton = CommandButton.Builder()
             .setPlayerCommand(Player.COMMAND_SEEK_BACK)
             .setIconResId(R.drawable.ic_rewind_10)
-            .setDisplayName("Voltar 10s")
+            .setDisplayName("Voltar ${settings.skipTime.coerceIn(10, 30)}s")
             .build()
             
         val forwardButton = CommandButton.Builder()
             .setPlayerCommand(Player.COMMAND_SEEK_FORWARD)
             .setIconResId(R.drawable.ic_forward_30)
-            .setDisplayName("Avançar 30s")
+            .setDisplayName("Avançar ${settings.skipTime.coerceIn(10, 30)}s")
             .build()
 
         mediaSession = MediaSession.Builder(this, player)
@@ -62,6 +78,14 @@ class AudioService : MediaSessionService() {
                 }
             })
             .build()
+
+        val filter = IntentFilter(Intent.ACTION_SCREEN_OFF)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(screenOffReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(screenOffReceiver, filter)
+        }
+        screenReceiverRegistered = true
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
@@ -76,6 +100,10 @@ class AudioService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        if (screenReceiverRegistered) {
+            unregisterReceiver(screenOffReceiver)
+            screenReceiverRegistered = false
+        }
         mediaSession?.player?.release()
         mediaSession?.release()
         mediaSession = null

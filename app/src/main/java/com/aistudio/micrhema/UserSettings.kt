@@ -67,10 +67,10 @@ object UserSettingsManager {
     private const val PREFS_NAME = "micrhema_user_settings"
     private const val KEY_SETTINGS = "settings_json"
 
-    fun loadSettings(context: Context) {
+    fun getStoredSettings(context: Context): UserSettings {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val json = prefs.getString(KEY_SETTINGS, null)
-        val localSettings = if (json != null) {
+        return if (json != null) {
             try {
                 Gson().fromJson(json, UserSettings::class.java)
             } catch (e: Exception) {
@@ -79,8 +79,13 @@ object UserSettingsManager {
         } else {
             UserSettings()
         }
+    }
+
+    fun loadSettings(context: Context) {
+        val localSettings = getStoredSettings(context)
         
         currentSettingsState.value = localSettings
+        GlobalAudioPlayer.applySettings(context, localSettings)
         syncFromFirestore(context)
     }
 
@@ -88,6 +93,7 @@ object UserSettingsManager {
         currentSettingsState.value = settings
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putString(KEY_SETTINGS, Gson().toJson(settings)).apply()
+        GlobalAudioPlayer.applySettings(context, settings)
 
         // Also update legacy settings for compatibility
         val mode = when (settings.themeModeOption) {
@@ -115,6 +121,7 @@ object UserSettingsManager {
                         currentSettingsState.value = settings
                         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                         prefs.edit().putString(KEY_SETTINGS, Gson().toJson(settings)).apply()
+                        GlobalAudioPlayer.applySettings(context, settings)
                         
                         val mode = when (settings.themeModeOption) {
                             ThemeModeOption.LIGHT -> ThemeMode.LIGHT
