@@ -512,8 +512,6 @@ private fun BibleChapterNavigator(
                 .navigationBarsPadding()
                 .padding(horizontal = 24.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
-    readingFontFamily: FontFamily,
-    readingModeEnabled: Boolean,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             OutlinedButton(
