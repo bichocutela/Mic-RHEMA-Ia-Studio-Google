@@ -130,6 +130,14 @@ object LocalDataManager {
                 serviceVideosState.addAll(list)
             }
 
+            val historyJson = prefs.getString("recentlyViewedState", null)
+            if (historyJson != null) {
+                val type = object : TypeToken<List<RecentlyViewedItem>>() {}.type
+                val list: List<RecentlyViewedItem> = gson.fromJson(historyJson, type) ?: emptyList()
+                recentlyViewedState.clear()
+                recentlyViewedState.addAll(list.take(10))
+            }
+
             val appTabsJson = prefs.getString("appTabsState", null)
             if (appTabsJson != null) {
                 val type = object : com.google.gson.reflect.TypeToken<List<AppTab>>() {}.type
@@ -198,6 +206,7 @@ object LocalDataManager {
             editor.putString("contentVideosState", gson.toJson(contentVideosState.toList()))
             editor.putString("contentAlbumsState", gson.toJson(contentAlbumsState.toList()))
             editor.putString("serviceVideosState", gson.toJson(serviceVideosState.toList()))
+            editor.putString("recentlyViewedState", gson.toJson(recentlyViewedState.toList()))
             editor.putString("appTabsState", gson.toJson(appTabsState.toList()))
             
             editor.apply()

@@ -910,6 +910,7 @@ val contentAlbumsState = androidx.compose.runtime.mutableStateListOf<ContentPhot
 val serviceVideosState = androidx.compose.runtime.mutableStateListOf<ServiceVideoModel>()
 
 fun loadContentFromFirebase(context: Context) {
+    if (!ContentPreferenceManager.shouldAcceptAutomaticUpdate()) return
     if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
         try {
             val db = Firebase.firestore
@@ -921,7 +922,9 @@ fun loadContentFromFirebase(context: Context) {
                 if (e != null || snapshot == null) return@addSnapshotListener
                 val list = snapshot.documents.mapNotNull { try { it.toObject(ContentBook::class.java) } catch(ex: Exception) { null } }
                 contentBooksState.clear()
-                    contentBooksState.addAll(list)
+                contentBooksState.addAll(list)
+                ContentPreferenceManager.preloadImages(context, list.map { it.coverUrl })
+                ContentPreferenceManager.backupIfEnabled(context)
             }
             db.collection("discipulado_pdfs")
                 .addSnapshotListener { snapshot, e ->
@@ -936,6 +939,8 @@ fun loadContentFromFirebase(context: Context) {
                         .sortedWith(compareBy<DiscipuladoPdf> { it.order }.thenByDescending { it.createdAt })
                     discipuladoPdfsState.clear()
                     discipuladoPdfsState.addAll(list)
+                    ContentPreferenceManager.preloadImages(context, list.map { it.coverUrl })
+                    ContentPreferenceManager.backupIfEnabled(context)
                 }
 
             db.collection("settings").document("sync_trigger").addSnapshotListener { snapshot, e ->
@@ -973,12 +978,15 @@ fun loadContentFromFirebase(context: Context) {
                 }
                 contentAudiosState.clear()
                 contentAudiosState.addAll(list)
+                ContentPreferenceManager.preloadImages(context, list.map { it.coverUrl })
+                ContentPreferenceManager.backupIfEnabled(context)
             }
-                        db.collection("conteudos_albums").addSnapshotListener { snapshot, e ->
+            db.collection("conteudos_albums").addSnapshotListener { snapshot, e ->
                 if (e != null || snapshot == null) return@addSnapshotListener
                 val list = snapshot.documents.mapNotNull { try { it.toObject(ContentPhotoAlbum::class.java) } catch(ex: Exception) { null } }
                 contentAlbumsState.clear()
-                    contentAlbumsState.addAll(list)
+                contentAlbumsState.addAll(list)
+                ContentPreferenceManager.backupIfEnabled(context)
             }
             
             // IBR CONTENT
@@ -1142,10 +1150,12 @@ data class RecentlyViewedItem(
 
 val recentlyViewedState = androidx.compose.runtime.mutableStateListOf<RecentlyViewedItem>()
 
-fun addRecentlyViewed(item: RecentlyViewedItem) {
+fun addRecentlyViewed(context: Context, item: RecentlyViewedItem) {
+    if (!currentSettingsState.value.trackPlaybackHistory) return
     recentlyViewedState.removeAll { it.id == item.id && it.type == item.type }
     recentlyViewedState.add(0, item)
     if (recentlyViewedState.size > 10) recentlyViewedState.removeAt(recentlyViewedState.lastIndex)
+    ContentPreferenceManager.backupIfEnabled(context)
 }
 
 val appTabsState = androidx.compose.runtime.mutableStateListOf<AppTab>()
@@ -1497,11 +1507,12 @@ data class FavoriteItem(
 val favoriteItemsState = androidx.compose.runtime.mutableStateListOf<FavoriteItem>()
 
 fun loadFavoritesFromFirestore() {
+    if (!currentSettingsState.value.syncFavorites) return
     val userId = loggedInMemberState.value?.id ?: return
     val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
     db.collection("users").document(userId).collection("favorites")
         .addSnapshotListener { snapshot, e ->
-            if (e != null || snapshot == null) return@addSnapshotListener
+            if (!currentSettingsState.value.syncFavorites || e != null || snapshot == null) return@addSnapshotListener
             val list = snapshot.documents.mapNotNull { 
                 try { it.toObject(FavoriteItem::class.java) } catch(ex: Exception) { null } 
             }
@@ -1516,6 +1527,7 @@ fun loadFavoritesFromFirestore() {
 fun addFavorite(item: FavoriteItem) {
     favoriteItemsState.removeAll { it.id == item.id }
     favoriteItemsState.add(0, item)
+    if (!currentSettingsState.value.syncFavorites) return
     val userId = loggedInMemberState.value?.id ?: return
     val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
     db.collection("users").document(userId).collection("favorites").document(item.id)
@@ -1524,6 +1536,7 @@ fun addFavorite(item: FavoriteItem) {
 
 fun removeFavorite(itemId: String) {
     favoriteItemsState.removeAll { it.id == itemId }
+    if (!currentSettingsState.value.syncFavorites) return
     val userId = loggedInMemberState.value?.id ?: return
     val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
     db.collection("users").document(userId).collection("favorites").document(itemId)
@@ -1771,6 +1784,7 @@ suspend fun forceRefreshData() {
     try {
         kotlinx.coroutines.delay(1000)
         com.google.firebase.firestore.FirebaseFirestore.getInstance().enableNetwork().await()
+        refreshHomeData()
     } catch (e: Exception) {
         e.printStackTrace()
     }

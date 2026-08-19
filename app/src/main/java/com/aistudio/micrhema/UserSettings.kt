@@ -94,6 +94,7 @@ object UserSettingsManager {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putString(KEY_SETTINGS, Gson().toJson(settings)).apply()
         GlobalAudioPlayer.applySettings(context, settings)
+        ContentPreferenceManager.backupIfEnabled(context)
 
         // Also update legacy settings for compatibility
         val mode = when (settings.themeModeOption) {
@@ -108,6 +109,7 @@ object UserSettingsManager {
         if (member != null && BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
             FirebaseFirestore.getInstance().collection("user_settings").document(member.id).set(settings)
         }
+
     }
 
     private fun syncFromFirestore(context: Context) {

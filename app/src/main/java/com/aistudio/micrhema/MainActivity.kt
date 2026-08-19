@@ -221,10 +221,10 @@ fun MainScreen() {
     }
 
 
-    LaunchedEffect(loggedInMemberState.value) {
+    LaunchedEffect(loggedInMemberState.value, currentSettingsState.value.syncFavorites) {
         favoriteItemsState.clear()
         BibleReadingPreferences.loadLocalFavoritesIntoState(context)
-        if (loggedInMemberState.value != null) {
+        if (loggedInMemberState.value != null && currentSettingsState.value.syncFavorites) {
             loadFavoritesFromFirestore()
         }
 
