@@ -2,6 +2,8 @@ package com.aistudio.micrhema
 
 import android.content.Context
 import android.widget.Toast
+import android.app.Activity
+import android.view.WindowManager
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -51,6 +53,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -92,6 +95,12 @@ fun BollsBibleScreen(
     val currentBook = book?.takeIf { chapterCounts.containsKey(it) } ?: "Gênesis"
     val currentChapter = chapter?.takeIf { it > 0 } ?: 1
     val currentVersion = BollsBibleCatalog.normalize(versionCode)
+    val readingSettings = currentSettingsState.value
+    val readingFontFamily = when (readingSettings.readingFont) {
+        ReadingFont.SERIF -> FontFamily.Serif
+        ReadingFont.INTER -> FontFamily.Default
+        ReadingFont.OPEN_SANS, ReadingFont.ROBOTO -> FontFamily.SansSerif
+    }
     val selectedTargetVerse = verse?.takeIf { it > 0 }
     val version = BollsBibleCatalog.translation(currentVersion)
     val maxChapter = chapterCounts[currentBook] ?: 1
@@ -111,6 +120,34 @@ fun BollsBibleScreen(
     var referenceVerses by remember { mutableStateOf<List<BibleVerse>>(emptyList()) }
     var isLoadingReferenceVerses by remember { mutableStateOf(false) }
     var currentBookmark by remember { mutableStateOf(BibleReadingPreferences.getBookmark(context)) }
+    DisposableEffect(readingSettings.keepScreenOn, readingSettings.internalBrightness) {
+        val activity = context as? Activity
+        val window = activity?.window
+        val previousBrightness = window?.attributes?.screenBrightness
+        if (window != null) {
+            if (readingSettings.keepScreenOn) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            window.attributes = window.attributes.apply {
+                screenBrightness = readingSettings.internalBrightness.coerceIn(0.05f, 1f)
+            }
+        }
+        onDispose {
+            window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            if (window != null && previousBrightness != null) {
+                window.attributes = window.attributes.apply { screenBrightness = previousBrightness }
+            }
+        }
+    }
+
+    LaunchedEffect(readingSettings.autoScroll, verses.size) {
+        if (!readingSettings.autoScroll || verses.isEmpty()) return@LaunchedEffect
+        while (true) {
+            delay(7000)
+            val nextIndex = (listState.firstVisibleItemIndex + 1).coerceAtMost(verses.lastIndex)
+            if (nextIndex == listState.firstVisibleItemIndex) break
+            listState.animateScrollToItem(nextIndex)
+        }
+    }
     var focusedVerse by remember(currentBook, currentChapter, currentVersion, selectedTargetVerse) {
         mutableStateOf(selectedTargetVerse)
     }
@@ -140,15 +177,17 @@ fun BollsBibleScreen(
         if (verses.isEmpty()) {
             errorMessage = "Não foi possível carregar este capítulo. Verifique sua conexão e tente novamente."
         } else {
-            BibleReadingPreferences.saveLastReading(
-                context,
-                BibleReadingPreferences.ReadingPosition(
-                    book = currentBook,
-                    chapter = currentChapter,
-                    verse = selectedTargetVerse ?: verses.first().verse,
-                    version = currentVersion
+            if (readingSettings.autoSavePosition) {
+                BibleReadingPreferences.saveLastReading(
+                    context,
+                    BibleReadingPreferences.ReadingPosition(
+                        book = currentBook,
+                        chapter = currentChapter,
+                        verse = selectedTargetVerse ?: verses.first().verse,
+                        version = currentVersion
+                    )
                 )
-            )
+            }
             BadgeActivityTracker.record(
                 context,
                 BadgeActivityKeys.BIBLE_CHAPTERS,
@@ -168,8 +207,8 @@ fun BollsBibleScreen(
         }
     }
 
-    LaunchedEffect(verses, currentBook, currentChapter, currentVersion) {
-        if (verses.isNotEmpty()) {
+    LaunchedEffect(verses, currentBook, currentChapter, currentVersion, readingSettings.autoSavePosition) {
+        if (verses.isNotEmpty() && readingSettings.autoSavePosition) {
             snapshotFlow { listState.firstVisibleItemIndex }
                 .distinctUntilChanged()
                 .collect { index ->
@@ -300,6 +339,8 @@ fun BollsBibleScreen(
                                 version = currentVersion,
                                 context = context,
                                 isFocused = focusedVerse == verseItem.verse,
+                                readingFontFamily = readingFontFamily,
+                                readingModeEnabled = readingSettings.readingModeEnabled,
                                 currentBookmark = currentBookmark,
                                 onBookmarkChanged = { currentBookmark = it },
                                 onNotify = { message -> Toast.makeText(context, message, Toast.LENGTH_SHORT).show() }
@@ -471,6 +512,8 @@ private fun BibleChapterNavigator(
                 .navigationBarsPadding()
                 .padding(horizontal = 24.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
+    readingFontFamily: FontFamily,
+    readingModeEnabled: Boolean,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             OutlinedButton(
@@ -512,6 +555,8 @@ private fun BibleVerseReadingRow(
     version: String,
     context: Context,
     isFocused: Boolean,
+    readingFontFamily: FontFamily,
+    readingModeEnabled: Boolean,
     currentBookmark: BibleReadingPreferences.Bookmark?,
     onBookmarkChanged: (BibleReadingPreferences.Bookmark?) -> Unit,
     onNotify: (String) -> Unit
@@ -550,13 +595,13 @@ private fun BibleVerseReadingRow(
                 Text(
                     verseItem.text,
                     modifier = Modifier.weight(1f).padding(top = 1.dp),
-                    fontFamily = FontFamily.Serif,
+                    fontFamily = readingFontFamily,
                     fontSize = 22.sp,
                     lineHeight = 34.sp,
                     color = MaterialTheme.colorScheme.onBackground
                 )
             }
-            Row(
+            if (!readingModeEnabled) Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 4.dp, end = 3.dp),
