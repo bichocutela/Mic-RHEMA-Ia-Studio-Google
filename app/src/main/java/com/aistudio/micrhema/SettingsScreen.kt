@@ -166,12 +166,13 @@ fun SettingsScreen(onNavigateProfile: () -> Unit = {}) {
 
             item { SettingsCategoryTitle("Notificações") }
             item {
+
                 SettingsSwitch("Novos cursos", settings.notifNewCourses) { updateSettings(settings.copy(notifNewCourses = it)) }
                 SettingsSwitch("Devocional diário às 8h", settings.notifDailyDevotional) { updateSettings(settings.copy(notifDailyDevotional = it)) }
+                SettingsSwitch("Avisos de eventos e cultos", settings.notifEvents) { updateSettings(settings.copy(notifEvents = it)) }
                 SettingsSwitch("Próximo culto", settings.notifNextService) { updateSettings(settings.copy(notifNextService = it)) }
                 SettingsSwitch("Notícia do meio-dia", settings.notifDailyNews) { updateSettings(settings.copy(notifDailyNews = it)) }
                 SettingsSwitch("Novas mídias", settings.notifNewMedia) { updateSettings(settings.copy(notifNewMedia = it)) }
-                SettingsSwitch("Novos cursos", settings.notifNewCourses) { updateSettings(settings.copy(notifNewCourses = it)) }
                 SettingsSwitch("Novas aulas e módulos IBR", settings.notifIbrContent) { updateSettings(settings.copy(notifIbrContent = it)) }
                 SettingsSwitch("Novas pregações", settings.notifNewSermons) { updateSettings(settings.copy(notifNewSermons = it)) }
             }
