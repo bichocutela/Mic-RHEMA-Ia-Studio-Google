@@ -84,26 +84,27 @@ fun SettingsScreen(onNavigateProfile: () -> Unit = {}) {
                 .padding(paddingValues),
             contentPadding = PaddingValues(bottom = 100.dp)
         ) {
-            
+
             // CONTA (Shown first if logged in, or at the bottom? The prompt lists it at the end, let's put it at the end)
-            
+
             item { SettingsCategoryTitle("Aparência") }
             item {
                 SettingsSwitch("Notificações", settings.notificationsEnabled) { updateSettings(settings.copy(notificationsEnabled = it)) }
                 SettingsSwitch("Vibração ao tocar nas abas", settings.vibrationEnabled) { updateSettings(settings.copy(vibrationEnabled = it)) }
                 SettingsSwitch("Animações", settings.animationsEnabled) { updateSettings(settings.copy(animationsEnabled = it)) }
                 SettingsSwitch("Modo Leitura", settings.readingModeEnabled) { updateSettings(settings.copy(readingModeEnabled = it)) }
-                
-                SettingsSlider("Tamanho da fonte", settings.fontSizeIndex.toFloat(), 0f, 4f, 4) { 
-                    updateSettings(settings.copy(fontSizeIndex = it.toInt())) 
+
+                val appFontSizeName = listOf("Pequena", "Padrão", "Média", "Grande", "Muito grande")[settings.fontSizeIndex.coerceIn(0, 4)]
+                SettingsSlider("Tamanho da fonte do aplicativo: $appFontSizeName", settings.fontSizeIndex.toFloat(), 0f, 4f, 4) {
+                    updateSettings(settings.copy(fontSizeIndex = it.toInt()))
                 }
-                
+
                 val themeNames = mapOf(ThemeModeOption.SYSTEM.name to "Sistema", ThemeModeOption.LIGHT.name to "Claro", ThemeModeOption.DARK.name to "Escuro")
                 SettingsDropdown("Tema", themeNames[settings.themeModeOption.name] ?: "Sistema", themeNames.values.toList()) { sel ->
                     val key = themeNames.entries.firstOrNull { it.value == sel }?.key ?: ThemeModeOption.SYSTEM.name
                     updateSettings(settings.copy(themeModeOption = ThemeModeOption.valueOf(key)))
                 }
-                
+
                 val colorNames = mapOf(AccentColor.BLUE.name to "Azul", AccentColor.GREEN.name to "Verde", AccentColor.PURPLE.name to "Roxo", AccentColor.GOLD.name to "Dourado", AccentColor.WHITE.name to "Branco/Preto")
                 SettingsDropdown("Cor de destaque", colorNames[settings.accentColor.name] ?: "Azul", colorNames.values.toList()) { sel ->
                     val key = colorNames.entries.firstOrNull { it.value == sel }?.key ?: AccentColor.BLUE.name
@@ -116,14 +117,14 @@ fun SettingsScreen(onNavigateProfile: () -> Unit = {}) {
                     }
                 }
             }
-            
+
             item { SettingsCategoryTitle("Leitura") }
             item {
                 SettingsSwitch("Manter a tela ligada", settings.keepScreenOn) { updateSettings(settings.copy(keepScreenOn = it)) }
                 SettingsSwitch("Salvar posição da leitura", settings.autoSavePosition) { updateSettings(settings.copy(autoSavePosition = it)) }
                 SettingsSwitch("Rolagem automática", settings.autoScroll) { updateSettings(settings.copy(autoScroll = it)) }
-                SettingsSlider("Brilho interno", settings.internalBrightness, 0f, 1f, 10) { 
-                    updateSettings(settings.copy(internalBrightness = it)) 
+                SettingsSlider("Brilho interno", settings.internalBrightness, 0f, 1f, 10) {
+                    updateSettings(settings.copy(internalBrightness = it))
                 }
             }
 
@@ -307,9 +308,9 @@ fun SettingsDropdown(title: String, selected: String, options: List<String>, onS
                 options.forEach { option ->
                     DropdownMenuItem(
                         text = { Text(option) },
-                        onClick = { 
+                        onClick = {
                             onSelect(option)
-                            expanded = false 
+                            expanded = false
                         }
                     )
                 }

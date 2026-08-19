@@ -150,6 +150,20 @@ class MainActivity : ComponentActivity() {
                     ThemeMode.LIGHT -> false
                     ThemeMode.SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme()
                 }
+                val currentDensity = androidx.compose.ui.platform.LocalDensity.current
+                val appFontScale = when (currentSettingsState.value.fontSizeIndex.coerceIn(0, 4)) {
+                    0 -> 0.90f
+                    1 -> 1.00f
+                    2 -> 1.10f
+                    3 -> 1.20f
+                    else -> 1.30f
+                }
+                androidx.compose.runtime.CompositionLocalProvider(
+                    androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(
+                        density = currentDensity.density,
+                        fontScale = appFontScale
+                    )
+                ) {
                 MICRhemaTheme(darkTheme = isDark) {
                     val lastCrash = CrashHandler.getLastCrash(this@MainActivity)
                     if (lastCrash != null) {
@@ -165,6 +179,7 @@ class MainActivity : ComponentActivity() {
                     } else {
                         MainScreen()
                     }
+                }
                 }
             }
         } catch (e: Exception) {
