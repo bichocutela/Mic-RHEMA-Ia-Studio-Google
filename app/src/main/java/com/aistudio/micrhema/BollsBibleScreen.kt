@@ -120,22 +120,15 @@ fun BollsBibleScreen(
     var referenceVerses by remember { mutableStateOf<List<BibleVerse>>(emptyList()) }
     var isLoadingReferenceVerses by remember { mutableStateOf(false) }
     var currentBookmark by remember { mutableStateOf(BibleReadingPreferences.getBookmark(context)) }
-    DisposableEffect(readingSettings.keepScreenOn, readingSettings.internalBrightness) {
+    DisposableEffect(readingSettings.keepScreenOn) {
         val activity = context as? Activity
         val window = activity?.window
-        val previousBrightness = window?.attributes?.screenBrightness
         if (window != null) {
             if (readingSettings.keepScreenOn) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            window.attributes = window.attributes.apply {
-                screenBrightness = readingSettings.internalBrightness.coerceIn(0.05f, 1f)
-            }
         }
         onDispose {
             window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            if (window != null && previousBrightness != null) {
-                window.attributes = window.attributes.apply { screenBrightness = previousBrightness }
-            }
         }
     }
 

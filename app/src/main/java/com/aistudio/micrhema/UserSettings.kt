@@ -25,7 +25,6 @@ data class UserSettings(
     var keepScreenOn: Boolean = true,
     var autoSavePosition: Boolean = true,
     var autoScroll: Boolean = false,
-    var internalBrightness: Float = 0.5f,
 
     // Audio
     var playbackSpeed: Float = 1.0f,

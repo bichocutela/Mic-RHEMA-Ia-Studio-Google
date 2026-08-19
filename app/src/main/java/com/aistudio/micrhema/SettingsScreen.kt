@@ -1,6 +1,11 @@
 package com.aistudio.micrhema
 
 import android.content.Context
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -31,6 +36,8 @@ import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storage
@@ -47,6 +54,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -87,6 +95,14 @@ fun SettingsScreen(onNavigateProfile: () -> Unit = {}) {
     val settings by currentSettingsState
     val loggedInMember = loggedInMemberState.value
     var occupiedBytes by remember { mutableLongStateOf(0L) }
+    val sectionIds = listOf("appearance", "reading", "audio", "downloads", "notifications", "internet", "favorites", "maintenance") +
+        if (loggedInMember != null) listOf("account") else emptyList()
+    val sectionPreferences = remember(context) {
+        context.getSharedPreferences("micrhema_settings_ui", Context.MODE_PRIVATE)
+    }
+    var expandedSections by remember {
+        mutableStateOf(sectionPreferences.getStringSet("expanded_sections", emptySet())?.toSet() ?: emptySet())
+    }
 
     fun refreshStorageSize() {
         occupiedBytes = directorySize(micRhemaDownloadsDir(context))
@@ -94,6 +110,15 @@ fun SettingsScreen(onNavigateProfile: () -> Unit = {}) {
 
     fun updateSettings(newSettings: UserSettings) {
         UserSettingsManager.saveSettings(context, newSettings)
+    }
+
+    fun updateExpandedSections(newSections: Set<String>) {
+        expandedSections = newSections
+        sectionPreferences.edit().putStringSet("expanded_sections", newSections).apply()
+    }
+
+    fun toggleSection(id: String) {
+        updateExpandedSections(if (id in expandedSections) expandedSections - id else expandedSections + id)
     }
 
     LaunchedEffect(Unit) { refreshStorageSize() }
@@ -135,10 +160,20 @@ fun SettingsScreen(onNavigateProfile: () -> Unit = {}) {
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
+                SettingsExpandControls(
+                    canExpandAll = sectionIds.any { it !in expandedSections },
+                    canCollapseAll = sectionIds.any { it in expandedSections },
+                    onExpandAll = { updateExpandedSections(sectionIds.toSet()) },
+                    onCollapseAll = { updateExpandedSections(emptySet()) }
+                )
+            }
+            item {
                 SettingsSection(
                     title = "Aparência",
                     summary = "Tema, legibilidade e modo de leitura.",
-                    icon = Icons.Default.Palette
+                    icon = Icons.Default.Palette,
+                    expanded = "appearance" in expandedSections,
+                    onToggle = { toggleSection("appearance") }
                 ) {
                     SettingsSwitch("Notificações", "Permite os avisos escolhidos abaixo.", settings.notificationsEnabled) {
                         updateSettings(settings.copy(notificationsEnabled = it))
@@ -176,7 +211,13 @@ fun SettingsScreen(onNavigateProfile: () -> Unit = {}) {
             }
 
             item {
-                SettingsSection("Leitura bíblica", "Preferências aplicadas diretamente ao leitor.", Icons.Default.MenuBook) {
+                SettingsSection(
+                    "Leitura bíblica",
+                    "Preferências aplicadas diretamente ao leitor.",
+                    Icons.Default.MenuBook,
+                    expanded = "reading" in expandedSections,
+                    onToggle = { toggleSection("reading") }
+                ) {
                     SettingsSwitch("Manter a tela ligada", "Evita que a tela apague enquanto você lê.", settings.keepScreenOn) {
                         updateSettings(settings.copy(keepScreenOn = it))
                     }
@@ -186,14 +227,17 @@ fun SettingsScreen(onNavigateProfile: () -> Unit = {}) {
                     SettingsSwitch("Rolagem automática", "Avança suavemente pelos versículos durante a leitura.", settings.autoScroll) {
                         updateSettings(settings.copy(autoScroll = it))
                     }
-                    SettingsSlider("Brilho interno", "Ajuste aplicado ao abrir o leitor bíblico.", settings.internalBrightness, 0.05f, 1f, 18) {
-                        updateSettings(settings.copy(internalBrightness = it))
-                    }
                 }
             }
 
             item {
-                SettingsSection("Áudio", "Retomada, velocidade e controles da reprodução.", Icons.Default.Headphones) {
+                SettingsSection(
+                    "Áudio",
+                    "Retomada, velocidade e controles da reprodução.",
+                    Icons.Default.Headphones,
+                    expanded = "audio" in expandedSections,
+                    onToggle = { toggleSection("audio") }
+                ) {
                     SettingsDropdown("Velocidade", "Ajusta a velocidade do player aberto.", "${settings.playbackSpeed}x", listOf("0.75x", "1.0x", "1.25x", "1.5x", "2.0x")) {
                         updateSettings(settings.copy(playbackSpeed = it.removeSuffix("x").toFloatOrNull() ?: 1.0f))
                     }
@@ -213,7 +257,13 @@ fun SettingsScreen(onNavigateProfile: () -> Unit = {}) {
             }
 
             item {
-                SettingsSection("Downloads", "Rede, pasta de destino e limpeza de arquivos.", Icons.Default.Download) {
+                SettingsSection(
+                    "Downloads",
+                    "Rede, pasta de destino e limpeza de arquivos.",
+                    Icons.Default.Download,
+                    expanded = "downloads" in expandedSections,
+                    onToggle = { toggleSection("downloads") }
+                ) {
                     SettingsSwitch("Apenas no Wi-Fi", "Evita downloads usando dados móveis.", settings.wifiOnlyDownloads) {
                         updateSettings(settings.copy(wifiOnlyDownloads = it))
                     }
@@ -233,7 +283,13 @@ fun SettingsScreen(onNavigateProfile: () -> Unit = {}) {
             }
 
             item {
-                SettingsSection("Notificações", "Escolha quais avisos deseja receber.", Icons.Default.Notifications) {
+                SettingsSection(
+                    "Notificações",
+                    "Escolha quais avisos deseja receber.",
+                    Icons.Default.Notifications,
+                    expanded = "notifications" in expandedSections,
+                    onToggle = { toggleSection("notifications") }
+                ) {
                     SettingsSwitch("Novos cursos", "Avisos de cursos disponíveis.", settings.notifNewCourses) { updateSettings(settings.copy(notifNewCourses = it)) }
                     SettingsSwitch("Devocional diário às 8h", "Lembrete diário do devocional.", settings.notifDailyDevotional) { updateSettings(settings.copy(notifDailyDevotional = it)) }
                     SettingsSwitch("Avisos de eventos e cultos", "Comunicações da agenda da igreja.", settings.notifEvents) { updateSettings(settings.copy(notifEvents = it)) }
@@ -246,7 +302,13 @@ fun SettingsScreen(onNavigateProfile: () -> Unit = {}) {
             }
 
             item {
-                SettingsSection("Internet e dados", "Controle o que é atualizado e pré-carregado.", Icons.Default.Language) {
+                SettingsSection(
+                    "Internet e dados",
+                    "Controle o que é atualizado e pré-carregado.",
+                    Icons.Default.Language,
+                    expanded = "internet" in expandedSections,
+                    onToggle = { toggleSection("internet") }
+                ) {
                     SettingsSwitch("Pré-carregar imagens", "Antecipa capas para abrir listas mais rápido.", settings.preloadImages) { updateSettings(settings.copy(preloadImages = it)) }
                     SettingsSwitch("Economizar dados móveis", "Impede pré-carregamento em redes tarifadas.", settings.saveMobileData) { updateSettings(settings.copy(saveMobileData = it)) }
                     SettingsSwitch("Atualizar automaticamente", "Mantém o conteúdo em tempo real; desligue para usar apenas o cache até atualizar manualmente.", settings.autoUpdateContent) { updateSettings(settings.copy(autoUpdateContent = it)) }
@@ -258,7 +320,13 @@ fun SettingsScreen(onNavigateProfile: () -> Unit = {}) {
             }
 
             item {
-                SettingsSection("Favoritos e histórico", "Acompanhe conteúdos e preserve seus dados.", Icons.Default.Favorite) {
+                SettingsSection(
+                    "Favoritos e histórico",
+                    "Acompanhe conteúdos e preserve seus dados.",
+                    Icons.Default.Favorite,
+                    expanded = "favorites" in expandedSections,
+                    onToggle = { toggleSection("favorites") }
+                ) {
                     SettingsSwitch("Sincronizar favoritos", "Mantém favoritos iguais entre aparelhos conectados.", settings.syncFavorites) { updateSettings(settings.copy(syncFavorites = it)) }
                     SettingsSwitch("Backup automático", "Salva uma cópia local das listas e do histórico.", settings.autoBackup) { updateSettings(settings.copy(autoBackup = it)) }
                     SettingsSwitch("Histórico de reprodução", "Mostra livros, vídeos e áudios acessados recentemente.", settings.trackPlaybackHistory) { updateSettings(settings.copy(trackPlaybackHistory = it)) }
@@ -271,7 +339,13 @@ fun SettingsScreen(onNavigateProfile: () -> Unit = {}) {
             }
 
             item {
-                SettingsSection("Manutenção", "Ações de recuperação e redefinição do aplicativo.", Icons.Default.Tune) {
+                SettingsSection(
+                    "Manutenção",
+                    "Ações de recuperação e redefinição do aplicativo.",
+                    Icons.Default.Tune,
+                    expanded = "maintenance" in expandedSections,
+                    onToggle = { toggleSection("maintenance") }
+                ) {
                     SettingsAction("Recarregar dados locais", "Atualiza o estado com os dados salvos neste aparelho.", icon = Icons.Default.RestartAlt) {
                         LocalDataManager.loadAll(context)
                         refreshStorageSize()
@@ -285,7 +359,13 @@ fun SettingsScreen(onNavigateProfile: () -> Unit = {}) {
 
             if (loggedInMember != null) {
                 item {
-                    SettingsSection("Conta", "Dados da sua sessão no MIC Rhema.", Icons.Default.Person) {
+                    SettingsSection(
+                        "Conta",
+                        "Dados da sua sessão no MIC Rhema.",
+                        Icons.Default.Person,
+                        expanded = "account" in expandedSections,
+                        onToggle = { toggleSection("account") }
+                    ) {
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -346,14 +426,24 @@ private fun SettingsHero(isSynced: Boolean, accountName: String?) {
 }
 
 @Composable
-private fun SettingsSection(title: String, summary: String, icon: ImageVector, content: @Composable () -> Unit) {
+private fun SettingsSection(
+    title: String,
+    summary: String,
+    icon: ImageVector,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    content: @Composable () -> Unit
+) {
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
     ) {
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.fillMaxWidth().clickable { onToggle() }.padding(horizontal = 16.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Box(
                 modifier = Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.primaryContainer),
                 contentAlignment = Alignment.Center
@@ -365,9 +455,43 @@ private fun SettingsSection(title: String, summary: String, icon: ImageVector, c
                 Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            Icon(
+                if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                contentDescription = if (expanded) "Minimizar $title" else "Expandir $title",
+                tint = MaterialTheme.colorScheme.primary
+            )
         }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
-        Column(modifier = Modifier.padding(vertical = 4.dp)) { content() }
+        AnimatedVisibility(
+            visible = expanded,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            Column {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+                Column(modifier = Modifier.padding(vertical = 4.dp)) { content() }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsExpandControls(
+    canExpandAll: Boolean,
+    canCollapseAll: Boolean,
+    onExpandAll: () -> Unit,
+    onCollapseAll: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+        horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        TextButton(onClick = onExpandAll, enabled = canExpandAll) {
+            Text("Expandir tudo")
+        }
+        TextButton(onClick = onCollapseAll, enabled = canCollapseAll) {
+            Text("Minimizar tudo")
+        }
     }
 }
 

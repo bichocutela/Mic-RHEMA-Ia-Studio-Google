@@ -45,3 +45,134 @@
 - [x] Botões com feedback visual (scale, ripple)
 - [x] Shimmer loading
 - [ ] Ícones animados (pulse, bounce)
+
+## Bíblia Dinâmica
+
+- [x] Mapear a navegação atual entre livros, capítulos, versículos e leitura da Bíblia.
+- [x] Implementar expansão inline de um capítulo com os versículos disponíveis.
+- [x] Abrir a leitura diretamente no versículo selecionado com foco visual e rolagem suave.
+- [x] Persistir a última passagem bíblica e perguntar se o usuário deseja continuar ou recomeçar em Gênesis 1.
+- [ ] Validar exclusivamente os arquivos da aba Bíblia, compilar, fazer commit, push e acompanhar o GitHub Actions.
+
+## Publicação da Bíblia — nova verificação
+
+- [ ] Confirmar se as alterações da aba Bíblia já estão em um commit enviado ao branch main.
+- [ ] Se necessário, validar, fazer commit e push apenas das alterações relacionadas à Bíblia.
+- [ ] Acompanhar o GitHub Actions até confirmar o build Android.
+- [ ] Informar o SHA real do commit e o status final do workflow.
+
+## Avatares bíblicos pendentes
+
+- [ ] Não alterar os avatares enquanto a geração de imagens estiver bloqueada.
+
+## Leitor Bíblico — réplica da prévia aprovada
+
+- [ ] Reproduzir a hierarquia visual da prévia na tela de leitura da Bíblia.
+- [ ] Aplicar ações compactas por versículo, paginação de capítulos e barra inferior conforme o modelo aprovado.
+- [ ] Validar a navegação, compilar o APK, publicar no main e acompanhar o workflow.
+
+## Correção de solicitação de acesso
+
+- [ ] Identificar a gravação do pedido de acesso e a regra que a restringe a administradores.
+- [ ] Permitir criação de solicitação por usuários comuns sem liberar aprovação administrativa.
+- [ ] Validar a chegada em tempo real no painel, publicar no main e acompanhar o build.
+
+- [ ] Garantir na regra ativa: usuário comum cria apenas pedido pendente; somente ADM aprova ou muda permissões.
+
+## Diagnóstico do erro persistente de solicitação
+
+- [ ] Confirmar no código a chamada efetiva usada pelo APK para criar um pedido.
+- [ ] Verificar autenticação anônima, coleção, ID do documento e versão instalada.
+- [ ] Corrigir o bloqueio restante, testar e publicar a solução validada.
+
+## Investigação de solicitação não gravada
+
+- [ ] Instrumentar a tentativa de envio para registrar autenticação, coleção, ID e código do erro.
+- [ ] Comprovar se o documento pendente chega ao Firestore e se o listener do ADM o recebe.
+- [ ] Corrigir o ponto de interrupção, publicar e validar o fluxo completo.
+
+## Carrossel de banners
+
+- [ ] Transformar os banners da Home em carrossel com transição suave e indicadores.
+- [ ] Armazenar a velocidade de rotação em configuração sincronizada do Firestore.
+- [ ] Adicionar controle de velocidade no painel administrativo de banners.
+- [ ] Validar, compilar, publicar e acompanhar o APK.
+
+## Avatares bíblicos pendentes — Timóteo, Priscila e Lídia
+
+- [ ] Verificar a disponibilidade de geração sem alterar o repositório se a cota estiver bloqueada.
+- [ ] Gerar três avatares 1:1 consistentes com o catálogo bíblico existente.
+- [ ] Copiar os PNGs, registrar os três personagens no AvatarCatalog e validar o APK.
+- [ ] Fazer commit, push, acompanhar o build verde e desativar o agendamento após sucesso.
+
+## Verificação do carrossel de banners
+
+- [ ] Confirmar a presença do carrossel automático na Home e do controle de velocidade no ADM.
+- [ ] Corrigir qualquer parte ausente e validar a sincronização da velocidade pelo Firestore.
+- [ ] Compilar, publicar se necessário e informar o SHA real.
+
+- [ ] Fazer commit e push do carrossel de banners e confirmar o build Android verde.
+
+## Correção da atualização interna do APK
+
+- [ ] Verificar o artefato da release, a URL baixada e a integridade do APK.
+- [ ] Corrigir o download/instalador que causa erro ao analisar o pacote.
+- [ ] Validar a nova release e confirmar a atualização interna antes de publicar.
+
+- [ ] Restringir a correção ao download e instalador; não alterar chaves, assinatura, keystore, versionamento ou workflow.
+
+## Teste de falha de rede da atualização
+
+- [ ] Simular URL de atualização indisponível sem alterar o aplicativo.
+- [ ] Confirmar a mensagem de erro e que o instalador não é acionado.
+
+## Nova verificação de avatares bíblicos
+
+- [ ] Verificar a cota de geração sem alterar o repositório caso permaneça bloqueada.
+- [ ] Integrar Timóteo, Priscila e Lídia somente após geração disponível e build verde.
+
+## Notificação de atualização segmentada
+
+- [ ] Confirmar quais dispositivos têm versão instalada registrada para segmentar a notificação.
+- [ ] Enviar o aviso somente a versões antigas e abrir a área Sobre ao tocar.
+- [ ] Validar o público alcançado e relatar limitações de segmentação.
+
+## Aviso geral e preparação de atualização futura
+
+- [ ] Confirmar o cheque automático de atualização a cada 12 horas.
+- [ ] Enviar agora o aviso geral de atualização no tópico de todos os usuários.
+- [ ] Registrar versão/token e abrir Sobre ao tocar em futuras notificações de atualização.
+
+## Publicação da função de notificações
+
+- [ ] Verificar sessão Supabase disponível e publicar notify-fcm sem solicitar credenciais se houver acesso.
+- [ ] Validar secrets de FCM e enviar o aviso geral de atualização.
+
+- [ ] Fazer uma última tentativa de sessão Supabase; se indisponível, interromper sem novas alterações.
+
+- [ ] Verificar novamente a sessão Supabase e publicar notify-fcm se o acesso estiver disponível.
+
+- [ ] Comparar a configuração de notificações do NRD Lojas com o MIC Rhema e reaplicar o caminho compatível.
+
+## Auditoria da aba Configurações
+
+- [ ] Mapear cada opção da aba Configurações e onde ela é persistida.
+- [ ] Verificar se cada escolha é aplicada de fato em todas as telas e sessões.
+- [ ] Avaliar a organização e propor melhorias visuais sem alterar o código nesta etapa.
+
+## Melhorias de Configurações por etapas
+
+- [ ] Etapa 1: aplicar o tamanho de fonte global persistente em todo o app; validar, commit, push e build verde.
+- [ ] Etapa 2: corrigir preferências e organização de notificações; validar, commit, push e build verde.
+- [ ] Etapa 3: tornar downloads e armazenamento coerentes; validar, commit, push e build verde.
+- [ ] Etapa 4: aplicar preferências de leitura; validar, commit, push e build verde.
+- [ ] Etapa 5: aplicar preferências de áudio; validar, commit, push e build verde.
+- [ ] Etapa 6: aplicar internet, favoritos e histórico; validar, commit, push e build verde.
+- [ ] Etapa 7: reorganizar visual e sincronização de Configurações; validar, commit, push e build verde.
+
+## Ajuste de seções em Configurações
+
+- [ ] Recolher todas as seções por padrão e permitir expandir ou minimizar cada cartão.
+- [ ] Adicionar controles globais para expandir tudo e recolher tudo, como no painel administrativo.
+- [ ] Remover a opção de brilho interno e impedir qualquer alteração de brilho do dispositivo no leitor bíblico.
+- [ ] Validar, fazer commit, push e acompanhar o build Android até verde.
