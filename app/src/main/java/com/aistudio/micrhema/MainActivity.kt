@@ -220,6 +220,9 @@ fun MainScreen() {
         GlobalAudioPlayer.restoreLastPlaybackIfEnabled(context)
     }
 
+    LaunchedEffect(loggedInMemberState.value?.id) {
+        UserSettingsManager.loadSettings(context)
+    }
 
     LaunchedEffect(loggedInMemberState.value, currentSettingsState.value.syncFavorites) {
         favoriteItemsState.clear()

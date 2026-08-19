@@ -66,6 +66,8 @@ val currentSettingsState = mutableStateOf(UserSettings())
 object UserSettingsManager {
     private const val PREFS_NAME = "micrhema_user_settings"
     private const val KEY_SETTINGS = "settings_json"
+    private var firestoreListener: com.google.firebase.firestore.ListenerRegistration? = null
+    private var syncedMemberId: String? = null
 
     fun getStoredSettings(context: Context): UserSettings {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -114,9 +116,26 @@ object UserSettingsManager {
 
     private fun syncFromFirestore(context: Context) {
         val member = loggedInMemberState.value
-        if (member != null && BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
-            FirebaseFirestore.getInstance().collection("user_settings").document(member.id).addSnapshotListener { doc, e ->
+        if (member == null || BuildConfig.FIREBASE_PROJECT_ID.isEmpty()) {
+            firestoreListener?.remove()
+            firestoreListener = null
+            syncedMemberId = null
+            return
+        }
+
+        if (syncedMemberId == member.id && firestoreListener != null) return
+
+        firestoreListener?.remove()
+        syncedMemberId = member.id
+        firestoreListener = FirebaseFirestore.getInstance().collection("user_settings").document(member.id).addSnapshotListener { doc, e ->
                 if (e != null || doc == null) return@addSnapshotListener
+                if (!doc.exists()) {
+                    FirebaseFirestore.getInstance()
+                        .collection("user_settings")
+                        .document(member.id)
+                        .set(currentSettingsState.value)
+                    return@addSnapshotListener
+                }
                 if (doc.exists()) {
                     val settings = doc.toObject(UserSettings::class.java)
                     if (settings != null) {
@@ -135,6 +154,5 @@ object UserSettingsManager {
                     }
                 }
             }
-        }
     }
 }
