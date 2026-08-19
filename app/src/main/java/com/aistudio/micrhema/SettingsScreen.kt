@@ -22,7 +22,9 @@ import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 private fun micRhemaDownloadsDir(context: android.content.Context): File =
-    File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "micrhema")
+    // Sempre aponta para a mesma pasta usada pelo DownloadHelper.
+
+    DownloadHelper.getDownloadDirectory(context)
 
 private fun directorySize(file: File): Long =
     if (!file.exists()) 0L else file.walkTopDown().filter { it.isFile }.sumOf { it.length() }
@@ -148,17 +150,17 @@ fun SettingsScreen(onNavigateProfile: () -> Unit = {}) {
 
             item { SettingsCategoryTitle("Downloads") }
             item {
-                SettingsDropdown("Qualidade", settings.downloadQuality.name, DownloadQuality.values().map { it.name }) {
-                    updateSettings(settings.copy(downloadQuality = DownloadQuality.valueOf(it)))
-                }
+                Text("A qualidade segue o arquivo publicado; as demais opções controlam rede e armazenamento.", modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            item {
                 SettingsSwitch("Apenas no Wi-Fi", settings.wifiOnlyDownloads) { updateSettings(settings.copy(wifiOnlyDownloads = it)) }
-                SettingsDropdown("Pasta de armazenamento", settings.storageFolder, listOf("Interno", "SD Card")) {
-                    updateSettings(settings.copy(storageFolder = it))
+                SettingsDropdown("Pasta de armazenamento", if (settings.storageFolder == "SD Card") "Cartão SD" else "Pasta do app", listOf("Pasta do app", "Cartão SD")) {
+                    updateSettings(settings.copy(storageFolder = if (it == "Cartão SD") "SD Card" else "Interno"))
                 }
                 SettingsSwitch("Limpar downloads antigos", settings.autoCleanOldDownloads) { updateSettings(settings.copy(autoCleanOldDownloads = it)) }
                 SettingsAction("Espaço ocupado: ${formatStorageSize(occupiedBytes)}") { refreshStorageSize() }
                 SettingsAction("Limpar downloads") {
-                    micRhemaDownloadsDir(context).deleteRecursively()
+                    DownloadHelper.clearDownloads(context)
                     refreshStorageSize()
                     android.widget.Toast.makeText(context, "Downloads do MIC Rhema removidos.", android.widget.Toast.LENGTH_SHORT).show()
                 }
