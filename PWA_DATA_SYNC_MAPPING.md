@@ -54,4 +54,6 @@ Na etapa de miniaturas dos vídeos, a coleção real `conteudos_videos` retornou
 
 Na aba Bíblia, foi identificado que a interface anterior apenas alterava o nome do livro e do capítulo, mas reutilizava os cinco versículos estáticos de Gênesis 1 em toda navegação. A PWA agora usa a mesma API Bolls do Android, com a tradução NAA, para obter o capítulo selecionado. A prévia confirmou a troca de Gênesis 1 para Êxodo 1 e Êxodo 2, cada qual com os versículos correspondentes.
 
+A versão publicada foi aberta com o cache da release `6f2b89c`. Gênesis 1 carregou os 31 versículos completos retornados pela API, substituindo a versão anterior de cinco versículos fixos.
+
 > A PWA deve renderizar primeiro os itens de `carousel_items`, pois é a fonte editada pelo painel administrativo Android. Nenhum banner fixo deve ser mantido como conteúdo principal quando houver dados sincronizados disponíveis.
