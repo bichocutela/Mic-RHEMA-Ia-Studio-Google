@@ -214,6 +214,19 @@
 - [x] Validar visualmente em largura de iPhone, publicar somente a PWA e submeter para revisão antes de declarar paridade.
 - [ ] Aguardar a revisão do usuário no iPhone comparando a sensação de uso da PWA com o APK Android instalado.
 
+## Paridade Android por etapas
+
+- [ ] Etapa 1 — substituir exclusivamente a logo da PWA pela mesma logo oficial do aplicativo Android e publicar a validação.
+- [ ] Etapa 2 — reproduzir progressivamente, em alterações isoladas, cada tela, opção, mídia, mensagem e detalhe do Android na PWA.
+- [ ] Para cada etapa: validar somente a PWA, salvar, fazer commit, publicar no GitHub Pages e aguardar o resultado antes de seguir.
+- [ ] Não alterar arquivos, build, versão, assinatura ou publicação do aplicativo Android em nenhuma etapa.
+
+## Sincronização PWA com os dados reais
+
+- [ ] Mapear as coleções e os campos reais que o Android usa para destaques, banners, vídeos, livros, áudios, notícias, cultos e conteúdos.
+- [ ] Substituir os dados fixos da Home PWA por listeners Firebase e URLs públicas do Supabase, com atualização em tempo real.
+- [ ] Garantir que alterações administrativas refletidas no Android também apareçam na PWA sem publicação manual adicional.
+
 ## Isolamento obrigatório da PWA
 
 - [x] Concluir os ajustes pendentes somente em `pwa/`, no workflow `pwa-pages.yml` e nas funções web separadas.

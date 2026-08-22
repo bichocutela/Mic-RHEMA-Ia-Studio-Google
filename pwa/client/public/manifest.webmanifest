@@ -8,7 +8,7 @@
   "theme_color": "#103A4C",
   "icons": [
     {
-      "src": "https://cwphbkdtorfpgmnlafqb.supabase.co/storage/v1/object/public/media-assets/rhema-admin/media-841abe59-055a-4982-a029-9d432c4ec0c6.png",
+      "src": "brand/mic-rhema-android-logo.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"

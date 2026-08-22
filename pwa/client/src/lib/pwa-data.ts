@@ -6,7 +6,7 @@ export const ASSETS = {
   hero: "https://cwphbkdtorfpgmnlafqb.supabase.co/storage/v1/object/public/media-assets/rhema-admin/media-73d6c1c3-49f9-4725-8e06-5939165e4226.jpg",
   devotional: "https://cwphbkdtorfpgmnlafqb.supabase.co/storage/v1/object/public/media-assets/rhema-admin/media-dc267d77-3931-49bf-944d-e633b1c2f69c.jpg",
   media: "https://cwphbkdtorfpgmnlafqb.supabase.co/storage/v1/object/public/media-assets/rhema-admin/media-f98917a4-16e2-44db-b2b0-82844006a344.jpg",
-  logo: "https://cwphbkdtorfpgmnlafqb.supabase.co/storage/v1/object/public/media-assets/rhema-admin/media-841abe59-055a-4982-a029-9d432c4ec0c6.png",
+  logo: `${import.meta.env.BASE_URL}brand/mic-rhema-android-logo.png`,
 };
 
 export type ContentCard = {
