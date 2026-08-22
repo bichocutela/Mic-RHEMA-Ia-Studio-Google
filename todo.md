@@ -234,6 +234,7 @@
 - [x] Etapa 5 — sincronizar a faixa Mídia com vídeos, áudios e livros aprovados do Firebase/Supabase.
 - [x] Etapa 6 — sincronizar o Devocional Diário (`devocionais`) e abrir a leitura real selecionada.
 - [x] Etapa 7 — gerar e sincronizar os 16 Planos de Leitura e 592 temas oficiais usados pelo Android.
+- [x] Etapa 8 — sincronizar Pedidos de Oração com a coleção e o fluxo de envio usados pelo Android.
 
 ## Isolamento obrigatório da PWA
 

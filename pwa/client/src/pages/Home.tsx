@@ -13,7 +13,7 @@ import {
 import { PwaShell, SectionHeading, type AppView } from "@/components/PwaShell";
 import { InstallCard } from "@/components/InstallCard";
 import { ASSETS, bibleBooks, genesisVerses, sampleMedia, sampleNews, settingsSections, type ContentCard } from "@/lib/pwa-data";
-import { approveMemberRequest, createAdminContent, firebaseAuth, firebaseEnabled, listenToCollection, listenToDocument, savePwaProfile, submitPendingAccessRequest } from "@/lib/firebase";
+import { approveMemberRequest, createAdminContent, firebaseAuth, firebaseEnabled, listenToCollection, listenToDocument, savePwaProfile, submitPendingAccessRequest, submitPrayerRequest } from "@/lib/firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { signInPwa, type PwaSession } from "@/lib/pwa-auth";
 import { listenToForegroundPush, sendPwaPush, subscribeToPwaPush } from "@/lib/push";
@@ -343,15 +343,35 @@ function DevotionalsView() { const devotionals = useLiveCollection("devocionais"
 function PlanThemeReader({ theme, onClose }: { theme: (typeof androidPlans)[number]["themes"][number]; onClose: () => void }) { return <article className="android-plan-reader"><img src={theme.imageUrl} alt=""/><p className="eyebrow">PLANO DE LEITURA</p><h1>{theme.title}</h1><p className="plan-theme-verses">{theme.verses.join(" · ")}</p><p>{theme.content}</p><button className="solid-button" onClick={() => { toast.success("Tema de plano aberto."); onClose(); }}>Concluir leitura <ArrowRight size={17}/></button></article>; }
 
 function CommunityView({ view, session, onLogin }: { view: "prayer" | "members" | "team" | "donations" | "about"; session: PwaSession | null; onLogin: () => void }) {
+  if (view === "prayer") return <PrayerView session={session} onLogin={onLogin} />;
   const content = {
-    prayer: { eyebrow: "PEDIDOS DE ORAÇÃO", title: "Conte com a igreja em oração", text: "Envie seu pedido. Ele será tratado com cuidado pela comunidade.", action: "Enviar pedido", icon: Heart },
     members: { eyebrow: "MEMBROS", title: session ? "Sua comunidade" : "Área de Membros", text: session ? "Acompanhe seus conteúdos, favoritos e acesso aprovado." : "Entre ou solicite acesso para acompanhar sua jornada.", action: session ? "Ver meu perfil" : "Entrar ou solicitar acesso", icon: Users },
     team: { eyebrow: "EQUIPE", title: "Pessoas que servem com você", text: "Conheça os ministérios e a equipe da igreja.", action: "Ver equipe", icon: Users },
     donations: { eyebrow: "DÍZIMOS E OFERTAS", title: "Generosidade que alcança pessoas", text: "Use esta área para consultar os dados de contribuição cadastrados pela igreja.", action: "Ver orientações", icon: Heart },
     about: { eyebrow: "SOBRE", title: "MIC Rhema", text: "Igreja em movimento, reunindo palavra, comunhão e formação em um só lugar.", action: "Conhecer a igreja", icon: Church },
-  }[view];
+  }[view as Exclude<typeof view, "prayer">];
   const Icon = content.icon;
   return <section className="page-pad android-module"><PageIntro eyebrow={content.eyebrow} title={content.title} text={content.text} /><article className="android-module-card"><Icon size={29}/><div><strong>{view === "members" && session ? session.name : content.title}</strong><small>{view === "members" && !session ? "Seu acesso será aprovado pela administração." : "Informações atualizadas pela igreja."}</small></div><ChevronRight size={20}/></article><button className="android-primary-action" onClick={() => view === "members" && !session ? onLogin() : toast.message(`${content.action}: este fluxo será aberto aqui.`)}>{content.action}<ArrowRight size={18}/></button></section>;
+}
+
+function PrayerView({ session, onLogin }: { session: PwaSession | null; onLogin: () => void }) {
+  const [name, setName] = useState(session?.name || "");
+  const [request, setRequest] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => setName(session?.name || ""), [session?.name]);
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!session) { onLogin(); return; }
+    if (!name.trim() || !request.trim()) { toast.error("Preencha seu nome e o pedido de oração."); return; }
+    setBusy(true);
+    try { await submitPrayerRequest({ name, request }); setRequest(""); toast.success("Pedido enviado com sucesso! A equipe pastoral vai recebê-lo com cuidado."); }
+    catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível enviar o pedido. Tente novamente."); }
+    finally { setBusy(false); }
+  };
+  return <section className="page-pad android-module"><PageIntro eyebrow="PEDIDOS DE ORAÇÃO" title="Conte com a igreja em oração" text="Seus pedidos são recebidos pela equipe pastoral da MIC Rhema e levados em oração com amor e cuidado." />
+    {!session ? <article className="android-module-card"><Heart size={29}/><div><strong>Entre para enviar seu pedido</strong><small>O mesmo acesso aprovado no aplicativo protege sua mensagem.</small></div><ChevronRight size={20}/></article> : <form className="prayer-form" onSubmit={submit}><label>Seu nome<input value={name} onChange={(event) => setName(event.target.value)} required placeholder="Como podemos chamar você?" /></label><label>Pedido de oração<textarea value={request} onChange={(event) => setRequest(event.target.value)} required placeholder="Descreva seu pedido de oração..." rows={6} /></label><button className="solid-button" disabled={busy}>{busy ? "Enviando…" : "Enviar pedido"}<ArrowRight size={17}/></button></form>}
+    {!session && <button className="android-primary-action" onClick={onLogin}>Entrar ou solicitar acesso<ArrowRight size={18}/></button>}
+  </section>;
 }
 
 function PageIntro({ eyebrow, title, text }: { eyebrow: string; title: string; text: string }) { return <header className="page-intro"><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p>{text}</p></header>; }

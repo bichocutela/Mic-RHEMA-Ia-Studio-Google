@@ -75,6 +75,21 @@ export async function submitPendingAccessRequest(input: { name: string; phone: s
   });
 }
 
+/** PARIDADE ANDROID — grava PrayerRequest com os mesmos campos usados pela PrayerScreen do APK. */
+export async function submitPrayerRequest(input: { name: string; request: string }) {
+  if (!firestore) throw new Error("A conexão Firebase da PWA não está disponível.");
+  const requestRef = doc(collection(firestore, "prayer_requests"));
+  await setDoc(requestRef, {
+    id: requestRef.id,
+    name: input.name.trim(),
+    request: input.request.trim(),
+    date: "Hoje",
+    createdAt: Date.now(),
+    createdAtServer: serverTimestamp(),
+    source: "pwa",
+  });
+}
+
 export async function savePwaProfile(uid: string, data: Record<string, unknown>) {
   if (!firestore) throw new Error("A conexão Firebase da PWA não está disponível.");
   await setDoc(doc(firestore, "users", uid), { ...data, updatedAt: Date.now(), updatedAtServer: serverTimestamp() }, { merge: true });

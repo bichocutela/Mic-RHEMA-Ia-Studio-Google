@@ -14,6 +14,7 @@ Este documento registra as fontes Firestore e Supabase já usadas pelo aplicativ
 | Discipulado | `discipulado_pdfs` | Apenas itens `isPublished`, ordenados por `order` e `createdAt`. |
 | Cultos | `cultos_agenda` | Agenda pública usada pela Home Android. |
 | Configuração de sincronização | `settings/sync_trigger` | Sinal de atualização global; os listeners da PWA já recebem mudanças por `onSnapshot`. |
+| Pedidos de Oração | `prayer_requests` | O membro autenticado cria um documento com `id`, `name`, `request` e `date: "Hoje"`, igual ao `PrayerRequest` do Android. A leitura e o gerenciamento permanecem administrativos. |
 
 ## Validação de fonte
 
@@ -46,5 +47,7 @@ Na prévia, a PWA selecionou o devocional real “CRESCIMENTO ESPIRITUAL”, dat
 Para os Planos de Leitura, a PWA passou a gerar o catálogo diretamente de `PlansData.kt` do Android. A prévia confirmou as 16 categorias oficiais e 592 temas, incluindo Alegria, Depressão, Estresse, Medo, Inveja, Raiva, Paz, Paciência, Perda, Ansiedade, Orgulho, Dúvida, Esperança, Amor, Tentação e Cura.
 
 A categoria Alegria e o tema “A Essência da Alegria” foram abertos na prévia. A PWA exibiu o versículo João 3:16, o texto integral e a capa definidos no mesmo `PlansData.kt` do Android.
+
+Para Pedidos de Oração, foi confirmado no Android que `PrayerScreen.kt` cria um `PrayerRequest` com `id`, `name`, `request` e `date` e o grava em `prayer_requests`. A PWA agora cria o mesmo formato, com um ID gerado antes da escrita e `date: "Hoje"`. Como as regras Firebase exigem usuário autenticado para criar o pedido, a tela apresenta o acesso de membro aprovado antes do formulário; o conteúdo enviado não é exibido publicamente. A validação visual cobriu a rota sem sessão e a abertura do acesso, sem inserir pedidos fictícios na coleção real.
 
 > A PWA deve renderizar primeiro os itens de `carousel_items`, pois é a fonte editada pelo painel administrativo Android. Nenhum banner fixo deve ser mantido como conteúdo principal quando houver dados sincronizados disponíveis.
