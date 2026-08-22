@@ -13,7 +13,7 @@ import {
 import { PwaShell, SectionHeading, type AppView } from "@/components/PwaShell";
 import { InstallCard } from "@/components/InstallCard";
 import { ASSETS, bibleBookChapters, bibleBooks, sampleMedia, sampleNews, settingsSections, type ContentCard } from "@/lib/pwa-data";
-import { approveMemberRequest, createAdminContent, firebaseAuth, firebaseEnabled, listenToCollection, listenToDocument, savePwaProfile, submitPendingAccessRequest, submitPrayerRequest } from "@/lib/firebase";
+import { approveMemberRequest, createAdminContent, firebaseAuth, firebaseEnabled, listenToCollection, listenToDocument, listenToIbrProgress, saveIbrProgress, savePwaProfile, submitPendingAccessRequest, submitPrayerRequest } from "@/lib/firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { signInPwa, type PwaSession } from "@/lib/pwa-auth";
 import { listenToForegroundPush, sendPwaPush, subscribeToPwaPush } from "@/lib/push";
@@ -23,6 +23,9 @@ type CollectionItem = ContentCard & { description?: string; imageUrl?: string; t
 type CarouselBanner = { id: string; imageUrl?: string; title?: string; description?: string; tag?: string; eventDate?: string; eventInfo?: string };
 type HomeBannersFallback = { urls?: string[] };
 type AppBannerSettings = { bannerRotationSeconds?: number };
+type IbrChapter = { id: string; title?: string; description?: string; durationMinutes?: number; type?: string; videoUrl?: string; audioUrl?: string; textContent?: string; isYoutube?: boolean; youtube?: boolean; youtubeId?: string };
+type IbrCourse = { id: string; title?: string; theme?: string; description?: string; imageUrl?: string; chapters?: IbrChapter[] };
+type IbrProgress = { id: string; courseId: string; chapterId: string; lastPositionSeconds?: number; totalDurationSeconds?: number; isCompleted?: boolean };
 
 const menuItems: Array<{ id: AppView; label: string; note: string; icon: typeof Church }> = [
   { id: "discipulado", label: "Discipulado", note: "PDFs e estudos públicos", icon: BookHeart },
@@ -325,11 +328,65 @@ function MediaView() {
 }
 
 function IbrView({ session, onLogin }: { session: PwaSession | null; onLogin: () => void }) {
+  const [courses, setCourses] = useState<IbrCourse[]>([]);
+  const [progress, setProgress] = useState<IbrProgress[]>([]);
+  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
+  const [selectedLesson, setSelectedLesson] = useState<{ courseId: string; chapterId: string } | null>(null);
+
+  useEffect(() => {
+    if (!session?.isIbr) { setCourses([]); return; }
+    return listenToCollection<IbrCourse>("ibr_courses", setCourses, () => toast.error("Não foi possível atualizar os cursos IBR agora."));
+  }, [session?.isIbr]);
+  useEffect(() => {
+    if (!session?.isIbr) { setProgress([]); return; }
+    return listenToIbrProgress<IbrProgress>(session.uid, setProgress, () => toast.error("Não foi possível sincronizar seu progresso IBR."));
+  }, [session?.uid, session?.isIbr]);
+
   if (!session?.isIbr) return <section className="ibr-gate"><div className="ibr-seal"><School size={36}/></div><p className="eyebrow">INSTITUTO BÍBLICO RHEMA</p><h1>Formação para quem quer aprofundar.</h1><p>Os cursos, módulos e progresso aparecem para alunos aprovados no IBR.</p><button className="solid-button" onClick={onLogin}>{session ? "Solicitar acesso ao IBR" : "Entrar para acessar"}<ArrowRight size={17}/></button><span>Já é aluno? Entre com o mesmo nome e telefone aprovados no aplicativo.</span></section>;
-  return <section className="page-pad"><PageIntro eyebrow="INSTITUTO BÍBLICO RHEMA" title={`Bem-vindo de volta, ${session.name.split(" ")[0]}.`} text="Continue sua formação no ponto em que parou." />
-    <div className="course-progress"><p>SEU PROGRESSO</p><h2>Fundamentos da fé</h2><span>3 de 8 módulos concluídos</span><div className="progress-line"><i /></div><button className="solid-button" onClick={() => toast.message("A primeira aula será aberta aqui.")}>Continuar o módulo <ArrowRight size={17}/></button></div>
+
+  const orderedCourses = courses.slice().sort((left, right) => String(left.id).localeCompare(String(right.id), undefined, { numeric: true }));
+  const progressFor = (courseId: string, chapterId: string) => progress.find((item) => item.courseId === courseId && item.chapterId === chapterId);
+  const completeCourse = (course: IbrCourse) => { const chapters = course.chapters || []; return chapters.length > 0 && chapters.every((chapter) => progressFor(course.id, chapter.id)?.isCompleted); };
+  const completedCourses = orderedCourses.filter(completeCourse).length;
+  const totalCompletedMinutes = orderedCourses.flatMap((course) => (course.chapters || []).filter((chapter) => progressFor(course.id, chapter.id)?.isCompleted).map((chapter) => Number(chapter.durationMinutes || 0))).reduce((total, minutes) => total + minutes, 0);
+  const nextLesson = orderedCourses.flatMap((course) => (course.chapters || []).map((chapter) => ({ course, chapter }))).find(({ course, chapter }) => !progressFor(course.id, chapter.id)?.isCompleted);
+  const selectedCourse = orderedCourses.find((course) => course.id === selectedCourseId) || null;
+  const lessonCourse = selectedLesson ? orderedCourses.find((course) => course.id === selectedLesson.courseId) || null : null;
+  const lesson = lessonCourse?.chapters?.find((chapter) => chapter.id === selectedLesson?.chapterId) || null;
+  const lessonProgress = lessonCourse && lesson ? progressFor(lessonCourse.id, lesson.id) : undefined;
+
+  const openLesson = async (course: IbrCourse, chapter: IbrChapter) => {
+    const existing = progressFor(course.id, chapter.id);
+    if (!existing) {
+      try { await saveIbrProgress(session.uid, { courseId: course.id, chapterId: chapter.id, lastPositionSeconds: 1, totalDurationSeconds: Number(chapter.durationMinutes || 0) * 60, isCompleted: false }); }
+      catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível iniciar esta aula."); return; }
+    }
+    setSelectedLesson({ courseId: course.id, chapterId: chapter.id });
+  };
+  const completeLesson = async () => {
+    if (!lessonCourse || !lesson) return;
+    try {
+      await saveIbrProgress(session.uid, { courseId: lessonCourse.id, chapterId: lesson.id, lastPositionSeconds: Number(lesson.durationMinutes || 0) * 60, totalDurationSeconds: Number(lesson.durationMinutes || 0) * 60, isCompleted: true });
+      toast.success("Aula concluída e progresso sincronizado.");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível concluir esta aula."); }
+  };
+
+  if (lessonCourse && lesson) {
+    const type = (lesson.type || (lesson.textContent ? "TEXT" : lesson.videoUrl ? "VIDEO" : "AUDIO")).toUpperCase();
+    const videoId = lesson.youtubeId || youtubeVideoId(lesson.videoUrl);
+    return <section className="page-pad ibr-lesson-view"><button className="back-link" onClick={() => setSelectedLesson(null)}><ChevronLeft size={18}/> Voltar às aulas</button><p className="eyebrow">{lessonCourse.title || "CURSO IBR"}</p><h1>{lesson.title || "Aula IBR"}</h1><p className="lesson-description">{lesson.description || "Acompanhe esta aula e marque como concluída quando terminar."}</p>
+      {type === "TEXT" ? <article className="ibr-text-lesson">{lesson.textContent || "Nenhum conteúdo adicionado."}</article> : type === "AUDIO" ? <audio className="ibr-player" controls src={lesson.audioUrl} onEnded={() => void completeLesson()}>Seu navegador não suporta este áudio.</audio> : videoId ? <iframe className="ibr-video-player" title={lesson.title || "Vídeo IBR"} src={`https://www.youtube-nocookie.com/embed/${videoId}?rel=0`} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen/> : <video className="ibr-video-player" controls src={lesson.videoUrl} onEnded={() => void completeLesson()}>Seu navegador não suporta este vídeo.</video>}
+      <div className="lesson-meta"><span>{type === "VIDEO" ? "Vídeo-aula" : type === "AUDIO" ? "Áudio-aula" : "Leitura"}</span><span>{Number(lesson.durationMinutes || 0)} min</span></div><button className="solid-button" disabled={lessonProgress?.isCompleted} onClick={() => void completeLesson()}>{lessonProgress?.isCompleted ? "Aula concluída" : "Marcar como concluída"}<BadgeCheck size={17}/></button>
+    </section>;
+  }
+
+  if (selectedCourse) return <section className="page-pad ibr-course-view"><button className="back-link" onClick={() => setSelectedCourseId(null)}><ChevronLeft size={18}/> Voltar ao IBR</button><p className="eyebrow">{selectedCourse.theme || "MÓDULO IBR"}</p><h1>{selectedCourse.title || "Módulo IBR"}</h1><p className="lesson-description">{selectedCourse.description || ""}</p><div className="ibr-chapter-list">{(selectedCourse.chapters || []).map((chapter, index) => { const done = progressFor(selectedCourse.id, chapter.id)?.isCompleted; const type = (chapter.type || (chapter.textContent ? "TEXT" : chapter.videoUrl ? "VIDEO" : "AUDIO")).toUpperCase(); return <button key={chapter.id} onClick={() => void openLesson(selectedCourse, chapter)}><span className="chapter-number">{String(index + 1).padStart(2, "0")}</span><div><strong>{chapter.title || "Aula IBR"}</strong><small>{chapter.description || "Conteúdo do curso"}</small><em>{type === "VIDEO" ? "Vídeo" : type === "AUDIO" ? "Áudio" : "Leitura"} · {Number(chapter.durationMinutes || 0)} min</em></div>{done ? <BadgeCheck size={22}/> : <ChevronRight size={20}/>}</button>; })}</div></section>;
+
+  const percent = orderedCourses.length ? Math.round((completedCourses / orderedCourses.length) * 100) : 0;
+  return <section className="page-pad ibr-dashboard"><PageIntro eyebrow="INSTITUTO BÍBLICO RHEMA" title={`Bem-vindo de volta, ${session.name.split(" ")[0]}.`} text="Cursos e progresso sincronizados com o IBR." />
+    <div className="course-progress"><p>SEU PROGRESSO</p><h2>{percent}% concluído</h2><span>{completedCourses} módulo(s) concluído(s) · {totalCompletedMinutes} min de estudo</span><div className="progress-line"><i style={{ width: `${percent}%` }}/></div>{nextLesson && <button className="solid-button" onClick={() => { setSelectedCourseId(nextLesson.course.id); void openLesson(nextLesson.course, nextLesson.chapter); }}>Continuar: {nextLesson.chapter.title || "próxima aula"}<ArrowRight size={17}/></button>}</div>
     <SectionHeading eyebrow="CURSOS DISPONÍVEIS" title="Sua formação" />
-    <div className="course-list">{["Fundamentos da fé", "Panorama bíblico", "Vida no Espírito"].map((course, index) => <button key={course} onClick={() => toast.message(`Abrindo ${course}.`)}><span>0{index + 1}</span><div><strong>{course}</strong><small>{index === 0 ? "Em andamento" : "Novo curso"}</small></div><ChevronRight size={19}/></button>)}</div>
+    {!orderedCourses.length ? <p className="empty-module">Nenhum módulo disponível no IBR agora.</p> : <div className="ibr-course-grid">{orderedCourses.map((course, index) => { const locked = index > 0 && !completeCourse(orderedCourses[index - 1]); const chapterCount = (course.chapters || []).length; return <button className={locked ? "ibr-course-card locked" : "ibr-course-card"} key={course.id} onClick={() => locked ? toast.message("Conclua o módulo anterior para desbloquear este.") : setSelectedCourseId(course.id)}><img src={course.imageUrl || ASSETS.media} alt=""/><span>{locked ? "BLOQUEADO" : course.theme || "IBR"}</span><div><strong>{course.title || "Módulo IBR"}</strong><small>{chapterCount} aula(s) · {completeCourse(course) ? "Concluído" : "Em andamento"}</small></div>{locked ? <LockKeyhole size={18}/> : <ChevronRight size={20}/>}</button>; })}</div>}
   </section>;
 }
 

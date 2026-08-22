@@ -56,6 +56,32 @@ export function listenToDocument<T extends DocumentData>(
   );
 }
 
+/** PARIDADE ANDROID — acompanha users/{memberId}/ibrProgress em tempo real. */
+export function listenToIbrProgress<T extends DocumentData>(
+  memberId: string,
+  onData: (items: Array<T & { id: string }>) => void,
+  onError?: (error: Error) => void,
+) {
+  if (!firestore || !memberId) return () => undefined;
+  return onSnapshot(
+    collection(doc(firestore, "users", memberId), "ibrProgress"),
+    (snapshot) => onData(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as T & { id: string })),
+    (error) => onError?.(error),
+  );
+}
+
+/** PARIDADE ANDROID — mesma chave {courseId}_{chapterId} usada em syncIbrProgressToFirestore. */
+export async function saveIbrProgress(memberId: string, progress: { courseId: string; chapterId: string; lastPositionSeconds: number; totalDurationSeconds: number; isCompleted: boolean }) {
+  if (!firestore || !memberId) throw new Error("Entre novamente para sincronizar seu progresso IBR.");
+  const progressId = `${progress.courseId}_${progress.chapterId}`;
+  await setDoc(doc(firestore, "users", memberId, "ibrProgress", progressId), {
+    ...progress,
+    updatedAt: Date.now(),
+    updatedAtServer: serverTimestamp(),
+    source: "pwa",
+  }, { merge: true });
+}
+
 export async function submitPendingAccessRequest(input: { name: string; phone: string }) {
   if (!firestore) throw new Error("A conexão Firebase da PWA não está disponível.");
   await addDoc(collection(firestore, "acessos_pendentes"), {

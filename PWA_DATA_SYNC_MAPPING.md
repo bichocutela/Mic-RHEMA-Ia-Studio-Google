@@ -56,4 +56,10 @@ Na aba Bíblia, foi identificado que a interface anterior apenas alterava o nome
 
 A versão publicada foi aberta com o cache da release `6f2b89c`. Gênesis 1 carregou os 31 versículos completos retornados pela API, substituindo a versão anterior de cinco versículos fixos.
 
+Para a etapa IBR, o Android foi mapeado como fonte de verdade: a coleção `ibr_courses` contém cursos com `id`, `title`, `theme`, `description`, `imageUrl` e lista `chapters`. Cada aula contém `id`, `title`, `description`, `durationMinutes`, `type`, `videoUrl`, `audioUrl`, `textContent`, `isYoutube`/`youtube` e `youtubeId`. O aluno com `isIbr` vê o progresso e os módulos em sequência; cada progresso guarda `courseId`, `chapterId`, `lastPositionSeconds`, `totalDurationSeconds` e `isCompleted`. A consulta pública confirmou cursos reais como “Introdução à Teologia Sistemática” e “História da Igreja Cristã”, com aulas de vídeo, áudio e texto.
+
+Na prévia, a rota “Cursos IBR” foi aberta sem sessão e exibiu corretamente o bloqueio para alunos ainda não matriculados. O formulário de entrada permanece o mesmo da PWA; após a autenticação de um membro com `isIbr`, a nova tela usa os cursos e o progresso reais, sem conteúdo de demonstração.
+
+A validação autenticada com a sessão administrativa confirmou a leitura em tempo real dos três módulos existentes: “Introdução à Teologia Sistemática”, “História da Igreja Cristã” e “Doutrina do Rhema - Fé Prática”. O primeiro módulo abriu as três aulas reais com título, descrição, tipo e duração; nenhuma aula foi iniciada durante o teste, preservando o progresso real.
+
 > A PWA deve renderizar primeiro os itens de `carousel_items`, pois é a fonte editada pelo painel administrativo Android. Nenhum banner fixo deve ser mantido como conteúdo principal quando houver dados sincronizados disponíveis.

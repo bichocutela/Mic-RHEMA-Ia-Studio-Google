@@ -238,6 +238,7 @@
 - [x] Etapa 9 — carregar automaticamente miniaturas do YouTube nos vídeos da área de Mídia da PWA, preservando capas cadastradas como prioridade.
 - [x] Etapa 10 — liberar o envio público de Pedidos de Oração na PWA, sem exigir login ou solicitação de acesso.
 - [x] Etapa 11 — diagnosticar e corrigir o fluxo que impede o funcionamento da aba Bíblia na PWA.
+- [x] Etapa 12 — diagnosticar e corrigir o fluxo da aba IBR na PWA com base no funcionamento Android.
 
 ## Isolamento obrigatório da PWA
 
