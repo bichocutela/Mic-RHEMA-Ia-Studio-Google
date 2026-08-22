@@ -271,3 +271,4 @@
 - [ ] Adicionar controles globais para expandir tudo e recolher tudo, como no painel administrativo.
 - [ ] Remover a opção de brilho interno e impedir qualquer alteração de brilho do dispositivo no leitor bíblico.
 - [ ] Validar, fazer commit, push e acompanhar o build Android até verde.
+- [x] Correção concluída: ao clicar em Área ADM sem sessão, exibir novamente o login administrativo `admin` / `igreja10` antes do painel.
