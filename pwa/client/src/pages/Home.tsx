@@ -127,7 +127,7 @@ function useLiveCollection(collectionName: string, fallback: ContentCard[]) {
   useEffect(() => {
     if (!firebaseEnabled) return;
     return listenToCollection<CollectionItem>(collectionName, (remote) => {
-      if (remote.length) setItems(remote);
+      setItems(remote);
     }, () => undefined);
   }, [collectionName]);
   return items;

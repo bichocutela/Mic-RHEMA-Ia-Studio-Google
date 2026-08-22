@@ -272,3 +272,5 @@
 - [ ] Remover a opção de brilho interno e impedir qualquer alteração de brilho do dispositivo no leitor bíblico.
 - [ ] Validar, fazer commit, push e acompanhar o build Android até verde.
 - [x] Correção concluída: ao clicar em Área ADM sem sessão, exibir novamente o login administrativo `admin` / `igreja10` antes do painel.
+- [x] Configurar e validar o login PWA do ADM com usuário `admin`, senha `igreja10` e abertura do painel administrativo equivalente ao Android.
+- [x] Verificar sincronização em tempo real de alunos e cursos IBR no painel ADM, sem alterar dados reais.
