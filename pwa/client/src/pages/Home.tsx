@@ -18,7 +18,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { signInPwa, type PwaSession } from "@/lib/pwa-auth";
 import { listenToForegroundPush, sendPwaPush, subscribeToPwaPush } from "@/lib/push";
 
-type CollectionItem = ContentCard & { description?: string; imageUrl?: string; thumbnailUrl?: string; coverUrl?: string; name?: string; isApproved?: boolean; approved?: boolean; isIbr?: boolean; content?: string; summary?: string; book?: string; chapter?: number; verse?: number; category?: string; intensity?: number; featured?: boolean; publishedAt?: number; date?: string; day?: string; dayShort?: string; time?: string };
+type CollectionItem = ContentCard & { description?: string; imageUrl?: string; thumbnailUrl?: string; coverUrl?: string; name?: string; isApproved?: boolean; approved?: boolean; isIbr?: boolean; content?: string; summary?: string; book?: string; chapter?: number; verse?: number; category?: string; intensity?: number; featured?: boolean; publishedAt?: number; date?: string; day?: string; dayShort?: string; time?: string; videoUrl?: string; audioUrl?: string; bookUrl?: string; mediaUrl?: string; author?: string; artist?: string; mediaType?: "Vídeo" | "Áudio" | "Livro" };
 type CarouselBanner = { id: string; imageUrl?: string; title?: string; description?: string; tag?: string; eventDate?: string; eventInfo?: string };
 type HomeBannersFallback = { urls?: string[] };
 type AppBannerSettings = { bannerRotationSeconds?: number };
@@ -68,6 +68,29 @@ function formatServiceDate(item: CollectionItem) {
 
 function nextServices(items: CollectionItem[]) {
   return items.filter((item) => item.approved !== false && item.isApproved !== false).slice().sort((left, right) => serviceScheduleDate(left).getTime() - serviceScheduleDate(right).getTime()).slice(0, 3);
+}
+
+function mediaUrl(item: CollectionItem) {
+  return item.videoUrl || item.audioUrl || item.bookUrl || item.mediaUrl || "";
+}
+
+function isApprovedMedia(item: CollectionItem) {
+  return item.approved !== false && item.isApproved !== false;
+}
+
+function latestMedia(videos: CollectionItem[], audios: CollectionItem[], books: CollectionItem[]) {
+  const byIdDesc = (items: CollectionItem[]) => items.filter(isApprovedMedia).slice().sort((left, right) => Number(right.id) - Number(left.id)).slice(0, 3);
+  return [
+    ...byIdDesc(videos).map((item) => ({ ...item, tag: "Vídeo", mediaType: "Vídeo" as const })),
+    ...byIdDesc(audios).map((item) => ({ ...item, tag: "Áudio", mediaType: "Áudio" as const })),
+    ...byIdDesc(books).map((item) => ({ ...item, tag: "Livro", mediaType: "Livro" as const })),
+  ];
+}
+
+function openMedia(item: CollectionItem) {
+  const url = mediaUrl(item);
+  if (!url) { toast.message("Este conteúdo ainda não possui um link de abertura."); return; }
+  window.open(url, "_blank", "noopener,noreferrer");
 }
 
 function useLiveCollection(collectionName: string, fallback: ContentCard[]) {
@@ -131,7 +154,9 @@ function HorizontalCards({ items, onOpen, compact = false }: { items: Collection
 
 function HomeView({ onNavigate }: { onNavigate: (view: AppView) => void }) {
   const news = useLiveCollection("bible_news", sampleNews);
-  const media = useLiveCollection("conteudos_videos", sampleMedia);
+  const videos = useLiveCollection("conteudos_videos", sampleMedia);
+  const audios = useLiveCollection("conteudos_audios", []);
+  const books = useLiveCollection("conteudos_books", []);
   const services = useLiveCollection("cultos_agenda", []);
   const [liveBanners, setLiveBanners] = useState<CarouselBanner[]>([]);
   const legacyHomeBanners = useLiveDocument<HomeBannersFallback>("settings", "home_banners");
@@ -164,6 +189,7 @@ function HomeView({ onNavigate }: { onNavigate: (view: AppView) => void }) {
     return (featured.length ? featured : news).slice().sort((left, right) => (right.publishedAt || 0) - (left.publishedAt || 0)).slice(0, 5);
   }, [news]);
   const upcomingServices = useMemo(() => nextServices(services), [services]);
+  const media = useMemo(() => latestMedia(videos, audios, books), [videos, audios, books]);
   return <section className="android-home">
     <header className="android-home-greeting"><h1>Seja bem-vindo à Rhema</h1><p>Que a paz do Senhor esteja com você</p></header>
     <section className="android-banner-wrap" aria-label="Destaques da igreja">
@@ -183,7 +209,7 @@ function HomeView({ onNavigate }: { onNavigate: (view: AppView) => void }) {
     <button className="android-devotional-card" onClick={() => onNavigate("devotionals")}><span><small>DEVOCIONAL DIÁRIO</small><strong>A presença de Deus no caminho de hoje</strong><em>Leia, reflita e continue firme na Palavra.</em></span><span className="android-read-link">Ler <ChevronRight size={17}/></span></button>
     <section className="android-home-section"><SectionHeading title="Notícias Bíblicas" action="Ver todas" onAction={() => onNavigate("news")} /><div className="android-horizontal-list">{latestNews.map((item) => <button className="android-news-card" key={item.id} onClick={() => setExpandedItem(item)}><img src={contentImage(item)} alt=""/><span><strong>{item.title || item.name}</strong><small>{item.category || item.tag || "Notícia bíblica"}</small><em>{newsReference(item)}</em></span></button>)}</div></section>
     <section className="android-home-section"><SectionHeading title="Próximos Cultos" action="Ver" onAction={() => onNavigate("cultos")} /><div className="android-horizontal-list">{upcomingServices.map((item) => { const date = formatServiceDate(item); return <button className="android-service-card" key={item.id} onClick={() => setSelectedService(item)}><span><small>{date.day}</small><b>{date.number}</b></span><em><strong>{item.title || "Culto"}</strong><small>{item.time || "Horário a confirmar"}</small></em></button>; })}</div></section>
-    <section className="android-home-section"><SectionHeading title="Mídia" action="Ver todas" onAction={() => onNavigate("media")} /><div className="android-horizontal-list">{media.slice(0, 5).map((item) => <button className="android-media-card" key={item.id} onClick={() => setExpandedItem(item)}><img src={contentImage(item)} alt=""/><Play size={18}/><strong>{item.title || item.name}</strong><small>{item.subtitle || "Vídeo"}</small></button>)}</div></section>
+    <section className="android-home-section"><SectionHeading title="Mídia" action="Ver todas" onAction={() => onNavigate("media")} /><div className="android-horizontal-list">{media.map((item) => <button className="android-media-card" key={`${item.mediaType}-${item.id}`} onClick={() => openMedia(item)}><img src={contentImage(item)} alt=""/>{item.mediaType === "Vídeo" ? <Video size={18}/> : item.mediaType === "Áudio" ? <Headphones size={18}/> : <BookOpen size={18}/>}<strong>{item.title || item.name}</strong><small>{item.mediaType}</small></button>)}</div></section>
     <InstallCard />
     {moodOpen && <div className="android-sheet-backdrop" onMouseDown={() => setMoodOpen(false)}><section className="android-mood-sheet" onMouseDown={(event) => event.stopPropagation()}><button className="dialog-close" onClick={() => setMoodOpen(false)}><X size={19}/></button><h2>Como está seu coração hoje?</h2><p>Escolha uma opção para encontrar uma leitura adequada para este momento.</p><div>{[["😊", "Feliz"], ["😟", "Ansioso"], ["😔", "Triste"], ["🙏", "Preciso de esperança"], ["😌", "Em paz"], ["😤", "Irritado"]].map(([emoji, label]) => <button key={label} onClick={() => { setMoodOpen(false); onNavigate("plans"); toast.message(`Plano de ${label.toLowerCase()} selecionado.`); }}><span>{emoji}</span>{label}</button>)}</div></section></div>}
     {selectedEventInfo && <div className="android-sheet-backdrop" onMouseDown={() => setSelectedEventInfo(null)}><section className="android-event-sheet" onMouseDown={(event) => event.stopPropagation()}><button className="dialog-close" onClick={() => setSelectedEventInfo(null)}><X size={19}/></button><p>DESTAQUE DA IGREJA</p><h2>Informações do evento</h2><div>{selectedEventInfo}</div></section></div>}
@@ -221,12 +247,16 @@ function NewsView() {
 }
 
 function MediaView() {
-  const items = useLiveCollection("conteudos_videos", sampleMedia);
+  const videos = useLiveCollection("conteudos_videos", sampleMedia);
+  const audios = useLiveCollection("conteudos_audios", []);
+  const books = useLiveCollection("conteudos_books", []);
   const [filter, setFilter] = useState("Tudo");
-  const groups = ["Tudo", "Vídeos", "Áudios", "Livros"];
-  return <section className="page-pad"><PageIntro eyebrow="MÍDIA" title="Conteúdo para acompanhar sua semana" text="Vídeos, áudios e leituras reunidos para continuar perto." />
-    <div className="filter-pills">{groups.map((group) => <button className={filter === group ? "selected" : ""} onClick={() => setFilter(group)} key={group}>{group}</button>)}</div>
-    <div className="media-grid">{items.map((item, index) => <article key={item.id} className="media-tile"><img src={contentImage(item)} alt=""/><span>{index % 3 === 0 ? <Video size={15}/> : index % 3 === 1 ? <Headphones size={15}/> : <FileText size={15}/>}{item.tag || "MÍDIA"}</span><div><h3>{item.title || item.name}</h3><p>{item.subtitle || item.description || "Disponível para você"}</p></div><button onClick={() => toast.message("O conteúdo será aberto nesta PWA.")}><Play size={16} fill="currentColor"/></button></article>)}</div>
+  const groups = ["Tudo", "Vídeo", "Áudio", "Livro"];
+  const items = useMemo(() => latestMedia(videos, audios, books).sort((left, right) => Number(right.id) - Number(left.id)), [videos, audios, books]);
+  const filtered = filter === "Tudo" ? items : items.filter((item) => item.mediaType === filter);
+  return <section className="page-pad"><PageIntro eyebrow="MÍDIA" title="Conteúdo para acompanhar sua semana" text="Vídeos, áudios e livros cadastrados pela igreja aparecem aqui em tempo real." />
+    <div className="filter-pills">{groups.map((group) => <button className={filter === group ? "selected" : ""} onClick={() => setFilter(group)} key={group}>{group === "Tudo" ? group : `${group}s`}</button>)}</div>
+    <div className="media-grid">{filtered.map((item) => <article key={`${item.mediaType}-${item.id}`} className="media-tile"><img src={contentImage(item)} alt=""/><span>{item.mediaType === "Vídeo" ? <Video size={15}/> : item.mediaType === "Áudio" ? <Headphones size={15}/> : <FileText size={15}/>} {item.mediaType}</span><div><h3>{item.title || item.name}</h3><p>{item.description || item.artist || item.author || "Disponível para você"}</p></div><button onClick={() => openMedia(item)} aria-label={`Abrir ${item.title || item.name}`}><Play size={16} fill="currentColor"/></button></article>)}</div>
   </section>;
 }
 

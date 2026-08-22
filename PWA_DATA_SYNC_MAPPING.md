@@ -33,4 +33,10 @@ Na prévia de cultos, a Home mostrou a agenda real de `cultos_agenda`: Culto de 
 
 Durante a validação automatizada, o cartão do culto foi identificado corretamente na tela. O acionamento pelo centro real do cartão abriu o painel com os dados cadastrados para o Culto de Celebração, incluindo data, horário e descrição. A interação foi validada antes da publicação.
 
+Na prévia da etapa de Mídia, a Home passou a reunir conteúdos reais de `conteudos_videos`, `conteudos_audios` e `conteudos_books`: vídeos recentes, o áudio “Você Não é o Centro” e livros como “Linguas”, “Quando Não Dá Mais” e “Nascido Escravo”. Os cartões usam as capas públicas já cadastradas no Supabase ou Google Drive.
+
+A ação “Ver todas” da seção Mídia foi localizada na área de interação da Home para a validação da lista completa e dos filtros por tipo antes da publicação.
+
+A tela completa de Mídia foi aberta na prévia com os itens reais de todas as coleções. O filtro de Áudios foi testado e reduziu a lista corretamente ao conteúdo “Você Não é o Centro”, do Diácono Sandro.
+
 > A PWA deve renderizar primeiro os itens de `carousel_items`, pois é a fonte editada pelo painel administrativo Android. Nenhum banner fixo deve ser mantido como conteúdo principal quando houver dados sincronizados disponíveis.
