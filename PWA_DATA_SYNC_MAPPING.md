@@ -43,4 +43,8 @@ Para o Devocional Diário, o Android usa `devocionais` com os campos `id`, `titl
 
 Na prévia, a PWA selecionou o devocional real “CRESCIMENTO ESPIRITUAL”, datado de `22-08-2026`. O toque no cartão abriu o leitor com o versículo de Efésios 4.14,15, a referência e o texto integral cadastrados no Firebase.
 
+Para os Planos de Leitura, a PWA passou a gerar o catálogo diretamente de `PlansData.kt` do Android. A prévia confirmou as 16 categorias oficiais e 592 temas, incluindo Alegria, Depressão, Estresse, Medo, Inveja, Raiva, Paz, Paciência, Perda, Ansiedade, Orgulho, Dúvida, Esperança, Amor, Tentação e Cura.
+
+A categoria Alegria e o tema “A Essência da Alegria” foram abertos na prévia. A PWA exibiu o versículo João 3:16, o texto integral e a capa definidos no mesmo `PlansData.kt` do Android.
+
 > A PWA deve renderizar primeiro os itens de `carousel_items`, pois é a fonte editada pelo painel administrativo Android. Nenhum banner fixo deve ser mantido como conteúdo principal quando houver dados sincronizados disponíveis.

@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "pwa/**"
+      - "app/src/main/java/com/aistudio/micrhema/PlansData.kt"
       - ".github/workflows/pwa-pages.yml"
   workflow_dispatch:
 
