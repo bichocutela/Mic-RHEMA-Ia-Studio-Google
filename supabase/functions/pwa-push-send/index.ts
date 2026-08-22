@@ -31,9 +31,8 @@ async function requireAdmin(request: Request) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ idToken }),
   });
-  const payload = await response.json() as { users?: Array<{ customAttributes?: string }> };
-  const claims = JSON.parse(payload.users?.[0]?.customAttributes || "{}");
-  if (!response.ok || claims.isAdmin !== true) throw new Error("Acesso administrativo obrigatório.");
+  const payload = await response.json() as { users?: Array<{ localId?: string }> };
+  if (!response.ok || payload.users?.[0]?.localId !== "admin") throw new Error("Acesso administrativo obrigatório.");
 }
 
 async function googleAccessToken(account: ServiceAccount) {
