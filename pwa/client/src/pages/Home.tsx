@@ -13,12 +13,15 @@ import {
 import { PwaShell, SectionHeading, type AppView } from "@/components/PwaShell";
 import { InstallCard } from "@/components/InstallCard";
 import { ASSETS, bibleBooks, genesisVerses, sampleMedia, sampleNews, settingsSections, type ContentCard } from "@/lib/pwa-data";
-import { approveMemberRequest, createAdminContent, firebaseAuth, firebaseEnabled, listenToCollection, savePwaProfile, submitPendingAccessRequest } from "@/lib/firebase";
+import { approveMemberRequest, createAdminContent, firebaseAuth, firebaseEnabled, listenToCollection, listenToDocument, savePwaProfile, submitPendingAccessRequest } from "@/lib/firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { signInPwa, type PwaSession } from "@/lib/pwa-auth";
 import { listenToForegroundPush, sendPwaPush, subscribeToPwaPush } from "@/lib/push";
 
 type CollectionItem = ContentCard & { description?: string; imageUrl?: string; thumbnailUrl?: string; coverUrl?: string; name?: string; isApproved?: boolean; isIbr?: boolean };
+type CarouselBanner = { id: string; imageUrl?: string; title?: string; description?: string; tag?: string; eventDate?: string; eventInfo?: string };
+type HomeBannersFallback = { urls?: string[] };
+type AppBannerSettings = { bannerRotationSeconds?: number };
 
 const menuItems: Array<{ id: AppView; label: string; note: string; icon: typeof Church }> = [
   { id: "discipulado", label: "Discipulado", note: "PDFs e estudos públicos", icon: BookHeart },
@@ -41,6 +44,12 @@ function useLiveCollection(collectionName: string, fallback: ContentCard[]) {
     }, () => undefined);
   }, [collectionName]);
   return items;
+}
+
+function useLiveDocument<T extends Record<string, unknown>>(collectionName: string, documentName: string) {
+  const [item, setItem] = useState<(T & { id: string }) | null>(null);
+  useEffect(() => listenToDocument<T>(collectionName, documentName, setItem, () => undefined), [collectionName, documentName]);
+  return item;
 }
 
 function AppHeader({ onMenu, onNotifications, session, onProfile }: { onMenu: () => void; onNotifications: () => void; session: PwaSession | null; onProfile: () => void }) {
@@ -88,26 +97,39 @@ function HorizontalCards({ items, onOpen, compact = false }: { items: Collection
 function HomeView({ onNavigate }: { onNavigate: (view: AppView) => void }) {
   const news = useLiveCollection("bible_news", sampleNews);
   const media = useLiveCollection("conteudos_videos", sampleMedia);
+  const [liveBanners, setLiveBanners] = useState<CarouselBanner[]>([]);
+  const legacyHomeBanners = useLiveDocument<HomeBannersFallback>("settings", "home_banners");
+  const appBannerSettings = useLiveDocument<AppBannerSettings>("settings", "app");
   const [expandedItem, setExpandedItem] = useState<CollectionItem | null>(null);
   const [moodOpen, setMoodOpen] = useState(false);
   const [bannerIndex, setBannerIndex] = useState(0);
-  const banners = [
-    { image: ASSETS.hero, tag: "MIC RHEMA", title: "Palavra, comunhão e uma nova semana", description: "Veja os encontros e conteúdos da igreja." },
-    { image: ASSETS.devotional, tag: "DEVOCIONAL", title: "Uma pausa para ouvir a Palavra", description: "Continue sua caminhada de hoje." },
-  ];
+  const [selectedEventInfo, setSelectedEventInfo] = useState<string | null>(null);
+  useEffect(() => listenToCollection<CarouselBanner>("carousel_items", setLiveBanners, () => undefined), []);
+  const bannerDate = new Date().toISOString().slice(0, 10);
+  const banners = useMemo<CarouselBanner[]>(() => {
+    const active = liveBanners.filter((banner) => !banner.eventDate || banner.eventDate >= bannerDate).filter((banner) => Boolean(banner.imageUrl));
+    if (active.length) return active;
+    return (legacyHomeBanners?.urls || []).filter(Boolean).map<CarouselBanner>((imageUrl, index) => ({ id: `legacy-${index}`, imageUrl }));
+  }, [bannerDate, legacyHomeBanners?.urls, liveBanners]);
+  const bannerIds = banners.map((banner) => banner.id).join("|");
+  const bannerRotationMillis = Math.min(12, Math.max(3, Number(appBannerSettings?.bannerRotationSeconds) || 6)) * 1000;
   useEffect(() => {
-    const timer = window.setInterval(() => setBannerIndex((current) => (current + 1) % banners.length), 6500);
+    setBannerIndex((current) => banners.length ? current % banners.length : 0);
+  }, [bannerIds, banners.length]);
+  useEffect(() => {
+    if (banners.length < 2) return;
+    const timer = window.setInterval(() => setBannerIndex((current) => (current + 1) % banners.length), bannerRotationMillis);
     return () => window.clearInterval(timer);
-  }, [banners.length]);
+  }, [bannerIds, bannerRotationMillis, banners.length]);
   const banner = banners[bannerIndex];
   return <section className="android-home">
     <header className="android-home-greeting"><h1>Seja bem-vindo à Rhema</h1><p>Que a paz do Senhor esteja com você</p></header>
     <section className="android-banner-wrap" aria-label="Destaques da igreja">
-      <button className="android-banner-card" onClick={() => toast.message("Os detalhes do evento aparecerão aqui quando forem cadastrados.")}>
-        <img src={banner.image} alt="Destaque MIC Rhema" /><span className="android-banner-shade" />
-        <span className="android-banner-copy"><small>{banner.tag}</small><strong>{banner.title}</strong><em>{banner.description}</em></span>
-      </button>
-      <div className="android-banner-indicators">{banners.map((_, index) => <button aria-label={`Ir para destaque ${index + 1}`} className={index === bannerIndex ? "is-selected" : ""} onClick={() => setBannerIndex(index)} key={index} />)}</div>
+      {banner ? <button className="android-banner-card" onClick={() => banner.eventInfo?.trim() && setSelectedEventInfo(banner.eventInfo)} disabled={!banner.eventInfo?.trim()} aria-label={banner.eventInfo?.trim() ? "Abrir informações do destaque" : "Destaque da igreja"}>
+        <img src={banner.imageUrl} alt={banner.title || "Destaque MIC Rhema"} /><span className="android-banner-shade" />
+        {(banner.tag || banner.title || banner.description) && <span className="android-banner-copy">{banner.tag && <small>{banner.tag}</small>}{banner.title && <strong>{banner.title}</strong>}{banner.description && <em>{banner.description}</em>}</span>}
+      </button> : <div className="android-banner-card android-banner-loading" aria-live="polite"><span>Carregando destaques da igreja…</span></div>}
+      {banners.length > 1 && <div className="android-banner-indicators">{banners.map((item, index) => <button aria-label={`Ir para destaque ${index + 1}`} className={index === bannerIndex ? "is-selected" : ""} onClick={() => setBannerIndex(index)} key={item.id} />)}</div>}
     </section>
     <button className="android-mood-card" onClick={() => setMoodOpen(true)}><span className="android-mood-icon">♡</span><span><strong>Como você está se sentindo hoje?</strong><small>Escolha uma palavra e encontre um plano para este momento.</small></span><ChevronRight size={20} /></button>
     <section className="android-quick-actions" aria-label="Atalhos rápidos">
@@ -122,6 +144,7 @@ function HomeView({ onNavigate }: { onNavigate: (view: AppView) => void }) {
     <section className="android-home-section"><SectionHeading title="Mídia" action="Ver todas" onAction={() => onNavigate("media")} /><div className="android-horizontal-list">{media.slice(0, 5).map((item) => <button className="android-media-card" key={item.id} onClick={() => setExpandedItem(item)}><img src={contentImage(item)} alt=""/><Play size={18}/><strong>{item.title || item.name}</strong><small>{item.subtitle || "Vídeo"}</small></button>)}</div></section>
     <InstallCard />
     {moodOpen && <div className="android-sheet-backdrop" onMouseDown={() => setMoodOpen(false)}><section className="android-mood-sheet" onMouseDown={(event) => event.stopPropagation()}><button className="dialog-close" onClick={() => setMoodOpen(false)}><X size={19}/></button><h2>Como está seu coração hoje?</h2><p>Escolha uma opção para encontrar uma leitura adequada para este momento.</p><div>{[["😊", "Feliz"], ["😟", "Ansioso"], ["😔", "Triste"], ["🙏", "Preciso de esperança"], ["😌", "Em paz"], ["😤", "Irritado"]].map(([emoji, label]) => <button key={label} onClick={() => { setMoodOpen(false); onNavigate("plans"); toast.message(`Plano de ${label.toLowerCase()} selecionado.`); }}><span>{emoji}</span>{label}</button>)}</div></section></div>}
+    {selectedEventInfo && <div className="android-sheet-backdrop" onMouseDown={() => setSelectedEventInfo(null)}><section className="android-event-sheet" onMouseDown={(event) => event.stopPropagation()}><button className="dialog-close" onClick={() => setSelectedEventInfo(null)}><X size={19}/></button><p>DESTAQUE DA IGREJA</p><h2>Informações do evento</h2><div>{selectedEventInfo}</div></section></div>}
     {expandedItem && <ContentDialog item={expandedItem} onClose={() => setExpandedItem(null)} />}
   </section>;
 }

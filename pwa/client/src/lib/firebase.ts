@@ -41,6 +41,21 @@ export function listenToCollection<T extends DocumentData>(
   );
 }
 
+/** PARIDADE ANDROID — escuta documentos de configuração usados também pelo APK, sem escrever no Firebase. */
+export function listenToDocument<T extends DocumentData>(
+  collectionName: string,
+  documentName: string,
+  onData: (item: (T & { id: string }) | null) => void,
+  onError?: (error: Error) => void,
+) {
+  if (!firestore) return () => undefined;
+  return onSnapshot(
+    doc(firestore, collectionName, documentName),
+    (snapshot) => onData(snapshot.exists() ? ({ id: snapshot.id, ...snapshot.data() } as T & { id: string }) : null),
+    (error) => onError?.(error),
+  );
+}
+
 export async function submitPendingAccessRequest(input: { name: string; phone: string }) {
   if (!firestore) throw new Error("A conexão Firebase da PWA não está disponível.");
   await addDoc(collection(firestore, "acessos_pendentes"), {

@@ -216,15 +216,15 @@
 
 ## Paridade Android por etapas
 
-- [ ] Etapa 1 — substituir exclusivamente a logo da PWA pela mesma logo oficial do aplicativo Android e publicar a validação.
+- [x] Etapa 1 — substituir exclusivamente a logo da PWA pela mesma logo oficial do aplicativo Android e publicar a validação no commit `56d2a38`.
 - [ ] Etapa 2 — reproduzir progressivamente, em alterações isoladas, cada tela, opção, mídia, mensagem e detalhe do Android na PWA.
 - [ ] Para cada etapa: validar somente a PWA, salvar, fazer commit, publicar no GitHub Pages e aguardar o resultado antes de seguir.
 - [ ] Não alterar arquivos, build, versão, assinatura ou publicação do aplicativo Android em nenhuma etapa.
 
 ## Sincronização PWA com os dados reais
 
-- [ ] Mapear as coleções e os campos reais que o Android usa para destaques, banners, vídeos, livros, áudios, notícias, cultos e conteúdos.
-- [ ] Substituir os dados fixos da Home PWA por listeners Firebase e URLs públicas do Supabase, com atualização em tempo real.
+- [x] Mapear as coleções e os campos reais que o Android usa para destaques, banners, vídeos, livros, áudios, notícias, cultos e conteúdos.
+- [x] Substituir os dados fixos do carrossel de destaques da Home PWA por listeners Firebase e URLs públicas do Supabase, com atualização em tempo real.
 - [ ] Garantir que alterações administrativas refletidas no Android também apareçam na PWA sem publicação manual adicional.
 
 ## Isolamento obrigatório da PWA
