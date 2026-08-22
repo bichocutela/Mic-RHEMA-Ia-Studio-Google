@@ -236,6 +236,8 @@
 - [x] Etapa 7 — gerar e sincronizar os 16 Planos de Leitura e 592 temas oficiais usados pelo Android.
 - [x] Etapa 8 — sincronizar Pedidos de Oração com a coleção e o fluxo de envio usados pelo Android.
 - [x] Etapa 9 — carregar automaticamente miniaturas do YouTube nos vídeos da área de Mídia da PWA, preservando capas cadastradas como prioridade.
+- [x] Etapa 10 — liberar o envio público de Pedidos de Oração na PWA, sem exigir login ou solicitação de acesso.
+- [ ] Etapa 11 — diagnosticar e corrigir o fluxo que impede o funcionamento da aba Bíblia na PWA.
 
 ## Isolamento obrigatório da PWA
 

@@ -77,17 +77,13 @@ export async function submitPendingAccessRequest(input: { name: string; phone: s
 
 /** PARIDADE ANDROID — grava PrayerRequest com os mesmos campos usados pela PrayerScreen do APK. */
 export async function submitPrayerRequest(input: { name: string; request: string }) {
-  if (!firestore) throw new Error("A conexão Firebase da PWA não está disponível.");
-  const requestRef = doc(collection(firestore, "prayer_requests"));
-  await setDoc(requestRef, {
-    id: requestRef.id,
-    name: input.name.trim(),
-    request: input.request.trim(),
-    date: "Hoje",
-    createdAt: Date.now(),
-    createdAtServer: serverTimestamp(),
-    source: "pwa",
+  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL || "https://cwphbkdtorfpgmnlafqb.supabase.co"}/functions/v1/pwa-prayer-request`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: input.name.trim(), request: input.request.trim() }),
   });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || !payload.ok) throw new Error(payload.error || "Não foi possível enviar o pedido agora.");
 }
 
 export async function savePwaProfile(uid: string, data: Record<string, unknown>) {
