@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { PwaShell, SectionHeading, type AppView } from "@/components/PwaShell";
 import { InstallCard } from "@/components/InstallCard";
-import { ASSETS, bibleBooks, genesisVerses, sampleMedia, sampleNews, settingsSections, type ContentCard } from "@/lib/pwa-data";
+import { ASSETS, bibleBookChapters, bibleBooks, sampleMedia, sampleNews, settingsSections, type ContentCard } from "@/lib/pwa-data";
 import { approveMemberRequest, createAdminContent, firebaseAuth, firebaseEnabled, listenToCollection, listenToDocument, savePwaProfile, submitPendingAccessRequest, submitPrayerRequest } from "@/lib/firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { signInPwa, type PwaSession } from "@/lib/pwa-auth";
@@ -248,21 +248,55 @@ function HomeView({ onNavigate }: { onNavigate: (view: AppView) => void }) {
   </section>;
 }
 
+type BibleVerse = { verse: number; text: string };
+
+function cleanBibleText(text: string) {
+  return text.replace(/<[^>]*>/g, " ").replace(/&nbsp;/gi, " ").replace(/\s+/g, " ").trim();
+}
+
+async function getBibleChapter(book: keyof typeof bibleBookChapters, chapter: number, signal: AbortSignal): Promise<BibleVerse[]> {
+  const bookId = bibleBooks.indexOf(book) + 1;
+  const response = await fetch(`https://bolls.life/get-text/NAA/${bookId}/${chapter}/`, { signal, headers: { Accept: "application/json" } });
+  if (!response.ok) throw new Error("Não foi possível carregar este capítulo.");
+  const payload = await response.json() as Array<{ verse?: unknown; text?: unknown }>;
+  const verses = payload.map((item) => ({ verse: Number(item.verse), text: cleanBibleText(String(item.text || "")) })).filter((item) => Number.isInteger(item.verse) && item.verse > 0 && Boolean(item.text));
+  if (!verses.length) throw new Error("Este capítulo não possui versículos disponíveis agora.");
+  return verses;
+}
+
 function BibleView() {
   const [book, setBook] = useState("Gênesis");
   const [chapter, setChapter] = useState(1);
   const [saved, setSaved] = useState(false);
+  const [verses, setVerses] = useState<BibleVerse[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [reload, setReload] = useState(0);
+  const maxChapter = bibleBookChapters[book as keyof typeof bibleBookChapters];
+  useEffect(() => {
+    const controller = new AbortController();
+    setIsLoading(true);
+    setLoadError("");
+    setVerses([]);
+    getBibleChapter(book as keyof typeof bibleBookChapters, chapter, controller.signal)
+      .then(setVerses)
+      .catch((error: unknown) => { if ((error as { name?: string })?.name !== "AbortError") setLoadError(error instanceof Error ? error.message : "Não foi possível carregar este capítulo."); })
+      .finally(() => { if (!controller.signal.aborted) setIsLoading(false); });
+    return () => controller.abort();
+  }, [book, chapter, reload]);
   return <section className="bible-view">
     <div className="bible-top"><p className="eyebrow">CÓDICE CONTEMPORÂNEO</p><button onClick={() => toast.message("Use a busca para encontrar uma passagem.")}><Search size={17}/> Buscar</button></div>
     <div className="bible-heading"><h1>{book} <span>{chapter}</span></h1><p>Nova Almeida Atualizada</p></div>
-    <div className="book-rail">{bibleBooks.map((name) => <button key={name} onClick={() => { setBook(name); setChapter(1); }} className={book === name ? "chosen" : ""}>{name}</button>)}</div>
-    <div className="chapter-strip" aria-label="Capítulos">{Array.from({ length: book === "Gênesis" ? 12 : 8 }, (_, index) => index + 1).map((number) => <button className={chapter === number ? "current" : ""} onClick={() => setChapter(number)} key={number}>{number}</button>)}</div>
+    <div className="book-rail">{bibleBooks.map((name) => <button key={name} onClick={() => { setBook(name); setChapter(1); setSaved(false); }} className={book === name ? "chosen" : ""}>{name}</button>)}</div>
+    <div className="chapter-strip" aria-label="Capítulos">{Array.from({ length: maxChapter }, (_, index) => index + 1).map((number) => <button className={chapter === number ? "current" : ""} onClick={() => setChapter(number)} key={number}>{number}</button>)}</div>
     <div className="verse-paper">
       <p className="bible-kicker">{book.toUpperCase()} · CAPÍTULO {chapter}</p>
-      {genesisVerses.map((verse, index) => <p className="verse" key={verse}><sup>{index + 1}</sup>{verse}</p>)}
+      {isLoading && <p className="bible-loading">Carregando os versículos…</p>}
+      {!isLoading && loadError && <div className="bible-load-error"><p>{loadError}</p><button className="solid-button" onClick={() => setReload((value) => value + 1)}>Tentar novamente <ArrowRight size={17}/></button></div>}
+      {!isLoading && !loadError && verses.map((verse) => <p className="verse" key={verse.verse}><sup>{verse.verse}</sup>{verse.text}</p>)}
       <button className={`save-passage ${saved ? "saved" : ""}`} onClick={() => { setSaved(!saved); toast.success(saved ? "Passagem removida dos salvos." : "Passagem salva para revisitar."); }}><Heart size={17} fill={saved ? "currentColor" : "none"}/>{saved ? "Salvo" : "Salvar passagem"}</button>
     </div>
-    <div className="chapter-nav"><button onClick={() => setChapter(Math.max(1, chapter - 1))}><ChevronLeft size={18}/> Anterior</button><span>{book} {chapter}</span><button onClick={() => setChapter(chapter + 1)}>Próximo <ChevronRight size={18}/></button></div>
+    <div className="chapter-nav"><button disabled={chapter === 1} onClick={() => setChapter(Math.max(1, chapter - 1))}><ChevronLeft size={18}/> Anterior</button><span>{book} {chapter}</span><button disabled={chapter === maxChapter} onClick={() => setChapter(Math.min(maxChapter, chapter + 1))}>Próximo <ChevronRight size={18}/></button></div>
   </section>;
 }
 
