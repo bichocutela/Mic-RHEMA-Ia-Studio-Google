@@ -9,6 +9,7 @@ on:
       - 'supabase/functions/pwa-auth/**'
       - 'supabase/functions/pwa-push-subscribe/**'
       - 'supabase/functions/pwa-push-send/**'
+      - 'supabase/functions/pwa-prayer-request/**'
       - 'PWA_*.md'
       - 'todo.md'
       - '.github/workflows/pwa-pages.yml'
