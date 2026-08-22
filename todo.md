@@ -205,6 +205,14 @@
 - [x] Implementar o painel administrativo, aprovações e sincronização segura com Firebase e Supabase.
 - [ ] Integrar notificações web do iPhone e publicar a PWA completa pelo GitHub Pages.
 
+## Isolamento obrigatório da PWA
+
+- [ ] Concluir os ajustes pendentes somente em `pwa/`, no workflow `pwa-pages.yml` e nas funções web separadas.
+- [ ] Não modificar arquivos Android, Gradle, Firebase Android, keystore, assinatura, versão ou workflow de APK.
+- [ ] Validar a PWA publicada, instalação iPhone e notificações web sem disparar build nem alterar o aplicativo Android.
+- [ ] Investigar e corrigir a entrega/cache da página pública apenas pela publicação da PWA no GitHub Pages.
+- [ ] Limitar o workflow Android a alterações Android para que commits exclusivos da PWA não gerem APKs, versões ou atualizações no aplicativo.
+
 ## Auditoria da aba Configurações
 
 - [ ] Mapear cada opção da aba Configurações e onde ela é persistida.

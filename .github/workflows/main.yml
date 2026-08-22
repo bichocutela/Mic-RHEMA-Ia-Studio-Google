@@ -4,6 +4,15 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - 'pwa/**'
+      - 'supabase/functions/pwa-auth/**'
+      - 'supabase/functions/pwa-push-subscribe/**'
+      - 'supabase/functions/pwa-push-send/**'
+      - 'PWA_*.md'
+      - 'todo.md'
+      - '.github/workflows/pwa-pages.yml'
+      - '.github/workflows/main.yml'
   workflow_dispatch:
 
 permissions:

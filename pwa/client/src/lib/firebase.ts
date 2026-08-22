@@ -11,6 +11,7 @@ const firebaseConfig = {
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "mic-rhema.firebaseapp.com",
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "mic-rhema",
   appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:894363387794:web:f8010218d4f6c6e085234b",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "894363387794",
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "mic-rhema.firebasestorage.app",
 };
 
@@ -18,7 +19,7 @@ export const firebaseEnabled = Boolean(
   firebaseConfig.apiKey && firebaseConfig.authDomain && firebaseConfig.projectId && firebaseConfig.appId,
 );
 
-const firebaseApp = firebaseEnabled
+export const firebaseApp = firebaseEnabled
   ? getApps().length
     ? getApp()
     : initializeApp(firebaseConfig)

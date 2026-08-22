@@ -28,4 +28,11 @@ O console do navegador não reportou erro de runtime, Firebase ou autenticação
 
 O GitHub Pages foi configurado para publicar por GitHub Actions. O workflow de publicação foi validado com sucesso no run `32556187029`, que compilou a tipagem, gerou o artefato estático e publicou em `https://bichocutela.github.io/Mic-RHEMA-Ia-Studio-Google/`.
 
-A primeira navegação após a publicação pode entregar por alguns minutos o HTML anterior do CDN do GitHub Pages, cujo cabeçalho informa cache de até 600 segundos. A URL com parâmetro de versão, `https://bichocutela.github.io/Mic-RHEMA-Ia-Studio-Google/?release=139bfccc`, carregou a tela inicial completa, com os dados Firebase e os ativos Supabase. O service worker foi atualizado para a versão `v2`, passando a remover caches antigos nas próximas ativações.
+A primeira navegação após a publicação pode entregar por alguns minutos o HTML anterior do CDN do GitHub Pages, cujo cabeçalho informa cache de até 600 segundos. A URL com parâmetro de versão, `https://bichocutela.github.io/Mic-RHEMA-Ia-Studio-Google/?release=139bfccc`, carregou a tela inicial completa, com os dados Firebase e os ativos Supabase. O service worker foi atualizado para a versão `v3`, passando a remover caches antigos nas próximas ativações.
+
+## Notificações Web Push
+
+- O par de chaves Web Push foi gerado no Firebase Cloud Messaging do projeto `mic-rhema` em 22 de agosto de 2026 e a chave pública foi configurada somente no cliente PWA.
+- A PWA solicita autorização exclusivamente a partir do toque no sino do cabeçalho. Em iPhones, ela orienta a instalação pela Tela de Início antes da solicitação, conforme a exigência do Safari.
+- As funções Supabase `pwa-push-subscribe` e `pwa-push-send` estão ativas. A primeira armazena o token Web Push de forma deduplicada no Firestore; a segunda exige token Firebase com a claim administrativa antes de enviar um aviso a inscritos da PWA.
+- Os testes HTTP controlados confirmaram a validação de token inválido (`400`) na inscrição e o bloqueio de envio sem credencial administrativa (`403`). O envio real fica pendente da inscrição de um dispositivo PWA publicado, para evitar disparar notificações sem consentimento.

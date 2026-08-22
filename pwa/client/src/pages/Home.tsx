@@ -16,6 +16,7 @@ import { ASSETS, bibleBooks, genesisVerses, sampleMedia, sampleNews, settingsSec
 import { approveMemberRequest, createAdminContent, firebaseAuth, firebaseEnabled, listenToCollection, savePwaProfile, submitPendingAccessRequest } from "@/lib/firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { signInPwa, type PwaSession } from "@/lib/pwa-auth";
+import { listenToForegroundPush, sendPwaPush, subscribeToPwaPush } from "@/lib/push";
 
 type CollectionItem = ContentCard & { description?: string; imageUrl?: string; thumbnailUrl?: string; coverUrl?: string; name?: string; isApproved?: boolean; isIbr?: boolean };
 
@@ -42,7 +43,7 @@ function useLiveCollection(collectionName: string, fallback: ContentCard[]) {
   return items;
 }
 
-function AppHeader({ onMenu, session, onProfile }: { onMenu: () => void; session: PwaSession | null; onProfile: () => void }) {
+function AppHeader({ onMenu, onNotifications, session, onProfile }: { onMenu: () => void; onNotifications: () => void; session: PwaSession | null; onProfile: () => void }) {
   return (
     <header className="app-header">
       <button className="brand-lockup" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} aria-label="MIC Rhema — início">
@@ -50,7 +51,7 @@ function AppHeader({ onMenu, session, onProfile }: { onMenu: () => void; session
         <span><b>MIC</b> RHEMA<small>IGREJA EM MOVIMENTO</small></span>
       </button>
       <div className="header-actions">
-        <button className="icon-button" aria-label="Notificações" onClick={() => toast.message("As novidades chegam por aviso quando estiverem ativadas.")}><Bell size={19} /></button>
+        <button className="icon-button" aria-label="Ativar notificações" onClick={onNotifications}><Bell size={19} /></button>
         <button className="avatar-button" aria-label="Abrir perfil" onClick={onProfile}>{session ? session.name.slice(0, 1).toUpperCase() : <Menu size={19} />}</button>
         <button className="mobile-menu-button" aria-label="Abrir menu" onClick={onMenu}><Menu size={20} /></button>
       </div>
@@ -191,13 +192,13 @@ function AdminView({ session, onLogin }: { session: PwaSession | null; onLogin: 
   const cards = [["Solicitações", String(pending.filter((item) => item.isApproved !== true).length), Users], ["Conteúdos ativos", String(content.length), ImageIcon], ["Alunos IBR", String(pending.filter((item) => item.isIbr === true).length), School], ["Painel", "Abrir", LayoutDashboard]] as const;
   return <section className="page-pad admin-view"><PageIntro eyebrow="ÁREA ADM" title="Tudo em ordem para servir melhor" text="Os dados são sincronizados em tempo real com o aplicativo Android." />
     <div className="admin-stats">{cards.map(([label, value, Icon]) => <button key={label} onClick={() => toast.message(`${label}: conectando aos dados reais.`)}><Icon size={19}/><strong>{value}</strong><span>{label}</span></button>)}</div>
-    <section className="admin-work"><p className="eyebrow">GESTÃO RÁPIDA</p><h2>O que você precisa fazer agora?</h2><button onClick={approveFirst}><Users size={20}/><span>Aprovar membros e acessos</span><ChevronRight size={18}/></button><button onClick={() => setShowCreate(true)}><Plus size={20}/><span>Adicionar conteúdo</span><ChevronRight size={18}/></button><button onClick={() => toast.message("As seções do painel serão abertas de forma recolhível.")}><Settings2 size={20}/><span>Configurar aparência e abas</span><ChevronRight size={18}/></button></section>{showCreate && <AdminContentDialog onClose={() => setShowCreate(false)} />}
+    <section className="admin-work"><p className="eyebrow">GESTÃO RÁPIDA</p><h2>O que você precisa fazer agora?</h2><button onClick={approveFirst}><Users size={20}/><span>Aprovar membros e acessos</span><ChevronRight size={18}/></button><button onClick={() => setShowCreate(true)}><Plus size={20}/><span>Adicionar conteúdo</span><ChevronRight size={18}/></button><button onClick={() => toast.message("As seções do painel serão abertas de forma recolhível.")}><Settings2 size={20}/><span>Configurar aparência e abas</span><ChevronRight size={18}/></button></section>{showCreate && <AdminContentDialog session={session} onClose={() => setShowCreate(false)} />}
   </section>;
 }
 
-function AdminContentDialog({ onClose }: { onClose: () => void }) {
+function AdminContentDialog({ session, onClose }: { session: PwaSession; onClose: () => void }) {
   const [title, setTitle] = useState(""); const [description, setDescription] = useState(""); const [mediaUrl, setMediaUrl] = useState(""); const [busy, setBusy] = useState(false);
-  const publish = async (event: React.FormEvent) => { event.preventDefault(); setBusy(true); try { await createAdminContent({ collectionName: "conteudos_videos", title, description, mediaUrl }); toast.success("Conteúdo publicado e sincronizado."); onClose(); } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível publicar."); } finally { setBusy(false); } };
+  const publish = async (event: React.FormEvent) => { event.preventDefault(); setBusy(true); try { await createAdminContent({ collectionName: "conteudos_videos", title, description, mediaUrl }); try { const result = await sendPwaPush({ title: `Foi adicionado o vídeo: ${title.trim()}`, body: description.trim() || "Abra o MIC Rhema para assistir.", link: "https://bichocutela.github.io/Mic-RHEMA-Ia-Studio-Google/" }); toast.success(`Conteúdo publicado e aviso enviado para ${result.sent} PWA(s).`); } catch (notificationError) { toast.message(notificationError instanceof Error ? notificationError.message : "Conteúdo publicado; o aviso poderá ser enviado depois."); } onClose(); } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível publicar."); } finally { setBusy(false); } };
   return <div className="content-dialog-backdrop"><form className="auth-dialog" onSubmit={publish}><button className="dialog-close" type="button" onClick={onClose}><X size={19}/></button><p className="eyebrow">NOVO CONTEÚDO</p><h2>Publicar em mídia</h2><p>O conteúdo aparece na PWA e no app Android pelo Firestore.</p><label>Título<input value={title} onChange={(event) => setTitle(event.target.value)} required placeholder="Nome do conteúdo"/></label><label>Descrição<input value={description} onChange={(event) => setDescription(event.target.value)} required placeholder="Breve descrição"/></label><label>URL da capa (opcional)<input value={mediaUrl} onChange={(event) => setMediaUrl(event.target.value)} placeholder="https://..."/></label><button className="solid-button" disabled={busy}>{busy ? "Publicando…" : "Publicar conteúdo"}<ArrowRight size={17}/></button></form></div>;
 }
 
@@ -227,10 +228,25 @@ export default function Home() {
       setSession((current) => current || { uid: user.uid, name: "Membro MIC Rhema", isAdmin: claims.isAdmin === true, isIbr: claims.isIbr === true });
     });
   }, []);
+  useEffect(() => {
+    let unsubscribe: () => void = () => undefined;
+    listenToForegroundPush((payload) => toast.message(payload.notification?.title || "MIC Rhema", { description: payload.notification?.body || "Você recebeu uma novidade." }))
+      .then((cleanup) => { unsubscribe = cleanup; })
+      .catch(() => undefined);
+    return () => unsubscribe();
+  }, []);
   const persistSession = (next: PwaSession) => { localStorage.setItem("mic-rhema-pwa-session", JSON.stringify(next)); setSession(next); };
+  const enableNotifications = async () => {
+    try {
+      await subscribeToPwaPush();
+      toast.success("Avisos ativados. Você receberá novidades mesmo com a PWA fechada.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível ativar os avisos agora.");
+    }
+  };
   const logout = async () => { if (firebaseAuth) await signOut(firebaseAuth); localStorage.removeItem("mic-rhema-pwa-session"); setSession(null); setView("home"); toast.message("Você saiu da sua conta."); };
   const viewComponent = useMemo(() => {
     if (view === "bible") return <BibleView />; if (view === "media") return <MediaView />; if (view === "ibr") return <IbrView session={session} onLogin={() => setShowLogin(true)} />; if (view === "menu") return <MenuView session={session} onNavigate={setView} onLogin={() => setShowLogin(true)} />; if (view === "profile") return <ProfileView session={session} onLogin={() => setShowLogin(true)} onLogout={logout} />; if (view === "settings") return <SettingsView session={session} />; if (view === "admin") return <AdminView session={session} onLogin={() => setShowLogin(true)} />; if (view === "discipulado") return <DiscipuladoView />; if (view === "cultos") return <CultosView />; if (view === "plans") return <PlansView />; return <HomeView onNavigate={setView} />;
   }, [view, session]);
-  return <PwaShell active={["profile", "settings", "admin", "discipulado", "cultos", "plans"].includes(view) ? "menu" : view} onNavigate={setView}><AppHeader onMenu={() => setView("menu")} session={session} onProfile={() => session ? setView("profile") : setShowLogin(true)} />{viewComponent}{showLogin && <SignInDialog onClose={() => setShowLogin(false)} onSuccess={persistSession} />}</PwaShell>;
+  return <PwaShell active={["profile", "settings", "admin", "discipulado", "cultos", "plans"].includes(view) ? "menu" : view} onNavigate={setView}><AppHeader onMenu={() => setView("menu")} onNotifications={enableNotifications} session={session} onProfile={() => session ? setView("profile") : setShowLogin(true)} />{viewComponent}{showLogin && <SignInDialog onClose={() => setShowLogin(false)} onSuccess={persistSession} />}</PwaShell>;
 }
