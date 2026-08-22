@@ -203,15 +203,16 @@
 - [x] Implementar os módulos públicos: início, notícias, Bíblia, mídia, cultos, discipulado e planos.
 - [x] Implementar perfil, avatares, emblemas, preferências, IBR e solicitações de acesso.
 - [x] Implementar o painel administrativo, aprovações e sincronização segura com Firebase e Supabase.
-- [ ] Integrar notificações web do iPhone e publicar a PWA completa pelo GitHub Pages.
+- [x] Integrar notificações web do iPhone e publicar a PWA completa pelo GitHub Pages.
+- [ ] Validar em um iPhone instalado: autorizar o sino de notificações e conferir o primeiro aviso real enviado pelo painel ADM.
 
 ## Isolamento obrigatório da PWA
 
-- [ ] Concluir os ajustes pendentes somente em `pwa/`, no workflow `pwa-pages.yml` e nas funções web separadas.
-- [ ] Não modificar arquivos Android, Gradle, Firebase Android, keystore, assinatura, versão ou workflow de APK.
-- [ ] Validar a PWA publicada, instalação iPhone e notificações web sem disparar build nem alterar o aplicativo Android.
-- [ ] Investigar e corrigir a entrega/cache da página pública apenas pela publicação da PWA no GitHub Pages.
-- [ ] Limitar o workflow Android a alterações Android para que commits exclusivos da PWA não gerem APKs, versões ou atualizações no aplicativo.
+- [x] Concluir os ajustes pendentes somente em `pwa/`, no workflow `pwa-pages.yml` e nas funções web separadas.
+- [x] Não modificar arquivos Android, Gradle, Firebase Android, keystore, assinatura, versão ou workflow de APK.
+- [x] Validar a PWA publicada e o cache atualizado sem disparar build nem alterar o aplicativo Android.
+- [x] Investigar e corrigir a entrega/cache da página pública apenas pela publicação da PWA no GitHub Pages.
+- [x] Limitar o workflow Android a alterações Android para que commits exclusivos da PWA não gerem APKs, versões ou atualizações no aplicativo.
 
 ## Auditoria da aba Configurações
 
