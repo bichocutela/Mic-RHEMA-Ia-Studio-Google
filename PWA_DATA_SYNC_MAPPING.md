@@ -39,4 +39,8 @@ A ação “Ver todas” da seção Mídia foi localizada na área de interaçã
 
 A tela completa de Mídia foi aberta na prévia com os itens reais de todas as coleções. O filtro de Áudios foi testado e reduziu a lista corretamente ao conteúdo “Você Não é o Centro”, do Diácono Sandro.
 
+Para o Devocional Diário, o Android usa `devocionais` com os campos `id`, `title`, `date`, `verse`, `verseReference`, `content`, `isApproved`/`approved` e `timestamp`. A leitura selecionada é a de data igual ao dia atual no formato `dd/MM/yyyy`; se não existir, o aplicativo usa a mais recente por `timestamp`. A PWA seguirá a mesma regra, preservando também os formatos legados de data encontrados na coleção.
+
+Na prévia, a PWA selecionou o devocional real “CRESCIMENTO ESPIRITUAL”, datado de `22-08-2026`. O toque no cartão abriu o leitor com o versículo de Efésios 4.14,15, a referência e o texto integral cadastrados no Firebase.
+
 > A PWA deve renderizar primeiro os itens de `carousel_items`, pois é a fonte editada pelo painel administrativo Android. Nenhum banner fixo deve ser mantido como conteúdo principal quando houver dados sincronizados disponíveis.

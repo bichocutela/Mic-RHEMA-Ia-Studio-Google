@@ -232,6 +232,7 @@
 - [x] Etapa 3 — sincronizar Notícias Bíblicas (`bible_news`) e abrir o conteúdo real selecionado.
 - [x] Etapa 4 — sincronizar Próximos Cultos (`cultos_agenda`) e exibir os detalhes reais.
 - [x] Etapa 5 — sincronizar a faixa Mídia com vídeos, áudios e livros aprovados do Firebase/Supabase.
+- [x] Etapa 6 — sincronizar o Devocional Diário (`devocionais`) e abrir a leitura real selecionada.
 
 ## Isolamento obrigatório da PWA
 

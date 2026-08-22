@@ -18,7 +18,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { signInPwa, type PwaSession } from "@/lib/pwa-auth";
 import { listenToForegroundPush, sendPwaPush, subscribeToPwaPush } from "@/lib/push";
 
-type CollectionItem = ContentCard & { description?: string; imageUrl?: string; thumbnailUrl?: string; coverUrl?: string; name?: string; isApproved?: boolean; approved?: boolean; isIbr?: boolean; content?: string; summary?: string; book?: string; chapter?: number; verse?: number; category?: string; intensity?: number; featured?: boolean; publishedAt?: number; date?: string; day?: string; dayShort?: string; time?: string; videoUrl?: string; audioUrl?: string; bookUrl?: string; mediaUrl?: string; author?: string; artist?: string; mediaType?: "Vídeo" | "Áudio" | "Livro" };
+type CollectionItem = ContentCard & { description?: string; imageUrl?: string; thumbnailUrl?: string; coverUrl?: string; name?: string; isApproved?: boolean; approved?: boolean; isIbr?: boolean; content?: string; summary?: string; book?: string; chapter?: number; verse?: string | number; verseReference?: string; category?: string; intensity?: number; featured?: boolean; publishedAt?: number; timestamp?: number; date?: string; day?: string; dayShort?: string; time?: string; videoUrl?: string; audioUrl?: string; bookUrl?: string; mediaUrl?: string; author?: string; artist?: string; mediaType?: "Vídeo" | "Áudio" | "Livro" };
 type CarouselBanner = { id: string; imageUrl?: string; title?: string; description?: string; tag?: string; eventDate?: string; eventInfo?: string };
 type HomeBannersFallback = { urls?: string[] };
 type AppBannerSettings = { bannerRotationSeconds?: number };
@@ -85,6 +85,13 @@ function latestMedia(videos: CollectionItem[], audios: CollectionItem[], books: 
     ...byIdDesc(audios).map((item) => ({ ...item, tag: "Áudio", mediaType: "Áudio" as const })),
     ...byIdDesc(books).map((item) => ({ ...item, tag: "Livro", mediaType: "Livro" as const })),
   ];
+}
+
+function dailyDevotional(items: CollectionItem[]) {
+  const approved = items.filter((item) => item.approved !== false && item.isApproved !== false).slice().sort((left, right) => (right.timestamp || 0) - (left.timestamp || 0));
+  const now = new Date();
+  const today = `${String(now.getDate()).padStart(2, "0")}/${String(now.getMonth() + 1).padStart(2, "0")}/${now.getFullYear()}`;
+  return approved.find((item) => item.date?.trim() === today) || approved[0] || null;
 }
 
 function openMedia(item: CollectionItem) {
@@ -154,6 +161,7 @@ function HorizontalCards({ items, onOpen, compact = false }: { items: Collection
 
 function HomeView({ onNavigate }: { onNavigate: (view: AppView) => void }) {
   const news = useLiveCollection("bible_news", sampleNews);
+  const devotionals = useLiveCollection("devocionais", []);
   const videos = useLiveCollection("conteudos_videos", sampleMedia);
   const audios = useLiveCollection("conteudos_audios", []);
   const books = useLiveCollection("conteudos_books", []);
@@ -166,6 +174,7 @@ function HomeView({ onNavigate }: { onNavigate: (view: AppView) => void }) {
   const [bannerIndex, setBannerIndex] = useState(0);
   const [selectedEventInfo, setSelectedEventInfo] = useState<string | null>(null);
   const [selectedService, setSelectedService] = useState<CollectionItem | null>(null);
+  const [selectedDevotional, setSelectedDevotional] = useState<CollectionItem | null>(null);
   useEffect(() => listenToCollection<CarouselBanner>("carousel_items", setLiveBanners, () => undefined), []);
   const bannerDate = new Date().toISOString().slice(0, 10);
   const banners = useMemo<CarouselBanner[]>(() => {
@@ -190,6 +199,7 @@ function HomeView({ onNavigate }: { onNavigate: (view: AppView) => void }) {
   }, [news]);
   const upcomingServices = useMemo(() => nextServices(services), [services]);
   const media = useMemo(() => latestMedia(videos, audios, books), [videos, audios, books]);
+  const devotional = useMemo(() => dailyDevotional(devotionals), [devotionals]);
   return <section className="android-home">
     <header className="android-home-greeting"><h1>Seja bem-vindo à Rhema</h1><p>Que a paz do Senhor esteja com você</p></header>
     <section className="android-banner-wrap" aria-label="Destaques da igreja">
@@ -206,7 +216,7 @@ function HomeView({ onNavigate }: { onNavigate: (view: AppView) => void }) {
       <button onClick={() => onNavigate("plans")}><CalendarDays size={23}/><span>Planos</span></button>
       <button onClick={() => onNavigate("members")}><Users size={23}/><span>Membros</span></button>
     </section>
-    <button className="android-devotional-card" onClick={() => onNavigate("devotionals")}><span><small>DEVOCIONAL DIÁRIO</small><strong>A presença de Deus no caminho de hoje</strong><em>Leia, reflita e continue firme na Palavra.</em></span><span className="android-read-link">Ler <ChevronRight size={17}/></span></button>
+    {devotional ? <button className="android-devotional-card" onClick={() => setSelectedDevotional(devotional)}><span><small>DEVOCIONAL DIÁRIO</small><strong>{devotional.title || "Palavra para hoje"}</strong><em>{devotional.date || devotional.verseReference || devotional.content || "Leia, reflita e continue firme na Palavra."}</em></span><span className="android-read-link">Ler <ChevronRight size={17}/></span></button> : <button className="android-devotional-card" onClick={() => onNavigate("devotionals")}><span><small>DEVOCIONAL DIÁRIO</small><strong>Carregando a Palavra de hoje</strong><em>Assim que a leitura estiver disponível, ela aparecerá aqui.</em></span><span className="android-read-link">Ler <ChevronRight size={17}/></span></button>}
     <section className="android-home-section"><SectionHeading title="Notícias Bíblicas" action="Ver todas" onAction={() => onNavigate("news")} /><div className="android-horizontal-list">{latestNews.map((item) => <button className="android-news-card" key={item.id} onClick={() => setExpandedItem(item)}><img src={contentImage(item)} alt=""/><span><strong>{item.title || item.name}</strong><small>{item.category || item.tag || "Notícia bíblica"}</small><em>{newsReference(item)}</em></span></button>)}</div></section>
     <section className="android-home-section"><SectionHeading title="Próximos Cultos" action="Ver" onAction={() => onNavigate("cultos")} /><div className="android-horizontal-list">{upcomingServices.map((item) => { const date = formatServiceDate(item); return <button className="android-service-card" key={item.id} onClick={() => setSelectedService(item)}><span><small>{date.day}</small><b>{date.number}</b></span><em><strong>{item.title || "Culto"}</strong><small>{item.time || "Horário a confirmar"}</small></em></button>; })}</div></section>
     <section className="android-home-section"><SectionHeading title="Mídia" action="Ver todas" onAction={() => onNavigate("media")} /><div className="android-horizontal-list">{media.map((item) => <button className="android-media-card" key={`${item.mediaType}-${item.id}`} onClick={() => openMedia(item)}><img src={contentImage(item)} alt=""/>{item.mediaType === "Vídeo" ? <Video size={18}/> : item.mediaType === "Áudio" ? <Headphones size={18}/> : <BookOpen size={18}/>}<strong>{item.title || item.name}</strong><small>{item.mediaType}</small></button>)}</div></section>
@@ -214,6 +224,7 @@ function HomeView({ onNavigate }: { onNavigate: (view: AppView) => void }) {
     {moodOpen && <div className="android-sheet-backdrop" onMouseDown={() => setMoodOpen(false)}><section className="android-mood-sheet" onMouseDown={(event) => event.stopPropagation()}><button className="dialog-close" onClick={() => setMoodOpen(false)}><X size={19}/></button><h2>Como está seu coração hoje?</h2><p>Escolha uma opção para encontrar uma leitura adequada para este momento.</p><div>{[["😊", "Feliz"], ["😟", "Ansioso"], ["😔", "Triste"], ["🙏", "Preciso de esperança"], ["😌", "Em paz"], ["😤", "Irritado"]].map(([emoji, label]) => <button key={label} onClick={() => { setMoodOpen(false); onNavigate("plans"); toast.message(`Plano de ${label.toLowerCase()} selecionado.`); }}><span>{emoji}</span>{label}</button>)}</div></section></div>}
     {selectedEventInfo && <div className="android-sheet-backdrop" onMouseDown={() => setSelectedEventInfo(null)}><section className="android-event-sheet" onMouseDown={(event) => event.stopPropagation()}><button className="dialog-close" onClick={() => setSelectedEventInfo(null)}><X size={19}/></button><p>DESTAQUE DA IGREJA</p><h2>Informações do evento</h2><div>{selectedEventInfo}</div></section></div>}
     {selectedService && <ServiceDialog item={selectedService} onClose={() => setSelectedService(null)} />}
+    {selectedDevotional && <DevotionalDialog item={selectedDevotional} onClose={() => setSelectedDevotional(null)} />}
     {expandedItem && <ContentDialog item={expandedItem} onClose={() => setExpandedItem(null)} />}
   </section>;
 }
@@ -321,7 +332,7 @@ function DiscipuladoView() { return <section className="page-pad"><PageIntro eye
 function CultosView() { const services = useLiveCollection("cultos_agenda", []); const [selectedService, setSelectedService] = useState<CollectionItem | null>(null); const upcoming = useMemo(() => nextServices(services), [services]); return <section className="page-pad"><PageIntro eyebrow="CULTOS" title="A igreja se encontra aqui" text="A agenda cadastrada pela igreja aparece em tempo real."/><div className="schedule-list">{upcoming.map((item) => { const date = formatServiceDate(item); return <button key={item.id} onClick={() => setSelectedService(item)}><div><small>{date.day}</small><strong>{date.number}</strong></div><span><b>{item.title || "Culto"}</b><small>{item.time || "Horário a confirmar"} · {date.complete}</small></span><ChevronRight size={18}/></button>; })}</div>{selectedService && <ServiceDialog item={selectedService} onClose={() => setSelectedService(null)} />}</section>; }
 function PlansView() { return <section className="page-pad"><PageIntro eyebrow="PLANOS DE LEITURA" title="Caminhos que cabem na sua semana" text="Escolha um tema e avance no seu próprio ritmo."/><div className="plan-grid">{["Começar pela Palavra", "Esperança em tempos difíceis", "Conhecendo Jesus", "Vida no Espírito"].map((plan, index) => <button key={plan} onClick={() => toast.message(`Plano “${plan}” iniciado.`)}><span>0{index + 1}</span><h2>{plan}</h2><p>{index % 2 ? "7 dias de leitura" : "14 dias de leitura"}</p><ArrowRight size={18}/></button>)}</div></section>; }
 
-function DevotionalsView() { return <section className="page-pad android-module"><PageIntro eyebrow="DEVOCIONAIS" title="Palavra para todos os dias" text="Uma leitura breve para fortalecer a sua caminhada." /><div className="android-list-cards">{["A presença de Deus no caminho", "Fé para o próximo passo", "Descansar no cuidado do Pai"].map((title, index) => <button key={title} onClick={() => toast.message(`Abrindo o devocional: ${title}`)}><span>{String(index + 1).padStart(2, "0")}</span><div><strong>{title}</strong><small>Devocional diário · Ler agora</small></div><ChevronRight size={19}/></button>)}</div></section>; }
+function DevotionalsView() { const devotionals = useLiveCollection("devocionais", []); const [selected, setSelected] = useState<CollectionItem | null>(null); const items = useMemo(() => devotionals.filter((item) => item.approved !== false && item.isApproved !== false).slice().sort((left, right) => (right.timestamp || 0) - (left.timestamp || 0)), [devotionals]); return <section className="page-pad android-module"><PageIntro eyebrow="DEVOCIONAIS" title="Palavra para todos os dias" text="As leituras cadastradas pela igreja aparecem em tempo real." /><div className="android-list-cards">{items.map((item, index) => <button key={item.id} onClick={() => setSelected(item)}><span>{String(index + 1).padStart(2, "0")}</span><div><strong>{item.title || "Devocional diário"}</strong><small>{item.date || item.verseReference || "Ler agora"}</small></div><ChevronRight size={19}/></button>)}</div>{selected && <DevotionalDialog item={selected} onClose={() => setSelected(null)} />}</section>; }
 
 function CommunityView({ view, session, onLogin }: { view: "prayer" | "members" | "team" | "donations" | "about"; session: PwaSession | null; onLogin: () => void }) {
   const content = {
@@ -337,6 +348,7 @@ function CommunityView({ view, session, onLogin }: { view: "prayer" | "members" 
 
 function PageIntro({ eyebrow, title, text }: { eyebrow: string; title: string; text: string }) { return <header className="page-intro"><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p>{text}</p></header>; }
 function ServiceDialog({ item, onClose }: { item: CollectionItem; onClose: () => void }) { const date = formatServiceDate(item); return <div className="content-dialog-backdrop" role="presentation" onMouseDown={onClose}><article className="content-dialog service-dialog" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}><button className="dialog-close" onClick={onClose}><X size={19}/></button><p className="eyebrow">{date.day} · {date.complete} · {item.time || "Horário a confirmar"}</p><h2>{item.title || "Culto"}</h2><p>{item.description || item.content || "A igreja espera você neste encontro."}</p><button className="solid-button" onClick={onClose}>Entendi <ArrowRight size={17}/></button></article></div>; }
+function DevotionalDialog({ item, onClose }: { item: CollectionItem; onClose: () => void }) { return <div className="content-dialog-backdrop" role="presentation" onMouseDown={onClose}><article className="content-dialog devotional-dialog" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}><button className="dialog-close" onClick={onClose}><X size={19}/></button><p className="eyebrow">DEVOCIONAL DIÁRIO{item.date ? ` · ${item.date}` : ""}</p><h2>{item.title || "Palavra para hoje"}</h2>{(item.verse || item.verseReference) && <blockquote>{item.verse}{item.verseReference && <footer>{item.verseReference}</footer>}</blockquote>}<p>{item.content || "A leitura estará disponível em breve."}</p><button className="solid-button" onClick={onClose}>Concluir leitura <ArrowRight size={17}/></button></article></div>; }
 function ContentDialog({ item, onClose }: { item: CollectionItem; onClose: () => void }) { const isNews = Boolean(item.book || item.content); return <div className="content-dialog-backdrop" role="presentation" onMouseDown={onClose}><article className="content-dialog" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}><button className="dialog-close" onClick={onClose}><X size={19}/></button><img src={contentImage(item)} alt=""/><p className="eyebrow">{isNews ? `${item.category || "NOTÍCIA BÍBLICA"} · ${newsReference(item)}` : item.tag || "MIC RHEMA"}</p><h2>{item.title || item.name}</h2><p>{item.content || item.summary || item.subtitle || item.description || "Conteúdo disponível no MIC Rhema."}</p><button className="solid-button" onClick={() => { toast.success(isNews ? "Notícia aberta." : "Conteúdo aberto."); onClose(); }}>{isNews ? "Ler novamente" : "Continuar"} <ArrowRight size={17}/></button></article></div>; }
 
 function SignInDialog({ onClose, onSuccess }: { onClose: () => void; onSuccess: (session: PwaSession) => void }) {
