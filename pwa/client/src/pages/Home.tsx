@@ -32,8 +32,26 @@ const menuItems: Array<{ id: AppView; label: string; note: string; icon: typeof 
   { id: "settings", label: "Configurações", note: "Suas escolhas no aplicativo", icon: Settings2 },
 ];
 
+/** PARIDADE PWA — capas cadastradas têm prioridade; vídeos YouTube sem capa usam a thumbnail oficial do próprio vídeo. */
+function youtubeVideoId(value?: string) {
+  if (!value) return "";
+  try {
+    const url = new URL(value);
+    const host = url.hostname.replace(/^www\./, "").toLowerCase();
+    const candidate = host === "youtu.be"
+      ? url.pathname.split("/")[1]
+      : host.endsWith("youtube.com")
+        ? url.searchParams.get("v") || url.pathname.match(/^\/(?:embed|shorts|live)\/([^/?]+)/)?.[1]
+        : "";
+    return candidate && /^[A-Za-z0-9_-]{11}$/.test(candidate) ? candidate : "";
+  } catch { return ""; }
+}
+
 function contentImage(item: CollectionItem) {
-  return item.imageUrl || item.thumbnailUrl || item.coverUrl || item.image || ASSETS.media;
+  const configuredImage = item.imageUrl || item.thumbnailUrl || item.coverUrl || item.image;
+  if (configuredImage) return configuredImage;
+  const youtubeId = youtubeVideoId(item.videoUrl || (item.mediaType === "Vídeo" ? item.mediaUrl : ""));
+  return youtubeId ? `https://i.ytimg.com/vi/${youtubeId}/hqdefault.jpg` : ASSETS.media;
 }
 
 function newsReference(item: CollectionItem) {

@@ -8,7 +8,7 @@ Este documento registra as fontes Firestore e Supabase já usadas pelo aplicativ
 | Velocidade do carrossel | `settings/app` | `bannerRotationSeconds`, limitado entre 3 e 12 segundos. Sem documento, usar 6 segundos, igual ao Android. |
 | Compatibilidade de banner legado | `settings/home_banners` | `urls` continua sendo lido somente como fallback quando não houver item em `carousel_items`. |
 | Notícias Bíblicas | `bible_news` | Lista pública atualizada em tempo real. |
-| Vídeos | `conteudos_videos` | `title`, `description`, `videoUrl`, `thumbnailUrl`, `mediaUrl`, `isApproved`. |
+| Vídeos | `conteudos_videos` | `title`, `description`, `videoUrl`, `thumbnailUrl`, `mediaUrl`, `isApproved`. A PWA prioriza capa cadastrada e, se estiver ausente, extrai o ID de URL `youtu.be` ou `youtube.com` para usar a thumbnail oficial do YouTube. |
 | Áudios | `conteudos_audios` | `title`, `artist`, `audioUrl`, `coverUrl`, `mediaUrl`, `isApproved`. |
 | Livros | `conteudos_books` | `title`, `author`, `coverUrl`, `bookUrl`, `mediaUrl`, `isApproved`. |
 | Discipulado | `discipulado_pdfs` | Apenas itens `isPublished`, ordenados por `order` e `createdAt`. |
@@ -49,5 +49,7 @@ Para os Planos de Leitura, a PWA passou a gerar o catálogo diretamente de `Plan
 A categoria Alegria e o tema “A Essência da Alegria” foram abertos na prévia. A PWA exibiu o versículo João 3:16, o texto integral e a capa definidos no mesmo `PlansData.kt` do Android.
 
 Para Pedidos de Oração, foi confirmado no Android que `PrayerScreen.kt` cria um `PrayerRequest` com `id`, `name`, `request` e `date` e o grava em `prayer_requests`. A PWA agora cria o mesmo formato, com um ID gerado antes da escrita e `date: "Hoje"`. Como as regras Firebase exigem usuário autenticado para criar o pedido, a tela apresenta o acesso de membro aprovado antes do formulário; o conteúdo enviado não é exibido publicamente. A validação visual cobriu a rota sem sessão e a abertura do acesso, sem inserir pedidos fictícios na coleção real.
+
+Na etapa de miniaturas dos vídeos, a coleção real `conteudos_videos` retornou URLs curtas `youtu.be` sem `thumbnailUrl` configurada. A PWA passou a derivar a capa oficial `i.ytimg.com/vi/<id>/hqdefault.jpg` sem sobrescrever uma imagem cadastrada. A prévia confirmou as thumbnails reais de “ATOS: O Poder de Deus em Nós”, “Crente Invisível Também é Corpo” e “Nova Vida em Cristo”.
 
 > A PWA deve renderizar primeiro os itens de `carousel_items`, pois é a fonte editada pelo painel administrativo Android. Nenhum banner fixo deve ser mantido como conteúdo principal quando houver dados sincronizados disponíveis.

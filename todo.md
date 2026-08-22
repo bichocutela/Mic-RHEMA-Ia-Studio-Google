@@ -235,6 +235,7 @@
 - [x] Etapa 6 — sincronizar o Devocional Diário (`devocionais`) e abrir a leitura real selecionada.
 - [x] Etapa 7 — gerar e sincronizar os 16 Planos de Leitura e 592 temas oficiais usados pelo Android.
 - [x] Etapa 8 — sincronizar Pedidos de Oração com a coleção e o fluxo de envio usados pelo Android.
+- [x] Etapa 9 — carregar automaticamente miniaturas do YouTube nos vídeos da área de Mídia da PWA, preservando capas cadastradas como prioridade.
 
 ## Isolamento obrigatório da PWA
 
