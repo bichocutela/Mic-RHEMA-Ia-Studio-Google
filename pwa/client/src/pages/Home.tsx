@@ -18,7 +18,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { signInPwa, type PwaSession } from "@/lib/pwa-auth";
 import { listenToForegroundPush, sendPwaPush, subscribeToPwaPush } from "@/lib/push";
 
-type CollectionItem = ContentCard & { description?: string; imageUrl?: string; thumbnailUrl?: string; coverUrl?: string; name?: string; isApproved?: boolean; isIbr?: boolean; content?: string; summary?: string; book?: string; chapter?: number; verse?: number; category?: string; intensity?: number; featured?: boolean; publishedAt?: number };
+type CollectionItem = ContentCard & { description?: string; imageUrl?: string; thumbnailUrl?: string; coverUrl?: string; name?: string; isApproved?: boolean; approved?: boolean; isIbr?: boolean; content?: string; summary?: string; book?: string; chapter?: number; verse?: number; category?: string; intensity?: number; featured?: boolean; publishedAt?: number; date?: string; day?: string; dayShort?: string; time?: string };
 type CarouselBanner = { id: string; imageUrl?: string; title?: string; description?: string; tag?: string; eventDate?: string; eventInfo?: string };
 type HomeBannersFallback = { urls?: string[] };
 type AppBannerSettings = { bannerRotationSeconds?: number };
@@ -40,6 +40,34 @@ function newsReference(item: CollectionItem) {
   const chapter = item.chapter ? ` ${item.chapter}` : "";
   const verse = item.verse ? `:${item.verse}` : "";
   return `${item.book}${chapter}${verse}`;
+}
+
+const serviceWeekdays: Record<string, number> = { domingo: 0, "segunda-feira": 1, segunda: 1, "terça-feira": 2, terça: 2, "quarta-feira": 3, quarta: 3, "quinta-feira": 4, quinta: 4, "sexta-feira": 5, sexta: 5, sábado: 6, sabado: 6 };
+
+function serviceScheduleDate(item: CollectionItem) {
+  const time = (item.time || "23:59").replace("h", ":").replace(/[^0-9:]/g, "");
+  const [hour = "23", minute = "59"] = time.split(":");
+  if (/^\d{4}-\d{2}-\d{2}$/.test(item.date || "")) {
+    const parsed = new Date(`${item.date}T${hour.padStart(2, "0")}:${minute.slice(0, 2).padStart(2, "0")}:00`);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  const now = new Date();
+  const targetDay = serviceWeekdays[(item.day || "domingo").toLowerCase()] ?? 0;
+  const parsed = new Date(now);
+  parsed.setHours(Number(hour) || 23, Number(minute) || 59, 0, 0);
+  let difference = targetDay - now.getDay();
+  if (difference < 0 || (difference === 0 && parsed.getTime() < now.getTime())) difference += 7;
+  parsed.setDate(now.getDate() + difference);
+  return parsed;
+}
+
+function formatServiceDate(item: CollectionItem) {
+  const date = serviceScheduleDate(item);
+  return { day: item.dayShort || date.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "").toUpperCase(), number: String(date.getDate()).padStart(2, "0"), complete: date.toLocaleDateString("pt-BR", { day: "2-digit", month: "long" }) };
+}
+
+function nextServices(items: CollectionItem[]) {
+  return items.filter((item) => item.approved !== false && item.isApproved !== false).slice().sort((left, right) => serviceScheduleDate(left).getTime() - serviceScheduleDate(right).getTime()).slice(0, 3);
 }
 
 function useLiveCollection(collectionName: string, fallback: ContentCard[]) {
@@ -104,6 +132,7 @@ function HorizontalCards({ items, onOpen, compact = false }: { items: Collection
 function HomeView({ onNavigate }: { onNavigate: (view: AppView) => void }) {
   const news = useLiveCollection("bible_news", sampleNews);
   const media = useLiveCollection("conteudos_videos", sampleMedia);
+  const services = useLiveCollection("cultos_agenda", []);
   const [liveBanners, setLiveBanners] = useState<CarouselBanner[]>([]);
   const legacyHomeBanners = useLiveDocument<HomeBannersFallback>("settings", "home_banners");
   const appBannerSettings = useLiveDocument<AppBannerSettings>("settings", "app");
@@ -111,6 +140,7 @@ function HomeView({ onNavigate }: { onNavigate: (view: AppView) => void }) {
   const [moodOpen, setMoodOpen] = useState(false);
   const [bannerIndex, setBannerIndex] = useState(0);
   const [selectedEventInfo, setSelectedEventInfo] = useState<string | null>(null);
+  const [selectedService, setSelectedService] = useState<CollectionItem | null>(null);
   useEffect(() => listenToCollection<CarouselBanner>("carousel_items", setLiveBanners, () => undefined), []);
   const bannerDate = new Date().toISOString().slice(0, 10);
   const banners = useMemo<CarouselBanner[]>(() => {
@@ -133,6 +163,7 @@ function HomeView({ onNavigate }: { onNavigate: (view: AppView) => void }) {
     const featured = news.filter((item) => item.featured === true);
     return (featured.length ? featured : news).slice().sort((left, right) => (right.publishedAt || 0) - (left.publishedAt || 0)).slice(0, 5);
   }, [news]);
+  const upcomingServices = useMemo(() => nextServices(services), [services]);
   return <section className="android-home">
     <header className="android-home-greeting"><h1>Seja bem-vindo à Rhema</h1><p>Que a paz do Senhor esteja com você</p></header>
     <section className="android-banner-wrap" aria-label="Destaques da igreja">
@@ -151,11 +182,12 @@ function HomeView({ onNavigate }: { onNavigate: (view: AppView) => void }) {
     </section>
     <button className="android-devotional-card" onClick={() => onNavigate("devotionals")}><span><small>DEVOCIONAL DIÁRIO</small><strong>A presença de Deus no caminho de hoje</strong><em>Leia, reflita e continue firme na Palavra.</em></span><span className="android-read-link">Ler <ChevronRight size={17}/></span></button>
     <section className="android-home-section"><SectionHeading title="Notícias Bíblicas" action="Ver todas" onAction={() => onNavigate("news")} /><div className="android-horizontal-list">{latestNews.map((item) => <button className="android-news-card" key={item.id} onClick={() => setExpandedItem(item)}><img src={contentImage(item)} alt=""/><span><strong>{item.title || item.name}</strong><small>{item.category || item.tag || "Notícia bíblica"}</small><em>{newsReference(item)}</em></span></button>)}</div></section>
-    <section className="android-home-section"><SectionHeading title="Próximos Cultos" action="Ver" onAction={() => onNavigate("cultos")} /><div className="android-horizontal-list">{[["DOM", "24", "Culto de celebração", "19:00"], ["QUA", "27", "Noite de oração", "19:30"], ["DOM", "31", "Culto de comunhão", "19:00"]].map(([day, date, title, hour]) => <button className="android-service-card" key={date} onClick={() => onNavigate("cultos")}><span><small>{day}</small><b>{date}</b></span><em><strong>{title}</strong><small>{hour}</small></em></button>)}</div></section>
+    <section className="android-home-section"><SectionHeading title="Próximos Cultos" action="Ver" onAction={() => onNavigate("cultos")} /><div className="android-horizontal-list">{upcomingServices.map((item) => { const date = formatServiceDate(item); return <button className="android-service-card" key={item.id} onClick={() => setSelectedService(item)}><span><small>{date.day}</small><b>{date.number}</b></span><em><strong>{item.title || "Culto"}</strong><small>{item.time || "Horário a confirmar"}</small></em></button>; })}</div></section>
     <section className="android-home-section"><SectionHeading title="Mídia" action="Ver todas" onAction={() => onNavigate("media")} /><div className="android-horizontal-list">{media.slice(0, 5).map((item) => <button className="android-media-card" key={item.id} onClick={() => setExpandedItem(item)}><img src={contentImage(item)} alt=""/><Play size={18}/><strong>{item.title || item.name}</strong><small>{item.subtitle || "Vídeo"}</small></button>)}</div></section>
     <InstallCard />
     {moodOpen && <div className="android-sheet-backdrop" onMouseDown={() => setMoodOpen(false)}><section className="android-mood-sheet" onMouseDown={(event) => event.stopPropagation()}><button className="dialog-close" onClick={() => setMoodOpen(false)}><X size={19}/></button><h2>Como está seu coração hoje?</h2><p>Escolha uma opção para encontrar uma leitura adequada para este momento.</p><div>{[["😊", "Feliz"], ["😟", "Ansioso"], ["😔", "Triste"], ["🙏", "Preciso de esperança"], ["😌", "Em paz"], ["😤", "Irritado"]].map(([emoji, label]) => <button key={label} onClick={() => { setMoodOpen(false); onNavigate("plans"); toast.message(`Plano de ${label.toLowerCase()} selecionado.`); }}><span>{emoji}</span>{label}</button>)}</div></section></div>}
     {selectedEventInfo && <div className="android-sheet-backdrop" onMouseDown={() => setSelectedEventInfo(null)}><section className="android-event-sheet" onMouseDown={(event) => event.stopPropagation()}><button className="dialog-close" onClick={() => setSelectedEventInfo(null)}><X size={19}/></button><p>DESTAQUE DA IGREJA</p><h2>Informações do evento</h2><div>{selectedEventInfo}</div></section></div>}
+    {selectedService && <ServiceDialog item={selectedService} onClose={() => setSelectedService(null)} />}
     {expandedItem && <ContentDialog item={expandedItem} onClose={() => setExpandedItem(null)} />}
   </section>;
 }
@@ -256,7 +288,7 @@ function AdminContentDialog({ session, onClose }: { session: PwaSession; onClose
 }
 
 function DiscipuladoView() { return <section className="page-pad"><PageIntro eyebrow="DISCIPULADO" title="Estude com calma, leve com você" text="Uma biblioteca pública para aprofundar a caminhada em qualquer lugar." /><div className="pdf-feature"><img src={ASSETS.devotional} alt="Estudo bíblico"/><div><p>ESTUDO BÍBLICO</p><h2>Começando uma nova caminhada</h2><span>PDF · 24 páginas</span><button className="solid-button" onClick={() => toast.message("O leitor de PDF será aberto dentro da PWA.")}>Ler estudo <FileText size={17}/></button></div></div></section>; }
-function CultosView() { return <section className="page-pad"><PageIntro eyebrow="CULTOS" title="A igreja se encontra aqui" text="Escolha um encontro e veja os detalhes preparados pela administração."/><div className="schedule-list">{[["DOM", "24", "Culto de celebração", "19:00"],["QUA", "27", "Noite de oração", "19:30"],["DOM", "31", "Culto de comunhão", "19:00"]].map(([day, date, title, hour]) => <button key={date} onClick={() => toast.message(`${title}: os detalhes serão exibidos aqui.`)}><div><small>{day}</small><strong>{date}</strong></div><span><b>{title}</b><small>{hour} · Santuário MIC Rhema</small></span><ChevronRight size={18}/></button>)}</div></section>; }
+function CultosView() { const services = useLiveCollection("cultos_agenda", []); const [selectedService, setSelectedService] = useState<CollectionItem | null>(null); const upcoming = useMemo(() => nextServices(services), [services]); return <section className="page-pad"><PageIntro eyebrow="CULTOS" title="A igreja se encontra aqui" text="A agenda cadastrada pela igreja aparece em tempo real."/><div className="schedule-list">{upcoming.map((item) => { const date = formatServiceDate(item); return <button key={item.id} onClick={() => setSelectedService(item)}><div><small>{date.day}</small><strong>{date.number}</strong></div><span><b>{item.title || "Culto"}</b><small>{item.time || "Horário a confirmar"} · {date.complete}</small></span><ChevronRight size={18}/></button>; })}</div>{selectedService && <ServiceDialog item={selectedService} onClose={() => setSelectedService(null)} />}</section>; }
 function PlansView() { return <section className="page-pad"><PageIntro eyebrow="PLANOS DE LEITURA" title="Caminhos que cabem na sua semana" text="Escolha um tema e avance no seu próprio ritmo."/><div className="plan-grid">{["Começar pela Palavra", "Esperança em tempos difíceis", "Conhecendo Jesus", "Vida no Espírito"].map((plan, index) => <button key={plan} onClick={() => toast.message(`Plano “${plan}” iniciado.`)}><span>0{index + 1}</span><h2>{plan}</h2><p>{index % 2 ? "7 dias de leitura" : "14 dias de leitura"}</p><ArrowRight size={18}/></button>)}</div></section>; }
 
 function DevotionalsView() { return <section className="page-pad android-module"><PageIntro eyebrow="DEVOCIONAIS" title="Palavra para todos os dias" text="Uma leitura breve para fortalecer a sua caminhada." /><div className="android-list-cards">{["A presença de Deus no caminho", "Fé para o próximo passo", "Descansar no cuidado do Pai"].map((title, index) => <button key={title} onClick={() => toast.message(`Abrindo o devocional: ${title}`)}><span>{String(index + 1).padStart(2, "0")}</span><div><strong>{title}</strong><small>Devocional diário · Ler agora</small></div><ChevronRight size={19}/></button>)}</div></section>; }
@@ -274,6 +306,7 @@ function CommunityView({ view, session, onLogin }: { view: "prayer" | "members" 
 }
 
 function PageIntro({ eyebrow, title, text }: { eyebrow: string; title: string; text: string }) { return <header className="page-intro"><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p>{text}</p></header>; }
+function ServiceDialog({ item, onClose }: { item: CollectionItem; onClose: () => void }) { const date = formatServiceDate(item); return <div className="content-dialog-backdrop" role="presentation" onMouseDown={onClose}><article className="content-dialog service-dialog" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}><button className="dialog-close" onClick={onClose}><X size={19}/></button><p className="eyebrow">{date.day} · {date.complete} · {item.time || "Horário a confirmar"}</p><h2>{item.title || "Culto"}</h2><p>{item.description || item.content || "A igreja espera você neste encontro."}</p><button className="solid-button" onClick={onClose}>Entendi <ArrowRight size={17}/></button></article></div>; }
 function ContentDialog({ item, onClose }: { item: CollectionItem; onClose: () => void }) { const isNews = Boolean(item.book || item.content); return <div className="content-dialog-backdrop" role="presentation" onMouseDown={onClose}><article className="content-dialog" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}><button className="dialog-close" onClick={onClose}><X size={19}/></button><img src={contentImage(item)} alt=""/><p className="eyebrow">{isNews ? `${item.category || "NOTÍCIA BÍBLICA"} · ${newsReference(item)}` : item.tag || "MIC RHEMA"}</p><h2>{item.title || item.name}</h2><p>{item.content || item.summary || item.subtitle || item.description || "Conteúdo disponível no MIC Rhema."}</p><button className="solid-button" onClick={() => { toast.success(isNews ? "Notícia aberta." : "Conteúdo aberto."); onClose(); }}>{isNews ? "Ler novamente" : "Continuar"} <ArrowRight size={17}/></button></article></div>; }
 
 function SignInDialog({ onClose, onSuccess }: { onClose: () => void; onSuccess: (session: PwaSession) => void }) {

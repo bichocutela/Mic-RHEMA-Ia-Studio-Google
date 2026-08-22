@@ -29,4 +29,8 @@ Na prévia da etapa de notícias, a Home passou a mostrar os cinco itens editori
 
 A rota completa de Notícias Bíblicas foi validada na prévia com a lista real do Firestore. Os itens exibidos trazem títulos editoriais atuais, categorias como “Provérbios hoje” e referências como “Provérbios 25:25”; a PWA também preserva a ordem editorial por `featured` e `publishedAt` usada pelo Android.
 
+Na prévia de cultos, a Home mostrou a agenda real de `cultos_agenda`: Culto de Celebração, Culto de Oração e Culto de Ensino, ordenados pelos próximos dias e horários. A regra replica a programação semanal do Android quando um item não possui uma data específica.
+
+Durante a validação automatizada, o cartão do culto foi identificado corretamente na tela. O acionamento pelo centro real do cartão abriu o painel com os dados cadastrados para o Culto de Celebração, incluindo data, horário e descrição. A interação foi validada antes da publicação.
+
 > A PWA deve renderizar primeiro os itens de `carousel_items`, pois é a fonte editada pelo painel administrativo Android. Nenhum banner fixo deve ser mantido como conteúdo principal quando houver dados sincronizados disponíveis.
