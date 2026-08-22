@@ -154,6 +154,57 @@
 
 - [ ] Comparar a configuração de notificações do NRD Lojas com o MIC Rhema e reaplicar o caminho compatível.
 
+## Notificações em segundo plano
+
+- [x] Mapear FCM, serviços Android, ouvintes Firestore e permissões que hoje dependem da abertura do app.
+- [ ] Corrigir o recebimento e a exibição de notificações quando o aplicativo estiver em segundo plano ou fechado.
+- [ ] Validar o fluxo, publicar a correção e acompanhar o build Android até verde.
+
+## Publicação autorizada da função FCM
+
+- [x] Ativar a integração Supabase da sessão e publicar `notify-fcm`.
+- [x] Configurar ou validar os secrets necessários da conta de serviço Firebase no projeto Supabase.
+- [x] Confirmar que o endpoint deixa de responder 404 e validar a entrega para um tópico FCM sem criar avisos indevidos.
+
+## Secrets FCM autorizados
+
+- [x] Registrar `FIREBASE_SERVICE_ACCOUNT_JSON` no Supabase com a credencial privada do Firebase.
+- [x] Registrar `FIREBASE_PROJECT_ID=mic-rhema` e validar a função `notify-fcm` com um teste controlado.
+
+## Credencial Firebase autorizada
+
+- [ ] Acessar o Firebase Console do projeto `mic-rhema` e gerar a chave privada da conta de serviço.
+- [ ] Usar a chave somente como secret do Supabase para a função FCM; não adicionar o arquivo ao repositório ou APK.
+
+## Alternativa ao CAPTCHA do Firebase
+
+- [x] Aguardar o JSON da conta de serviço gerado pelo usuário em um dispositivo sem bloqueio CAPTCHA.
+- [x] Registrar o JSON exclusivamente como secret do Supabase e validar a função FCM sem expô-lo em commits, logs ou APK.
+
+## Credencial recebida para configuração
+
+- [x] Cadastrar a credencial recebida somente no secret `FIREBASE_SERVICE_ACCOUNT_JSON` do Supabase.
+- [x] Configurar `FIREBASE_PROJECT_ID=mic-rhema`, validar FCM e recomendar a rotação da chave ao fim da configuração.
+
+## Teste real FCM autorizado
+
+- [ ] Enviar um aviso real de teste ao tópico `all_users` com autorização explícita do usuário.
+- [ ] Confirmar a aceitação pelo FCM e orientar a verificação com o aplicativo fechado.
+
+## PWA para iPhone via GitHub Pages
+
+- [x] Definir a primeira versão instalável da PWA com os fluxos principais do MIC Rhema Android.
+- [x] Preparar manifest, service worker, ícones e experiência de instalação pelo Safari no iPhone.
+- [x] Configurar build estático e workflow de publicação pelo GitHub Pages, sem hospedagem Manus.
+- [x] Validar a PWA no navegador e documentar a instalação no iPhone.
+
+## PWA completa aprovada
+
+- [x] Implementar os módulos públicos: início, notícias, Bíblia, mídia, cultos, discipulado e planos.
+- [x] Implementar perfil, avatares, emblemas, preferências, IBR e solicitações de acesso.
+- [x] Implementar o painel administrativo, aprovações e sincronização segura com Firebase e Supabase.
+- [ ] Integrar notificações web do iPhone e publicar a PWA completa pelo GitHub Pages.
+
 ## Auditoria da aba Configurações
 
 - [ ] Mapear cada opção da aba Configurações e onde ela é persistida.

@@ -37,6 +37,7 @@ type FirebaseClaims = {
   exp?: number;
   iat?: number;
   firebase?: { sign_in_provider?: string };
+  isAdmin?: boolean;
 };
 
 type Jwk = JsonWebKey & { kid?: string; alg?: string; use?: string };
@@ -167,6 +168,14 @@ async function memberDocumentForFirebaseUid(uid: string, firebaseToken: string):
 }
 
 async function isAdmin(uid: string, firebaseToken: string): Promise<boolean> {
+  // A PWA recebe esta claim apenas da função pwa-auth depois de validar o acesso administrativo no servidor.
+  const decoded = firebaseToken.split(".")[1];
+  if (decoded) {
+    try {
+      const payload = JSON.parse(new TextDecoder().decode(decodeBase64Url(decoded))) as FirebaseClaims;
+      if (payload.isAdmin === true) return true;
+    } catch (_) { /* a verificação completa de assinatura já ocorreu antes desta etapa */ }
+  }
   const document = await memberDocumentForFirebaseUid(uid, firebaseToken);
   return document?.fields?.isAdmin?.booleanValue === true;
 }

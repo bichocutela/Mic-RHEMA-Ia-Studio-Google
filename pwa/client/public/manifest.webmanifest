@@ -1,0 +1,17 @@
+{
+  "name": "MIC Rhema",
+  "short_name": "MIC Rhema",
+  "description": "Palavra, comunhão e formação na palma da mão.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#F7F2EA",
+  "theme_color": "#103A4C",
+  "icons": [
+    {
+      "src": "https://cwphbkdtorfpgmnlafqb.supabase.co/storage/v1/object/public/media-assets/rhema-admin/media-841abe59-055a-4982-a029-9d432c4ec0c6.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

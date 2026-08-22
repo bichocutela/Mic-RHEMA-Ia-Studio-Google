@@ -1,0 +1,68 @@
+name: Publicar PWA MIC Rhema
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "pwa/**"
+      - ".github/workflows/pwa-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: pwa
+    env:
+      BASE_PATH: /${{ github.event.repository.name }}/
+      VITE_SUPABASE_URL: https://cwphbkdtorfpgmnlafqb.supabase.co
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pwa/pnpm-lock.yaml
+
+      - name: Configurar pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Instalar dependências
+        run: pnpm install --frozen-lockfile
+
+      - name: Validar tipagem
+        run: pnpm check
+
+      - name: Gerar PWA estática
+        run: pnpm build
+
+      - name: Preparar artefato do GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: pwa/dist/public
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publicar no GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
