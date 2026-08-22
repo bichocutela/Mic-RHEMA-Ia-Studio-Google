@@ -211,7 +211,8 @@
 - [x] Mapear as telas, abas, componentes, paleta, tipografia e navegação reais do aplicativo Android, sem alterar seus arquivos.
 - [x] Refazer a estrutura visual da PWA para espelhar o aplicativo Android, removendo a direção visual independente atual.
 - [x] Adaptar os módulos web existentes para a hierarquia de telas Android, preservando Firebase, Supabase e Web Push.
-- [ ] Validar visualmente em largura de iPhone, publicar somente a PWA e submeter para revisão antes de declarar paridade.
+- [x] Validar visualmente em largura de iPhone, publicar somente a PWA e submeter para revisão antes de declarar paridade.
+- [ ] Aguardar a revisão do usuário no iPhone comparando a sensação de uso da PWA com o APK Android instalado.
 
 ## Isolamento obrigatório da PWA
 

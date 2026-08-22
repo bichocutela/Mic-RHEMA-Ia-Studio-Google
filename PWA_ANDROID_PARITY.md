@@ -50,3 +50,5 @@ Em 22 de agosto de 2026, a prévia da PWA foi conferida em largura móvel. A tel
 Na prévia temporária, o navegador expõe a imagem com uma escala diferente da área DOM. A inspeção identificou o botão de menu ativo fora das coordenadas usadas pela captura, portanto os testes do drawer devem usar as coordenadas DOM reais ou o navegador publicado, sem interpretar a primeira tentativa de clique como falha da interface.
 
 O drawer foi validado pela área DOM real: apresenta perfil, cartão de caminho, grupo Conteúdo expandido, grupos Comunidade/Igreja/Sistema/Administração recolhidos e o acionamento explícito de notificações. A composição usa fundo creme, seleção dourada e sobreposição escurecida, correspondendo à hierarquia do drawer Android.
+
+A publicação do commit `e2840e5` foi concluída no GitHub Pages com workflow verde. A captura pública confirma fundo creme, saudação, banner 16:9, cartão de humor, atalhos, Devocional Diário, listas horizontais e barra inferior bege com item ativo azul-marinho. A revisão humana no iPhone continua necessária para comparar a sensação de uso com o APK instalado.
