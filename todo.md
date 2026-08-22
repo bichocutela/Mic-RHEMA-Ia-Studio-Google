@@ -227,6 +227,12 @@
 - [x] Substituir os dados fixos do carrossel de destaques da Home PWA por listeners Firebase e URLs públicas do Supabase, com atualização em tempo real.
 - [ ] Garantir que alterações administrativas refletidas no Android também apareçam na PWA sem publicação manual adicional.
 
+## Próximas etapas isoladas da Home
+
+- [x] Etapa 3 — sincronizar Notícias Bíblicas (`bible_news`) e abrir o conteúdo real selecionado.
+- [ ] Etapa 4 — sincronizar Próximos Cultos (`cultos_agenda`) e exibir os detalhes reais.
+- [ ] Etapa 5 — sincronizar a faixa Mídia com vídeos, áudios e livros aprovados do Firebase/Supabase.
+
 ## Isolamento obrigatório da PWA
 
 - [x] Concluir os ajustes pendentes somente em `pwa/`, no workflow `pwa-pages.yml` e nas funções web separadas.

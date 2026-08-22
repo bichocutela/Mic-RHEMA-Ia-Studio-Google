@@ -23,4 +23,10 @@ Na prévia da PWA, o primeiro destaque real carregado foi o banner de Culto de M
 
 O clique em um destaque com `eventInfo` abriu corretamente um painel com a mensagem real cadastrada no Android para o Culto das Mulheres. Isso preserva a regra do aplicativo: banner sem informação de evento não recebe ação; banner com informação abre os detalhes.
 
+A versão publicada no GitHub Pages pelo commit `3b15e28` confirmou o mesmo destaque real de Culto de Missões e os indicadores do carrossel. O workflow de publicação foi concluído com sucesso, sem iniciar workflow Android.
+
+Na prévia da etapa de notícias, a Home passou a mostrar os cinco itens editoriais atuais de `bible_news`, com categoria e referência bíblica reais. Essa lista substitui as notícias estáticas anteriormente usadas pela PWA.
+
+A rota completa de Notícias Bíblicas foi validada na prévia com a lista real do Firestore. Os itens exibidos trazem títulos editoriais atuais, categorias como “Provérbios hoje” e referências como “Provérbios 25:25”; a PWA também preserva a ordem editorial por `featured` e `publishedAt` usada pelo Android.
+
 > A PWA deve renderizar primeiro os itens de `carousel_items`, pois é a fonte editada pelo painel administrativo Android. Nenhum banner fixo deve ser mantido como conteúdo principal quando houver dados sincronizados disponíveis.

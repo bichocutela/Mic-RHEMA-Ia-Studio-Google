@@ -18,7 +18,7 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { signInPwa, type PwaSession } from "@/lib/pwa-auth";
 import { listenToForegroundPush, sendPwaPush, subscribeToPwaPush } from "@/lib/push";
 
-type CollectionItem = ContentCard & { description?: string; imageUrl?: string; thumbnailUrl?: string; coverUrl?: string; name?: string; isApproved?: boolean; isIbr?: boolean };
+type CollectionItem = ContentCard & { description?: string; imageUrl?: string; thumbnailUrl?: string; coverUrl?: string; name?: string; isApproved?: boolean; isIbr?: boolean; content?: string; summary?: string; book?: string; chapter?: number; verse?: number; category?: string; intensity?: number; featured?: boolean; publishedAt?: number };
 type CarouselBanner = { id: string; imageUrl?: string; title?: string; description?: string; tag?: string; eventDate?: string; eventInfo?: string };
 type HomeBannersFallback = { urls?: string[] };
 type AppBannerSettings = { bannerRotationSeconds?: number };
@@ -33,6 +33,13 @@ const menuItems: Array<{ id: AppView; label: string; note: string; icon: typeof 
 
 function contentImage(item: CollectionItem) {
   return item.imageUrl || item.thumbnailUrl || item.coverUrl || item.image || ASSETS.media;
+}
+
+function newsReference(item: CollectionItem) {
+  if (!item.book) return item.category || item.tag || "Notícia bíblica";
+  const chapter = item.chapter ? ` ${item.chapter}` : "";
+  const verse = item.verse ? `:${item.verse}` : "";
+  return `${item.book}${chapter}${verse}`;
 }
 
 function useLiveCollection(collectionName: string, fallback: ContentCard[]) {
@@ -122,6 +129,10 @@ function HomeView({ onNavigate }: { onNavigate: (view: AppView) => void }) {
     return () => window.clearInterval(timer);
   }, [bannerIds, bannerRotationMillis, banners.length]);
   const banner = banners[bannerIndex];
+  const latestNews = useMemo(() => {
+    const featured = news.filter((item) => item.featured === true);
+    return (featured.length ? featured : news).slice().sort((left, right) => (right.publishedAt || 0) - (left.publishedAt || 0)).slice(0, 5);
+  }, [news]);
   return <section className="android-home">
     <header className="android-home-greeting"><h1>Seja bem-vindo à Rhema</h1><p>Que a paz do Senhor esteja com você</p></header>
     <section className="android-banner-wrap" aria-label="Destaques da igreja">
@@ -139,7 +150,7 @@ function HomeView({ onNavigate }: { onNavigate: (view: AppView) => void }) {
       <button onClick={() => onNavigate("members")}><Users size={23}/><span>Membros</span></button>
     </section>
     <button className="android-devotional-card" onClick={() => onNavigate("devotionals")}><span><small>DEVOCIONAL DIÁRIO</small><strong>A presença de Deus no caminho de hoje</strong><em>Leia, reflita e continue firme na Palavra.</em></span><span className="android-read-link">Ler <ChevronRight size={17}/></span></button>
-    <section className="android-home-section"><SectionHeading title="Notícias Bíblicas" action="Ver todas" onAction={() => toast.message("As notícias são sincronizadas pelo Firebase.")} /><div className="android-horizontal-list">{news.slice(0, 5).map((item) => <button className="android-news-card" key={item.id} onClick={() => setExpandedItem(item)}><img src={contentImage(item)} alt=""/><span><strong>{item.title || item.name}</strong><small>{item.tag || "Notícia bíblica"}</small></span></button>)}</div></section>
+    <section className="android-home-section"><SectionHeading title="Notícias Bíblicas" action="Ver todas" onAction={() => onNavigate("news")} /><div className="android-horizontal-list">{latestNews.map((item) => <button className="android-news-card" key={item.id} onClick={() => setExpandedItem(item)}><img src={contentImage(item)} alt=""/><span><strong>{item.title || item.name}</strong><small>{item.category || item.tag || "Notícia bíblica"}</small><em>{newsReference(item)}</em></span></button>)}</div></section>
     <section className="android-home-section"><SectionHeading title="Próximos Cultos" action="Ver" onAction={() => onNavigate("cultos")} /><div className="android-horizontal-list">{[["DOM", "24", "Culto de celebração", "19:00"], ["QUA", "27", "Noite de oração", "19:30"], ["DOM", "31", "Culto de comunhão", "19:00"]].map(([day, date, title, hour]) => <button className="android-service-card" key={date} onClick={() => onNavigate("cultos")}><span><small>{day}</small><b>{date}</b></span><em><strong>{title}</strong><small>{hour}</small></em></button>)}</div></section>
     <section className="android-home-section"><SectionHeading title="Mídia" action="Ver todas" onAction={() => onNavigate("media")} /><div className="android-horizontal-list">{media.slice(0, 5).map((item) => <button className="android-media-card" key={item.id} onClick={() => setExpandedItem(item)}><img src={contentImage(item)} alt=""/><Play size={18}/><strong>{item.title || item.name}</strong><small>{item.subtitle || "Vídeo"}</small></button>)}</div></section>
     <InstallCard />
@@ -165,6 +176,16 @@ function BibleView() {
     </div>
     <div className="chapter-nav"><button onClick={() => setChapter(Math.max(1, chapter - 1))}><ChevronLeft size={18}/> Anterior</button><span>{book} {chapter}</span><button onClick={() => setChapter(chapter + 1)}>Próximo <ChevronRight size={18}/></button></div>
   </section>;
+}
+
+function NewsView() {
+  const items = useLiveCollection("bible_news", sampleNews);
+  const [selectedItem, setSelectedItem] = useState<CollectionItem | null>(null);
+  const editorialItems = useMemo(() => {
+    const featured = items.filter((item) => item.featured === true);
+    return (featured.length ? featured : items).slice().sort((left, right) => (right.publishedAt || 0) - (left.publishedAt || 0));
+  }, [items]);
+  return <section className="page-pad android-module"><PageIntro eyebrow="NOTÍCIAS BÍBLICAS" title="Palavra que alcança a semana" text="As notícias cadastradas pela igreja aparecem aqui em tempo real." /><div className="android-list-cards android-news-list">{editorialItems.map((item) => <button key={item.id} onClick={() => setSelectedItem(item)}><img src={contentImage(item)} alt=""/><div><strong>{item.title || item.name}</strong><small>{item.category || item.tag || "Notícia bíblica"} · {newsReference(item)}</small></div><ChevronRight size={19}/></button>)}</div>{selectedItem && <ContentDialog item={selectedItem} onClose={() => setSelectedItem(null)} />}</section>;
 }
 
 function MediaView() {
@@ -253,7 +274,7 @@ function CommunityView({ view, session, onLogin }: { view: "prayer" | "members" 
 }
 
 function PageIntro({ eyebrow, title, text }: { eyebrow: string; title: string; text: string }) { return <header className="page-intro"><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p>{text}</p></header>; }
-function ContentDialog({ item, onClose }: { item: CollectionItem; onClose: () => void }) { return <div className="content-dialog-backdrop" role="presentation" onMouseDown={onClose}><article className="content-dialog" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}><button className="dialog-close" onClick={onClose}><X size={19}/></button><img src={contentImage(item)} alt=""/><p className="eyebrow">{item.tag || "MIC RHEMA"}</p><h2>{item.title || item.name}</h2><p>{item.subtitle || item.description || "Conteúdo disponível no MIC Rhema."}</p><button className="solid-button" onClick={() => { toast.success("Conteúdo aberto."); onClose(); }}>Continuar <ArrowRight size={17}/></button></article></div>; }
+function ContentDialog({ item, onClose }: { item: CollectionItem; onClose: () => void }) { const isNews = Boolean(item.book || item.content); return <div className="content-dialog-backdrop" role="presentation" onMouseDown={onClose}><article className="content-dialog" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}><button className="dialog-close" onClick={onClose}><X size={19}/></button><img src={contentImage(item)} alt=""/><p className="eyebrow">{isNews ? `${item.category || "NOTÍCIA BÍBLICA"} · ${newsReference(item)}` : item.tag || "MIC RHEMA"}</p><h2>{item.title || item.name}</h2><p>{item.content || item.summary || item.subtitle || item.description || "Conteúdo disponível no MIC Rhema."}</p><button className="solid-button" onClick={() => { toast.success(isNews ? "Notícia aberta." : "Conteúdo aberto."); onClose(); }}>{isNews ? "Ler novamente" : "Continuar"} <ArrowRight size={17}/></button></article></div>; }
 
 function SignInDialog({ onClose, onSuccess }: { onClose: () => void; onSuccess: (session: PwaSession) => void }) {
   const [name, setName] = useState(""); const [phone, setPhone] = useState(""); const [password, setPassword] = useState(""); const [admin, setAdmin] = useState(false); const [requesting, setRequesting] = useState(false); const [busy, setBusy] = useState(false);
@@ -292,7 +313,7 @@ export default function Home() {
   };
   const logout = async () => { if (firebaseAuth) await signOut(firebaseAuth); localStorage.removeItem("mic-rhema-pwa-session"); setSession(null); setView("home"); toast.message("Você saiu da sua conta."); };
   const viewComponent = useMemo(() => {
-    if (view === "bible") return <BibleView />; if (view === "media") return <MediaView />; if (view === "devotionals") return <DevotionalsView />; if (view === "ibr") return <IbrView session={session} onLogin={() => setShowLogin(true)} />; if (view === "menu") return <MenuView session={session} onNavigate={setView} onLogin={() => setShowLogin(true)} />; if (view === "profile") return <ProfileView session={session} onLogin={() => setShowLogin(true)} onLogout={logout} />; if (view === "settings") return <SettingsView session={session} />; if (view === "admin") return <AdminView session={session} onLogin={() => setShowLogin(true)} />; if (view === "discipulado") return <DiscipuladoView />; if (view === "cultos") return <CultosView />; if (view === "plans") return <PlansView />; if (["prayer", "members", "team", "donations", "about"].includes(view)) return <CommunityView view={view as "prayer" | "members" | "team" | "donations" | "about"} session={session} onLogin={() => setShowLogin(true)} />; return <HomeView onNavigate={setView} />;
+    if (view === "bible") return <BibleView />; if (view === "news") return <NewsView />; if (view === "media") return <MediaView />; if (view === "devotionals") return <DevotionalsView />; if (view === "ibr") return <IbrView session={session} onLogin={() => setShowLogin(true)} />; if (view === "menu") return <MenuView session={session} onNavigate={setView} onLogin={() => setShowLogin(true)} />; if (view === "profile") return <ProfileView session={session} onLogin={() => setShowLogin(true)} onLogout={logout} />; if (view === "settings") return <SettingsView session={session} />; if (view === "admin") return <AdminView session={session} onLogin={() => setShowLogin(true)} />; if (view === "discipulado") return <DiscipuladoView />; if (view === "cultos") return <CultosView />; if (view === "plans") return <PlansView />; if (["prayer", "members", "team", "donations", "about"].includes(view)) return <CommunityView view={view as "prayer" | "members" | "team" | "donations" | "about"} session={session} onLogin={() => setShowLogin(true)} />; return <HomeView onNavigate={setView} />;
   }, [view, session]);
   return <PwaShell
     active={view}

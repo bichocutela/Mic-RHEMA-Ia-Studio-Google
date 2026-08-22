@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 
 export type AppView =
-  | "home" | "bible" | "devotionals" | "media" | "ibr" | "menu" | "profile"
+  | "home" | "bible" | "news" | "devotionals" | "media" | "ibr" | "menu" | "profile"
   | "settings" | "admin" | "discipulado" | "cultos" | "plans" | "prayer"
   | "members" | "team" | "donations" | "about";
 
