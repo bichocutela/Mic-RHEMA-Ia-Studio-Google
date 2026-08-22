@@ -1,6 +1,6 @@
 /**
- * SANTUÁRIO EM MOVIMENTO — Página raiz da PWA, com ritmo editorial e Bíblia como centro espiritual.
- * Superfícies quentes, azul de santuário e foco vinho-dourado; nenhuma ação administrativa é simulada.
+ * PARIDADE ANDROID — Fluxos PWA preservados na casca Material 3 do aplicativo Android.
+ * Firebase, Supabase e Web Push permanecem web-only; o aplicativo Android não é alterado aqui.
  */
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -89,32 +89,41 @@ function HomeView({ onNavigate }: { onNavigate: (view: AppView) => void }) {
   const news = useLiveCollection("bible_news", sampleNews);
   const media = useLiveCollection("conteudos_videos", sampleMedia);
   const [expandedItem, setExpandedItem] = useState<CollectionItem | null>(null);
-  return <>
-    <Hero onBible={() => onNavigate("bible")} />
-    <section className="quick-ribbon" aria-label="Atalhos">
-      <button onClick={() => onNavigate("bible")}><BookOpen size={18}/><span>Bíblia</span></button>
-      <button onClick={() => onNavigate("plans")}><Sparkles size={18}/><span>Planos</span></button>
-      <button onClick={() => onNavigate("cultos")}><CalendarDays size={18}/><span>Cultos</span></button>
-      <button onClick={() => onNavigate("discipulado")}><BookHeart size={18}/><span>Estudar</span></button>
-    </section>
-    <section className="content-section"><SectionHeading eyebrow="CONTINUE POR AQUI" title="A Palavra permanece" action="Bíblia" onAction={() => onNavigate("bible")} />
-      <button className="reading-progress" onClick={() => onNavigate("bible")}>
-        <div className="scripture-mark">G</div><div><strong>Gênesis 1</strong><span>“Disse Deus: Haja luz.”</span><div className="progress-line"><i /></div></div><ChevronRight size={18}/>
+  const [moodOpen, setMoodOpen] = useState(false);
+  const [bannerIndex, setBannerIndex] = useState(0);
+  const banners = [
+    { image: ASSETS.hero, tag: "MIC RHEMA", title: "Palavra, comunhão e uma nova semana", description: "Veja os encontros e conteúdos da igreja." },
+    { image: ASSETS.devotional, tag: "DEVOCIONAL", title: "Uma pausa para ouvir a Palavra", description: "Continue sua caminhada de hoje." },
+  ];
+  useEffect(() => {
+    const timer = window.setInterval(() => setBannerIndex((current) => (current + 1) % banners.length), 6500);
+    return () => window.clearInterval(timer);
+  }, [banners.length]);
+  const banner = banners[bannerIndex];
+  return <section className="android-home">
+    <header className="android-home-greeting"><h1>Seja bem-vindo à Rhema</h1><p>Que a paz do Senhor esteja com você</p></header>
+    <section className="android-banner-wrap" aria-label="Destaques da igreja">
+      <button className="android-banner-card" onClick={() => toast.message("Os detalhes do evento aparecerão aqui quando forem cadastrados.")}>
+        <img src={banner.image} alt="Destaque MIC Rhema" /><span className="android-banner-shade" />
+        <span className="android-banner-copy"><small>{banner.tag}</small><strong>{banner.title}</strong><em>{banner.description}</em></span>
       </button>
+      <div className="android-banner-indicators">{banners.map((_, index) => <button aria-label={`Ir para destaque ${index + 1}`} className={index === bannerIndex ? "is-selected" : ""} onClick={() => setBannerIndex(index)} key={index} />)}</div>
     </section>
-    <section className="content-section"><SectionHeading eyebrow="NOTÍCIAS BÍBLICAS" title="Para fortalecer sua caminhada" action="Ver tudo" onAction={() => toast.message("Todas as notícias aparecem quando a sincronização Firebase estiver conectada.")} />
-      <HorizontalCards items={news} onOpen={setExpandedItem} />
+    <button className="android-mood-card" onClick={() => setMoodOpen(true)}><span className="android-mood-icon">♡</span><span><strong>Como você está se sentindo hoje?</strong><small>Escolha uma palavra e encontre um plano para este momento.</small></span><ChevronRight size={20} /></button>
+    <section className="android-quick-actions" aria-label="Atalhos rápidos">
+      <button onClick={() => onNavigate("bible")}><BookOpen size={23}/><span>Bíblia</span></button>
+      <button onClick={() => onNavigate("prayer")}><Heart size={23}/><span>Pedidos</span></button>
+      <button onClick={() => onNavigate("plans")}><CalendarDays size={23}/><span>Planos</span></button>
+      <button onClick={() => onNavigate("members")}><Users size={23}/><span>Membros</span></button>
     </section>
-    <section className="wide-feature">
-      <img src={ASSETS.devotional} alt="Bíblia e caderno para devocional"/><div><p className="eyebrow">DEVOCIONAL DIÁRIO</p><h2>Uma pausa que reorganiza o dia.</h2><button onClick={() => toast.message("O devocional do dia abrirá aqui.")}>Ler agora <ChevronRight size={17}/></button></div>
-    </section>
-    <section className="content-section"><SectionHeading eyebrow="MÍDIA" title="Ouça, assista e reveja" action="Mídia" onAction={() => onNavigate("media")} /><HorizontalCards items={media} compact onOpen={setExpandedItem} /></section>
-    <section className="content-section"><SectionHeading eyebrow="CULTOS" title="Próximo encontro" />
-      <button className="service-card" onClick={() => onNavigate("cultos")}><div className="date-box"><span>DOM</span><b>24</b><small>AGO</small></div><div><strong>Culto de celebração</strong><span>19:00 · Nosso santuário</span><p>Uma noite para louvar, ouvir e caminhar em família.</p></div><ChevronRight size={20}/></button>
-    </section>
+    <button className="android-devotional-card" onClick={() => onNavigate("devotionals")}><span><small>DEVOCIONAL DIÁRIO</small><strong>A presença de Deus no caminho de hoje</strong><em>Leia, reflita e continue firme na Palavra.</em></span><span className="android-read-link">Ler <ChevronRight size={17}/></span></button>
+    <section className="android-home-section"><SectionHeading title="Notícias Bíblicas" action="Ver todas" onAction={() => toast.message("As notícias são sincronizadas pelo Firebase.")} /><div className="android-horizontal-list">{news.slice(0, 5).map((item) => <button className="android-news-card" key={item.id} onClick={() => setExpandedItem(item)}><img src={contentImage(item)} alt=""/><span><strong>{item.title || item.name}</strong><small>{item.tag || "Notícia bíblica"}</small></span></button>)}</div></section>
+    <section className="android-home-section"><SectionHeading title="Próximos Cultos" action="Ver" onAction={() => onNavigate("cultos")} /><div className="android-horizontal-list">{[["DOM", "24", "Culto de celebração", "19:00"], ["QUA", "27", "Noite de oração", "19:30"], ["DOM", "31", "Culto de comunhão", "19:00"]].map(([day, date, title, hour]) => <button className="android-service-card" key={date} onClick={() => onNavigate("cultos")}><span><small>{day}</small><b>{date}</b></span><em><strong>{title}</strong><small>{hour}</small></em></button>)}</div></section>
+    <section className="android-home-section"><SectionHeading title="Mídia" action="Ver todas" onAction={() => onNavigate("media")} /><div className="android-horizontal-list">{media.slice(0, 5).map((item) => <button className="android-media-card" key={item.id} onClick={() => setExpandedItem(item)}><img src={contentImage(item)} alt=""/><Play size={18}/><strong>{item.title || item.name}</strong><small>{item.subtitle || "Vídeo"}</small></button>)}</div></section>
     <InstallCard />
+    {moodOpen && <div className="android-sheet-backdrop" onMouseDown={() => setMoodOpen(false)}><section className="android-mood-sheet" onMouseDown={(event) => event.stopPropagation()}><button className="dialog-close" onClick={() => setMoodOpen(false)}><X size={19}/></button><h2>Como está seu coração hoje?</h2><p>Escolha uma opção para encontrar uma leitura adequada para este momento.</p><div>{[["😊", "Feliz"], ["😟", "Ansioso"], ["😔", "Triste"], ["🙏", "Preciso de esperança"], ["😌", "Em paz"], ["😤", "Irritado"]].map(([emoji, label]) => <button key={label} onClick={() => { setMoodOpen(false); onNavigate("plans"); toast.message(`Plano de ${label.toLowerCase()} selecionado.`); }}><span>{emoji}</span>{label}</button>)}</div></section></div>}
     {expandedItem && <ContentDialog item={expandedItem} onClose={() => setExpandedItem(null)} />}
-  </>;
+  </section>;
 }
 
 function BibleView() {
@@ -206,6 +215,20 @@ function DiscipuladoView() { return <section className="page-pad"><PageIntro eye
 function CultosView() { return <section className="page-pad"><PageIntro eyebrow="CULTOS" title="A igreja se encontra aqui" text="Escolha um encontro e veja os detalhes preparados pela administração."/><div className="schedule-list">{[["DOM", "24", "Culto de celebração", "19:00"],["QUA", "27", "Noite de oração", "19:30"],["DOM", "31", "Culto de comunhão", "19:00"]].map(([day, date, title, hour]) => <button key={date} onClick={() => toast.message(`${title}: os detalhes serão exibidos aqui.`)}><div><small>{day}</small><strong>{date}</strong></div><span><b>{title}</b><small>{hour} · Santuário MIC Rhema</small></span><ChevronRight size={18}/></button>)}</div></section>; }
 function PlansView() { return <section className="page-pad"><PageIntro eyebrow="PLANOS DE LEITURA" title="Caminhos que cabem na sua semana" text="Escolha um tema e avance no seu próprio ritmo."/><div className="plan-grid">{["Começar pela Palavra", "Esperança em tempos difíceis", "Conhecendo Jesus", "Vida no Espírito"].map((plan, index) => <button key={plan} onClick={() => toast.message(`Plano “${plan}” iniciado.`)}><span>0{index + 1}</span><h2>{plan}</h2><p>{index % 2 ? "7 dias de leitura" : "14 dias de leitura"}</p><ArrowRight size={18}/></button>)}</div></section>; }
 
+function DevotionalsView() { return <section className="page-pad android-module"><PageIntro eyebrow="DEVOCIONAIS" title="Palavra para todos os dias" text="Uma leitura breve para fortalecer a sua caminhada." /><div className="android-list-cards">{["A presença de Deus no caminho", "Fé para o próximo passo", "Descansar no cuidado do Pai"].map((title, index) => <button key={title} onClick={() => toast.message(`Abrindo o devocional: ${title}`)}><span>{String(index + 1).padStart(2, "0")}</span><div><strong>{title}</strong><small>Devocional diário · Ler agora</small></div><ChevronRight size={19}/></button>)}</div></section>; }
+
+function CommunityView({ view, session, onLogin }: { view: "prayer" | "members" | "team" | "donations" | "about"; session: PwaSession | null; onLogin: () => void }) {
+  const content = {
+    prayer: { eyebrow: "PEDIDOS DE ORAÇÃO", title: "Conte com a igreja em oração", text: "Envie seu pedido. Ele será tratado com cuidado pela comunidade.", action: "Enviar pedido", icon: Heart },
+    members: { eyebrow: "MEMBROS", title: session ? "Sua comunidade" : "Área de Membros", text: session ? "Acompanhe seus conteúdos, favoritos e acesso aprovado." : "Entre ou solicite acesso para acompanhar sua jornada.", action: session ? "Ver meu perfil" : "Entrar ou solicitar acesso", icon: Users },
+    team: { eyebrow: "EQUIPE", title: "Pessoas que servem com você", text: "Conheça os ministérios e a equipe da igreja.", action: "Ver equipe", icon: Users },
+    donations: { eyebrow: "DÍZIMOS E OFERTAS", title: "Generosidade que alcança pessoas", text: "Use esta área para consultar os dados de contribuição cadastrados pela igreja.", action: "Ver orientações", icon: Heart },
+    about: { eyebrow: "SOBRE", title: "MIC Rhema", text: "Igreja em movimento, reunindo palavra, comunhão e formação em um só lugar.", action: "Conhecer a igreja", icon: Church },
+  }[view];
+  const Icon = content.icon;
+  return <section className="page-pad android-module"><PageIntro eyebrow={content.eyebrow} title={content.title} text={content.text} /><article className="android-module-card"><Icon size={29}/><div><strong>{view === "members" && session ? session.name : content.title}</strong><small>{view === "members" && !session ? "Seu acesso será aprovado pela administração." : "Informações atualizadas pela igreja."}</small></div><ChevronRight size={20}/></article><button className="android-primary-action" onClick={() => view === "members" && !session ? onLogin() : toast.message(`${content.action}: este fluxo será aberto aqui.`)}>{content.action}<ArrowRight size={18}/></button></section>;
+}
+
 function PageIntro({ eyebrow, title, text }: { eyebrow: string; title: string; text: string }) { return <header className="page-intro"><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p>{text}</p></header>; }
 function ContentDialog({ item, onClose }: { item: CollectionItem; onClose: () => void }) { return <div className="content-dialog-backdrop" role="presentation" onMouseDown={onClose}><article className="content-dialog" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}><button className="dialog-close" onClick={onClose}><X size={19}/></button><img src={contentImage(item)} alt=""/><p className="eyebrow">{item.tag || "MIC RHEMA"}</p><h2>{item.title || item.name}</h2><p>{item.subtitle || item.description || "Conteúdo disponível no MIC Rhema."}</p><button className="solid-button" onClick={() => { toast.success("Conteúdo aberto."); onClose(); }}>Continuar <ArrowRight size={17}/></button></article></div>; }
 
@@ -217,7 +240,7 @@ function SignInDialog({ onClose, onSuccess }: { onClose: () => void; onSuccess: 
 }
 
 export default function Home() {
-  const [view, setView] = useState<AppView>("home"); const [session, setSession] = useState<PwaSession | null>(null); const [showLogin, setShowLogin] = useState(false);
+  const [view, setView] = useState<AppView>("home"); const [session, setSession] = useState<PwaSession | null>(null); const [showLogin, setShowLogin] = useState(false); const [drawerOpen, setDrawerOpen] = useState(false);
   useEffect(() => {
     const stored = localStorage.getItem("mic-rhema-pwa-session");
     if (stored) setSession(JSON.parse(stored) as PwaSession);
@@ -246,7 +269,16 @@ export default function Home() {
   };
   const logout = async () => { if (firebaseAuth) await signOut(firebaseAuth); localStorage.removeItem("mic-rhema-pwa-session"); setSession(null); setView("home"); toast.message("Você saiu da sua conta."); };
   const viewComponent = useMemo(() => {
-    if (view === "bible") return <BibleView />; if (view === "media") return <MediaView />; if (view === "ibr") return <IbrView session={session} onLogin={() => setShowLogin(true)} />; if (view === "menu") return <MenuView session={session} onNavigate={setView} onLogin={() => setShowLogin(true)} />; if (view === "profile") return <ProfileView session={session} onLogin={() => setShowLogin(true)} onLogout={logout} />; if (view === "settings") return <SettingsView session={session} />; if (view === "admin") return <AdminView session={session} onLogin={() => setShowLogin(true)} />; if (view === "discipulado") return <DiscipuladoView />; if (view === "cultos") return <CultosView />; if (view === "plans") return <PlansView />; return <HomeView onNavigate={setView} />;
+    if (view === "bible") return <BibleView />; if (view === "media") return <MediaView />; if (view === "devotionals") return <DevotionalsView />; if (view === "ibr") return <IbrView session={session} onLogin={() => setShowLogin(true)} />; if (view === "menu") return <MenuView session={session} onNavigate={setView} onLogin={() => setShowLogin(true)} />; if (view === "profile") return <ProfileView session={session} onLogin={() => setShowLogin(true)} onLogout={logout} />; if (view === "settings") return <SettingsView session={session} />; if (view === "admin") return <AdminView session={session} onLogin={() => setShowLogin(true)} />; if (view === "discipulado") return <DiscipuladoView />; if (view === "cultos") return <CultosView />; if (view === "plans") return <PlansView />; if (["prayer", "members", "team", "donations", "about"].includes(view)) return <CommunityView view={view as "prayer" | "members" | "team" | "donations" | "about"} session={session} onLogin={() => setShowLogin(true)} />; return <HomeView onNavigate={setView} />;
   }, [view, session]);
-  return <PwaShell active={["profile", "settings", "admin", "discipulado", "cultos", "plans"].includes(view) ? "menu" : view} onNavigate={setView}><AppHeader onMenu={() => setView("menu")} onNotifications={enableNotifications} session={session} onProfile={() => session ? setView("profile") : setShowLogin(true)} />{viewComponent}{showLogin && <SignInDialog onClose={() => setShowLogin(false)} onSuccess={persistSession} />}</PwaShell>;
+  return <PwaShell
+    active={view}
+    onNavigate={setView}
+    drawerOpen={drawerOpen}
+    onOpenDrawer={() => setDrawerOpen(true)}
+    onCloseDrawer={() => setDrawerOpen(false)}
+    onProfile={() => session ? setView("profile") : setShowLogin(true)}
+    session={session}
+    onNotifications={enableNotifications}
+  >{viewComponent}{showLogin && <SignInDialog onClose={() => setShowLogin(false)} onSuccess={persistSession} />}</PwaShell>;
 }

@@ -206,6 +206,13 @@
 - [x] Integrar notificações web do iPhone e publicar a PWA completa pelo GitHub Pages.
 - [ ] Validar em um iPhone instalado: autorizar o sino de notificações e conferir o primeiro aviso real enviado pelo painel ADM.
 
+## Paridade visual obrigatória entre PWA e Android
+
+- [x] Mapear as telas, abas, componentes, paleta, tipografia e navegação reais do aplicativo Android, sem alterar seus arquivos.
+- [x] Refazer a estrutura visual da PWA para espelhar o aplicativo Android, removendo a direção visual independente atual.
+- [x] Adaptar os módulos web existentes para a hierarquia de telas Android, preservando Firebase, Supabase e Web Push.
+- [ ] Validar visualmente em largura de iPhone, publicar somente a PWA e submeter para revisão antes de declarar paridade.
+
 ## Isolamento obrigatório da PWA
 
 - [x] Concluir os ajustes pendentes somente em `pwa/`, no workflow `pwa-pages.yml` e nas funções web separadas.

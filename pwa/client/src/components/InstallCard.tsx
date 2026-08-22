@@ -1,6 +1,4 @@
-/**
- * SANTUÁRIO EM MOVIMENTO — A instalação aparece como orientação simples e nunca compete com a leitura.
- */
+/** PARIDADE ANDROID — orientação discreta para instalação e permissão explícita de avisos. */
 import { BellRing, Download, Share } from "lucide-react";
 import { toast } from "sonner";
 
@@ -9,7 +7,7 @@ export function InstallCard() {
   const askNotification = async () => {
     if (!("Notification" in window)) return toast.error("Este navegador não oferece notificações web.");
     const result = await Notification.requestPermission();
-    if (result === "granted") toast.success("Permissão concedida. A PWA finalizará a assinatura quando as chaves web forem configuradas.");
+    if (result === "granted") toast.success("Permissão concedida. A PWA concluirá sua inscrição para receber avisos.");
     else toast.message("Você pode ativar essa permissão depois nas configurações do iPhone.");
   };
 
