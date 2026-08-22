@@ -23,3 +23,9 @@
 A interface móvel abriu o diálogo de membro com os campos de nome e telefone, a alternativa para solicitação de acesso e a troca para o formulário administrativo. O login `admin` foi concluído com sucesso no preview controlado: a PWA exibiu “Bem-vindo, Administrador” e atualizou o avatar do cabeçalho para a inicial administrativa. Essa validação confirma o encadeamento entre a interface, `pwa-auth`, Custom Token e Firebase Authentication.
 
 O console do navegador não reportou erro de runtime, Firebase ou autenticação após o login. Os únicos registros referem-se à tentativa manual de acionar o item de navegação “Mais” pelo console; esse comando não alterou o estado da aplicação e não representa erro da PWA.
+
+## Publicação GitHub Pages
+
+O GitHub Pages foi configurado para publicar por GitHub Actions. O workflow de publicação foi validado com sucesso no run `32556187029`, que compilou a tipagem, gerou o artefato estático e publicou em `https://bichocutela.github.io/Mic-RHEMA-Ia-Studio-Google/`.
+
+A primeira navegação após a publicação pode entregar por alguns minutos o HTML anterior do CDN do GitHub Pages, cujo cabeçalho informa cache de até 600 segundos. A URL com parâmetro de versão, `https://bichocutela.github.io/Mic-RHEMA-Ia-Studio-Google/?release=139bfccc`, carregou a tela inicial completa, com os dados Firebase e os ativos Supabase. O service worker foi atualizado para a versão `v2`, passando a remover caches antigos nas próximas ativações.
