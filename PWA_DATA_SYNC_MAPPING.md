@@ -62,4 +62,6 @@ Na prévia, a rota “Cursos IBR” foi aberta sem sessão e exibiu corretamente
 
 A validação autenticada com a sessão administrativa confirmou a leitura em tempo real dos três módulos existentes: “Introdução à Teologia Sistemática”, “História da Igreja Cristã” e “Doutrina do Rhema - Fé Prática”. O primeiro módulo abriu as três aulas reais com título, descrição, tipo e duração; nenhuma aula foi iniciada durante o teste, preservando o progresso real.
 
+Na etapa ADM, foi corrigida a publicação de mídia que antes sempre criava apenas um vídeo sem URL de abertura. O painel agora mostra contadores reais de solicitações, mídia, alunos e cursos; lista individualmente as solicitações pendentes para aprovação; e permite escolher Vídeo, Áudio ou Livro/PDF. Cada publicação grava no respectivo `conteudos_videos`, `conteudos_audios` ou `conteudos_books` com os mesmos campos consumidos pelo Android (`videoUrl`, `audioUrl` ou `bookUrl`, além de capa e crédito). A validação com a sessão administrativa confirmou 0 solicitações, 10 mídias, 4 alunos IBR e 3 cursos, além da adaptação visual dos campos para áudio, sem inserir conteúdo de teste.
+
 > A PWA deve renderizar primeiro os itens de `carousel_items`, pois é a fonte editada pelo painel administrativo Android. Nenhum banner fixo deve ser mantido como conteúdo principal quando houver dados sincronizados disponíveis.

@@ -239,6 +239,7 @@
 - [x] Etapa 10 — liberar o envio público de Pedidos de Oração na PWA, sem exigir login ou solicitação de acesso.
 - [x] Etapa 11 — diagnosticar e corrigir o fluxo que impede o funcionamento da aba Bíblia na PWA.
 - [x] Etapa 12 — diagnosticar e corrigir o fluxo da aba IBR na PWA com base no funcionamento Android.
+- [x] Etapa 13 — revisar e corrigir a aba ADM da PWA com dados e fluxos administrativos reais.
 
 ## Isolamento obrigatório da PWA
 

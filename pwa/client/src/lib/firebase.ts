@@ -122,16 +122,27 @@ export async function approveMemberRequest(memberId: string) {
   await updateDoc(doc(firestore, "acessos_pendentes", memberId), { isApproved: true, status: "aprovado", updatedAt: Date.now() });
 }
 
-export async function createAdminContent(input: { collectionName: string; title: string; description: string; mediaUrl?: string }) {
+/** PARIDADE ANDROID — cria mídia nos mesmos campos que as coleções conteudos_* do APK consomem. */
+export async function createAdminContent(input: { type: "video" | "audio" | "book"; title: string; description: string; mediaUrl: string; coverUrl?: string; credit?: string }) {
   if (!firestore) throw new Error("A conexão Firebase da PWA não está disponível.");
-  await addDoc(collection(firestore, input.collectionName), {
+  const collectionName = input.type === "video" ? "conteudos_videos" : input.type === "audio" ? "conteudos_audios" : "conteudos_books";
+  const contentRef = doc(collection(firestore, collectionName));
+  const common = {
+    id: contentRef.id,
     title: input.title.trim(),
     description: input.description.trim(),
-    imageUrl: input.mediaUrl?.trim() || "",
-    thumbnailUrl: input.mediaUrl?.trim() || "",
+    imageUrl: input.coverUrl?.trim() || "",
+    isApproved: true,
+    approved: true,
     publishedAt: Date.now(),
     createdAt: Date.now(),
     updatedAt: Date.now(),
     source: "pwa",
-  });
+  };
+  const specific = input.type === "video"
+    ? { videoUrl: input.mediaUrl.trim(), thumbnailUrl: input.coverUrl?.trim() || "" }
+    : input.type === "audio"
+      ? { audioUrl: input.mediaUrl.trim(), coverUrl: input.coverUrl?.trim() || "", artist: input.credit?.trim() || "" }
+      : { bookUrl: input.mediaUrl.trim(), coverUrl: input.coverUrl?.trim() || "", author: input.credit?.trim() || "" };
+  await setDoc(contentRef, { ...common, ...specific });
 }
