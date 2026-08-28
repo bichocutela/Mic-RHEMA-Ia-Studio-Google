@@ -10,178 +10,27 @@ const FIREBASE_JWKS = createRemoteJWKSet(new URL(FIREBASE_JWKS_URL));
 
 type ServiceAccount = { project_id?: string; client_email?: string; private_key?: string };
 type FirebaseClaims = { sub?: string; user_id?: string; isAdmin?: boolean };
+type ProfilePatch = { name?: string; phone?: string; address?: string; birthDate?: string; email?: string; avatarId?: string; equippedBadgeId?: string };
 
-type ProfilePatch = {
-  name?: string;
-  phone?: string;
-  address?: string;
-  birthDate?: string;
-  email?: string;
-  avatarId?: string;
-  equippedBadgeId?: string;
-};
+class HttpError extends Error { constructor(public status:number,message:string){super(message)} }
+const cors={"access-control-allow-origin":"*","access-control-allow-headers":"authorization, content-type","access-control-allow-methods":"POST, OPTIONS","content-type":"application/json; charset=utf-8","cache-control":"no-store"};
+function json(body:Record<string,unknown>,status=200){return new Response(JSON.stringify(body),{status,headers:cors})}
+function bearer(request:Request){const value=request.headers.get("authorization")||"";const match=value.match(/^Bearer\s+(.+)$/i);if(!match)throw new HttpError(401,"Sessão Firebase ausente.");return match[1]}
+async function verifyFirebaseToken(token:string):Promise<FirebaseClaims>{try{const result=await jwtVerify(token,FIREBASE_JWKS,{issuer:FIREBASE_ISSUER,audience:FIREBASE_PROJECT_ID,algorithms:["RS256"]});const claims=result.payload as FirebaseClaims;if(!claims.sub)throw new HttpError(401,"Sessão Firebase inválida.");return claims}catch(error){if(error instanceof HttpError)throw error;if(error instanceof joseErrors.JWTExpired)throw new HttpError(401,"Sua sessão expirou. Entre novamente.");throw new HttpError(401,"Sessão Firebase inválida.")}}
+async function googleAccessToken(account:ServiceAccount){if(!account.client_email||!account.private_key)throw new HttpError(500,"Credencial Firebase do servidor incompleta.");const now=Math.floor(Date.now()/1000);const privateKey=await importPKCS8(account.private_key.replace(/\\n/g,"\n"),"RS256");const assertion=await new SignJWT({iss:account.client_email,scope:"https://www.googleapis.com/auth/datastore",aud:GOOGLE_TOKEN_URL}).setProtectedHeader({alg:"RS256",typ:"JWT"}).setIssuedAt(now).setExpirationTime(now+3600).sign(privateKey);const response=await fetch(GOOGLE_TOKEN_URL,{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:new URLSearchParams({grant_type:"urn:ietf:params:oauth:grant-type:jwt-bearer",assertion})});const payload=await response.json();if(!response.ok||!payload.access_token)throw new HttpError(500,"Não foi possível autenticar o perfil no Firebase.");return String(payload.access_token)}
+function decodeValue(field:any):any{if(!field)return undefined;if("stringValue" in field)return field.stringValue;if("booleanValue" in field)return field.booleanValue;if("integerValue" in field)return Number(field.integerValue);if("doubleValue" in field)return Number(field.doubleValue);if("timestampValue" in field)return field.timestampValue;if("arrayValue" in field)return(field.arrayValue?.values||[]).map(decodeValue);if("mapValue" in field)return Object.fromEntries(Object.entries(field.mapValue?.fields||{}).map(([key,value])=>[key,decodeValue(value)]));return undefined}
+function encodeValue(value:unknown):Record<string,unknown>{if(typeof value==="boolean")return{booleanValue:value};if(typeof value==="number")return Number.isInteger(value)?{integerValue:String(value)}:{doubleValue:value};if(Array.isArray(value))return{arrayValue:{values:value.map(encodeValue)}};if(value&&typeof value==="object")return{mapValue:{fields:Object.fromEntries(Object.entries(value as Record<string,unknown>).map(([key,item])=>[key,encodeValue(item)]))}};return{stringValue:String(value??"")}}
+function profileFromFields(fields:Record<string,any>){const get=(name:string)=>decodeValue(fields[name]);return{id:"",name:String(get("name")||""),phone:String(get("phone")||""),address:String(get("address")||""),birthDate:String(get("birthDate")||""),email:String(get("email")||""),avatarId:String(get("avatarId")||"davi"),equippedBadgeId:String(get("equippedBadgeId")||"caminhante"),unlockedBadgeIds:Array.isArray(get("unlockedBadgeIds"))?get("unlockedBadgeIds"):[],badgeActivityIds:get("badgeActivityIds")||{},isApproved:get("isApproved")===true,isIbr:get("isIbr")===true,isAdmin:get("isAdmin")===true,ibrCertificateName:String(get("ibrCertificateName")||""),ibrCertificateUrl:String(get("ibrCertificateUrl")||"")}}
+async function readMember(account:ServiceAccount,accessToken:string,memberId:string){const projectId=account.project_id||FIREBASE_PROJECT_ID;const url=`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/acessos_pendentes/${encodeURIComponent(memberId)}`;const response=await fetch(url,{headers:{authorization:`Bearer ${accessToken}`}});if(response.status===404)throw new HttpError(404,"Perfil de membro não encontrado.");if(!response.ok)throw new HttpError(502,"Não foi possível consultar seu perfil agora.");return{url,document:await response.json() as Record<string,any>}}
 
-class HttpError extends Error {
-  constructor(public status: number, message: string) { super(message); }
-}
-
-const cors = {
-  "access-control-allow-origin": "*",
-  "access-control-allow-headers": "authorization, content-type",
-  "access-control-allow-methods": "POST, OPTIONS",
-  "content-type": "application/json; charset=utf-8",
-  "cache-control": "no-store",
-};
-
-function json(body: Record<string, unknown>, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: cors });
-}
-
-function bearer(request: Request) {
-  const value = request.headers.get("authorization") || "";
-  const match = value.match(/^Bearer\s+(.+)$/i);
-  if (!match) throw new HttpError(401, "Sessão Firebase ausente.");
-  return match[1];
-}
-
-async function verifyFirebaseToken(token: string): Promise<FirebaseClaims> {
-  try {
-    const result = await jwtVerify(token, FIREBASE_JWKS, {
-      issuer: FIREBASE_ISSUER,
-      audience: FIREBASE_PROJECT_ID,
-      algorithms: ["RS256"],
-    });
-    const claims = result.payload as FirebaseClaims;
-    if (!claims.sub) throw new HttpError(401, "Sessão Firebase inválida.");
-    return claims;
-  } catch (error) {
-    if (error instanceof HttpError) throw error;
-    if (error instanceof joseErrors.JWTExpired) throw new HttpError(401, "Sua sessão expirou. Entre novamente.");
-    throw new HttpError(401, "Sessão Firebase inválida.");
-  }
-}
-
-async function googleAccessToken(account: ServiceAccount) {
-  if (!account.client_email || !account.private_key) throw new HttpError(500, "Credencial Firebase do servidor incompleta.");
-  const now = Math.floor(Date.now() / 1000);
-  const privateKey = await importPKCS8(account.private_key.replace(/\\n/g, "\n"), "RS256");
-  const assertion = await new SignJWT({
-    iss: account.client_email,
-    scope: "https://www.googleapis.com/auth/datastore",
-    aud: GOOGLE_TOKEN_URL,
-  })
-    .setProtectedHeader({ alg: "RS256", typ: "JWT" })
-    .setIssuedAt(now)
-    .setExpirationTime(now + 3600)
-    .sign(privateKey);
-  const response = await fetch(GOOGLE_TOKEN_URL, {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion }),
-  });
-  const payload = await response.json();
-  if (!response.ok || !payload.access_token) throw new HttpError(500, "Não foi possível autenticar o perfil no Firebase.");
-  return String(payload.access_token);
-}
-
-function decodeValue(field: any): any {
-  if (!field) return undefined;
-  if ("stringValue" in field) return field.stringValue;
-  if ("booleanValue" in field) return field.booleanValue;
-  if ("integerValue" in field) return Number(field.integerValue);
-  if ("doubleValue" in field) return Number(field.doubleValue);
-  if ("timestampValue" in field) return field.timestampValue;
-  if ("arrayValue" in field) return (field.arrayValue?.values || []).map(decodeValue);
-  if ("mapValue" in field) return Object.fromEntries(Object.entries(field.mapValue?.fields || {}).map(([key, value]) => [key, decodeValue(value)]));
-  return undefined;
-}
-
-function encodeValue(value: unknown): Record<string, unknown> {
-  if (typeof value === "boolean") return { booleanValue: value };
-  if (typeof value === "number") return Number.isInteger(value) ? { integerValue: String(value) } : { doubleValue: value };
-  if (Array.isArray(value)) return { arrayValue: { values: value.map(encodeValue) } };
-  if (value && typeof value === "object") return { mapValue: { fields: Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, encodeValue(item)])) } };
-  return { stringValue: String(value ?? "") };
-}
-
-function profileFromFields(fields: Record<string, any>) {
-  const get = (name: string) => decodeValue(fields[name]);
-  return {
-    id: "",
-    name: String(get("name") || ""),
-    phone: String(get("phone") || ""),
-    address: String(get("address") || ""),
-    birthDate: String(get("birthDate") || ""),
-    email: String(get("email") || ""),
-    avatarId: String(get("avatarId") || "davi"),
-    equippedBadgeId: String(get("equippedBadgeId") || "nivel_1"),
-    unlockedBadgeIds: Array.isArray(get("unlockedBadgeIds")) ? get("unlockedBadgeIds") : [],
-    badgeActivityIds: get("badgeActivityIds") || {},
-    isApproved: get("isApproved") === true,
-    isIbr: get("isIbr") === true,
-    isAdmin: get("isAdmin") === true,
-  };
-}
-
-async function readMember(account: ServiceAccount, accessToken: string, memberId: string) {
-  const projectId = account.project_id || FIREBASE_PROJECT_ID;
-  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/acessos_pendentes/${encodeURIComponent(memberId)}`;
-  const response = await fetch(url, { headers: { authorization: `Bearer ${accessToken}` } });
-  if (response.status === 404) throw new HttpError(404, "Perfil de membro não encontrado.");
-  if (!response.ok) throw new HttpError(502, "Não foi possível consultar seu perfil agora.");
-  return { url, document: await response.json() as Record<string, any> };
-}
-
-Deno.serve(async (request: Request) => {
-  if (request.method === "OPTIONS") return json({ ok: true });
-  if (request.method !== "POST") return json({ error: "Método não permitido." }, 405);
-  try {
-    const firebaseToken = bearer(request);
-    const claims = await verifyFirebaseToken(firebaseToken);
-    const memberId = claims.user_id || claims.sub || "";
-    if (!memberId) throw new HttpError(401, "Sessão sem identificador de membro.");
-
-    const account = JSON.parse(Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON") || "{}") as ServiceAccount;
-    const accessToken = await googleAccessToken(account);
-    const input = await request.json().catch(() => ({})) as { action?: string; data?: ProfilePatch };
-    const { url, document } = await readMember(account, accessToken, memberId);
-    const fields = document.fields || {};
-    const current = profileFromFields(fields);
-    current.id = memberId;
-    if (!current.isApproved && !current.isAdmin) throw new HttpError(403, "Seu acesso de membro ainda não está aprovado.");
-
-    if ((input.action || "get") === "get") return json({ ok: true, profile: current });
-    if (input.action !== "save") throw new HttpError(400, "Ação de perfil inválida.");
-
-    const data = input.data || {};
-    const allowed: ProfilePatch = {};
-    if (typeof data.name === "string") allowed.name = data.name.trim().slice(0, 120);
-    if (typeof data.phone === "string") allowed.phone = data.phone.replace(/\D/g, "").slice(0, 15);
-    if (typeof data.address === "string") allowed.address = data.address.trim().slice(0, 240);
-    if (typeof data.birthDate === "string") allowed.birthDate = data.birthDate.replace(/[^0-9/]/g, "").slice(0, 10);
-    if (typeof data.email === "string") allowed.email = data.email.trim().slice(0, 160);
-    if (typeof data.avatarId === "string") allowed.avatarId = data.avatarId.trim().slice(0, 40);
-    if (typeof data.equippedBadgeId === "string" && current.unlockedBadgeIds.includes(data.equippedBadgeId)) allowed.equippedBadgeId = data.equippedBadgeId.trim().slice(0, 80);
-    if (allowed.name !== undefined && !allowed.name) throw new HttpError(400, "O nome não pode ficar vazio.");
-    if (allowed.phone !== undefined && allowed.phone.length < 8) throw new HttpError(400, "Informe um telefone válido.");
-    if (allowed.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(allowed.email)) throw new HttpError(400, "Informe um e-mail válido.");
-
-    const patchFields = Object.fromEntries(Object.entries({ ...allowed, updatedAt: Date.now() }).map(([key, value]) => [key, encodeValue(value)]));
-    const mask = Object.keys(patchFields).map((field) => `updateMask.fieldPaths=${encodeURIComponent(field)}`).join("&");
-    const response = await fetch(`${url}?${mask}`, {
-      method: "PATCH",
-      headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
-      body: JSON.stringify({ fields: patchFields }),
-    });
-    if (!response.ok) throw new HttpError(502, "Não foi possível salvar seu perfil agora.");
-
-    const saved = await readMember(account, accessToken, memberId);
-    const profile = profileFromFields(saved.document.fields || {});
-    profile.id = memberId;
-    return json({ ok: true, profile });
-  } catch (error) {
-    if (error instanceof HttpError) return json({ error: error.message }, error.status);
-    console.error("pwa-profile failed", error instanceof Error ? error.message : "unknown");
-    return json({ error: "Não foi possível sincronizar o perfil agora." }, 500);
-  }
+Deno.serve(async(request:Request)=>{
+  if(request.method==="OPTIONS")return json({ok:true});if(request.method!=="POST")return json({error:"Método não permitido."},405);
+  try{
+    const firebaseToken=bearer(request);const claims=await verifyFirebaseToken(firebaseToken);const memberId=claims.user_id||claims.sub||"";if(!memberId)throw new HttpError(401,"Sessão sem identificador de membro.");
+    const account=JSON.parse(Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON")||"{}") as ServiceAccount;const accessToken=await googleAccessToken(account);const input=await request.json().catch(()=>({})) as {action?:string;data?:ProfilePatch};const{url,document}=await readMember(account,accessToken,memberId);const fields=document.fields||{};const current=profileFromFields(fields);current.id=memberId;if(!current.isApproved&&!current.isAdmin)throw new HttpError(403,"Seu acesso de membro ainda não está aprovado.");
+    if((input.action||"get")==="get")return json({ok:true,profile:current});if(input.action!=="save")throw new HttpError(400,"Ação de perfil inválida.");
+    const data=input.data||{};const allowed:ProfilePatch={};if(typeof data.name==="string")allowed.name=data.name.trim().slice(0,120);if(typeof data.phone==="string")allowed.phone=data.phone.replace(/\D/g,"").slice(0,15);if(typeof data.address==="string")allowed.address=data.address.trim().slice(0,240);if(typeof data.birthDate==="string")allowed.birthDate=data.birthDate.replace(/[^0-9/]/g,"").slice(0,10);if(typeof data.email==="string")allowed.email=data.email.trim().slice(0,160);if(typeof data.avatarId==="string")allowed.avatarId=data.avatarId.trim().slice(0,40);if(typeof data.equippedBadgeId==="string"&&current.unlockedBadgeIds.includes(data.equippedBadgeId))allowed.equippedBadgeId=data.equippedBadgeId.trim().slice(0,80);if(allowed.name!==undefined&&!allowed.name)throw new HttpError(400,"O nome não pode ficar vazio.");if(allowed.phone!==undefined&&allowed.phone.length<8)throw new HttpError(400,"Informe um telefone válido.");if(allowed.email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(allowed.email))throw new HttpError(400,"Informe um e-mail válido.");
+    const patchFields=Object.fromEntries(Object.entries({...allowed,updatedAt:Date.now()}).map(([key,value])=>[key,encodeValue(value)]));const mask=Object.keys(patchFields).map(field=>`updateMask.fieldPaths=${encodeURIComponent(field)}`).join("&");const response=await fetch(`${url}?${mask}`,{method:"PATCH",headers:{authorization:`Bearer ${accessToken}`,"content-type":"application/json"},body:JSON.stringify({fields:patchFields})});if(!response.ok)throw new HttpError(502,"Não foi possível salvar seu perfil agora.");
+    const saved=await readMember(account,accessToken,memberId);const profile=profileFromFields(saved.document.fields||{});profile.id=memberId;return json({ok:true,profile});
+  }catch(error){if(error instanceof HttpError)return json({error:error.message},error.status);console.error("pwa-profile failed",error instanceof Error?error.message:"unknown");return json({error:"Não foi possível sincronizar o perfil agora."},500)}
 });
