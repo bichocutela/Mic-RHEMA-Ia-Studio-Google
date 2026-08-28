@@ -14,6 +14,7 @@ import {
   type PwaSessionLike,
 } from "./AndroidParityViews";
 import { AdminParityView } from "./AdminParityView";
+import { PrayerParityView } from "./PrayerParityView";
 import "./AndroidParityViews.css";
 
 export type AppView =
@@ -233,6 +234,7 @@ export function PwaShell({
     : active === "profile" && session && !session.isAdmin ? <ProfileParityView session={session} onNavigateHome={() => onNavigate("home")} />
     : active === "settings" ? <SettingsParityView session={session} onProfile={onProfile} onNotifications={onNotifications} />
     : active === "members" && !session?.isAdmin ? <MembersParityView session={session} onProfile={onProfile} />
+    : active === "prayer" ? <PrayerParityView />
     : active === "team" ? <TeamParityView />
     : active === "discipulado" ? <DiscipuladoParityView />
     : active === "donations" ? <DonationsParityView />
