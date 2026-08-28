@@ -21,6 +21,20 @@ object NotificationDispatcher {
         .readTimeout(20, TimeUnit.SECONDS)
         .build()
 
+    private fun categoryFor(collection: String, title: String): String = when (collection) {
+        "devocionais" -> "devotional"
+        "cultos_agenda", "events" -> "event"
+        "conteudos_books", "conteudos_audios", "conteudos_videos", "conteudos_albums" -> "media"
+        "ibr_courses" -> "ibr"
+        "courses", "cursos" -> "course"
+        "sermons", "pregacoes", "pregações" -> "sermon"
+        else -> when {
+            title.contains("pregação", ignoreCase = true) || title.contains("sermão", ignoreCase = true) -> "sermon"
+            title.contains("curso", ignoreCase = true) -> "course"
+            else -> "content_updates"
+        }
+    }
+
     fun enqueue(topic: String, title: String, body: String, collection: String, documentId: String) {
         val baseUrl = BuildConfig.SUPABASE_URL.trim().trimEnd('/')
         val anonKey = BuildConfig.SUPABASE_ANON_KEY.trim()
@@ -35,7 +49,7 @@ object NotificationDispatcher {
                     .put("data", JSONObject()
                         .put("collection", collection)
                         .put("documentId", documentId)
-                        .put("category", "content_updates"))
+                        .put("category", categoryFor(collection, title)))
                 val request = Request.Builder()
                     .url("$baseUrl/functions/v1/$FUNCTION_NAME")
                     .header("apikey", anonKey)
