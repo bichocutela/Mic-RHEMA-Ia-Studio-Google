@@ -34,13 +34,6 @@ function cleanText(value: unknown, fallback: string): string {
   return text.slice(0, MAX_TEXT_LENGTH) || fallback;
 }
 
-function base64UrlEncode(value: Uint8Array | string): string {
-  const bytes = typeof value === "string" ? new TextEncoder().encode(value) : value;
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-}
-
 async function accessToken(account: ServiceAccount): Promise<string> {
   if (!account.client_email || !account.private_key) {
     throw new Error("FIREBASE_SERVICE_ACCOUNT_JSON sem client_email ou private_key.");
@@ -91,6 +84,11 @@ Deno.serve(async (request) => {
     const data = Object.fromEntries(
       Object.entries(input.data ?? {}).map(([key, value]) => [key, String(value)]),
     );
+
+    // Mantém também title/body no payload de dados para que o FirebaseMessagingService
+    // tenha o mesmo conteúdo tanto em primeiro plano quanto em segundo plano.
+    data.title = data.title || title;
+    data.body = data.body || body;
     data.category = data.category || "content_updates";
 
     const response = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
@@ -99,7 +97,20 @@ Deno.serve(async (request) => {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json; UTF-8",
       },
-      body: JSON.stringify({ message: { topic, notification: { title, body }, data } }),
+      body: JSON.stringify({
+        message: {
+          topic,
+          notification: { title, body },
+          data,
+          android: {
+            priority: "high",
+            notification: {
+              channel_id: "micrhema_notifications",
+              icon: "ic_notification",
+            },
+          },
+        },
+      }),
     });
     const responseBody = await response.text();
     if (!response.ok) {
