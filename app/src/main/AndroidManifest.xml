@@ -44,18 +44,18 @@
                 <action android:name="androidx.media3.session.MediaSessionService" />
             </intent-filter>
         </service>
-            <service
+        <service
             android:name=".FCMService"
-            android:exported="true">
+            android:exported="false">
             <intent-filter>
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
-            <service
+        <service
             android:name=".FirestoreObserverService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
-            <provider
+        <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
             android:exported="false"
