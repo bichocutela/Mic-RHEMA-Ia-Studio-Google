@@ -9,6 +9,11 @@ import {
   Phone, PlayCircle, School, Settings, Users, type LucideIcon,
 } from "lucide-react";
 import { listenToCollection, listenToDocument } from "@/lib/firebase";
+import {
+  BibleParityView, MediaParityView, MembersParityView, ProfileParityView, SettingsParityView,
+  type PwaSessionLike,
+} from "./AndroidParityViews";
+import "./AndroidParityViews.css";
 
 export type AppView =
   | "home" | "bible" | "news" | "devotionals" | "media" | "ibr" | "menu" | "profile"
@@ -165,7 +170,7 @@ function AndroidDrawer({
   onNavigate: (view: AppView) => void;
   onProfile: () => void;
   onClose: () => void;
-  session: { name: string; isAdmin: boolean } | null;
+  session: PwaSessionLike;
   onNotifications: () => void;
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(["CONTEÚDO"]));
@@ -218,10 +223,19 @@ export function PwaShell({
   onCloseDrawer: () => void;
   onOpenDrawer: () => void;
   onProfile: () => void;
-  session: { name: string; isAdmin: boolean } | null;
+  session: PwaSessionLike;
   onNotifications: () => void;
 }) {
-  const synchronizedContent = active === "team" ? <TeamParityView /> : active === "discipulado" ? <DiscipuladoParityView /> : active === "donations" ? <DonationsParityView /> : active === "about" ? <AboutParityView /> : children;
+  const synchronizedContent = active === "bible" ? <BibleParityView />
+    : active === "media" ? <MediaParityView />
+    : active === "profile" && session ? <ProfileParityView session={session} onNavigateHome={() => onNavigate("home")} />
+    : active === "settings" ? <SettingsParityView session={session} onProfile={onProfile} onNotifications={onNotifications} />
+    : active === "members" ? <MembersParityView session={session} onProfile={onProfile} />
+    : active === "team" ? <TeamParityView />
+    : active === "discipulado" ? <DiscipuladoParityView />
+    : active === "donations" ? <DonationsParityView />
+    : active === "about" ? <AboutParityView />
+    : children;
   return (
     <div className="android-app-shell">
       <main className="android-app-content">{synchronizedContent}</main>
