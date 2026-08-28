@@ -77,7 +77,7 @@ async function googleAccessToken(account: ServiceAccount) {
   const response = await fetch(GOOGLE_TOKEN_URL, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth-type:jwt-bearer", assertion }),
+    body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion }),
   });
   const payload = await response.json();
   if (!response.ok || !payload.access_token) throw new HttpError(500, "Não foi possível autenticar o perfil no Firebase.");
