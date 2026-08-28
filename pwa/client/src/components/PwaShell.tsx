@@ -13,6 +13,7 @@ import {
   BibleParityView, MediaParityView, MembersParityView, ProfileParityView, SettingsParityView,
   type PwaSessionLike,
 } from "./AndroidParityViews";
+import { AdminParityView } from "./AdminParityView";
 import "./AndroidParityViews.css";
 
 export type AppView =
@@ -228,9 +229,10 @@ export function PwaShell({
 }) {
   const synchronizedContent = active === "bible" ? <BibleParityView />
     : active === "media" ? <MediaParityView />
-    : active === "profile" && session ? <ProfileParityView session={session} onNavigateHome={() => onNavigate("home")} />
+    : active === "admin" && session?.isAdmin ? <AdminParityView session={session} />
+    : active === "profile" && session && !session.isAdmin ? <ProfileParityView session={session} onNavigateHome={() => onNavigate("home")} />
     : active === "settings" ? <SettingsParityView session={session} onProfile={onProfile} onNotifications={onNotifications} />
-    : active === "members" ? <MembersParityView session={session} onProfile={onProfile} />
+    : active === "members" && !session?.isAdmin ? <MembersParityView session={session} onProfile={onProfile} />
     : active === "team" ? <TeamParityView />
     : active === "discipulado" ? <DiscipuladoParityView />
     : active === "donations" ? <DonationsParityView />
