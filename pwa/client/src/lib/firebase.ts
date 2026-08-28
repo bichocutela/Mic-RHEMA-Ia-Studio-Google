@@ -1,6 +1,7 @@
 /**
- * SANTUÁRIO EM MOVIMENTO — Conexão pública ao Firebase.
- * A PWA usa apenas configuração web pública; ações administrativas exigem sessão com claim isAdmin.
+ * MIC Rhema — conexão pública ao Firebase e pontes seguras da PWA.
+ * A PWA usa apenas configuração web pública; operações protegidas passam por
+ * funções servidoras que validam a sessão Firebase antes de tocar dados administrativos.
  */
 import { getApp, getApps, initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
@@ -15,6 +16,8 @@ const firebaseConfig = {
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "mic-rhema.firebasestorage.app",
 };
 
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://cwphbkdtorfpgmnlafqb.supabase.co";
+
 export const firebaseEnabled = Boolean(
   firebaseConfig.apiKey && firebaseConfig.authDomain && firebaseConfig.projectId && firebaseConfig.appId,
 );
@@ -27,6 +30,22 @@ export const firebaseApp = firebaseEnabled
 
 export const firebaseAuth = firebaseApp ? getAuth(firebaseApp) : null;
 export const firestore = firebaseApp ? getFirestore(firebaseApp) : null;
+
+export type PwaMemberProfile = {
+  id: string;
+  name: string;
+  phone: string;
+  address: string;
+  birthDate: string;
+  email: string;
+  avatarId: string;
+  equippedBadgeId: string;
+  unlockedBadgeIds: string[];
+  badgeActivityIds: Record<string, string[]>;
+  isApproved: boolean;
+  isIbr: boolean;
+  isAdmin: boolean;
+};
 
 export function listenToCollection<T extends DocumentData>(
   collectionName: string,
@@ -94,7 +113,7 @@ export async function submitPendingAccessRequest(input: { name: string; phone: s
     isAdmin: false,
     status: "pendente",
     type: "acesso",
-    avatarId: "caminhante",
+    avatarId: "davi",
     createdAt: Date.now(),
     updatedAt: Date.now(),
     createdAtServer: serverTimestamp(),
@@ -103,7 +122,7 @@ export async function submitPendingAccessRequest(input: { name: string; phone: s
 
 /** PARIDADE ANDROID — grava PrayerRequest com os mesmos campos usados pela PrayerScreen do APK. */
 export async function submitPrayerRequest(input: { name: string; request: string }) {
-  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL || "https://cwphbkdtorfpgmnlafqb.supabase.co"}/functions/v1/pwa-prayer-request`, {
+  const response = await fetch(`${supabaseUrl}/functions/v1/pwa-prayer-request`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ name: input.name.trim(), request: input.request.trim() }),
@@ -112,6 +131,32 @@ export async function submitPrayerRequest(input: { name: string; request: string
   if (!response.ok || !payload.ok) throw new Error(payload.error || "Não foi possível enviar o pedido agora.");
 }
 
+async function profileRequest(body: Record<string, unknown>, forceRefresh = false) {
+  const user = firebaseAuth?.currentUser;
+  if (!user) throw new Error("Entre novamente para sincronizar seu perfil.");
+  const token = await user.getIdToken(forceRefresh);
+  const response = await fetch(`${supabaseUrl}/functions/v1/pwa-profile`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  });
+  if (response.status === 401 && !forceRefresh) return profileRequest(body, true);
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || !payload.ok) throw new Error(payload.error || "Não foi possível sincronizar seu perfil agora.");
+  return payload.profile as PwaMemberProfile;
+}
+
+/** Lê o mesmo documento acessos_pendentes/{memberId} utilizado pelo Android. */
+export async function loadPwaMemberProfile(): Promise<PwaMemberProfile> {
+  return profileRequest({ action: "get" });
+}
+
+/** Salva somente os campos pessoais permitidos no documento real do membro do Android. */
+export async function savePwaMemberProfile(data: Partial<Pick<PwaMemberProfile, "name" | "phone" | "address" | "birthDate" | "email" | "avatarId" | "equippedBadgeId">>): Promise<PwaMemberProfile> {
+  return profileRequest({ action: "save", data });
+}
+
+/** Mantido para preferências web que pertencem ao espaço privado users/{uid}. */
 export async function savePwaProfile(uid: string, data: Record<string, unknown>) {
   if (!firestore) throw new Error("A conexão Firebase da PWA não está disponível.");
   await setDoc(doc(firestore, "users", uid), { ...data, updatedAt: Date.now(), updatedAtServer: serverTimestamp() }, { merge: true });
