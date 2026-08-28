@@ -1,35 +1,66 @@
 package com.aistudio.micrhema
 
-import android.content.Context
-import androidx.compose.animation.*
-import androidx.compose.animation.core.tween
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
-import kotlinx.coroutines.delay
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.AbstractYouTubePlayerListener
+import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView
 
+/**
+ * Player único da aba Mídia.
+ *
+ * YouTube usa exclusivamente o player oficial da biblioteca, sem overlays de toque
+ * personalizados sobre a WebView. Isso evita que os controles nativos sejam bloqueados.
+ * MP4/links diretos continuam usando ExoPlayer com os controles nativos do PlayerView.
+ */
 @Composable
 fun CleanVideoPlayer(
     videoUrl: String,
@@ -40,97 +71,57 @@ fun CleanVideoPlayer(
     onDownload: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val isYouTube = remember(videoUrl) { isYoutubeUrl(videoUrl) }
+    val youtubeId = remember(videoUrl) { extractYouTubeVideoId(videoUrl) }
 
-    // Video Player State
-    var isPlaying by remember { mutableStateOf(true) }
-    var isBuffering by remember { mutableStateOf(!isYouTube) }
-    var currentPositionMs by remember { mutableLongStateOf(0L) }
-    var durationMs by remember { mutableLongStateOf(0L) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var errorMessage by remember(videoUrl) { mutableStateOf<String?>(null) }
+    var isLoading by remember(videoUrl) { mutableStateOf(true) }
+    var retryKey by remember { mutableStateOf(0) }
 
-    // Custom UI States
-    var controlsVisible by remember { mutableStateOf(true) }
-    var lightsOff by remember { mutableStateOf(false) }
-    var isUserSeeking by remember { mutableStateOf(false) }
-    var sliderPositionMs by remember { mutableFloatStateOf(0f) }
-
-    val snackbarHostState = remember { SnackbarHostState() }
-
-    // Validate URL on change
-    LaunchedEffect(videoUrl) {
-        errorMessage = null
-        if (videoUrl.isBlank()) {
-            errorMessage = "O link do vídeo está vazio ou inválido."
-            android.util.Log.e("CleanVideoPlayer", "Video URL is blank")
-        } else if (!videoUrl.contains("http") && extractYouTubeVideoId(videoUrl) == null) {
-            errorMessage = "Link de vídeo não reconhecido. Forneça uma URL válida."
-            android.util.Log.e("CleanVideoPlayer", "Invalid URL format: $videoUrl")
+    LaunchedEffect(videoUrl, isYouTube, youtubeId) {
+        errorMessage = when {
+            videoUrl.isBlank() -> "O link do vídeo está vazio."
+            isYouTube && youtubeId == null -> "Não foi possível reconhecer o link do YouTube."
+            else -> null
         }
     }
 
-    // Show Snackbar when error occurs
-    LaunchedEffect(errorMessage) {
-        errorMessage?.let { msg ->
-            snackbarHostState.showSnackbar(
-                message = msg,
-                duration = SnackbarDuration.Long
-            )
-        }
-    }
-
-    // ExoPlayer Instance (only instantiated if NOT YouTube)
-    val exoPlayer = remember(videoUrl, isYouTube) {
+    val exoPlayer = remember(videoUrl, isYouTube, retryKey) {
         if (!isYouTube && videoUrl.isNotBlank()) {
-            try {
+            runCatching {
                 ExoPlayer.Builder(context)
                     .setMediaSourceFactory(
                         androidx.media3.exoplayer.source.DefaultMediaSourceFactory(
                             ExoPlayerCache.getCacheDataSourceFactory(context)
                         )
                     )
-                    .build().apply {
+                    .build()
+                    .apply {
                         setMediaItem(MediaItem.fromUri(convertGoogleDriveUrl(videoUrl)))
                         prepare()
-                        playWhenReady = true
+                        playWhenReady = false
                     }
-            } catch (e: Exception) {
-                android.util.Log.e("CleanVideoPlayer", "Error initializing ExoPlayer", e)
-                errorMessage = "Falha ao inicializar o reprodutor de vídeo."
+            }.getOrElse {
+                errorMessage = "Não foi possível iniciar o player de vídeo."
                 null
             }
         } else null
     }
 
-    DisposableEffect(videoUrl, isYouTube, exoPlayer) {
-        if (!isYouTube && exoPlayer != null) {
+    DisposableEffect(exoPlayer) {
+        if (exoPlayer == null) {
+            onDispose { }
+        } else {
             val listener = object : Player.Listener {
-                override fun onIsPlayingChanged(playing: Boolean) {
-                    isPlaying = playing
-                }
-
-                override fun onPlaybackStateChanged(state: Int) {
-                    isBuffering = (state == Player.STATE_BUFFERING || state == Player.STATE_IDLE)
-                    if (state == Player.STATE_READY) {
-                        durationMs = exoPlayer.duration.coerceAtLeast(0L)
-                        errorMessage = null
-                    }
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    isLoading = playbackState == Player.STATE_BUFFERING || playbackState == Player.STATE_IDLE
+                    if (playbackState == Player.STATE_READY) errorMessage = null
                 }
 
                 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                    isBuffering = false
-                    isPlaying = false
-                    val detailedMsg = when (error.errorCode) {
-                        androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
-                        androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ->
-                            "Erro de Conexão: Verifique sua conexão com a internet."
-                        androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS,
-                        androidx.media3.common.PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND ->
-                            "Erro 404/403: O vídeo não foi encontrado ou o acesso foi negado."
-                        else -> "Erro na reprodução: ${error.localizedMessage ?: "Não foi possível carregar esta mídia."}"
-                    }
-                    android.util.Log.e("CleanVideoPlayer", "ExoPlayer error code ${error.errorCode}: ${error.message}", error)
-                    errorMessage = detailedMsg
+                    isLoading = false
+                    errorMessage = "Não foi possível reproduzir este vídeo. Verifique o link ou a conexão."
                 }
             }
             exoPlayer.addListener(listener)
@@ -138,100 +129,97 @@ fun CleanVideoPlayer(
                 exoPlayer.removeListener(listener)
                 exoPlayer.release()
             }
-        } else {
-            onDispose { }
         }
     }
 
-    // Timer for auto-hiding controls when playing
-    LaunchedEffect(controlsVisible, isPlaying) {
-        if (controlsVisible && isPlaying && !isUserSeeking) {
-            delay(4000)
-            controlsVisible = false
-        }
-    }
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = title,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
 
-    // Progress updates loop for ExoPlayer
-    LaunchedEffect(isPlaying, isYouTube) {
-        if (!isYouTube && exoPlayer != null) {
-            while (isPlaying) {
-                if (!isUserSeeking) {
-                    currentPositionMs = exoPlayer.currentPosition.coerceAtLeast(0L)
-                    durationMs = exoPlayer.duration.coerceAtLeast(0L)
+            if (!isYouTube && canDownload && onDownload != null) {
+                IconButton(onClick = onDownload) {
+                    Icon(Icons.Default.Download, contentDescription = "Baixar vídeo")
                 }
-                delay(500)
+            }
+
+            if (onClose != null) {
+                IconButton(onClick = onClose) {
+                    Icon(Icons.Default.Close, contentDescription = "Fechar player")
+                }
             }
         }
-    }
 
-    val effectivePos = if (isUserSeeking) sliderPositionMs.toLong() else currentPositionMs
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(if (lightsOff) Color.Black else Color.Transparent)
-    ) {
-        // Full screen / overlay dark backdrop when "Apagar Luzes" is enabled
-        if (lightsOff) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.95f))
-            )
-        }
-
-        // Main Video Box
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(16f / 9f)
-                .clip(RoundedCornerShape(if (lightsOff) 0.dp else 16.dp))
-                .background(Color.Black)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) {
-                    controlsVisible = !controlsVisible
-                }
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color.Black),
+            contentAlignment = Alignment.Center
         ) {
-            if (exoPlayer != null) {
-                // Direct Video ExoPlayer View
-                AndroidView(
-                    factory = { ctx ->
-                        PlayerView(ctx).apply {
-                            player = exoPlayer
-                            useController = false
-                        }
-                    },
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else if (isYouTube) {
-                val videoId = extractYouTubeVideoId(videoUrl)
-                if (videoId != null) {
-                    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+            when {
+                errorMessage != null -> {
+                    PlayerErrorState(
+                        message = errorMessage ?: "Falha ao carregar o vídeo.",
+                        onRetry = {
+                            errorMessage = null
+                            isLoading = true
+                            retryKey++
+                        },
+                        onOpenExternal = if (videoUrl.startsWith("http", ignoreCase = true)) {
+                            {
+                                runCatching {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(videoUrl)))
+                                }
+                            }
+                        } else null
+                    )
+                }
+
+                isYouTube && youtubeId != null -> {
                     AndroidView(
+                        key = "$youtubeId-$retryKey",
                         factory = { ctx ->
-                            com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView(ctx).apply {
+                            YouTubePlayerView(ctx).apply {
                                 lifecycleOwner.lifecycle.addObserver(this)
-                                addYouTubePlayerListener(object : com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.AbstractYouTubePlayerListener() {
-                                    override fun onReady(youTubePlayer: com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer) {
-                                        youTubePlayer.cueVideo(videoId, 0f)
+                                addYouTubePlayerListener(object : AbstractYouTubePlayerListener() {
+                                    override fun onReady(youTubePlayer: YouTubePlayer) {
+                                        isLoading = false
+                                        errorMessage = null
+                                        // cueVideo respeita a política de autoplay e deixa os controles
+                                        // oficiais do YouTube disponíveis para o usuário tocar e reproduzir.
+                                        youTubePlayer.cueVideo(youtubeId, 0f)
                                     }
-                                    
-                                    override fun onStateChange(youTubePlayer: com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer, state: com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants.PlayerState) {
-                                        if (state == com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants.PlayerState.PLAYING) {
-                                            isPlaying = true
-                                        } else if (state == com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants.PlayerState.PAUSED || state == com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants.PlayerState.ENDED) {
-                                            isPlaying = false
-                                        }
+
+                                    override fun onStateChange(
+                                        youTubePlayer: YouTubePlayer,
+                                        state: PlayerConstants.PlayerState
+                                    ) {
+                                        isLoading = state == PlayerConstants.PlayerState.BUFFERING
                                     }
-                                    
-                                    override fun onError(youTubePlayer: com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer, error: com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants.PlayerError) {
-                                        android.os.Handler(android.os.Looper.getMainLooper()).post {
-                                            errorMessage = when (error) {
-                                                com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants.PlayerError.VIDEO_NOT_PLAYABLE_IN_EMBEDDED_PLAYER -> "Este vídeo não permite reprodução dentro de outros aplicativos."
-                                                else -> "Este vídeo não pôde ser reproduzido."
-                                            }
+
+                                    override fun onError(
+                                        youTubePlayer: YouTubePlayer,
+                                        error: PlayerConstants.PlayerError
+                                    ) {
+                                        isLoading = false
+                                        errorMessage = when (error) {
+                                            PlayerConstants.PlayerError.VIDEO_NOT_PLAYABLE_IN_EMBEDDED_PLAYER ->
+                                                "Este vídeo não permite reprodução incorporada. Abra no YouTube."
+                                            else -> "O YouTube não conseguiu reproduzir este vídeo."
                                         }
                                     }
                                 })
@@ -243,336 +231,92 @@ fun CleanVideoPlayer(
                             view.release()
                         }
                     )
-                } else {
-                    LaunchedEffect(Unit) {
-                        errorMessage = "Não foi possível extrair o ID do vídeo."
-                    }
+                }
+
+                exoPlayer != null -> {
+                    AndroidView(
+                        factory = { ctx ->
+                            PlayerView(ctx).apply {
+                                player = exoPlayer
+                                useController = true
+                                controllerAutoShow = true
+                            }
+                        },
+                        update = { it.player = exoPlayer },
+                        modifier = Modifier.fillMaxSize()
+                    )
                 }
             }
 
-            // Buffering Indicator for ExoPlayer
-            if (isBuffering && !isYouTube && errorMessage == null) {
+            if (isLoading && errorMessage == null) {
                 CircularProgressIndicator(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .align(Alignment.Center),
-                    color = Color.White,
-                    strokeWidth = 3.dp
+                    modifier = Modifier.size(42.dp),
+                    color = Color.White
                 )
             }
+        }
 
-            // Video Error Fallback Overlay
-            if (errorMessage != null) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.92f))
-                        .padding(16.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Warning,
-                            contentDescription = "Erro de Vídeo",
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(36.dp)
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Falha no Carregamento do Vídeo",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = errorMessage ?: "O link do vídeo não pôde ser reproduzido.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.White.copy(alpha = 0.85f),
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Button(
-                                onClick = {
-                                    errorMessage = null
-                                    if (exoPlayer != null) {
-                                        exoPlayer.prepare()
-                                        exoPlayer.play()
-                                    }
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                            ) {
-                                Text("Tentar Novamente", fontSize = 12.sp)
-                            }
-
-                            if (videoUrl.isNotBlank() && videoUrl.contains("http")) {
-                                OutlinedButton(
-                                    onClick = {
-                                        try {
-                                            val intent = android.content.Intent(
-                                                android.content.Intent.ACTION_VIEW,
-                                                android.net.Uri.parse(videoUrl)
-                                            )
-                                            context.startActivity(intent)
-                                        } catch (e: Exception) {
-                                            e.printStackTrace()
-                                        }
-                                    },
-                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
-                                ) {
-                                    Text("Abrir no Navegador", fontSize = 12.sp)
-                                }
-                            }
-                        }
+        if (isYouTube) {
+            Spacer(Modifier.height(8.dp))
+            Button(
+                onClick = {
+                    runCatching {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(videoUrl)))
                     }
-                }
-            }
-
-            // CONTROLS OVERLAY (Clean fade in/out)
-            AnimatedVisibility(
-                visible = controlsVisible,
-                enter = fadeIn(animationSpec = tween(300)),
-                exit = fadeOut(animationSpec = tween(300))
+                },
+                modifier = Modifier
+                    .align(Alignment.End)
+                    .padding(horizontal = 8.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    Color.Black.copy(alpha = 0.8f),
-                                    Color.Transparent,
-                                    Color.Black.copy(alpha = 0.85f)
-                                )
-                            )
-                        )
-                ) {
-                    // TOP BAR CONTROLS
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .align(Alignment.TopStart)
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = title,
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f).padding(end = 8.dp)
-                        )
+                Icon(Icons.Default.OpenInNew, contentDescription = null)
+                Spacer(Modifier.size(6.dp))
+                Text("Abrir no YouTube")
+            }
+        }
+    }
+}
 
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            // "Apagar / Acender Luzes" Button
-                            Surface(
-                                onClick = { lightsOff = !lightsOff },
-                                shape = RoundedCornerShape(20.dp),
-                                color = if (lightsOff) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.25f),
-                                contentColor = Color.White
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = if (lightsOff) Icons.Default.Lightbulb else Icons.Default.NightlightRound,
-                                        contentDescription = "Modo Cinema",
-                                        modifier = Modifier.size(16.dp),
-                                        tint = if (lightsOff) MaterialTheme.colorScheme.onPrimary else Color.White
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = if (lightsOff) "Acender" else "Apagar Luzes",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = if (lightsOff) MaterialTheme.colorScheme.onPrimary else Color.White
-                                    )
-                                }
-                            }
-
-                            // Download Button if allowed & not YouTube
-                            if (!isYouTube && canDownload && onDownload != null) {
-                                IconButton(
-                                    onClick = onDownload,
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .background(Color.White.copy(alpha = 0.2f), CircleShape)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Download,
-                                        contentDescription = "Baixar",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            }
-
-                            // Close Button
-                            if (onClose != null) {
-                                IconButton(
-                                    onClick = onClose,
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .background(Color.White.copy(alpha = 0.2f), CircleShape)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "Fechar",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // CENTER PLAY/PAUSE & REWIND/FORWARD (Only for ExoPlayer streams)
-                    if (!isYouTube && exoPlayer != null) {
-                        Row(
-                            modifier = Modifier.align(Alignment.Center),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(24.dp)
-                        ) {
-                            IconButton(
-                                onClick = {
-                                    val target = (exoPlayer.currentPosition - 10000L).coerceAtLeast(0L)
-                                    exoPlayer.seekTo(target)
-                                    currentPositionMs = target
-                                },
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .background(Color.Black.copy(alpha = 0.4f), CircleShape)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Replay10,
-                                    contentDescription = "Voltar 10s",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(26.dp)
-                                )
-                            }
-
-                            Surface(
-                                onClick = {
-                                    if (exoPlayer.isPlaying) {
-                                        exoPlayer.pause()
-                                    } else {
-                                        exoPlayer.play()
-                                    }
-                                },
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(56.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                        contentDescription = if (isPlaying) "Pausar" else "Reproduzir",
-                                        tint = MaterialTheme.colorScheme.onPrimary,
-                                        modifier = Modifier.size(32.dp)
-                                    )
-                                }
-                            }
-
-                            IconButton(
-                                onClick = {
-                                    val target = (exoPlayer.currentPosition + 10000L).coerceAtMost(durationMs)
-                                    exoPlayer.seekTo(target)
-                                    currentPositionMs = target
-                                },
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .background(Color.Black.copy(alpha = 0.4f), CircleShape)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Forward10,
-                                    contentDescription = "Avançar 10s",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(26.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    // BOTTOM TIMELINE & TIME
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .align(Alignment.BottomCenter)
-                            .padding(horizontal = 12.dp, vertical = 8.dp)
-                    ) {
-                        if (!isYouTube && exoPlayer != null) {
-                            Slider(
-                                value = effectivePos.toFloat(),
-                                onValueChange = {
-                                    isUserSeeking = true
-                                    sliderPositionMs = it
-                                },
-                                onValueChangeFinished = {
-                                    isUserSeeking = false
-                                    exoPlayer.seekTo(sliderPositionMs.toLong())
-                                },
-                                valueRange = 0f..(durationMs.toFloat().coerceAtLeast(1f)),
-                                colors = SliderDefaults.colors(
-                                    thumbColor = MaterialTheme.colorScheme.primary,
-                                    activeTrackColor = MaterialTheme.colorScheme.primary,
-                                    inactiveTrackColor = Color.White.copy(alpha = 0.3f)
-                                ),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(20.dp)
-                            )
-                        }
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            if (!isYouTube) {
-                                Text(
-                                    text = "${formatAudioTime(effectivePos)} / ${formatAudioTime(durationMs)}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Color.White.copy(alpha = 0.9f),
-                                    fontSize = 11.sp
-                                )
-                            }
-
-                            if (lightsOff) {
-                                Text(
-                                    text = "💡 Modo Cinema Ativo",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp
-                                )
-                            }
-                        }
+@Composable
+private fun PlayerErrorState(
+    message: String,
+    onRetry: () -> Unit,
+    onOpenExternal: (() -> Unit)?
+) {
+    Surface(color = Color.Black) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                Icons.Default.Warning,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(34.dp)
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = message,
+                color = Color.White,
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onRetry) {
+                    Icon(Icons.Default.Refresh, contentDescription = null)
+                    Spacer(Modifier.size(6.dp))
+                    Text("Tentar novamente")
+                }
+                if (onOpenExternal != null) {
+                    Button(onClick = onOpenExternal) {
+                        Icon(Icons.Default.OpenInNew, contentDescription = null)
+                        Spacer(Modifier.size(6.dp))
+                        Text("Abrir fora")
                     }
                 }
             }
         }
-
-        // Snackbar Host for user error feedback
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(12.dp)
-        )
     }
 }
