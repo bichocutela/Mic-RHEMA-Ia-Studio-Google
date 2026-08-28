@@ -15,8 +15,6 @@ class FCMService : FirebaseMessagingService() {
             Log.d(TAG, "Message data payload: ${remoteMessage.data}")
         }
 
-        // Prioriza o payload data-only, como no NRD Lojas. Isso mantém o mesmo
-        // comportamento quando o app está em primeiro plano ou em segundo plano.
         val title = remoteMessage.data["title"]
             ?: remoteMessage.notification?.title
             ?: "MIC Rhema"
@@ -41,11 +39,11 @@ class FCMService : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
-        Log.d(TAG, "Token FCM renovado; reconciliando tópicos públicos")
-        reconcilePublicTopics()
+        Log.d(TAG, "Token FCM renovado; reconciliando tópicos")
+        reconcileTopics()
     }
 
-    private fun reconcilePublicTopics() {
+    private fun reconcileTopics() {
         val messaging = FirebaseMessaging.getInstance()
 
         messaging.subscribeToTopic("all_users")
@@ -55,6 +53,16 @@ class FCMService : FirebaseMessagingService() {
         messaging.subscribeToTopic("devocionais")
             .addOnSuccessListener { Log.d(TAG, "Inscrição devocionais confirmada") }
             .addOnFailureListener { Log.e(TAG, "Falha ao inscrever em devocionais", it) }
+
+        if (NotificationHelper.isIbrMember(this)) {
+            messaging.subscribeToTopic("ibr_users")
+                .addOnSuccessListener { Log.d(TAG, "Inscrição ibr_users confirmada") }
+                .addOnFailureListener { Log.e(TAG, "Falha ao inscrever em ibr_users", it) }
+        } else {
+            messaging.unsubscribeFromTopic("ibr_users")
+                .addOnSuccessListener { Log.d(TAG, "Usuário fora do tópico ibr_users") }
+                .addOnFailureListener { Log.e(TAG, "Falha ao remover de ibr_users", it) }
+        }
     }
 
     companion object {
