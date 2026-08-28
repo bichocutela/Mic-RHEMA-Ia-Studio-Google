@@ -7,6 +7,7 @@ on:
     paths-ignore:
       - 'pwa/**'
       - 'supabase/functions/pwa-auth/**'
+      - 'supabase/functions/pwa-profile/**'
       - 'supabase/functions/pwa-push-subscribe/**'
       - 'supabase/functions/pwa-push-send/**'
       - 'supabase/functions/pwa-prayer-request/**'
@@ -82,7 +83,6 @@ jobs:
         if: always()
         run: rm -f release.keystore .env app/google-services.json
 
-
       - name: Upload do APK
         uses: actions/upload-artifact@v4
         with:
@@ -95,8 +95,6 @@ jobs:
           source version.properties
           VERSION_NAME="${MAJOR}.${MINOR}.${PATCH}.${AUTO_BUILD_NUMBER}"
           echo "VERSION_NAME=${VERSION_NAME}" >> $GITHUB_ENV
-          
-          # Encontrar o APK gerado
           APK_PATH=$(find . -name "*.apk" | grep release | head -n 1)
           NEW_APK_NAME="MIC-Rhema-v${VERSION_NAME}.apk"
           cp "$APK_PATH" "$NEW_APK_NAME"
