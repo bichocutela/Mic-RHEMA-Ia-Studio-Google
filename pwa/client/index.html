@@ -23,6 +23,31 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      (() => {
+        const fixAdminInputs = () => {
+          document.querySelectorAll('form.auth-dialog').forEach((form) => {
+            const heading = form.querySelector('h2');
+            if (!heading || heading.textContent?.trim() !== 'Acesso administrativo') return;
+            const inputs = form.querySelectorAll('input');
+            const username = inputs.item(0);
+            const password = inputs.item(1);
+            if (username) {
+              username.setAttribute('inputmode', 'text');
+              username.setAttribute('autocomplete', 'username');
+              username.setAttribute('autocapitalize', 'none');
+              username.setAttribute('spellcheck', 'false');
+            }
+            if (password) {
+              password.setAttribute('inputmode', 'text');
+              password.setAttribute('autocomplete', 'current-password');
+            }
+          });
+        };
+        new MutationObserver(fixAdminInputs).observe(document.documentElement, { childList: true, subtree: true });
+        document.addEventListener('DOMContentLoaded', fixAdminInputs);
+      })();
+    </script>
     <script
       defer
       src="%VITE_ANALYTICS_ENDPOINT%/umami"
