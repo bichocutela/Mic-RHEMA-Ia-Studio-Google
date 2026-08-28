@@ -10,11 +10,13 @@ import {
 } from "lucide-react";
 import { listenToCollection, listenToDocument } from "@/lib/firebase";
 import {
-  BibleParityView, MediaParityView, MembersParityView, ProfileParityView, SettingsParityView,
+  BibleParityView, MediaParityView, MembersParityView, ProfileParityView,
   type PwaSessionLike,
 } from "./AndroidParityViews";
 import { AdminParityView } from "./AdminParityView";
 import { PrayerParityView } from "./PrayerParityView";
+import { AboutParityView as AboutParityViewSync } from "./AboutParityView";
+import { SettingsParityViewV2 } from "./SettingsParityViewV2";
 import "./AndroidParityViews.css";
 
 export type AppView =
@@ -152,7 +154,7 @@ function DonationsParityView() {
   </section>;
 }
 
-function AboutParityView() {
+function AboutParityViewLegacy() {
   return <section className="page-pad android-module">
     <div className="android-section-heading"><div><p>SOBRE</p><h2>MIC Rhema</h2></div></div>
     <div className="android-list-cards">
@@ -232,13 +234,13 @@ export function PwaShell({
     : active === "media" ? <MediaParityView />
     : active === "admin" && session?.isAdmin ? <AdminParityView session={session} />
     : active === "profile" && session && !session.isAdmin ? <ProfileParityView session={session} onNavigateHome={() => onNavigate("home")} />
-    : active === "settings" ? <SettingsParityView session={session} onProfile={onProfile} onNotifications={onNotifications} />
+    : active === "settings" ? <SettingsParityViewV2 session={session} onProfile={onProfile} onNotifications={onNotifications} />
     : active === "members" && !session?.isAdmin ? <MembersParityView session={session} onProfile={onProfile} />
     : active === "prayer" ? <PrayerParityView />
     : active === "team" ? <TeamParityView />
     : active === "discipulado" ? <DiscipuladoParityView />
     : active === "donations" ? <DonationsParityView />
-    : active === "about" ? <AboutParityView />
+    : active === "about" ? <AboutParityViewSync />
     : children;
   return (
     <div className="android-app-shell">
