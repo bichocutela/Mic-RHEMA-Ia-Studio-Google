@@ -46,7 +46,9 @@ export const bibleBookChapters = {
   "2 João": 1, "3 João": 1, "Judas": 1, "Apocalipse": 22,
 } as const;
 
-export const bibleBooks = Object.keys(bibleBookChapters) as Array<keyof typeof bibleBookChapters>;
+/** Lista usada por selects e navegação. Como a interface recebe valores do DOM/localStorage,
+ * ela é exposta como string[] e validada contra bibleBookChapters quando precisa do tipo estrito. */
+export const bibleBooks: string[] = Object.keys(bibleBookChapters);
 
 export const settingsSections = [
   ["Aparência", "Tema e tamanho de fonte"],
