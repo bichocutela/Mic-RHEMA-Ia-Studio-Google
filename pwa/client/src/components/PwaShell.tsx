@@ -10,13 +10,14 @@ import {
 } from "lucide-react";
 import { listenToCollection, listenToDocument } from "@/lib/firebase";
 import {
-  BibleParityView, MediaParityView, MembersParityView, ProfileParityView,
+  BibleParityView, MediaParityView, MembersParityView,
   type PwaSessionLike,
 } from "./AndroidParityViews";
 import { AdminParityView } from "./AdminParityView";
 import { PrayerParityView } from "./PrayerParityView";
 import { AboutParityView as AboutParityViewSync } from "./AboutParityView";
 import { SettingsParityViewV2 } from "./SettingsParityViewV2";
+import { ProfileParityViewV2 } from "./ProfileParityViewV2";
 import "./AndroidParityViews.css";
 
 export type AppView =
@@ -233,7 +234,7 @@ export function PwaShell({
   const synchronizedContent = active === "bible" ? <BibleParityView />
     : active === "media" ? <MediaParityView />
     : active === "admin" && session?.isAdmin ? <AdminParityView session={session} />
-    : active === "profile" && session && !session.isAdmin ? <ProfileParityView session={session} onNavigateHome={() => onNavigate("home")} />
+    : active === "profile" && session && !session.isAdmin ? <ProfileParityViewV2 session={session} onNavigateHome={() => onNavigate("home")} />
     : active === "settings" ? <SettingsParityViewV2 session={session} onProfile={onProfile} onNotifications={onNotifications} />
     : active === "members" && !session?.isAdmin ? <MembersParityView session={session} onProfile={onProfile} />
     : active === "prayer" ? <PrayerParityView />
