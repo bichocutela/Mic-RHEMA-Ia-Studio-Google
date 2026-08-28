@@ -45,6 +45,8 @@ export type PwaMemberProfile = {
   isApproved: boolean;
   isIbr: boolean;
   isAdmin: boolean;
+  ibrCertificateName: string;
+  ibrCertificateUrl: string;
 };
 
 export function listenToCollection<T extends DocumentData>(
