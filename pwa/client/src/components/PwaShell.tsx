@@ -2,17 +2,32 @@
  * PARIDADE ANDROID — Casca Material 3: fundo creme, barra flutuante bege,
  * item ativo azul-marinho e drawer agrupado igual ao MainActivity Android.
  */
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  BookOpen, ChevronDown, ChevronRight, CircleUserRound, FileText, Grid2X2, HandHeart,
-  Heart, Home, Info, Landmark, LockKeyhole, Menu as MenuIcon, PlayCircle, School,
-  Settings, Users, type LucideIcon,
+  BookHeart, BookOpen, ChevronDown, ChevronRight, CircleUserRound, Copy, FileText, Grid2X2,
+  HandHeart, Heart, Home, Info, Landmark, LockKeyhole, Mail, MapPin, Menu as MenuIcon,
+  Phone, PlayCircle, School, Settings, Users, type LucideIcon,
 } from "lucide-react";
+import { listenToCollection, listenToDocument } from "@/lib/firebase";
 
 export type AppView =
   | "home" | "bible" | "news" | "devotionals" | "media" | "ibr" | "menu" | "profile"
   | "settings" | "admin" | "discipulado" | "cultos" | "plans" | "prayer"
   | "members" | "team" | "donations" | "about";
+
+type TeamMember = {
+  id: string;
+  name?: string;
+  role?: string;
+  category?: string;
+  imageUrl?: string;
+  order?: number;
+};
+
+type DonationSettings = {
+  pixKey?: string;
+  qrCodeUrl?: string;
+};
 
 const primaryItems: Array<{ id: AppView; label: string; icon: LucideIcon }> = [
   { id: "home", label: "Início", icon: Home },
@@ -29,6 +44,7 @@ const drawerGroups: Array<{ title: string; icon: LucideIcon; items: Array<{ id: 
       { id: "bible", label: "Bíblia", icon: BookOpen },
       { id: "devotionals", label: "Devocionais", icon: FileText },
       { id: "ibr", label: "Cursos IBR", icon: School },
+      { id: "discipulado", label: "Discipulado", icon: BookHeart },
       { id: "media", label: "Mídia", icon: PlayCircle },
       { id: "plans", label: "Planos", icon: BookOpen },
     ],
@@ -56,6 +72,58 @@ const drawerGroups: Array<{ title: string; icon: LucideIcon; items: Array<{ id: 
     ],
   },
 ];
+
+function TeamParityView() {
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [category, setCategory] = useState("Todos");
+  useEffect(() => listenToCollection<TeamMember>("equipe", setMembers, () => setMembers([])), []);
+  const categories = useMemo(() => ["Todos", ...Array.from(new Set(members.map((member) => member.category?.trim()).filter(Boolean) as string[]))], [members]);
+  const visible = useMemo(() => members
+    .filter((member) => category === "Todos" || member.category?.toLowerCase() === category.toLowerCase())
+    .slice()
+    .sort((a, b) => Number(a.order || 0) - Number(b.order || 0)), [members, category]);
+
+  return <section className="page-pad android-module">
+    <div className="android-section-heading"><div><p>EQUIPE</p><h2>Nossa Equipe</h2></div></div>
+    <div className="filter-pills">{categories.map((item) => <button key={item} className={category === item ? "selected" : ""} onClick={() => setCategory(item)}>{item}</button>)}</div>
+    {!visible.length ? <p className="empty-module">Nenhum membro da equipe cadastrado nesta categoria.</p> : <div className="android-list-cards">{visible.map((member) => <article key={member.id} className="android-module-card">
+      {member.imageUrl ? <img src={member.imageUrl} alt={`Foto de ${member.name || "membro da equipe"}`} style={{ width: 58, height: 58, borderRadius: "50%", objectFit: "cover" }} /> : <CircleUserRound size={38} />}
+      <div><strong>{member.name || "Membro da equipe"}</strong><small>{[member.role, member.category].filter(Boolean).join(" · ") || "Equipe MIC Rhema"}</small></div>
+    </article>)}</div>}
+  </section>;
+}
+
+function DonationsParityView() {
+  const [settings, setSettings] = useState<(DonationSettings & { id: string }) | null>(null);
+  useEffect(() => listenToDocument<DonationSettings>("settings", "donations", setSettings, () => setSettings(null)), []);
+  const pixKey = settings?.pixKey?.trim() || "";
+  const qrCodeUrl = settings?.qrCodeUrl?.trim() || "";
+  const copyPix = async () => {
+    if (!pixKey) return;
+    try { await navigator.clipboard.writeText(pixKey); } catch { /* Safari antigo pode bloquear clipboard fora de HTTPS. */ }
+  };
+  return <section className="page-pad android-module">
+    <div className="android-section-heading"><div><p>IGREJA</p><h2>Dízimos e Ofertas</h2></div></div>
+    <p>Contribua com a obra de Deus.</p>
+    {!pixKey && !qrCodeUrl ? <p className="empty-module">As informações de doação ainda não foram configuradas.</p> : <article className="android-module-card" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
+      {qrCodeUrl && <img src={qrCodeUrl} alt="QR Code Pix" style={{ width: 210, maxWidth: "100%", aspectRatio: "1 / 1", objectFit: "contain", borderRadius: 16 }} />}
+      {pixKey && <><div style={{ textAlign: "center" }}><strong>Chave PIX</strong><small style={{ display: "block", marginTop: 6, wordBreak: "break-all" }}>{pixKey}</small></div><button className="android-primary-action" onClick={() => void copyPix()}><Copy size={18}/><span>Copiar Chave</span></button></>}
+    </article>}
+  </section>;
+}
+
+function AboutParityView() {
+  return <section className="page-pad android-module">
+    <div className="android-section-heading"><div><p>SOBRE</p><h2>MIC Rhema</h2></div></div>
+    <div className="android-list-cards">
+      <article className="android-module-card"><CircleUserRound size={29}/><div><strong>Liderança</strong><small>Pastor Evaldo Leôncio</small></div></article>
+      <article className="android-module-card"><Info size={29}/><div><strong>Nossa Missão</strong><small>Conectando Pessoas e Transformando Vidas. Rhema é a palavra revelada de Deus para um momento específico.</small></div></article>
+      <article className="android-module-card"><MapPin size={29}/><div><strong>Localização</strong><small>Rua Todos os Santos – Natal/RN</small></div></article>
+      <a className="android-module-card" href="tel:+5584988041804"><Phone size={29}/><div><strong>Telefone</strong><small>84 98804 1804</small></div><ChevronRight size={20}/></a>
+      <a className="android-module-card" href="mailto:micrhema2@gmail.com"><Mail size={29}/><div><strong>E-mail</strong><small>micrhema2@gmail.com</small></div><ChevronRight size={20}/></a>
+    </div>
+  </section>;
+}
 
 function AndroidDrawer({
   active, onNavigate, onProfile, onClose, session, onNotifications,
@@ -120,9 +188,10 @@ export function PwaShell({
   session: { name: string; isAdmin: boolean } | null;
   onNotifications: () => void;
 }) {
+  const synchronizedContent = active === "team" ? <TeamParityView /> : active === "donations" ? <DonationsParityView /> : active === "about" ? <AboutParityView /> : children;
   return (
     <div className="android-app-shell">
-      <main className="android-app-content">{children}</main>
+      <main className="android-app-content">{synchronizedContent}</main>
       <nav className="android-bottom-dock" aria-label="Navegação principal">
         {primaryItems.map(({ id, label, icon: Icon }) => {
           const selected = active === id;
