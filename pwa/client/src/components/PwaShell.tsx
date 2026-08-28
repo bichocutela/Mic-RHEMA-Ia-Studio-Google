@@ -29,6 +29,19 @@ type DonationSettings = {
   qrCodeUrl?: string;
 };
 
+type DiscipuladoPdf = {
+  id: string;
+  title?: string;
+  subtitle?: string;
+  description?: string;
+  category?: string;
+  fileUrl?: string;
+  storagePath?: string;
+  order?: number;
+  isPublished?: boolean;
+  createdAt?: number;
+};
+
 const primaryItems: Array<{ id: AppView; label: string; icon: LucideIcon }> = [
   { id: "home", label: "Início", icon: Home },
   { id: "bible", label: "Bíblia", icon: BookOpen },
@@ -90,6 +103,26 @@ function TeamParityView() {
       {member.imageUrl ? <img src={member.imageUrl} alt={`Foto de ${member.name || "membro da equipe"}`} style={{ width: 58, height: 58, borderRadius: "50%", objectFit: "cover" }} /> : <CircleUserRound size={38} />}
       <div><strong>{member.name || "Membro da equipe"}</strong><small>{[member.role, member.category].filter(Boolean).join(" · ") || "Equipe MIC Rhema"}</small></div>
     </article>)}</div>}
+  </section>;
+}
+
+function DiscipuladoParityView() {
+  const [items, setItems] = useState<DiscipuladoPdf[]>([]);
+  useEffect(() => listenToCollection<DiscipuladoPdf>("discipulado_pdfs", setItems, () => setItems([])), []);
+  const published = useMemo(() => items.filter((item) => item.isPublished !== false).slice().sort((a, b) => {
+    const order = Number(a.order || 0) - Number(b.order || 0);
+    return order !== 0 ? order : Number(b.createdAt || 0) - Number(a.createdAt || 0);
+  }), [items]);
+  const openPdf = (item: DiscipuladoPdf) => {
+    if (!item.fileUrl) return;
+    window.open(item.fileUrl, "_blank", "noopener,noreferrer");
+  };
+  return <section className="page-pad android-module">
+    <div className="android-section-heading"><div><p>DISCIPULADO</p><h2>Estudos de Discipulado</h2></div></div>
+    <p>PDFs publicados pela igreja para todos os usuários.</p>
+    {!published.length ? <p className="empty-module">Nenhum estudo publicado ainda.</p> : <div className="android-list-cards">{published.map((item, index) => <button key={item.id} onClick={() => openPdf(item)} disabled={!item.fileUrl}>
+      <span>{String(index + 1).padStart(2, "0")}</span><div><strong>{item.title || "Estudo bíblico"}</strong><small>{[item.category, item.subtitle, item.description].filter(Boolean).join(" · ") || "PDF de discipulado"}</small></div><ChevronRight size={19}/>
+    </button>)}</div>}
   </section>;
 }
 
@@ -188,7 +221,7 @@ export function PwaShell({
   session: { name: string; isAdmin: boolean } | null;
   onNotifications: () => void;
 }) {
-  const synchronizedContent = active === "team" ? <TeamParityView /> : active === "donations" ? <DonationsParityView /> : active === "about" ? <AboutParityView /> : children;
+  const synchronizedContent = active === "team" ? <TeamParityView /> : active === "discipulado" ? <DiscipuladoParityView /> : active === "donations" ? <DonationsParityView /> : active === "about" ? <AboutParityView /> : children;
   return (
     <div className="android-app-shell">
       <main className="android-app-content">{synchronizedContent}</main>
