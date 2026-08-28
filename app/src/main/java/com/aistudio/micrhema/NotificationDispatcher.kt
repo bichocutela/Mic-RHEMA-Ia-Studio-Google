@@ -21,6 +21,7 @@ object NotificationDispatcher {
         .readTimeout(20, TimeUnit.SECONDS)
         .build()
 
+    // As categorias abaixo correspondem aos interruptores exibidos em Configurações > Notificações.
     private fun categoryFor(collection: String, title: String): String = when (collection) {
         "devocionais" -> "devotional"
         "cultos_agenda", "events" -> "event"
