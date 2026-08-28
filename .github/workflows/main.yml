@@ -136,3 +136,42 @@ jobs:
             -H "Content-Type: application/json" \
             --data @/tmp/mic-rhema-notification.json
           rm -f /tmp/mic-rhema-notification.json
+
+      - name: Testar 8 notificações de Configurações
+        if: contains(github.event.head_commit.message, '[notification-tests]')
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+          send_test() {
+            local number="$1"
+            local title="$2"
+            local category="$3"
+            local topic="$4"
+            jq -n \
+              --arg topic "$topic" \
+              --arg title "[TESTE ${number}/8] ${title}" \
+              --arg body "Teste da opção ${title} em Configurações." \
+              --arg category "$category" \
+              '{topic:$topic,title:$title,body:$body,data:{category:$category,test:"settings_notifications"}}' > /tmp/notification-test.json
+            echo "Enviando teste ${number}/8: ${title} (${category})"
+            curl --fail-with-body --silent --show-error \
+              -X POST "${SUPABASE_URL%/}/functions/v1/notify-fcm" \
+              -H "apikey: ${SUPABASE_ANON_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+              -H "Content-Type: application/json" \
+              --data @/tmp/notification-test.json
+            echo
+            sleep 2
+          }
+
+          send_test "1" "Novos cursos" "course" "all_users"
+          send_test "2" "Devocional diário às 8h" "devotional" "all_users"
+          send_test "3" "Avisos de eventos e cultos" "event" "all_users"
+          send_test "4" "Próximo culto" "service" "all_users"
+          send_test "5" "Notícia do meio-dia" "news" "all_users"
+          send_test "6" "Novas mídias" "media" "all_users"
+          send_test "7" "Novas aulas e módulos IBR" "ibr" "all_users"
+          send_test "8" "Novas pregações" "sermon" "all_users"
+          rm -f /tmp/notification-test.json
