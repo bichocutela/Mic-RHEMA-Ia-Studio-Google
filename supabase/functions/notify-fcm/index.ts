@@ -85,12 +85,12 @@ Deno.serve(async (request) => {
       Object.entries(input.data ?? {}).map(([key, value]) => [key, String(value)]),
     );
 
-    // Mantém também title/body no payload de dados para que o FirebaseMessagingService
-    // tenha o mesmo conteúdo tanto em primeiro plano quanto em segundo plano.
     data.title = data.title || title;
     data.body = data.body || body;
     data.category = data.category || "content_updates";
 
+    // Data-only + prioridade alta: garante que o FCMService processe a mensagem
+    // também em segundo plano e aplique as preferências individuais do usuário.
     const response = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
       method: "POST",
       headers: {
@@ -100,14 +100,10 @@ Deno.serve(async (request) => {
       body: JSON.stringify({
         message: {
           topic,
-          notification: { title, body },
           data,
           android: {
             priority: "high",
-            notification: {
-              channel_id: "micrhema_notifications",
-              icon: "ic_notification",
-            },
+            ttl: "86400s",
           },
         },
       }),
