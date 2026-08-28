@@ -1,6 +1,7 @@
 package com.aistudio.micrhema
 
 import android.util.Log
+import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 
@@ -14,11 +15,13 @@ class FCMService : FirebaseMessagingService() {
             Log.d(TAG, "Message data payload: ${remoteMessage.data}")
         }
 
-        val title = remoteMessage.notification?.title
-            ?: remoteMessage.data["title"]
+        // Prioriza o payload data-only, como no NRD Lojas. Isso mantém o mesmo
+        // comportamento quando o app está em primeiro plano ou em segundo plano.
+        val title = remoteMessage.data["title"]
+            ?: remoteMessage.notification?.title
             ?: "MIC Rhema"
-        val message = remoteMessage.notification?.body
-            ?: remoteMessage.data["body"]
+        val message = remoteMessage.data["body"]
+            ?: remoteMessage.notification?.body
             ?: remoteMessage.data["message"]
             ?: "Nova mensagem"
         val category = NotificationHelper.categoryFrom(remoteMessage.data["category"])
@@ -37,12 +40,21 @@ class FCMService : FirebaseMessagingService() {
     }
 
     override fun onNewToken(token: String) {
-        Log.d(TAG, "Refreshed token: $token")
-        sendRegistrationToServer(token)
+        super.onNewToken(token)
+        Log.d(TAG, "Token FCM renovado; reconciliando tópicos públicos")
+        reconcilePublicTopics()
     }
 
-    private fun sendRegistrationToServer(token: String?) {
-        Log.d(TAG, "sendRegistrationTokenToServer($token)")
+    private fun reconcilePublicTopics() {
+        val messaging = FirebaseMessaging.getInstance()
+
+        messaging.subscribeToTopic("all_users")
+            .addOnSuccessListener { Log.d(TAG, "Inscrição all_users confirmada") }
+            .addOnFailureListener { Log.e(TAG, "Falha ao inscrever em all_users", it) }
+
+        messaging.subscribeToTopic("devocionais")
+            .addOnSuccessListener { Log.d(TAG, "Inscrição devocionais confirmada") }
+            .addOnFailureListener { Log.e(TAG, "Falha ao inscrever em devocionais", it) }
     }
 
     companion object {
