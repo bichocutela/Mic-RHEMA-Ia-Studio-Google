@@ -17,6 +17,7 @@ fun saveChurchEvent(
 
     val now = System.currentTimeMillis()
     val id = item.id.ifBlank { java.util.UUID.randomUUID().toString() }
+    val isNewEvent = item.id.isBlank()
     val persisted = item.copy(
         id = id,
         startDate = item.startDate.trim(),
@@ -48,7 +49,28 @@ fun saveChurchEvent(
 
     Firebase.firestore.collection("events").document(id)
         .set(data, SetOptions.merge())
-        .addOnSuccessListener { onSuccess() }
+        .addOnSuccessListener {
+            // Eventos temporários usam exclusivamente a preferência "Avisos de eventos e cultos".
+            // Não dispara novamente em simples edições para evitar notificações duplicadas.
+            if (isNewEvent && persisted.isPublished) {
+                val period = if (persisted.endDate.isBlank() || persisted.endDate == persisted.startDate) {
+                    persisted.startDate
+                } else {
+                    "${persisted.startDate} até ${persisted.endDate}"
+                }
+                val details = listOf(period, persisted.time, persisted.location)
+                    .filter { it.isNotBlank() }
+                    .joinToString(" • ")
+                NotificationDispatcher.enqueue(
+                    topic = "all_users",
+                    title = "Novo evento: ${persisted.title}",
+                    body = details.ifBlank { "Confira os detalhes na aba Cultos." },
+                    collection = "events",
+                    documentId = persisted.id
+                )
+            }
+            onSuccess()
+        }
         .addOnFailureListener { onFailure(it) }
 }
 
