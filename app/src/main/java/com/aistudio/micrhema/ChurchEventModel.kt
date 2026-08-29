@@ -27,3 +27,9 @@ data class ChurchEventModel(
     /** Evento de um único dia quando não há término ou o término é igual ao início. */
     fun isSingleDay(): Boolean = endDate.isBlank() || endDate == startDate
 }
+
+/**
+ * Estado novo usado pelas próximas etapas da aba Cultos.
+ * O estado legado [eventsState] permanece intacto para não quebrar telas atuais.
+ */
+val churchEventsState = androidx.compose.runtime.mutableStateListOf<ChurchEventModel>()
