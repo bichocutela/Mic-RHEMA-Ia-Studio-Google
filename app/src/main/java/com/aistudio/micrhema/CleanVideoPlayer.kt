@@ -190,46 +190,46 @@ fun CleanVideoPlayer(
                 }
 
                 isYouTube && youtubeId != null -> {
-                    AndroidView(
-                        key = "$youtubeId-$retryKey",
-                        factory = { ctx ->
-                            YouTubePlayerView(ctx).apply {
-                                lifecycleOwner.lifecycle.addObserver(this)
-                                addYouTubePlayerListener(object : AbstractYouTubePlayerListener() {
-                                    override fun onReady(youTubePlayer: YouTubePlayer) {
-                                        isLoading = false
-                                        errorMessage = null
-                                        // cueVideo respeita a política de autoplay e deixa os controles
-                                        // oficiais do YouTube disponíveis para o usuário tocar e reproduzir.
-                                        youTubePlayer.cueVideo(youtubeId, 0f)
-                                    }
+                    val playerView = remember(youtubeId, retryKey) {
+                        YouTubePlayerView(context).apply {
+                            lifecycleOwner.lifecycle.addObserver(this)
+                            addYouTubePlayerListener(object : AbstractYouTubePlayerListener() {
+                                override fun onReady(youTubePlayer: YouTubePlayer) {
+                                    isLoading = false
+                                    errorMessage = null
+                                    youTubePlayer.cueVideo(youtubeId, 0f)
+                                }
 
-                                    override fun onStateChange(
-                                        youTubePlayer: YouTubePlayer,
-                                        state: PlayerConstants.PlayerState
-                                    ) {
-                                        isLoading = state == PlayerConstants.PlayerState.BUFFERING
-                                    }
+                                override fun onStateChange(
+                                    youTubePlayer: YouTubePlayer,
+                                    state: PlayerConstants.PlayerState
+                                ) {
+                                    isLoading = state == PlayerConstants.PlayerState.BUFFERING
+                                }
 
-                                    override fun onError(
-                                        youTubePlayer: YouTubePlayer,
-                                        error: PlayerConstants.PlayerError
-                                    ) {
-                                        isLoading = false
-                                        errorMessage = when (error) {
-                                            PlayerConstants.PlayerError.VIDEO_NOT_PLAYABLE_IN_EMBEDDED_PLAYER ->
-                                                "Este vídeo não permite reprodução incorporada. Abra no YouTube."
-                                            else -> "O YouTube não conseguiu reproduzir este vídeo."
-                                        }
+                                override fun onError(
+                                    youTubePlayer: YouTubePlayer,
+                                    error: PlayerConstants.PlayerError
+                                ) {
+                                    isLoading = false
+                                    errorMessage = when (error) {
+                                        PlayerConstants.PlayerError.VIDEO_NOT_PLAYABLE_IN_EMBEDDED_PLAYER ->
+                                            "Este vídeo não permite reprodução incorporada. Abra no YouTube."
+                                        else -> "O YouTube não conseguiu reproduzir este vídeo."
                                     }
-                                })
-                            }
-                        },
-                        modifier = Modifier.fillMaxSize(),
-                        onRelease = { view ->
-                            lifecycleOwner.lifecycle.removeObserver(view)
-                            view.release()
+                                }
+                            })
                         }
+                    }
+                    DisposableEffect(playerView, lifecycleOwner) {
+                        onDispose {
+                            lifecycleOwner.lifecycle.removeObserver(playerView)
+                            playerView.release()
+                        }
+                    }
+                    AndroidView(
+                        factory = { playerView },
+                        modifier = Modifier.fillMaxSize()
                     )
                 }
 
@@ -242,7 +242,7 @@ fun CleanVideoPlayer(
                                 controllerAutoShow = true
                             }
                         },
-                        update = { it.player = exoPlayer },
+                        update = { view: PlayerView -> view.player = exoPlayer },
                         modifier = Modifier.fillMaxSize()
                     )
                 }
