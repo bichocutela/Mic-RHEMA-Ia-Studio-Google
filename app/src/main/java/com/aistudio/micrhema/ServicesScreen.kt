@@ -36,7 +36,7 @@ fun ServicesScreen() {
         .sortedWith(compareBy<ChurchEventModel> { parseChurchEventDate(it.startDate) ?: LocalDate.MAX }.thenBy { it.time })
 
     Scaffold(containerColor = MaterialTheme.colorScheme.background) { paddingValues ->
-        PullToRefreshBox(
+        androidx.compose.material3.pulltorefresh.PullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = {
                 coroutineScope.launch {
@@ -54,53 +54,31 @@ fun ServicesScreen() {
             ) {
                 item {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Outlined.DateRange,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(28.dp)
-                        )
+                        Icon(Icons.Outlined.DateRange, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
                         Spacer(Modifier.width(12.dp))
                         Column {
-                            Text(
-                                "Cultos",
-                                style = MaterialTheme.typography.headlineMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                "Programação da igreja e eventos especiais",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Text("Cultos", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                            Text("Programação da igreja e eventos especiais", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
-
                 item { SectionTitle("Cultos Fixos", "Nossa programação semanal") }
-
                 if (weeklyServicesState.isEmpty()) {
-                    item {
-                        EmptyServicesCard("A programação fixa ainda não foi cadastrada.")
-                    }
+                    item { EmptyServicesCard("A programação fixa ainda não foi cadastrada.") }
                 } else {
                     items(weeklyServicesState, key = { it.id.ifBlank { "${it.day}-${it.time}-${it.title}" } }) { service ->
-                        FixedServiceCard(service = service, onClick = { selectedService = service })
+                        FixedServiceCard(service) { selectedService = service }
                     }
                 }
-
                 item {
                     Spacer(Modifier.height(8.dp))
                     SectionTitle("Eventos Especiais", "Próximos eventos e programações temporárias")
                 }
-
                 if (publicEvents.isEmpty()) {
                     item { EmptyServicesCard("Nenhum evento especial publicado no momento.") }
                 } else {
                     items(publicEvents, key = { it.id.ifBlank { "${it.startDate}-${it.title}" } }) { event ->
-                        EventCard(
-                            event = event,
-                            onClick = if (event.description.isNotBlank()) ({ selectedEvent = event }) else null
-                        )
+                        EventCard(event, if (event.description.isNotBlank()) ({ selectedEvent = event }) else null)
                     }
                 }
             }
@@ -113,15 +91,8 @@ fun ServicesScreen() {
             title = { Text(service.title) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        "${service.day} às ${service.time}",
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        service.description.ifBlank { "A descrição deste culto ainda não foi cadastrada." },
-                        style = MaterialTheme.typography.bodyLarge
-                    )
+                    Text("${service.day} às ${service.time}", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                    Text(service.description.ifBlank { "A descrição deste culto ainda não foi cadastrada." }, style = MaterialTheme.typography.bodyLarge)
                 }
             },
             confirmButton = { TextButton(onClick = { selectedService = null }) { Text("Fechar") } }
@@ -134,11 +105,7 @@ fun ServicesScreen() {
             title = { Text(event.title) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        formatChurchEventPeriod(event),
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text(formatChurchEventPeriod(event), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                     if (event.time.isNotBlank()) Text("Horário: ${event.time}")
                     if (event.location.isNotBlank()) Text("Local: ${event.location}")
                     if (event.preacher.isNotBlank()) Text("Preletor: ${event.preacher}")
@@ -163,27 +130,14 @@ private fun SectionTitle(title: String, subtitle: String) {
 
 @Composable
 private fun FixedServiceCard(service: ChurchService, onClick: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-    ) {
+    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
         Column(Modifier.padding(20.dp)) {
             Text(service.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(8.dp))
-            Text(
-                "${service.day} às ${service.time}",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary
-            )
+            Text("${service.day} às ${service.time}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
             if (service.description.isNotBlank()) {
                 Spacer(Modifier.height(10.dp))
-                Text(
-                    service.description,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2
-                )
+                Text(service.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
             }
         }
     }
@@ -192,29 +146,16 @@ private fun FixedServiceCard(service: ChurchService, onClick: () -> Unit) {
 @Composable
 private fun EventCard(event: ChurchEventModel, onClick: (() -> Unit)?) {
     val modifier = if (onClick != null) Modifier.fillMaxWidth().clickable(onClick = onClick) else Modifier.fillMaxWidth()
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
+    Card(modifier = modifier, shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column {
             if (event.bannerUrl.isNotBlank()) {
-                coil.compose.AsyncImage(
-                    model = event.bannerUrl,
-                    contentDescription = "Banner de ${event.title}",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
-                )
+                coil.compose.AsyncImage(model = event.bannerUrl, contentDescription = "Banner de ${event.title}", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)))
             }
             Column(Modifier.padding(18.dp)) {
                 Text(event.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(6.dp))
-                Text(
-                    formatChurchEventPeriod(event),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                if (event.time.isNotBlank()) Text("${event.time}", style = MaterialTheme.typography.bodyMedium)
+                Text(formatChurchEventPeriod(event), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                if (event.time.isNotBlank()) Text(event.time, style = MaterialTheme.typography.bodyMedium)
                 if (event.location.isNotBlank()) Text(event.location, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (event.preacher.isNotBlank()) Text("Preletor: ${event.preacher}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (event.description.isNotBlank()) {
@@ -228,18 +169,12 @@ private fun EventCard(event: ChurchEventModel, onClick: (() -> Unit)?) {
 
 @Composable
 private fun EmptyServicesCard(message: String) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
-    ) {
+    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))) {
         Text(message, modifier = Modifier.padding(18.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
-private fun parseChurchEventDate(value: String): LocalDate? = runCatching {
-    LocalDate.parse(value.trim())
-}.getOrNull()
+private fun parseChurchEventDate(value: String): LocalDate? = runCatching { LocalDate.parse(value.trim()) }.getOrNull()
 
 private fun formatChurchEventPeriod(event: ChurchEventModel): String {
     val start = formatChurchEventDate(event.startDate)
