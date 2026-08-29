@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Global State Manager
- * 
+ *
  * Uses Kotlin Flows and Firestore snapshot listeners to immediately propagate
  * data changes made in the admin panel to all active app instances, ensuring
  * real-time UI updates for all users without requiring a restart.
@@ -28,16 +28,21 @@ object GlobalStateManager {
 
     private val _vipVideos = MutableStateFlow<List<ContentVideo>>(emptyList())
     val vipVideos: StateFlow<List<ContentVideo>> = _vipVideos.asStateFlow()
-    
+
     private val _contentVideos = MutableStateFlow<List<ContentVideo>>(emptyList())
     val contentVideos: StateFlow<List<ContentVideo>> = _contentVideos.asStateFlow()
-    
+
     private val _serviceVideos = MutableStateFlow<List<ServiceVideoModel>>(emptyList())
     val serviceVideos: StateFlow<List<ServiceVideoModel>> = _serviceVideos.asStateFlow()
 
+    // Fluxo legado preservado enquanto as telas atuais ainda usam ChurchEvent.
     private val _events = MutableStateFlow<List<ChurchEvent>>(emptyList())
     val events: StateFlow<List<ChurchEvent>> = _events.asStateFlow()
-    
+
+    // Novo fluxo completo para eventos temporários, usado pelas próximas etapas.
+    private val _churchEvents = MutableStateFlow<List<ChurchEventModel>>(emptyList())
+    val churchEvents: StateFlow<List<ChurchEventModel>> = _churchEvents.asStateFlow()
+
     private val _carouselItems = MutableStateFlow<List<CarouselItem>>(emptyList())
     val carouselItems: StateFlow<List<CarouselItem>> = _carouselItems.asStateFlow()
 
@@ -46,15 +51,23 @@ object GlobalStateManager {
             Log.d("GlobalStateManager", "Firebase not configured, skipping real-time listeners.")
             return
         }
-        
+
         Log.d("GlobalStateManager", "Initializing real-time Firestore listeners to propagate changes across instances.")
 
         // devocionais are managed by DevotionalManager.syncDevotionals()
 
-
+        // Cultos fixos permanecem completamente separados dos eventos temporários.
         db.collection("cultos_agenda").addSnapshotListener { snapshot, e ->
             if (e != null || snapshot == null) return@addSnapshotListener
-            val list = snapshot.documents.mapNotNull { try { it.toObject(ChurchService::class.java) } catch(ex: Exception) { null } }
+            val list = snapshot.documents.mapNotNull { document ->
+                try {
+                    document.toObject(ChurchService::class.java)?.also {
+                        if (it.id.isBlank()) it.id = document.id
+                    }
+                } catch (ex: Exception) {
+                    null
+                }
+            }
             _churchServices.value = list
             weeklyServicesState.clear()
             weeklyServicesState.addAll(list)
@@ -87,7 +100,7 @@ object GlobalStateManager {
             contentVideosState.clear()
             contentVideosState.addAll(list)
         }
-        
+
         db.collection("vip_videos").addSnapshotListener { snapshot, e ->
             if (e != null || snapshot == null) return@addSnapshotListener
             val list = snapshot.documents.mapNotNull { try { it.toObject(ContentVideo::class.java) } catch(ex: Exception) { null } }
@@ -104,12 +117,69 @@ object GlobalStateManager {
             serviceVideosState.addAll(list)
         }
 
+        /*
+         * Eventos temporários.
+         *
+         * Compatibilidade importante:
+         * - documentos antigos usam `date`;
+         * - documentos novos usam `startDate`/`endDate`;
+         * - enquanto a tela antiga existir, também montamos ChurchEvent usando a
+         *   data inicial para que nada visual deixe de funcionar nesta etapa.
+         */
         db.collection("events").addSnapshotListener { snapshot, e ->
             if (e != null || snapshot == null) return@addSnapshotListener
-            val list = snapshot.documents.mapNotNull { try { it.toObject(ChurchEvent::class.java) } catch(ex: Exception) { null } }
-            _events.value = list
+
+            val completeEvents = snapshot.documents.mapNotNull { document ->
+                try {
+                    val legacyDate = document.getString("date").orEmpty()
+                    val startDate = document.getString("startDate").orEmpty().ifBlank { legacyDate }
+                    val endDate = document.getString("endDate").orEmpty().ifBlank { startDate }
+                    val preacher = document.getString("preacher").orEmpty()
+                        .ifBlank { document.getString("pregador").orEmpty() }
+                        .ifBlank { document.getString("preletor").orEmpty() }
+                    val bannerUrl = document.getString("bannerUrl").orEmpty()
+                        .ifBlank { document.getString("imageUrl").orEmpty() }
+                    val published = document.getBoolean("isPublished")
+                        ?: document.getBoolean("isApproved")
+                        ?: true
+
+                    ChurchEventModel(
+                        id = document.getString("id").orEmpty().ifBlank { document.id },
+                        title = document.getString("title").orEmpty(),
+                        description = document.getString("description").orEmpty(),
+                        preacher = preacher,
+                        startDate = startDate,
+                        endDate = endDate,
+                        time = document.getString("time").orEmpty(),
+                        location = document.getString("location").orEmpty(),
+                        bannerUrl = bannerUrl,
+                        isPublished = published,
+                        createdAt = document.getLong("createdAt") ?: 0L,
+                        updatedAt = document.getLong("updatedAt") ?: 0L
+                    )
+                } catch (ex: Exception) {
+                    Log.w("GlobalStateManager", "Evento inválido ignorado: ${document.id}", ex)
+                    null
+                }
+            }
+
+            _churchEvents.value = completeEvents
+            churchEventsState.clear()
+            churchEventsState.addAll(completeEvents)
+
+            // Ponte temporária para as telas antigas até a Etapa 3.
+            val legacyEvents = completeEvents.map { event ->
+                ChurchEvent(
+                    id = event.id,
+                    title = event.title,
+                    date = event.startDate,
+                    description = event.description,
+                    location = event.location
+                )
+            }
+            _events.value = legacyEvents
             eventsState.clear()
-            eventsState.addAll(list)
+            eventsState.addAll(legacyEvents)
         }
 
         db.collection("carousel_items").addSnapshotListener { snapshot, e ->
@@ -119,7 +189,7 @@ object GlobalStateManager {
             carouselItemsState.clear()
             carouselItemsState.addAll(list)
         }
-        
+
         Log.d("GlobalStateManager", "Real-time listeners attached successfully.")
     }
 }
