@@ -49,7 +49,6 @@ fun MembersScreen() {
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Header
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -106,17 +105,15 @@ fun MembersScreen() {
                             Text(loggedInMember.phone, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(modifier = Modifier.height(16.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                                if (loggedInMember.isIbr) AssistChip(onClick = {}, label = { Text("Aluno IBR") }, leadingIcon = { Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp)) })
+                                if (loggedInMember.isIbr) AssistChip(onClick = {}, label = { Text("Aluno IBR") }, leadingIcon = { Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp)) })
                             }
                         }
                     }
-                    
-
 
                     Spacer(modifier = Modifier.height(24.dp))
                     Text("Meus Favoritos", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
                     Spacer(modifier = Modifier.height(12.dp))
-                    
+
                     if (favoriteItemsState.isEmpty()) {
                         Text("Você ainda não adicionou nenhum devocional ou versículo aos favoritos.", color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f), style = MaterialTheme.typography.bodyMedium)
                     } else {
@@ -132,7 +129,7 @@ fun MembersScreen() {
                                 ) {
                                     Column(modifier = Modifier.padding(16.dp)) {
                                         Row(
-                                            modifier = Modifier.fillMaxWidth(), 
+                                            modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.Top
                                         ) {
@@ -156,7 +153,7 @@ fun MembersScreen() {
 
                     if (favoriteItemsState.isEmpty()) Spacer(modifier = Modifier.weight(1f))
                     else Spacer(modifier = Modifier.height(16.dp))
-                    
+
                     OutlinedButton(
                         onClick = { MemberManager.setLoggedInMember(context, null) },
                         modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)
@@ -176,7 +173,7 @@ fun AdminScreen() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val loggedIn = loggedInMemberState.value
     var isAuthenticated by adminAuthenticatedState
-    
+
     LaunchedEffect(loggedIn) {
         if (loggedIn?.isAdmin == true) {
             isAuthenticated = true
@@ -216,7 +213,6 @@ fun AdminScreen() {
             if (firebaseAuth.currentUser?.email == adminEmail) {
                 activateRemoteAdminSession(firebaseAuth)
             } else {
-                // Não reutilizar uma sessão anônima/local para o painel administrativo.
                 firebaseAuth.signOut()
                 firebaseAuth.signInWithEmailAndPassword(adminEmail, "igreja10")
                     .addOnSuccessListener { activateRemoteAdminSession(firebaseAuth) }
@@ -230,7 +226,7 @@ fun AdminScreen() {
             }
         }
     }
-    
+
     val adminUiPrefs = remember {
         context.getSharedPreferences("micrhema_admin_ui", android.content.Context.MODE_PRIVATE)
     }
@@ -245,8 +241,7 @@ fun AdminScreen() {
         adminFontScale = normalized
         adminUiPrefs.edit().putFloat("admin_font_scale", normalized).apply()
     }
-    
-    // O painel herda o mesmo esquema global para refletir Claro/Escuro e a cor de destaque escolhida.
+
     val appColorScheme = MaterialTheme.colorScheme
     val baseTypography = MaterialTheme.typography
     val adminTypography = Typography(
@@ -289,8 +284,8 @@ fun AdminScreen() {
                             IconButton(onClick = { updateAdminFontScale(adminFontScale + 0.1f) }) {
                                 Icon(Icons.Filled.Add, contentDescription = "Aumentar Fonte", tint = MaterialTheme.colorScheme.onSurface)
                             }
-                            IconButton(onClick = { 
-                                isAuthenticated = false 
+                            IconButton(onClick = {
+                                isAuthenticated = false
                             }) {
                                 Icon(androidx.compose.material.icons.Icons.Default.ExitToApp, contentDescription = "Sair", tint = MaterialTheme.colorScheme.error)
                             }
@@ -437,7 +432,7 @@ fun AdminScreen() {
                     AdminSection.ABOUT -> "Sobre"
                     else -> ""
                 }
-                
+
                 Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
                     Column(
                         modifier = Modifier
@@ -447,8 +442,8 @@ fun AdminScreen() {
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                Icons.AutoMirrored.Filled.ArrowBack, 
-                                contentDescription = "Voltar para o Painel Administrativo", 
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Voltar para o Painel Administrativo",
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(20.dp)
                             )
@@ -475,7 +470,7 @@ fun AdminScreen() {
                         when (currentSection) {
                             AdminSection.TABS -> AdminTabsScreen()
                             AdminSection.PLANS -> EditPlansSection()
-                            AdminSection.SERVICES -> EditServicesSection()
+                            AdminSection.SERVICES -> EditServicesSectionV2()
                             AdminSection.DEVOTIONALS -> EditDevotionalsSection()
                             AdminSection.NEWS -> EditNewsSection()
                             AdminSection.MEDIA -> EditMediaSection()
