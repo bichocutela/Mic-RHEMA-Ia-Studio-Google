@@ -19,7 +19,6 @@ object GlobalStateManager {
 
     private val db = Firebase.firestore
 
-    // Centralized Flow definitions for real-time reactivity across instances
     private val _devotionals = MutableStateFlow<List<Devotional>>(emptyList())
     val devotionals: StateFlow<List<Devotional>> = _devotionals.asStateFlow()
 
@@ -35,11 +34,9 @@ object GlobalStateManager {
     private val _serviceVideos = MutableStateFlow<List<ServiceVideoModel>>(emptyList())
     val serviceVideos: StateFlow<List<ServiceVideoModel>> = _serviceVideos.asStateFlow()
 
-    // Fluxo legado preservado enquanto as telas atuais ainda usam ChurchEvent.
     private val _events = MutableStateFlow<List<ChurchEvent>>(emptyList())
     val events: StateFlow<List<ChurchEvent>> = _events.asStateFlow()
 
-    // Novo fluxo completo para eventos temporários, usado pelas próximas etapas.
     private val _churchEvents = MutableStateFlow<List<ChurchEventModel>>(emptyList())
     val churchEvents: StateFlow<List<ChurchEventModel>> = _churchEvents.asStateFlow()
 
@@ -54,9 +51,6 @@ object GlobalStateManager {
 
         Log.d("GlobalStateManager", "Initializing real-time Firestore listeners to propagate changes across instances.")
 
-        // devocionais are managed by DevotionalManager.syncDevotionals()
-
-        // Cultos fixos permanecem completamente separados dos eventos temporários.
         db.collection("cultos_agenda").addSnapshotListener { snapshot, e ->
             if (e != null || snapshot == null) return@addSnapshotListener
             val list = snapshot.documents.mapNotNull { document ->
@@ -117,19 +111,36 @@ object GlobalStateManager {
             serviceVideosState.addAll(list)
         }
 
-        /*
-         * Eventos temporários.
-         *
-         * Compatibilidade importante:
-         * - documentos antigos usam `date`;
-         * - documentos novos usam `startDate`/`endDate`;
-         * - enquanto a tela antiga existir, também montamos ChurchEvent usando a
-         *   data inicial para que nada visual deixe de funcionar nesta etapa.
-         */
+        // A coleção events continua sendo a fonte nativa de eventos completos.
+        // Destaques com eventDate também entram na mesma visualização pública de Cultos.
+        var firestoreEvents: List<ChurchEventModel> = emptyList()
+        var carouselEvents: List<ChurchEventModel> = emptyList()
+
+        fun publishCombinedEvents() {
+            val combined = (firestoreEvents + carouselEvents)
+                .distinctBy { it.id }
+            _churchEvents.value = combined
+            churchEventsState.clear()
+            churchEventsState.addAll(combined)
+
+            val legacyEvents = combined.map { event ->
+                ChurchEvent(
+                    id = event.id,
+                    title = event.title,
+                    date = event.startDate,
+                    description = event.description,
+                    location = event.location
+                )
+            }
+            _events.value = legacyEvents
+            eventsState.clear()
+            eventsState.addAll(legacyEvents)
+        }
+
         db.collection("events").addSnapshotListener { snapshot, e ->
             if (e != null || snapshot == null) return@addSnapshotListener
 
-            val completeEvents = snapshot.documents.mapNotNull { document ->
+            firestoreEvents = snapshot.documents.mapNotNull { document ->
                 try {
                     val legacyDate = document.getString("date").orEmpty()
                     val startDate = document.getString("startDate").orEmpty().ifBlank { legacyDate }
@@ -162,32 +173,38 @@ object GlobalStateManager {
                     null
                 }
             }
-
-            _churchEvents.value = completeEvents
-            churchEventsState.clear()
-            churchEventsState.addAll(completeEvents)
-
-            // Ponte temporária para as telas antigas até a Etapa 3.
-            val legacyEvents = completeEvents.map { event ->
-                ChurchEvent(
-                    id = event.id,
-                    title = event.title,
-                    date = event.startDate,
-                    description = event.description,
-                    location = event.location
-                )
-            }
-            _events.value = legacyEvents
-            eventsState.clear()
-            eventsState.addAll(legacyEvents)
+            publishCombinedEvents()
         }
 
         db.collection("carousel_items").addSnapshotListener { snapshot, e ->
             if (e != null || snapshot == null) return@addSnapshotListener
-            val list = snapshot.documents.mapNotNull { try { it.toObject(CarouselItem::class.java) } catch(ex: Exception) { null } }
+            val list = snapshot.documents.mapNotNull { document ->
+                try {
+                    document.toObject(CarouselItem::class.java)?.also {
+                        if (it.id.isBlank()) it.id = document.id
+                    }
+                } catch (ex: Exception) {
+                    null
+                }
+            }
             _carouselItems.value = list
             carouselItemsState.clear()
             carouselItemsState.addAll(list)
+
+            carouselEvents = list
+                .filter { it.eventDate.isNotBlank() }
+                .map { item ->
+                    ChurchEventModel(
+                        id = "highlight_${item.id}",
+                        title = item.title.ifBlank { "Evento Especial" },
+                        description = item.eventInfo.ifBlank { item.description },
+                        startDate = item.eventDate,
+                        endDate = item.eventDate,
+                        bannerUrl = item.imageUrl.orEmpty(),
+                        isPublished = true
+                    )
+                }
+            publishCombinedEvents()
         }
 
         Log.d("GlobalStateManager", "Real-time listeners attached successfully.")
