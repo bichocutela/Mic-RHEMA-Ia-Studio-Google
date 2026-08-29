@@ -61,7 +61,11 @@ object NotificationDispatcher {
                         destination = "content"
                         "media"
                     }
-                    "cultos_agenda", "events" -> {
+                    "cultos_agenda" -> {
+                        destination = "services"
+                        "next_service"
+                    }
+                    "events" -> {
                         destination = "services"
                         "events"
                     }
