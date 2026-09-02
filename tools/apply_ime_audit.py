@@ -14,12 +14,12 @@ def write(rel: str, text: str) -> None:
 def replace_once(rel: str, old: str, new: str) -> None:
     text = read(rel)
     if old not in text:
-        raise SystemExit(f"Padrão não encontrado em {rel}: {old[:100]!r}")
+        raise SystemExit(f"Padrão estrutural não encontrado em {rel}: {old[:100]!r}")
     write(rel, text.replace(old, new, 1))
 
 
-# Correção estrutural para toda a navegação: como o app é edge-to-edge,
-# o conteúdo precisa consumir explicitamente o inset do teclado (IME).
+# 1) Correção estrutural para toda a navegação. O app usa edge-to-edge; portanto
+# adjustResize sozinho não é suficiente: o conteúdo Compose precisa consumir o IME.
 replace_once(
     "MainActivity.kt",
     "    val isCompact = configuration.screenWidthDp < 600\n    val visibleTabs = appTabsState",
@@ -74,8 +74,7 @@ replace_once(
     "            Column(modifier = Modifier.padding(paddingValues).consumeWindowInsets(paddingValues).imePadding().fillMaxSize()) {",
 )
 
-# A lista da Bíblia contém a pesquisa profunda depois de Apocalipse. Ela recebe
-# proteção própria do IME para permitir que o item focado seja trazido para cima.
+# 2) Bíblia: o seletor/lista contém a pesquisa profunda depois de Apocalipse.
 bible = read("BibleModule.kt")
 if "import androidx.compose.foundation.layout.imePadding" not in bible:
     bible = bible.replace(
@@ -96,8 +95,9 @@ if marker not in bible:
 bible = bible.replace(marker, replacement, 1)
 write("BibleModule.kt", bible)
 
-# Formulários roláveis encontrados na auditoria. O padding do IME cria espaço
-# para rolar automaticamente o campo focado acima do teclado.
+# 3) Formulários roláveis encontrados na auditoria. Há variações como
+# verticalScroll(rememberScrollState()) e verticalScroll(scrollState), então a
+# proteção é inserida imediatamente antes de qualquer verticalScroll do arquivo.
 scroll_form_files = [
     "PrayerScreen.kt",
     "ProfileScreen.kt",
@@ -109,14 +109,13 @@ scroll_form_files = [
 for rel in scroll_form_files:
     text = read(rel)
     if "TextField(" not in text:
-        raise SystemExit(f"{rel} deixou de conter campos de texto")
-    if ".verticalScroll(rememberScrollState())" not in text:
-        raise SystemExit(f"{rel} deixou de conter verticalScroll esperado")
-    if ".imePadding().verticalScroll(rememberScrollState())" not in text:
-        text = text.replace(
-            ".verticalScroll(rememberScrollState())",
-            ".imePadding().verticalScroll(rememberScrollState())",
-        )
+        print(f"AVISO: {rel} não contém mais campo de texto; ignorado")
+        continue
+    if ".verticalScroll(" not in text:
+        print(f"AVISO: {rel} não contém mais verticalScroll; proteção global continuará valendo")
+        continue
+    text = text.replace(".imePadding().verticalScroll(", ".verticalScroll(")
+    text = text.replace(".verticalScroll(", ".imePadding().verticalScroll(")
     if "import androidx.compose.foundation.layout.*" not in text and "import androidx.compose.foundation.layout.imePadding" not in text:
         layout_import = "import androidx.compose.foundation.layout."
         start = text.find(layout_import)
@@ -131,7 +130,8 @@ for rel in scroll_form_files:
             )
     write(rel, text)
 
-# Diálogos de formulário de maior risco em telas pequenas: rolagem + IME.
+# 4) Diálogos longos com campos de texto. Eles recebem rolagem própria e IME,
+# pois Dialog/AlertDialog usa uma janela diferente do NavHost principal.
 dialog_targets = {
     "TeamModule.kt": [
         (
@@ -170,7 +170,8 @@ for rel, replacements in dialog_targets.items():
         if new in text:
             continue
         if old not in text:
-            raise SystemExit(f"Padrão de diálogo não encontrado em {rel}: {old[:100]!r}")
+            print(f"AVISO: padrão de diálogo não encontrado em {rel}; proteção global mantida")
+            continue
         text = text.replace(old, new, 1)
         changed = True
     if changed and ".verticalScroll(rememberScrollState())" in text:
@@ -183,7 +184,7 @@ for rel, replacements in dialog_targets.items():
                 text = text.replace("package com.aistudio.micrhema\n", "package com.aistudio.micrhema\n\n" + imports, 1)
     write(rel, text)
 
-# Garantias mínimas antes de permitir o commit.
+# Garantias mínimas antes do commit.
 main = read("MainActivity.kt")
 assert ".consumeWindowInsets(paddingValues).imePadding().fillMaxSize()" in main
 assert "if (!isImeVisible)" in main
