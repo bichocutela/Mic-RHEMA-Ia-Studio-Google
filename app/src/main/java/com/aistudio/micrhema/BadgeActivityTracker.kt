@@ -2,11 +2,8 @@ package com.aistudio.micrhema
 
 import android.content.Context
 import android.os.SystemClock
+import android.util.Log
 import androidx.compose.runtime.mutableStateOf
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 import kotlin.math.max
 import kotlin.math.min
 
@@ -29,7 +26,6 @@ object BadgeActivityKeys {
 
 object BadgeActivityTracker {
     private const val MAX_SESSION_MINUTES = 120
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var sessionStartedAtElapsed: Long? = null
 
     fun record(context: Context, activity: String, itemId: String) {
@@ -48,7 +44,7 @@ object BadgeActivityTracker {
         val index = memberRequestsState.indexOfFirst { it.id == member.id }
         if (index >= 0) memberRequestsState[index] = updatedMember
         if (loggedInMemberState.value?.id == member.id) loggedInMemberState.value = updatedMember
-        scope.launch { MemberManager.saveToFirestore(context, updatedMember) }
+        syncPortableState(context, updatedMember)
     }
 
     fun startActiveSession() {
@@ -86,8 +82,19 @@ object BadgeActivityTracker {
         if (index >= 0) memberRequestsState[index] = updatedMember
         if (loggedInMemberState.value?.id == member.id) loggedInMemberState.value = updatedMember
 
-        scope.launch {
-            MemberManager.saveToFirestore(context, updatedMember)
-        }
+        // Não depende mais do armazenamento local nem de uma atualização direta proibida
+        // pelas regras do Firestore. O backend grava apenas os campos seguros do membro.
+        syncPortableState(context, updatedMember)
+    }
+
+    private fun syncPortableState(context: Context, member: MemberRequest) {
+        MemberSessionClient.syncMemberState(
+            context = context,
+            member = member,
+            identityPhone = member.phone,
+            onFailure = { error ->
+                Log.w("BadgeActivityTracker", "Não foi possível sincronizar o progresso do membro", error)
+            }
+        )
     }
 }
