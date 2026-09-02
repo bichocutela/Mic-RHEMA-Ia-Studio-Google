@@ -498,7 +498,7 @@ private fun ContinuousBibleChapterReader(
     }
     var currentBookmark by remember { mutableStateOf(BibleReadingPreferences.getBookmark(context)) }
     var actionsVerse by remember { mutableStateOf<Int?>(null) }
-    var transientFocusedVerse by remember(focusedVerse) { mutableStateOf(focusedVerse) }
+    var transientFocusedVerse by remember(focusedVerse) { mutableStateOf<Int?>(focusedVerse) }
     var showVerseDialog by rememberSaveable { mutableStateOf(false) }
 
     DisposableEffect(readingSettings.keepScreenOn) {
