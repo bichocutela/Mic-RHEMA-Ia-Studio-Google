@@ -169,7 +169,7 @@ fun EditNewsSection() {
             onDismissRequest = { showDialog = false },
             title = { Text(if (editingNews == null) "Novo Aviso" else "Editar Aviso") },
             text = {
-                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Column(modifier = Modifier.imePadding().verticalScroll(rememberScrollState())) {
                     OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Título") }, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = summary, onValueChange = { summary = it }, label = { Text("Resumo para o card") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
                     OutlinedTextField(value = storyKey, onValueChange = { storyKey = it }, label = { Text("Chave da história") }, supportingText = { Text("Use a mesma chave apenas para a mesma história; exemplo: jose-vendido") }, modifier = Modifier.fillMaxWidth())

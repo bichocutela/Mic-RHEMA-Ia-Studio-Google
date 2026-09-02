@@ -1,5 +1,8 @@
 package com.aistudio.micrhema
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -238,7 +241,7 @@ fun AdminTabsScreen() {
             onDismissRequest = { showAddDialog = false },
             title = { Text("Criar Nova Aba") },
             text = {
-                Column {
+                Column(modifier = Modifier.imePadding().verticalScroll(rememberScrollState())) {
                     OutlinedTextField(
                         value = newTitle,
                         onValueChange = { newTitle = it },

@@ -4,6 +4,8 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -89,7 +91,7 @@ fun EditServicesSectionV2() {
 @Composable
 private fun FixedServiceDialog(item: ChurchService?, onDismiss: () -> Unit, onSave: (ChurchService) -> Unit) {
     var title by remember(item) { mutableStateOf(item?.title.orEmpty()) }; var day by remember(item) { mutableStateOf(item?.day.orEmpty()) }; var time by remember(item) { mutableStateOf(item?.time.orEmpty()) }; var description by remember(item) { mutableStateOf(item?.description.orEmpty()) }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text(if (item == null) "Novo culto fixo" else "Editar culto fixo") }, text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(if (item == null) "Novo culto fixo" else "Editar culto fixo") }, text = { Column(modifier = Modifier.imePadding().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(title, { title = it }, label = { Text("Título") }, modifier = Modifier.fillMaxWidth()); OutlinedTextField(day, { day = it }, label = { Text("Dia da semana") }, placeholder = { Text("Ex.: Terça-feira") }, modifier = Modifier.fillMaxWidth()); OutlinedTextField(time, { time = it }, label = { Text("Horário") }, placeholder = { Text("19:00") }, modifier = Modifier.fillMaxWidth()); OutlinedTextField(description, { description = it }, label = { Text("Descrição") }, minLines = 3, modifier = Modifier.fillMaxWidth()); Text("Cultos fixos não usam data de início ou término.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     } }, confirmButton = { TextButton(enabled = title.isNotBlank() && day.isNotBlank() && time.isNotBlank(), onClick = { val cleanDay = day.trim(); onSave(ChurchService(id = item?.id ?: java.util.UUID.randomUUID().toString(), date = "", day = cleanDay, dayShort = cleanDay.take(3).uppercase(), time = time.trim(), title = title.trim(), description = description.trim(), type = item?.type ?: "culto", content = item?.content.orEmpty(), mediaUrl = item?.mediaUrl.orEmpty(), isApproved = item?.isApproved ?: true)) }) { Text("Salvar") } }, dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } })
 }
@@ -113,7 +115,7 @@ private fun ChurchEventAdminDialog(item: ChurchEventModel?, onDismiss: () -> Uni
     val bannerPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> if (uri != null) uploadBanner(uri) }
 
     AlertDialog(onDismissRequest = { if (!uploadingBanner) onDismiss() }, title = { Text(if (item == null) "Novo evento" else "Editar evento") }, text = {
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.heightIn(max = 560.dp)) {
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.heightIn(max = 560.dp).imePadding()) {
             item { OutlinedTextField(title, { title = it }, label = { Text("Título") }, modifier = Modifier.fillMaxWidth()) }
             item { OutlinedTextField(description, { description = it }, label = { Text("Descrição") }, minLines = 3, modifier = Modifier.fillMaxWidth()) }
             item { OutlinedTextField(preacher, { preacher = it }, label = { Text("Preletor") }, modifier = Modifier.fillMaxWidth()) }

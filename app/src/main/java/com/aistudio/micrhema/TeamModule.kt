@@ -375,7 +375,7 @@ fun TeamMemberDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (member != null) "Editar Membro" else "Novo Membro") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(modifier = Modifier.imePadding().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },

@@ -187,7 +187,7 @@ fun EditVipContentSection() {
     var albumToDelete by remember { mutableStateOf<ContentPhotoAlbum?>(null) }
     var isDeleting by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(modifier = Modifier.padding(16.dp).imePadding().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("IBR - Conteúdo Geral", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Text("Adicione e edite livros, áudios e vídeos para os alunos do Instituto Bíblico Rhema.", style = MaterialTheme.typography.bodyMedium)
         // SMART IMPORTER
@@ -706,7 +706,7 @@ fun EditVipContentSection() {
             onDismissRequest = { editingAlbum = null },
             title = { Text("Editar Álbum") },
             text = {
-                Column(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp).verticalScroll(rememberScrollState())) {
+                Column(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp).imePadding().verticalScroll(rememberScrollState())) {
                     GlassTextField(value = editTitle, onValueChange = { editTitle = it }, label = { Text("Título") }, modifier = Modifier.fillMaxWidth())
                     Spacer(modifier = Modifier.height(8.dp))
                     GlassTextField(value = editDesc, onValueChange = { editDesc = it }, label = { Text("Descrição") }, modifier = Modifier.fillMaxWidth())

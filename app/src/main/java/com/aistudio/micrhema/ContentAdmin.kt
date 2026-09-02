@@ -48,7 +48,7 @@ fun EditMediaSection() {
     val filteredAudios = contentAudiosState.filter { it.title.contains(mediaSearchQuery, ignoreCase = true) || it.artist.contains(mediaSearchQuery, ignoreCase = true) }
     val filteredVideos = contentVideosState.filter { it.title.contains(mediaSearchQuery, ignoreCase = true) || it.description.contains(mediaSearchQuery, ignoreCase = true) }
     val filteredAlbums = contentAlbumsState.filter { it.title.contains(mediaSearchQuery, ignoreCase = true) || it.description.contains(mediaSearchQuery, ignoreCase = true) }
-    Column(modifier = Modifier.padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(modifier = Modifier.padding(16.dp).imePadding().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
 
         MediaAdminHeader(
             totalItems = contentBooksState.size + contentAudiosState.size + contentVideosState.size + contentAlbumsState.size,
@@ -565,7 +565,7 @@ fun EditMediaSection() {
             onDismissRequest = { editingAlbum = null },
             title = { Text("Editar Álbum") },
             text = {
-                Column(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp).verticalScroll(rememberScrollState())) {
+                Column(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp).imePadding().verticalScroll(rememberScrollState())) {
                     GlassTextField(value = editTitle, onValueChange = { editTitle = it }, label = { Text("Título") }, modifier = Modifier.fillMaxWidth())
                     Spacer(modifier = Modifier.height(8.dp))
                     GlassTextField(value = editDesc, onValueChange = { editDesc = it }, label = { Text("Descrição") }, modifier = Modifier.fillMaxWidth())

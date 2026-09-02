@@ -204,6 +204,8 @@ fun MainScreen() {
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
     val isCompact = configuration.screenWidthDp < 600
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val isImeVisible = WindowInsets.ime.getBottom(density) > 0
     val visibleTabs = appTabsState
         .filter { it.isVisible && (it.id != "10" || adminAppSettingsState.value.showDonationsTab) }
         .sortedBy { it.order }
@@ -585,25 +587,27 @@ fun MainScreen() {
                 modifier = Modifier.weight(1f),
                 containerColor = MaterialTheme.colorScheme.background,
                 bottomBar = {
-                    Column(modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars)) {
-                        PersistentAudioPlayerBar()
-                        if (isCompact) {
-                            FloatingNavigationBar(
-                                items = bottomBarItems,
-                                currentRoute = currentRoute,
-                                onNavigate = { route ->
-                                    navController.navigate(route) {
-                                        popUpTo(navController.graph.startDestinationId)
-                                        launchSingleTop = true
-                                    }
-                                },
-                                onMenuClick = { scope.launch { drawerState.open() } }
-                            )
+                    if (!isImeVisible) {
+                        Column(modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars)) {
+                            PersistentAudioPlayerBar()
+                            if (isCompact) {
+                                FloatingNavigationBar(
+                                    items = bottomBarItems,
+                                    currentRoute = currentRoute,
+                                    onNavigate = { route ->
+                                        navController.navigate(route) {
+                                            popUpTo(navController.graph.startDestinationId)
+                                            launchSingleTop = true
+                                        }
+                                    },
+                                    onMenuClick = { scope.launch { drawerState.open() } }
+                                )
+                            }
                         }
                     }
                 }
             ) { paddingValues ->
-            Column(modifier = Modifier.padding(paddingValues).consumeWindowInsets(paddingValues).fillMaxSize()) {
+            Column(modifier = Modifier.padding(paddingValues).consumeWindowInsets(paddingValues).imePadding().fillMaxSize()) {
                 if (RemoteConfigManager.showWarningBanner.value && RemoteConfigManager.warningBannerText.value.isNotBlank()) {
                     androidx.compose.material3.Surface(
                         color = MaterialTheme.colorScheme.errorContainer,
