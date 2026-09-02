@@ -10,20 +10,28 @@ data class BibleVerse(
 )
 
 /**
- * Fachada de leitura bíblica usada pelas telas legadas e pelo leitor nativo.
- * O texto solicitado vem do Bolls; não há fallback silencioso para outra versão.
+ * Fachada única de leitura bíblica.
+ * Quando existe um dataset local da própria tradução selecionada, ele é usado primeiro.
+ * Se não houver, a mesma tradução é buscada no Bolls — nunca há troca silenciosa de versão.
  */
 object BibleFetcher {
     suspend fun getChapter(
-        @Suppress("UNUSED_PARAMETER") context: Context,
+        context: Context,
         book: String,
         chapter: Int,
         translation: String
     ): List<BibleVerse> {
+        val normalized = BollsBibleCatalog.normalize(translation)
         val supported = BollsBibleCatalog.translations.any {
-            it.code.equals(translation, ignoreCase = true)
+            it.code.equals(normalized, ignoreCase = true)
         }
-        if (!supported) return emptyList()
-        return BollsBibleApi.getChapter(book, chapter, translation)
+        if (!supported || chapter < 1 || chapter > (chapterCounts[book] ?: 0)) return emptyList()
+
+        if (LocalBibleFetcher.isVersionDownloaded(context, normalized)) {
+            val local = LocalBibleFetcher.getChapter(context, book, chapter, normalized)
+            if (local.isNotEmpty()) return local
+        }
+
+        return BollsBibleApi.getChapter(book, chapter, normalized)
     }
 }
