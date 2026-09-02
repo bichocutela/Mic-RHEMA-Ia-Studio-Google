@@ -412,6 +412,9 @@ fun BibleScreen(
                 onChapterClick = { book, chapter ->
                     openChapter(BibleChapterReference(book, chapter))
                 },
+                onDeepSearchResultClick = { book, chapter, verse ->
+                    openChapter(BibleChapterReference(book, chapter), verse)
+                },
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
@@ -491,6 +494,7 @@ private fun BibleBookAndChapterPicker(
     expandedBook: String?,
     onBookClick: (String) -> Unit,
     onChapterClick: (String, Int) -> Unit,
+    onDeepSearchResultClick: (String, Int, Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var searchQuery by rememberSaveable { mutableStateOf("") }
@@ -591,6 +595,10 @@ private fun BibleBookAndChapterPicker(
                 modifier = Modifier.padding(horizontal = 20.dp),
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.40f)
             )
+        }
+
+        item(key = "deep_search") {
+            BibleDeepSearchSection(onResultClick = onDeepSearchResultClick)
         }
     }
 }
