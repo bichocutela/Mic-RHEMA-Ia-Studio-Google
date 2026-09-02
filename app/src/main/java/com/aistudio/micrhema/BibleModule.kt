@@ -403,6 +403,7 @@ fun BibleScreen(
             BibleBookAndChapterPicker(
                 selectedBook = selectedBook,
                 expandedBook = expandedBook,
+                selectedVersion = selectedVersion,
                 onBookClick = { book ->
                     selectedBook = book
                     expandedBook = if (expandedBook == book) null else book
@@ -493,6 +494,7 @@ fun BibleScreen(
 private fun BibleBookAndChapterPicker(
     selectedBook: String,
     expandedBook: String?,
+    selectedVersion: String,
     onBookClick: (String) -> Unit,
     onChapterClick: (String, Int) -> Unit,
     onDeepSearchResultClick: (String, Int, Int) -> Unit,
@@ -599,7 +601,10 @@ private fun BibleBookAndChapterPicker(
         }
 
         item(key = "deep_search") {
-            BibleDeepSearchSection(onResultClick = onDeepSearchResultClick)
+            BibleDeepSearchSection(
+                versionCode = selectedVersion,
+                onResultClick = onDeepSearchResultClick
+            )
         }
     }
 }

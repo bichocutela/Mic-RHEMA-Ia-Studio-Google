@@ -62,9 +62,10 @@ object LocalBibleFetcher {
             val normBook = removeAccents(book)
             val verses = mutableListOf<BibleVerse>()
 
-            for (i in 0 until cache.length()) {
+            val canonicalBooks = chapterCounts.keys.toList()
+            for (i in 0 until minOf(cache.length(), canonicalBooks.size)) {
                 val bookObj = cache.getJSONObject(i)
-                val name = bookObj.getString("name")
+                val name = bookObj.optString("name").takeIf { it.isNotBlank() } ?: canonicalBooks[i]
                 val normName = removeAccents(name)
                 if (normName == normBook || (normBook == "lamentacoes" && normName.startsWith("lamenta"))) {
                     val chaptersArr = bookObj.getJSONArray("chapters")
