@@ -4,6 +4,9 @@ const FIRESTORE_SCOPE = "https://www.googleapis.com/auth/datastore";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const CUSTOM_TOKEN_AUD = "https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit";
 const DEFAULT_PROJECT_ID = "mic-rhema";
+// Chave publicável atual usada pelo APK. Ela é pública por definição; a validação
+// exata evita aceitar qualquer texto com prefixo sb_publishable_.
+const CURRENT_PUBLISHABLE_KEY = "sb_publishable_Dv98hBnbJB2TzRCG6aJNwA_KMPHLZSw";
 
 type ServiceAccount = {
   project_id?: string;
@@ -243,10 +246,12 @@ Deno.serve(async (request) => {
   if (request.method !== "POST") return json({ error: "Método não permitido." }, 405);
 
   try {
-    const configuredKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+    const configuredLegacyKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
     const providedKey = request.headers.get("apikey") ?? "";
     const authorization = request.headers.get("authorization") ?? "";
-    if (!configuredKey || providedKey !== configuredKey || authorization !== `Bearer ${configuredKey}`) {
+    const validLegacy = Boolean(configuredLegacyKey) && providedKey === configuredLegacyKey && authorization === `Bearer ${configuredLegacyKey}`;
+    const validPublishable = providedKey === CURRENT_PUBLISHABLE_KEY && authorization === `Bearer ${CURRENT_PUBLISHABLE_KEY}`;
+    if (!validLegacy && !validPublishable) {
       return json({ error: "Cliente não autorizado." }, 401);
     }
 
