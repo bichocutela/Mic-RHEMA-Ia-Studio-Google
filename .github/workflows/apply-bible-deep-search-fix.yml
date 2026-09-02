@@ -18,14 +18,14 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Corrigir pesquisa profunda
-        run: python3 tools/fix_bible_deep_search.py
+        run: python3 tools/fix_bible_deep_search_v2.py
 
       - name: Publicar correção
         run: |
-          rm -f .github/workflows/apply-bible-deep-search-fix.yml tools/fix_bible_deep_search.py
+          rm -f .github/workflows/apply-bible-deep-search-fix.yml tools/fix_bible_deep_search.py tools/fix_bible_deep_search_v2.py
           git config user.name "bicho cutela"
           git config user.email "haydendanex@gmail.com"
           git add -A
           git diff --cached --check
-          git commit -m "fix(bible): tornar pesquisa profunda funcional para temas e flexões"
+          git commit -m "fix(bible): corrigir base e relevância da pesquisa profunda"
           git push
