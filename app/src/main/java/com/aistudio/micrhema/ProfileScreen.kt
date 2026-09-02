@@ -118,6 +118,12 @@ fun ProfileScreen(
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.fillMaxWidth()
             )
+            Text(
+                "As alterações deste perfil são sincronizadas com sua conta para recuperação em outro aparelho.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+            )
             Spacer(modifier = Modifier.height(16.dp))
 
             Card(
@@ -214,14 +220,13 @@ fun ProfileScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Profile Fields
             ProfileField(
                 label = "Nome completo",
                 value = name,
                 isEditing = isEditingName,
                 onValueChange = { name = it },
                 onEditClick = { isEditingName = true },
-                onSaveClick = { 
+                onSaveClick = {
                     isEditingName = false
                     saveProfile(loggedInMember, name, phone, address, birthDate, loggedInMember.profilePhotoUrl, context)
                 }
@@ -233,7 +238,7 @@ fun ProfileScreen(
                 isEditing = isEditingPhone,
                 onValueChange = { phone = it.filter { character -> character.isDigit() }.take(15) },
                 onEditClick = { isEditingPhone = true },
-                onSaveClick = { 
+                onSaveClick = {
                     isEditingPhone = false
                     saveProfile(loggedInMember, name, phone, address, birthDate, loggedInMember.profilePhotoUrl, context)
                 }
@@ -245,7 +250,7 @@ fun ProfileScreen(
                 isEditing = isEditingAddress,
                 onValueChange = { address = it },
                 onEditClick = { isEditingAddress = true },
-                onSaveClick = { 
+                onSaveClick = {
                     isEditingAddress = false
                     saveProfile(loggedInMember, name, phone, address, birthDate, loggedInMember.profilePhotoUrl, context)
                 }
@@ -382,7 +387,7 @@ fun ProfileScreen(
                                         showToast = false
                                     ) { synced, error ->
                                         if (synced) {
-                                            android.widget.Toast.makeText(context, "Avatar ${avatar.displayName} salvo no seu perfil.", android.widget.Toast.LENGTH_SHORT).show()
+                                            android.widget.Toast.makeText(context, "Avatar ${avatar.displayName} salvo na sua conta.", android.widget.Toast.LENGTH_SHORT).show()
                                         } else {
                                             selectedAvatarId = previousAvatarId
                                             android.widget.Toast.makeText(context, "Não foi possível salvar o avatar: ${error?.message ?: "verifique sua conexão"}", android.widget.Toast.LENGTH_LONG).show()
@@ -486,7 +491,7 @@ fun ProfileScreen(
         AlertDialog(
             onDismissRequest = { showLogoutDialog = false },
             title = { Text("Sair da conta?") },
-            text = { Text("Seus favoritos e dados salvos no aparelho serão preservados. Você poderá entrar novamente depois.") },
+            text = { Text("Seu perfil e progresso sincronizados permanecem na sua conta e podem ser recuperados em outro aparelho usando o mesmo telefone.") },
             confirmButton = {
                 Button(
                     onClick = {
@@ -595,9 +600,20 @@ private fun saveProfile(
     onResult: ((synced: Boolean, error: Exception?) -> Unit)? = null
 ) {
     val previousMember = member.copy()
-    member.name = name
-    member.phone = phone
-    member.address = address
+    val phoneDigits = phone.filter(Char::isDigit)
+    val normalizedPhone = if (phoneDigits.length in 12..13 && phoneDigits.startsWith("55")) phoneDigits.drop(2) else phoneDigits
+
+    if (normalizedPhone.length !in 10..11) {
+        onResult?.invoke(false, IllegalArgumentException("Telefone inválido"))
+        if (showToast) {
+            android.widget.Toast.makeText(context, "Digite um telefone válido com DDD.", android.widget.Toast.LENGTH_LONG).show()
+        }
+        return
+    }
+
+    member.name = name.trim()
+    member.phone = normalizedPhone
+    member.address = address.trim()
     member.birthDate = birthDate
     member.profilePhotoUrl = profilePhotoUrl
     member.supabaseStoragePath = profileStoragePath
@@ -605,22 +621,19 @@ private fun saveProfile(
     member.equippedBadgeId = equippedBadgeId.ifBlank { DEFAULT_BIBLICAL_BADGE_ID }
     member.email = email.trim()
     member.updatedAt = System.currentTimeMillis()
-    
-    // Update local state to reflect instantly in Drawer
-    loggedInMemberState.value = member.copy()
-    
-    val idx = memberRequestsState.indexOfFirst { it.id == member.id }
-    if (idx != -1) {
-        memberRequestsState[idx] = member
-    }
 
-    MemberManager.saveToFirestore(
+    loggedInMemberState.value = member.copy()
+    val idx = memberRequestsState.indexOfFirst { it.id == member.id }
+    if (idx != -1) memberRequestsState[idx] = member.copy()
+
+    MemberSessionClient.syncMemberState(
         context = context,
         member = member,
+        identityPhone = previousMember.phone,
         onSuccess = {
             onResult?.invoke(true, null)
             if (showToast) {
-                android.widget.Toast.makeText(context, "Perfil atualizado", android.widget.Toast.LENGTH_SHORT).show()
+                android.widget.Toast.makeText(context, "Perfil sincronizado na sua conta", android.widget.Toast.LENGTH_SHORT).show()
             }
         },
         onFailure = { error ->
@@ -636,7 +649,7 @@ private fun saveProfile(
             member.updatedAt = previousMember.updatedAt
             loggedInMemberState.value = member.copy()
             val failedIndex = memberRequestsState.indexOfFirst { it.id == member.id }
-            if (failedIndex >= 0) memberRequestsState[failedIndex] = member
+            if (failedIndex >= 0) memberRequestsState[failedIndex] = member.copy()
             onResult?.invoke(false, error)
             if (showToast) {
                 android.widget.Toast.makeText(context, "Erro ao sincronizar: ${error.message ?: "verifique sua conexão"}", android.widget.Toast.LENGTH_LONG).show()
