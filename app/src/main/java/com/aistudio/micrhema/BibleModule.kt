@@ -25,9 +25,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CompareArrows
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.FavoriteBorder
@@ -39,6 +41,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -64,6 +67,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.text.Normalizer
+import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
@@ -84,7 +89,110 @@ val chapterCounts = mapOf(
     "2 João" to 1, "3 João" to 1, "Judas" to 1, "Apocalipse" to 22
 )
 
+private val bibleBookSearchAliases = mapOf(
+    "Cânticos" to listOf("Cantares", "Cantares de Salomão"),
+    "Apocalipse" to listOf("Revelação"),
+    "Filemom" to listOf("Filemon")
+)
+
 private data class BibleChapterReference(val book: String, val chapter: Int)
+
+private fun normalizeBibleBookTerm(value: String): String =
+    Normalizer.normalize(value.lowercase(Locale.ROOT), Normalizer.Form.NFD)
+        .replace(Regex("\\p{Mn}+"), "")
+        .replace(Regex("[^a-z0-9]+"), " ")
+        .trim()
+        .replace(Regex("\\s+"), " ")
+
+private fun bibleBookSearchKeys(book: String): List<String> {
+    val canonical = normalizeBibleBookTerm(book)
+    val withoutOrdinal = canonical.replace(Regex("^[12]\\s+"), "")
+    val aliases = bibleBookSearchAliases[book].orEmpty().map(::normalizeBibleBookTerm)
+    return buildList {
+        add(canonical)
+        add(canonical.replace(" ", ""))
+        add(withoutOrdinal)
+        add(withoutOrdinal.replace(" ", ""))
+        aliases.forEach { alias ->
+            add(alias)
+            add(alias.replace(" ", ""))
+        }
+    }.filter { it.isNotBlank() }.distinct()
+}
+
+private fun bibleBookEditDistance(left: String, right: String): Int {
+    if (left == right) return 0
+    if (left.isEmpty()) return right.length
+    if (right.isEmpty()) return left.length
+
+    var previous = IntArray(right.length + 1) { it }
+    var current = IntArray(right.length + 1)
+
+    for (i in left.indices) {
+        current[0] = i + 1
+        for (j in right.indices) {
+            val insertion = current[j] + 1
+            val deletion = previous[j + 1] + 1
+            val substitution = previous[j] + if (left[i] == right[j]) 0 else 1
+            current[j + 1] = minOf(insertion, deletion, substitution)
+        }
+        val swap = previous
+        previous = current
+        current = swap
+    }
+    return previous[right.length]
+}
+
+private fun bibleBookDirectScore(query: String, book: String): Int? {
+    val keys = bibleBookSearchKeys(book)
+    return keys.mapNotNull { key ->
+        when {
+            key == query -> 0
+            key.startsWith(query) -> 1
+            key.contains(query) -> 2
+            else -> null
+        }
+    }.minOrNull()
+}
+
+private fun searchBibleBooks(rawQuery: String): List<String> {
+    val books = chapterCounts.keys.toList()
+    val query = normalizeBibleBookTerm(rawQuery)
+    if (query.isBlank()) return books
+
+    val compactQuery = query.replace(" ", "")
+    val directMatches = books.mapIndexedNotNull { index, book ->
+        val score = minOf(
+            bibleBookDirectScore(query, book) ?: Int.MAX_VALUE,
+            bibleBookDirectScore(compactQuery, book) ?: Int.MAX_VALUE
+        )
+        score.takeIf { it != Int.MAX_VALUE }?.let { Triple(book, it, index) }
+    }.sortedWith(compareBy<Triple<String, Int, Int>> { it.second }.thenBy { it.third })
+        .map { it.first }
+
+    if (directMatches.isNotEmpty()) return directMatches
+    if (query.length < 3) return emptyList()
+
+    val threshold = when {
+        query.length <= 4 -> 1
+        query.length <= 7 -> 2
+        query.length <= 11 -> 3
+        else -> 4
+    }
+
+    return books.mapIndexed { index, book ->
+        val distance = bibleBookSearchKeys(book).minOf { key ->
+            minOf(
+                bibleBookEditDistance(query, key),
+                bibleBookEditDistance(compactQuery, key.replace(" ", ""))
+            )
+        }
+        Triple(book, distance, index)
+    }.filter { it.second <= threshold }
+        .sortedWith(compareBy<Triple<String, Int, Int>> { it.second }.thenBy { it.third })
+        .take(6)
+        .map { it.first }
+}
 
 private fun validChapter(book: String, chapter: Int?): Int? {
     val max = chapterCounts[book] ?: return null
@@ -385,20 +493,65 @@ private fun BibleBookAndChapterPicker(
     onChapterClick: (String, Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    val visibleBooks = remember(searchQuery) { searchBibleBooks(searchQuery) }
+    val bestMatch = visibleBooks.firstOrNull()
+
     LazyColumn(
         modifier = modifier,
         contentPadding = PaddingValues(bottom = 40.dp)
     ) {
         item {
-            Text(
-                "Toque em um livro e escolha o capítulo. A leitura começa imediatamente e você pode seguir para o próximo capítulo sem voltar à lista.",
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Column {
+                Text(
+                    "Toque em um livro e escolha o capítulo. A leitura começa imediatamente e você pode seguir para o próximo capítulo sem voltar à lista.",
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 4.dp),
+                    singleLine = true,
+                    label = { Text("Pesquisar livro") },
+                    placeholder = { Text("Ex.: genesis, joao, apocalpse") },
+                    leadingIcon = {
+                        Icon(Icons.Default.Search, contentDescription = "Pesquisar livro")
+                    },
+                    trailingIcon = {
+                        if (searchQuery.isNotBlank()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(Icons.Default.Close, contentDescription = "Limpar pesquisa")
+                            }
+                        }
+                    }
+                )
+
+                if (searchQuery.isNotBlank()) {
+                    Text(
+                        text = if (bestMatch != null) {
+                            "Entendi: $bestMatch"
+                        } else {
+                            "Não encontrei um livro parecido. Tente outro nome."
+                        },
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (bestMatch != null) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.error
+                        },
+                        fontWeight = if (bestMatch != null) FontWeight.SemiBold else FontWeight.Normal
+                    )
+                }
+            }
         }
 
-        items(chapterCounts.keys.toList(), key = { it }) { book ->
+        items(visibleBooks, key = { it }) { book ->
             val isExpanded = expandedBook == book
             Surface(
                 modifier = Modifier
