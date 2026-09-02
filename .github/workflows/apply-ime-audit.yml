@@ -1,3 +1,4 @@
+# execução única: auditoria de teclado/IME
 name: Aplicar auditoria de teclado
 
 on:
@@ -192,7 +193,6 @@ jobs:
                   changed = True
               if changed and '.verticalScroll(rememberScrollState())' in text:
                   if 'import androidx.compose.foundation.rememberScrollState' not in text:
-                      # imports de foundation ficam próximos aos demais imports Compose.
                       anchor = 'import androidx.compose.foundation.clickable\n'
                       if anchor in text:
                           text = text.replace(anchor, anchor + 'import androidx.compose.foundation.rememberScrollState\nimport androidx.compose.foundation.verticalScroll\n', 1)
@@ -200,13 +200,11 @@ jobs:
                           text = text.replace('package com.aistudio.micrhema\n', 'package com.aistudio.micrhema\n\nimport androidx.compose.foundation.rememberScrollState\nimport androidx.compose.foundation.verticalScroll\n', 1)
               write(rel, text)
 
-          # Verificações finais simples da auditoria.
           main = read('MainActivity.kt')
           assert '.consumeWindowInsets(paddingValues).imePadding().fillMaxSize()' in main
           assert 'if (!isImeVisible)' in main
           assert 'WindowInsets.ime.getBottom(density) > 0' in main
           assert 'modifier = modifier.imePadding()' in read('BibleModule.kt')
-
           print('Correção global do teclado aplicada com sucesso.')
           PY
 
