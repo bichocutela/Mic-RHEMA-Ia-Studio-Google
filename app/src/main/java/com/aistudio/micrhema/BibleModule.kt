@@ -1,5 +1,6 @@
 package com.aistudio.micrhema
 
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,8 +22,13 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -44,13 +50,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 val chapterCounts = mapOf(
     "Gênesis" to 50, "Êxodo" to 40, "Levítico" to 27, "Números" to 36, "Deuteronômio" to 34,
@@ -78,6 +87,7 @@ fun BibleScreen(
     initialBook: String? = null,
     initialChapter: Int? = null,
     initialVersion: String? = null,
+    initialVerse: Int? = null,
     onOpenBible: (String, Int, String, Int?) -> Unit = { _, _, _, _ -> }
 ) {
     val context = LocalContext.current
@@ -89,7 +99,7 @@ fun BibleScreen(
     var selectedBook by rememberSaveable { mutableStateOf(initialValidBook ?: "Gênesis") }
     var expandedBook by rememberSaveable { mutableStateOf<String?>(initialValidBook ?: "Gênesis") }
     var expandedChapter by rememberSaveable { mutableStateOf<Int?>(initialChapter?.takeIf { it > 0 }) }
-    var activeReadingVerse by rememberSaveable { mutableStateOf<Int?>(null) }
+    var activeReadingVerse by rememberSaveable { mutableStateOf<Int?>(initialVerse?.takeIf { it > 0 }) }
     var selectedVersion by rememberSaveable { mutableStateOf(normalizedInitialVersion) }
     var availableVerses by remember(selectedBook, expandedChapter, selectedVersion) {
         mutableStateOf<List<BibleVerse>>(emptyList())
@@ -101,13 +111,16 @@ fun BibleScreen(
         mutableStateOf(initialValidBook == null && rememberedPosition != null)
     }
 
-    LaunchedEffect(initialValidBook, initialChapter, normalizedInitialVersion) {
+    LaunchedEffect(initialValidBook, initialChapter, normalizedInitialVersion, initialVerse) {
         if (initialValidBook != null) {
             selectedBook = initialValidBook
             expandedBook = initialValidBook
         }
         if (initialChapter != null && initialChapter > 0) {
             expandedChapter = initialChapter
+        }
+        if (initialVerse != null && initialVerse > 0 && initialChapter != null) {
+            activeReadingVerse = initialVerse
         }
         selectedVersion = normalizedInitialVersion
     }
@@ -125,6 +138,12 @@ fun BibleScreen(
             availableVerses = BollsBibleApi.getChapter(selectedBook, chapter, selectedVersion)
             if (availableVerses.isEmpty()) {
                 verseLoadError = "Não foi possível carregar os versículos deste capítulo."
+            } else {
+                BadgeActivityTracker.record(
+                    context,
+                    BadgeActivityKeys.BIBLE_CHAPTERS,
+                    "$selectedVersion:$selectedBook:$chapter"
+                )
             }
             isLoadingVerses = false
         }
@@ -352,7 +371,7 @@ fun BibleScreen(
 
 /**
  * Leitura do capítulo dentro da própria aba Bíblia. Mantém o contexto escolhido
- * e apenas transforma a área de conteúdo em leitura, sem navegar para bible_reader.
+ * e preserva marcações, favoritos, marcador e as preferências de leitura do app.
  */
 @Composable
 private fun ContinuousBibleChapterReader(
@@ -367,10 +386,41 @@ private fun ContinuousBibleChapterReader(
 ) {
     val context = LocalContext.current
     val listState = rememberLazyListState()
+    val readingSettings = currentSettingsState.value
+    val readingFontFamily = when (readingSettings.readingFont) {
+        ReadingFont.SERIF -> FontFamily.Serif
+        ReadingFont.INTER -> FontFamily.Default
+        ReadingFont.OPEN_SANS, ReadingFont.ROBOTO -> FontFamily.SansSerif
+    }
+    var currentBookmark by remember { mutableStateOf(BibleReadingPreferences.getBookmark(context)) }
+
+    LaunchedEffect(Unit) {
+        BibleReadingPreferences.loadLocalFavoritesIntoState(context)
+    }
 
     LaunchedEffect(verses, focusedVerse) {
         val targetIndex = verses.indexOfFirst { it.verse == focusedVerse }
         if (targetIndex >= 0) listState.scrollToItem(targetIndex)
+    }
+
+    LaunchedEffect(verses, book, chapter, version, readingSettings.autoSavePosition) {
+        if (verses.isNotEmpty() && readingSettings.autoSavePosition) {
+            snapshotFlow { listState.firstVisibleItemIndex }
+                .distinctUntilChanged()
+                .collect { index ->
+                    verses.getOrNull(index)?.let { visibleVerse ->
+                        BibleReadingPreferences.saveLastReading(
+                            context,
+                            BibleReadingPreferences.ReadingPosition(
+                                book = book,
+                                chapter = chapter,
+                                verse = visibleVerse.verse,
+                                version = version
+                            )
+                        )
+                    }
+                }
+        }
     }
 
     when {
@@ -396,41 +446,137 @@ private fun ContinuousBibleChapterReader(
                 )
             }
             items(verses, key = { it.verse }) { verseItem ->
-                val isFocused = verseItem.verse == focusedVerse
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            BibleReadingPreferences.saveLastReading(
-                                context,
-                                BibleReadingPreferences.ReadingPosition(
-                                    book = book,
-                                    chapter = chapter,
-                                    verse = verseItem.verse,
-                                    version = version
-                                )
-                            )
-                        },
-                    color = if (isFocused) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f) else Color.Transparent,
-                    shape = RoundedCornerShape(14.dp)
+                ContinuousBibleVerseRow(
+                    verseItem = verseItem,
+                    book = book,
+                    chapter = chapter,
+                    version = version,
+                    isFocused = verseItem.verse == focusedVerse,
+                    readingFontFamily = readingFontFamily,
+                    readingModeEnabled = readingSettings.readingModeEnabled,
+                    currentBookmark = currentBookmark,
+                    onBookmarkChanged = { currentBookmark = it },
+                    onNotify = { message -> Toast.makeText(context, message, Toast.LENGTH_SHORT).show() }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ContinuousBibleVerseRow(
+    verseItem: BibleVerse,
+    book: String,
+    chapter: Int,
+    version: String,
+    isFocused: Boolean,
+    readingFontFamily: FontFamily,
+    readingModeEnabled: Boolean,
+    currentBookmark: BibleReadingPreferences.Bookmark?,
+    onBookmarkChanged: (BibleReadingPreferences.Bookmark?) -> Unit,
+    onNotify: (String) -> Unit
+) {
+    val context = LocalContext.current
+    val verseKey = BibleReadingPreferences.key(book, chapter, verseItem.verse, version)
+    var isHighlighted by remember(verseKey) { mutableStateOf(BibleReadingPreferences.isHighlighted(context, verseKey)) }
+    var isFavorite by remember(verseKey) { mutableStateOf(BibleReadingPreferences.isFavorite(context, verseKey)) }
+    val isBookmark = currentBookmark?.let {
+        BibleReadingPreferences.key(it.book, it.chapter, it.verse, it.version) == verseKey
+    } == true
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+                BibleReadingPreferences.saveLastReading(
+                    context,
+                    BibleReadingPreferences.ReadingPosition(book, chapter, verseItem.verse, version)
+                )
+            },
+        color = when {
+            isFocused -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+            isHighlighted -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.34f)
+            else -> Color.Transparent
+        },
+        shape = RoundedCornerShape(14.dp)
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
+            Row(verticalAlignment = Alignment.Top) {
+                Text(
+                    verseItem.verse.toString(),
+                    modifier = Modifier.width(40.dp).padding(top = 2.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+                Text(
+                    verseItem.text,
+                    modifier = Modifier.weight(1f),
+                    color = MaterialTheme.colorScheme.onBackground,
+                    fontFamily = readingFontFamily,
+                    fontSize = 20.sp,
+                    lineHeight = 31.sp
+                )
+            }
+
+            if (!readingModeEnabled) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Text(
-                            verseItem.verse.toString(),
-                            modifier = Modifier.width(40.dp).padding(top = 2.dp),
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp
+                    IconButton(onClick = {
+                        isHighlighted = BibleReadingPreferences.toggleHighlight(context, verseKey)
+                        onNotify(if (isHighlighted) "Versículo marcado" else "Marcação removida")
+                    }) {
+                        Icon(
+                            Icons.Default.Star,
+                            contentDescription = if (isHighlighted) "Remover marcação" else "Marcar versículo",
+                            tint = if (isHighlighted) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Text(
-                            verseItem.text,
-                            modifier = Modifier.weight(1f),
-                            color = MaterialTheme.colorScheme.onBackground,
-                            fontSize = 20.sp,
-                            lineHeight = 31.sp
+                    }
+                    IconButton(onClick = {
+                        val favoriteId = "bible_$verseKey"
+                        val favorite = FavoriteItem(
+                            id = favoriteId,
+                            type = "bible",
+                            reference = "$book $chapter:${verseItem.verse} ($version)",
+                            text = verseItem.text
+                        )
+                        isFavorite = !isFavorite
+                        BibleReadingPreferences.setFavorite(context, verseKey, isFavorite)
+                        if (isFavorite) {
+                            addFavorite(favorite)
+                            BibleReadingPreferences.saveLocalFavorite(context, favorite)
+                            onNotify("Versículo adicionado aos favoritos")
+                        } else {
+                            removeFavorite(favoriteId)
+                            BibleReadingPreferences.removeLocalFavorite(context, favoriteId)
+                            onNotify("Versículo removido dos favoritos")
+                        }
+                    }) {
+                        Icon(
+                            if (isFavorite) Icons.Default.Favorite else Icons.Outlined.FavoriteBorder,
+                            contentDescription = if (isFavorite) "Remover dos favoritos" else "Favoritar versículo",
+                            tint = if (isFavorite) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    IconButton(onClick = {
+                        val bookmark = BibleReadingPreferences.Bookmark(book, chapter, verseItem.verse, version)
+                        if (isBookmark) {
+                            BibleReadingPreferences.clearBookmark(context)
+                            onBookmarkChanged(null)
+                            onNotify("Marcador removido")
+                        } else {
+                            BibleReadingPreferences.saveBookmark(context, bookmark)
+                            onBookmarkChanged(bookmark)
+                            onNotify("Marcador salvo neste versículo")
+                        }
+                    }) {
+                        Icon(
+                            if (isBookmark) Icons.Default.Bookmark else Icons.Outlined.BookmarkBorder,
+                            contentDescription = if (isBookmark) "Remover marcador" else "Colocar marcador neste versículo",
+                            tint = if (isBookmark) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
