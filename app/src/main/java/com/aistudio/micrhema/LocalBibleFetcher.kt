@@ -4,14 +4,13 @@ import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
-import org.json.JSONObject
-import java.io.File
-import java.io.FileInputStream
 import java.io.InputStreamReader
 
+/**
+ * Leitura de traduções que realmente estão disponíveis localmente no aplicativo.
+ * Não anuncia versões ausentes e nunca substitui uma tradução por outra.
+ */
 object LocalBibleFetcher {
-    private var araCache: JSONArray? = null
-    private var nviCache: JSONArray? = null
     private var acfCache: JSONArray? = null
 
     private fun removeAccents(str: String): String {
@@ -24,81 +23,63 @@ object LocalBibleFetcher {
             .replace("ç", "c")
     }
 
-
     private suspend fun getCache(context: Context, version: String): JSONArray? = withContext(Dispatchers.IO) {
-        val fileName = when (version) {
-            "ARA" -> return@withContext null // ARA licenciada não está disponível nos assets atuais.
-            "ACF" -> "pt_acf.json"
-            "NVI" -> "pt_nvi.json"
-            else -> return@withContext null
+        if (!version.equals("ACF", ignoreCase = true)) return@withContext null
+        if (acfCache == null) {
+            val stream = context.assets.open("bibles/pt_acf.json")
+            var jsonString = InputStreamReader(stream, Charsets.UTF_8).use { it.readText() }
+            if (jsonString.startsWith("\uFEFF")) jsonString = jsonString.substring(1)
+            acfCache = JSONArray(jsonString)
         }
-        
-        when (version) {
-            "ARA" -> {
-                if (araCache == null) {
-                    val stream = context.assets.open("bibles/$fileName")
-                    var jsonString = InputStreamReader(stream, "UTF-8").readText()
-                    if (jsonString.startsWith("\uFEFF")) jsonString = jsonString.substring(1)
-                    araCache = JSONArray(jsonString)
-                }
-                araCache
-            }
-            "NVI" -> {
-                if (nviCache == null) {
-                    val stream = context.assets.open("bibles/$fileName")
-                    var jsonString = InputStreamReader(stream, "UTF-8").readText()
-                    if (jsonString.startsWith("\uFEFF")) jsonString = jsonString.substring(1)
-                    nviCache = JSONArray(jsonString)
-                }
-                nviCache
-            }
-            "ACF" -> {
-                if (acfCache == null) {
-                    val stream = context.assets.open("bibles/$fileName")
-                    var jsonString = InputStreamReader(stream, "UTF-8").readText()
-                    if (jsonString.startsWith("\uFEFF")) jsonString = jsonString.substring(1)
-                    acfCache = JSONArray(jsonString)
-                }
-                acfCache
-            }
-            else -> null
-        }
+        acfCache
     }
 
-    suspend fun isVersionDownloaded(context: Context, version: String): Boolean {
-        // Agora todas vêm pré-embarcadas nos assets
-        return true
+    suspend fun isVersionDownloaded(context: Context, version: String): Boolean = withContext(Dispatchers.IO) {
+        if (!version.equals("ACF", ignoreCase = true)) return@withContext false
+        runCatching {
+            context.assets.open("bibles/pt_acf.json").use { }
+            true
+        }.getOrDefault(false)
     }
 
+    suspend fun getChapter(
+        context: Context,
+        book: String,
+        chapter: Int,
+        version: String
+    ): List<BibleVerse> = withContext(Dispatchers.IO) {
+        try {
+            if (chapter !in 1..(chapterCounts[book] ?: 0)) return@withContext emptyList()
+            val cache = getCache(context, version) ?: return@withContext emptyList()
+            val normBook = removeAccents(book)
+            val verses = mutableListOf<BibleVerse>()
 
-    suspend fun getChapter(context: Context, book: String, chapter: Int, version: String): List<BibleVerse> {
-        return withContext(Dispatchers.IO) {
-            try {
-                val verses = mutableListOf<BibleVerse>()
-                val cache = getCache(context, version) ?: return@withContext emptyList()
-                val normBook = removeAccents(book)
-                
-                val jsonArr = cache
-                for (i in 0 until jsonArr.length()) {
-                    val bookObj = jsonArr.getJSONObject(i)
-                    val name = bookObj.getString("name")
-                    val normName = removeAccents(name)
-                    if (normName == normBook || (normBook == "lamentacoes" && normName.startsWith("lamenta"))) {
-                        val chaptersArr = bookObj.getJSONArray("chapters")
-                        if (chapter - 1 < chaptersArr.length()) {
-                            val verseArray = chaptersArr.getJSONArray(chapter - 1)
-                            for (v in 0 until verseArray.length()) {
-                                verses.add(BibleVerse(bookName = book, chapter = chapter, verse = v + 1, text = verseArray.getString(v)))
-                            }
+            for (i in 0 until cache.length()) {
+                val bookObj = cache.getJSONObject(i)
+                val name = bookObj.getString("name")
+                val normName = removeAccents(name)
+                if (normName == normBook || (normBook == "lamentacoes" && normName.startsWith("lamenta"))) {
+                    val chaptersArr = bookObj.getJSONArray("chapters")
+                    if (chapter - 1 >= chaptersArr.length()) return@withContext emptyList()
+                    val verseArray = chaptersArr.getJSONArray(chapter - 1)
+                    for (v in 0 until verseArray.length()) {
+                        val text = verseArray.optString(v).trim()
+                        if (text.isNotEmpty()) {
+                            verses += BibleVerse(
+                                bookName = book,
+                                chapter = chapter,
+                                verse = v + 1,
+                                text = text
+                            )
                         }
-                        break
                     }
+                    break
                 }
-                verses
-            } catch (e: Exception) {
-                e.printStackTrace()
-                emptyList()
             }
+            verses
+        } catch (error: Exception) {
+            android.util.Log.e("LocalBibleFetcher", "Falha ao ler $book $chapter ($version)", error)
+            emptyList()
         }
     }
 }
