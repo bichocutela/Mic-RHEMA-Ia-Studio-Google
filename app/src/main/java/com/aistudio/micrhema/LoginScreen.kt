@@ -28,6 +28,17 @@ private fun shortMemberName(fullName: String): String {
         .joinToString(" ")
 }
 
+/**
+ * O telefone é a identidade de acesso do membro.
+ * Aceita DDD+número e também +55/55+DDD+número, sempre reduzindo ao mesmo valor brasileiro.
+ */
+private fun normalizeMemberPhone(value: String): String {
+    val digits = value.filter(Char::isDigit)
+    return if (digits.length in 12..13 && digits.startsWith("55")) digits.drop(2) else digits
+}
+
+private fun memberPhoneDocumentId(phone: String): String = "phone_${normalizeMemberPhone(phone)}"
+
 private fun memberFromLoginDocument(document: DocumentSnapshot): MemberRequest {
     val rawName = document.getString("name") ?: ""
     return MemberRequest(
@@ -35,7 +46,7 @@ private fun memberFromLoginDocument(document: DocumentSnapshot): MemberRequest {
         firebaseUid = document.getString("firebaseUid") ?: "",
         name = shortMemberName(rawName),
         ibrCertificateName = document.getString("ibrCertificateName").orEmpty().ifBlank { rawName },
-        phone = document.getString("phone") ?: "",
+        phone = normalizeMemberPhone(document.getString("phone") ?: ""),
         email = document.getString("email") ?: "",
         isApproved = document.getBoolean("isApproved") ?: false,
         isIbr = document.getBoolean("isIbr") ?: false,
@@ -71,16 +82,20 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
 
     fun createAccessRequest() {
         val completeName = name.trim()
-        val cleanPhone = phone.filter { it.isDigit() }
-        if (completeName.isBlank() || cleanPhone.length < 10) {
+        val cleanPhone = normalizeMemberPhone(phone)
+        if (completeName.isBlank() || cleanPhone.length !in 10..11) {
             errorMessage = "Preencha seu nome completo e um telefone válido com DDD."
             return
         }
         isLoading = true
         errorMessage = null
+
+        // O mesmo telefone sempre usa o mesmo ID. Mesmo dois envios simultâneos
+        // gravam no mesmo documento em vez de criar duas solicitações para o ADM.
+        val canonicalRequestId = memberPhoneDocumentId(cleanPhone)
         val createNewRequest = {
             val newRequest = MemberRequest(
-                id = java.util.UUID.randomUUID().toString(),
+                id = canonicalRequestId,
                 name = shortMemberName(completeName),
                 ibrCertificateName = completeName,
                 phone = cleanPhone,
@@ -88,7 +103,6 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                 isVip = false,
                 isIbr = false
             )
-            // O pedido público grava somente os campos pendentes permitidos pela regra.
             MemberManager.submitPendingAccessRequest(
                 context,
                 newRequest,
@@ -113,9 +127,21 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                 .collection("acessos_pendentes")
                 .get()
                 .addOnSuccessListener { snapshot ->
-                    val existing = snapshot.documents.firstOrNull {
-                        (it.getString("phone") ?: "").filter { character -> character.isDigit() } == cleanPhone
+                    val matches = snapshot.documents.filter {
+                        normalizeMemberPhone(it.getString("phone") ?: "") == cleanPhone
                     }
+                    // Compatibilidade com cadastros antigos duplicados: recupera primeiro
+                    // o registro que já possui mais permissões e, depois, o mais recente.
+                    val existing = matches.maxWithOrNull(
+                        compareBy<DocumentSnapshot> {
+                            when {
+                                it.getBoolean("isAdmin") == true -> 4
+                                it.getBoolean("isIbr") == true -> 3
+                                it.getBoolean("isApproved") == true -> 2
+                                else -> 1
+                            }
+                        }.thenBy { it.getLong("updatedAt") ?: it.getLong("createdAt") ?: 0L }
+                    )
                     if (existing != null) {
                         MemberManager.setLoggedInMember(context, memberFromLoginDocument(existing))
                         isLoading = false
@@ -126,10 +152,23 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                     }
                 }
                 .addOnFailureListener {
+                    // Mesmo sem conseguir consultar a coleção, o ID determinístico por telefone
+                    // impede que tentativas repetidas desta versão criem novos documentos distintos.
                     createNewRequest()
                 }
         } else {
-            val existing = memberRequestsState.find { it.phone.filter { character -> character.isDigit() } == cleanPhone }
+            val existing = memberRequestsState
+                .filter { normalizeMemberPhone(it.phone) == cleanPhone }
+                .maxWithOrNull(
+                    compareBy<MemberRequest> {
+                        when {
+                            it.isAdmin -> 4
+                            it.isIbr -> 3
+                            it.isApproved -> 2
+                            else -> 1
+                        }
+                    }.thenBy { it.updatedAt.takeIf { value -> value > 0L } ?: it.createdAt }
+                )
             if (existing != null) {
                 MemberManager.setLoggedInMember(context, existing)
                 isLoading = false
@@ -169,7 +208,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                 Text("Peça ou recupere seu acesso", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    "Informe seus dados para solicitar acesso ou recuperar seu perfil. O acesso normal usa apenas o nome e o telefone cadastrados.",
+                    "Informe seus dados para solicitar acesso ou recuperar seu perfil. O telefone identifica o seu acesso e só pode existir uma solicitação por número.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
