@@ -18,7 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.google.firebase.firestore.DocumentSnapshot
+import kotlinx.coroutines.launch
 
 private fun shortMemberName(fullName: String): String {
     return fullName.trim()
@@ -39,42 +39,11 @@ private fun normalizeMemberPhone(value: String): String {
 
 private fun memberPhoneDocumentId(phone: String): String = "phone_${normalizeMemberPhone(phone)}"
 
-private fun memberFromLoginDocument(document: DocumentSnapshot): MemberRequest {
-    val rawName = document.getString("name") ?: ""
-    return MemberRequest(
-        id = document.id,
-        firebaseUid = document.getString("firebaseUid") ?: "",
-        name = shortMemberName(rawName),
-        ibrCertificateName = document.getString("ibrCertificateName").orEmpty().ifBlank { rawName },
-        phone = normalizeMemberPhone(document.getString("phone") ?: ""),
-        email = document.getString("email") ?: "",
-        isApproved = document.getBoolean("isApproved") ?: false,
-        isIbr = document.getBoolean("isIbr") ?: false,
-        isAdmin = document.getBoolean("isAdmin") ?: false,
-        ibrCertificateUrl = document.getString("ibrCertificateUrl") ?: "",
-        ibrCertificateStoragePath = document.getString("ibrCertificateStoragePath") ?: "",
-        avatarId = document.getString("avatarId").orEmpty().ifBlank { DEFAULT_BIBLICAL_AVATAR_ID },
-        unlockedBadgeIds = (document.get("unlockedBadgeIds") as? List<*>)
-            ?.mapNotNull { it as? String }
-            ?.filter { it.isNotBlank() }
-            ?.ifEmpty { listOf(DEFAULT_BIBLICAL_BADGE_ID) }
-            ?: listOf(DEFAULT_BIBLICAL_BADGE_ID),
-        equippedBadgeId = document.getString("equippedBadgeId").orEmpty().ifBlank { DEFAULT_BIBLICAL_BADGE_ID },
-        badgeActivityIds = (document.get("badgeActivityIds") as? Map<*, *>).orEmpty().mapNotNull { (key, value) ->
-            val activity = key?.toString()?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
-            activity to ((value as? List<*>)?.mapNotNull { it?.toString() } ?: emptyList())
-        }.toMap(),
-        status = document.getString("status") ?: "pendente",
-        address = document.getString("address") ?: "",
-        birthDate = document.getString("birthDate") ?: "",
-        supabaseStoragePath = document.getString("supabaseStoragePath") ?: ""
-    )
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(onLoginSuccess: () -> Unit) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var isLoading by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
@@ -90,12 +59,46 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
         isLoading = true
         errorMessage = null
 
-        // O mesmo telefone sempre usa o mesmo ID. Mesmo dois envios simultâneos
-        // gravam no mesmo documento em vez de criar duas solicitações para o ADM.
-        val canonicalRequestId = memberPhoneDocumentId(cleanPhone)
-        val createNewRequest = {
+        scope.launch {
+            val recovery = runCatching { MemberSessionClient.recover(context, cleanPhone) }
+                .getOrElse { error ->
+                    isLoading = false
+                    errorMessage = "Não foi possível verificar seu cadastro agora: ${error.message ?: "verifique sua conexão"}. Nenhuma nova solicitação foi criada."
+                    return@launch
+                }
+
+            if (recovery.found) {
+                val existing = recovery.member
+                if (existing == null) {
+                    isLoading = false
+                    errorMessage = "O cadastro foi localizado, mas o perfil retornou incompleto. Tente novamente."
+                    return@launch
+                }
+
+                // A sessão Firebase já foi restaurada com UID estável pelo MemberSessionClient.
+                // Assim IBR, favoritos e demais dados do usuário podem ser lidos no novo aparelho.
+                MemberManager.setLoggedInMember(context, existing)
+                loadFavoritesFromFirestore()
+                MemberSessionClient.syncMemberState(
+                    context = context,
+                    member = existing,
+                    identityPhone = existing.phone
+                )
+                isLoading = false
+                val message = if (recovery.duplicateCount > 0) {
+                    "Acesso recuperado. Registros antigos duplicados foram ignorados."
+                } else {
+                    "Acesso e progresso recuperados."
+                }
+                android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+                onLoginSuccess()
+                return@launch
+            }
+
+            // Só cria uma solicitação depois que o backend confirmou que esse telefone
+            // não pertence a nenhum cadastro existente. Se a verificação falhar, não cria nada.
             val newRequest = MemberRequest(
-                id = canonicalRequestId,
+                id = memberPhoneDocumentId(cleanPhone),
                 name = shortMemberName(completeName),
                 ibrCertificateName = completeName,
                 phone = cleanPhone,
@@ -109,7 +112,11 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                 onSuccess = {
                     MemberManager.setLoggedInMember(context, newRequest)
                     isLoading = false
-                    android.widget.Toast.makeText(context, "Solicitação enviada. Aguarde a aprovação do administrador.", android.widget.Toast.LENGTH_LONG).show()
+                    android.widget.Toast.makeText(
+                        context,
+                        "Solicitação enviada. Aguarde a aprovação do administrador.",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
                     onLoginSuccess()
                 },
                 onFailure = { error ->
@@ -117,65 +124,6 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                     errorMessage = "Não foi possível enviar sua solicitação: ${error.message ?: "verifique sua conexão"}"
                 }
             )
-        }
-
-        val firebaseReady = runCatching {
-            com.google.firebase.FirebaseApp.getApps(context).isNotEmpty()
-        }.getOrDefault(false)
-        if (firebaseReady) {
-            com.google.firebase.firestore.FirebaseFirestore.getInstance()
-                .collection("acessos_pendentes")
-                .get()
-                .addOnSuccessListener { snapshot ->
-                    val matches = snapshot.documents.filter {
-                        normalizeMemberPhone(it.getString("phone") ?: "") == cleanPhone
-                    }
-                    // Compatibilidade com cadastros antigos duplicados: recupera primeiro
-                    // o registro que já possui mais permissões e, depois, o mais recente.
-                    val existing = matches.maxWithOrNull(
-                        compareBy<DocumentSnapshot> {
-                            when {
-                                it.getBoolean("isAdmin") == true -> 4
-                                it.getBoolean("isIbr") == true -> 3
-                                it.getBoolean("isApproved") == true -> 2
-                                else -> 1
-                            }
-                        }.thenBy { it.getLong("updatedAt") ?: it.getLong("createdAt") ?: 0L }
-                    )
-                    if (existing != null) {
-                        MemberManager.setLoggedInMember(context, memberFromLoginDocument(existing))
-                        isLoading = false
-                        android.widget.Toast.makeText(context, "Acesso recuperado.", android.widget.Toast.LENGTH_SHORT).show()
-                        onLoginSuccess()
-                    } else {
-                        createNewRequest()
-                    }
-                }
-                .addOnFailureListener {
-                    // Mesmo sem conseguir consultar a coleção, o ID determinístico por telefone
-                    // impede que tentativas repetidas desta versão criem novos documentos distintos.
-                    createNewRequest()
-                }
-        } else {
-            val existing = memberRequestsState
-                .filter { normalizeMemberPhone(it.phone) == cleanPhone }
-                .maxWithOrNull(
-                    compareBy<MemberRequest> {
-                        when {
-                            it.isAdmin -> 4
-                            it.isIbr -> 3
-                            it.isApproved -> 2
-                            else -> 1
-                        }
-                    }.thenBy { it.updatedAt.takeIf { value -> value > 0L } ?: it.createdAt }
-                )
-            if (existing != null) {
-                MemberManager.setLoggedInMember(context, existing)
-                isLoading = false
-                onLoginSuccess()
-            } else {
-                createNewRequest()
-            }
         }
     }
 
@@ -205,10 +153,15 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
         ) {
             Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Peça ou recupere seu acesso", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
+                Text(
+                    "Entre ou peça seu acesso",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.align(Alignment.Start)
+                )
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    "Informe seus dados para solicitar acesso ou recuperar seu perfil. O telefone identifica o seu acesso e só pode existir uma solicitação por número.",
+                    "Informe seu nome e telefone. Se esse número já tiver cadastro, sua conta será recuperada em vez de criar uma nova solicitação.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -242,8 +195,11 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                     enabled = !isLoading
                 ) {
-                    if (isLoading) CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
-                    else Text("Enviar Solicitação", color = Color.White, fontWeight = FontWeight.Bold)
+                    if (isLoading) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                    } else {
+                        Text("Entrar ou solicitar acesso", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
                 }
                 errorMessage?.let {
                     Spacer(modifier = Modifier.height(12.dp))
@@ -251,7 +207,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                 }
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    "Após enviar, aguarde a aprovação do administrador para acessar os conteúdos.",
+                    "Seu telefone identifica a conta. Em outro aparelho, use o mesmo número para recuperar o perfil e o progresso já sincronizado.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
