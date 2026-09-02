@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -39,7 +40,7 @@ object MemberSessionClient {
         return if (digits.length in 12..13 && digits.startsWith("55")) digits.drop(2) else digits
     }
 
-    private suspend fun call(payload: JSONObject): JSONObject {
+    private suspend fun call(payload: JSONObject): JSONObject = withContext(Dispatchers.IO) {
         val baseUrl = BuildConfig.SUPABASE_URL.trim().trimEnd('/')
         val anonKey = BuildConfig.SUPABASE_ANON_KEY.trim()
         if (baseUrl.isBlank() || anonKey.isBlank() || baseUrl.contains("your-project")) {
@@ -54,7 +55,7 @@ object MemberSessionClient {
             .post(payload.toString().toRequestBody("application/json".toMediaType()))
             .build()
 
-        return client.newCall(request).execute().use { response ->
+        client.newCall(request).execute().use { response ->
             val raw = response.body?.string().orEmpty()
             val json = runCatching { JSONObject(raw) }.getOrElse { JSONObject() }
             if (!response.isSuccessful) {
