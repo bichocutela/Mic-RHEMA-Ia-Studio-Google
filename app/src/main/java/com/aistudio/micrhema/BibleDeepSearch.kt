@@ -162,8 +162,13 @@ object BibleDeepSearchEngine {
             val indexed = ArrayList<IndexedBibleVerse>(32_000)
             for (bookIndex in 0 until json.length()) {
                 val bookObject = json.optJSONObject(bookIndex) ?: continue
-                val book = bookObject.optString("name").ifBlank {
-                    chapterCounts.keys.elementAtOrNull(bookIndex) ?: continue
+                val rawBookName = bookObject.optString("name").trim()
+                val book = if (rawBookName.isNotBlank()) {
+                    rawBookName
+                } else {
+                    val fallbackBook = chapterCounts.keys.elementAtOrNull(bookIndex)
+                    if (fallbackBook == null) continue
+                    fallbackBook
                 }
                 val canonicalBook = chapterCounts.keys.firstOrNull {
                     normalizeDeepBibleText(it) == normalizeDeepBibleText(book)
