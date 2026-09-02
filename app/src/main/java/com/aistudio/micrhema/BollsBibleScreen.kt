@@ -4,8 +4,7 @@ import androidx.compose.runtime.Composable
 
 /**
  * Camada de compatibilidade para rotas antigas e referências abertas por outras áreas do app.
- * Em vez de manter uma segunda interface de leitura, todas elas agora reutilizam a mesma
- * experiência contínua da aba Bíblia.
+ * Todas reutilizam o leitor principal, mas preservam o voltar real da navegação e a comparação.
  */
 @Suppress("UNUSED_PARAMETER")
 @Composable
@@ -24,6 +23,8 @@ fun BollsBibleScreen(
         initialChapter = chapter,
         initialVersion = versionCode,
         initialVerse = verse,
+        onBack = onBack,
+        onOpenComparison = onOpenComparison,
         onOpenBible = { selectedBook, selectedChapter, selectedVersion, selectedVerse ->
             if (selectedVerse != null) {
                 onOpenReference(selectedBook, selectedChapter, selectedVerse, selectedVersion)
