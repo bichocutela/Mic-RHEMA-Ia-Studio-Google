@@ -1,4 +1,4 @@
-name: Diagnosticar bases bíblicas
+name: Aplicar busca bíblica semântica
 
 on:
   push:
@@ -8,13 +8,47 @@ on:
       - '.github/workflows/apply-bible-deep-search-fix.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  diagnose:
+  patch:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Diagnosticar JSON
-        run: python3 tools/diagnose_bible_json.py
+
+      - name: Aplicar correção
+        run: python3 tools/apply_remote_bible_search_fix.py
+
+      - name: Testar API de pesquisa
+        run: |
+          python3 - <<'PY'
+          import json, urllib.parse, urllib.request
+          for query in ['curado', 'amor', 'Davi']:
+              url = 'https://bolls.life/v2/find/ARA?' + urllib.parse.urlencode({'search': query, 'limit': 5, 'page': 1})
+              req = urllib.request.Request(url, headers={'Accept':'application/json','User-Agent':'MIC-Rhema-CI'})
+              with urllib.request.urlopen(req, timeout=25) as response:
+                  payload = json.load(response)
+              results = payload.get('results') or []
+              if not results:
+                  raise SystemExit(f'Pesquisa sem resultados para {query!r}')
+              first = results[0]
+              for key in ('book','chapter','verse','text'):
+                  if key not in first:
+                      raise SystemExit(f'Resposta inválida para {query!r}: faltou {key}')
+              print(query, '->', first['book'], first['chapter'], first['verse'])
+          PY
+
+      - name: Publicar correção
+        run: |
+          rm -f .github/workflows/apply-bible-deep-search-fix.yml \
+                tools/apply_remote_bible_search_fix.py \
+                tools/fix_bible_deep_search.py \
+                tools/fix_bible_deep_search_v2.py \
+                tools/diagnose_bible_json.py
+          git config user.name "bicho cutela"
+          git config user.email "haydendanex@gmail.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "fix(bible): corrigir pesquisa profunda em toda a Bíblia"
+          git push
