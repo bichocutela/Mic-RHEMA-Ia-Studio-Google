@@ -1,0 +1,47 @@
+name: Aplicar ajustes Home notícias
+
+on:
+  push:
+    branches:
+      - fix/home-news-notifications-typography
+    paths:
+      - '.github/workflows/apply-home-news-session.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/home-news-notifications-typography
+      - name: Aplicar ajustes cirúrgicos
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('app/src/main/java/com/aistudio/micrhema/HomeScreen.kt')
+          text = path.read_text()
+
+          old_context = '''    val scrollState = rememberScrollState()\n    val context = LocalContext.current\n    \n    val currentMember = loggedInMemberState.value\n'''
+          new_context = '''    val scrollState = rememberScrollState()\n    val context = LocalContext.current\n\n    LaunchedEffect(Unit) {\n        NotificationHelper.ensureMessagingReady(context)\n        (context as? android.app.Activity)?.let { NotificationHelper.requestNotificationPermission(it) }\n    }\n    \n    val currentMember = loggedInMemberState.value\n'''
+          if old_context not in text:
+              raise SystemExit('Bloco de inicialização da Home não encontrado')
+          text = text.replace(old_context, new_context, 1)
+
+          old_news = '''    val latestNews = editorialNews\n        .filter { it.featured }\n        .ifEmpty { editorialNews }\n        .sortedByDescending { it.publishedAt }\n        .take(5)\n'''
+          new_news = '''    // A seleção permanece estável durante esta sessão e muda em uma nova abertura real do app.\n    val latestNews = HomeNewsSession.select(editorialNews, limit = 5)\n'''
+          if old_news not in text:
+              raise SystemExit('Bloco antigo de seleção de notícias não encontrado')
+          text = text.replace(old_news, new_news, 1)
+
+          path.write_text(text)
+          PY
+      - name: Commit da correção
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/com/aistudio/micrhema/HomeScreen.kt
+          git commit -m "feat(home): randomizar notícias por abertura e preparar notificações"
+          git push origin HEAD:fix/home-news-notifications-typography
