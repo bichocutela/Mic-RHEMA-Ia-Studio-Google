@@ -7,7 +7,6 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.BackHandler
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.background
@@ -37,18 +36,44 @@ import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 
+enum class MediaSortOption(val label: String) {
+    RECENT("Mais recente"),
+    NAME("Nome"),
+    PRESENTER("Preletor"),
+    OLDEST("Mais antigo"),
+    RELEVANT("Relevante")
+}
+
+private fun mediaTimestamp(id: String): Long = id.toLongOrNull() ?: Long.MIN_VALUE
+
+private fun mediaRelevanceScore(query: String, title: String, secondary: String): Int {
+    val q = query.trim().lowercase()
+    if (q.isBlank()) return 0
+    val normalizedTitle = title.trim().lowercase()
+    val normalizedSecondary = secondary.trim().lowercase()
+    return when {
+        normalizedTitle == q -> 100
+        normalizedTitle.startsWith(q) -> 85
+        normalizedTitle.contains(q) -> 70
+        normalizedSecondary == q -> 60
+        normalizedSecondary.startsWith(q) -> 50
+        normalizedSecondary.contains(q) -> 40
+        else -> 0
+    }
+}
+
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
 fun ContentScreen(initialType: String? = null, initialId: String? = null) {
 
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("Livros", "Áudios", "Vídeos", "Fotos")
-    
+
     var selectedBook by remember { mutableStateOf<ContentBook?>(null) }
     var selectedAudio by remember { mutableStateOf<ContentAudio?>(null) }
     var selectedVideo by remember { mutableStateOf<ContentVideo?>(null) }
     var selectedAlbum by remember { mutableStateOf<ContentPhotoAlbum?>(null) }
-    
+
     BackHandler(enabled = selectedBook != null || selectedAudio != null || selectedVideo != null || selectedAlbum != null) {
         selectedBook = null
         selectedAudio = null
@@ -80,6 +105,8 @@ fun ContentScreen(initialType: String? = null, initialId: String? = null) {
     }
     var isRefreshing by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
+    var sortOption by remember { mutableStateOf(MediaSortOption.RECENT) }
+    var sortMenuExpanded by remember { mutableStateOf(false) }
     var isLocalLoading by remember { mutableStateOf(true) }
     val context = LocalContext.current
     LaunchedEffect(Unit) { delay(1200); isLocalLoading = false }
@@ -87,31 +114,65 @@ fun ContentScreen(initialType: String? = null, initialId: String? = null) {
     Column(modifier = Modifier.fillMaxSize()) {
 
         if (selectedBook == null && selectedVideo == null && selectedAudio == null && selectedAlbum == null) {
-            GlassTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
-                placeholder = { Text("Buscar por título ou descrição...") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Buscar") },
-                trailingIcon = {
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { searchQuery = "" }) {
-                            Icon(Icons.Default.Clear, contentDescription = "Limpar")
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                GlassTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("Buscar por título ou descrição...") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Buscar") },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(Icons.Default.Clear, contentDescription = "Limpar")
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(24.dp)
+                )
+
+                Box {
+                    FilledTonalIconButton(onClick = { sortMenuExpanded = true }) {
+                        Icon(
+                            Icons.Default.Sort,
+                            contentDescription = "Ordenar mídia: ${sortOption.label}"
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = sortMenuExpanded,
+                        onDismissRequest = { sortMenuExpanded = false }
+                    ) {
+                        MediaSortOption.entries.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option.label) },
+                                leadingIcon = {
+                                    if (sortOption == option) {
+                                        Icon(Icons.Default.Check, contentDescription = null)
+                                    }
+                                },
+                                onClick = {
+                                    sortOption = option
+                                    sortMenuExpanded = false
+                                }
+                            )
                         }
                     }
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(24.dp)
-            )
+                }
+            }
         }
 
         if (selectedBook == null && selectedVideo == null && selectedAudio == null && selectedAlbum == null && recentlyViewedState.isNotEmpty() && searchQuery.isEmpty()) {
             Text(
-                "Vistos Recentemente", 
-                style = MaterialTheme.typography.titleMedium, 
-                fontWeight = FontWeight.Bold, 
+                "Vistos Recentemente",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
             )
             androidx.compose.foundation.lazy.LazyRow(
@@ -152,9 +213,9 @@ fun ContentScreen(initialType: String? = null, initialId: String? = null) {
                                 )
                                 if (item.isCached) {
                                     Icon(
-                                        Icons.Default.CheckCircle, 
-                                        contentDescription = "Baixado", 
-                                        tint = MaterialTheme.colorScheme.primary, 
+                                        Icons.Default.CheckCircle,
+                                        contentDescription = "Baixado",
+                                        tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(20.dp)
                                     )
                                 }
@@ -202,14 +263,14 @@ fun ContentScreen(initialType: String? = null, initialId: String? = null) {
             modifier = Modifier.weight(1f).fillMaxWidth()
         ) {
             when (selectedTab) {
-                0 -> BooksList(selectedBook, searchQuery, isLocalLoading, onBookSelected = { 
+                0 -> BooksList(selectedBook, searchQuery, sortOption, isLocalLoading, onBookSelected = {
                     selectedBook = it
                     if (it != null) {
                         BadgeActivityTracker.record(context, BadgeActivityKeys.BOOKS, it.id)
                         addRecentlyViewed(context, RecentlyViewedItem(it.id, it.title, it.author, it.coverUrl, ContentType.BOOK, it.isCached, it.progress))
                     }
                 })
-                1 -> AudiosList(null, searchQuery, isLocalLoading, onAudioSelected = {
+                1 -> AudiosList(null, searchQuery, sortOption, isLocalLoading, onAudioSelected = {
                     if (it != null) {
                         BadgeActivityTracker.record(context, BadgeActivityKeys.AUDIOS, it.id)
                         addRecentlyViewed(context, RecentlyViewedItem(it.id, it.title, it.artist, it.coverUrl, ContentType.AUDIO, it.isCached, it.progress))
@@ -226,14 +287,17 @@ fun ContentScreen(initialType: String? = null, initialId: String? = null) {
                         GlobalAudioPlayer.isExpanded.value = true
                     }
                 })
-                2 -> VideosList(selectedVideo, searchQuery, isLocalLoading, onVideoSelected = {
+                2 -> VideosList(selectedVideo, searchQuery, sortOption, isLocalLoading, onVideoSelected = {
                     selectedVideo = it
                     if (it != null) {
                         BadgeActivityTracker.record(context, BadgeActivityKeys.VIDEOS, it.id)
-                        addRecentlyViewed(context, RecentlyViewedItem(it.id, it.title, it.description, it.thumbnailUrl, ContentType.VIDEO, it.isCached, it.progress))
+                        val reliableThumbnail = extractYouTubeVideoId(it.videoUrl)
+                            ?.let { youtubeId -> "https://i.ytimg.com/vi/$youtubeId/hqdefault.jpg" }
+                            ?: it.thumbnailUrl
+                        addRecentlyViewed(context, RecentlyViewedItem(it.id, it.title, it.description, reliableThumbnail, ContentType.VIDEO, it.isCached, it.progress))
                     }
                 })
-                3 -> AlbumsList(selectedAlbum, searchQuery, isLocalLoading, onAlbumSelected = {
+                3 -> AlbumsList(selectedAlbum, searchQuery, sortOption, isLocalLoading, onAlbumSelected = {
                     selectedAlbum = it
                 })
             }
@@ -243,14 +307,25 @@ fun ContentScreen(initialType: String? = null, initialId: String? = null) {
 
 @OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 @Composable
-fun BooksList(selectedBook: ContentBook?, searchQuery: String, isLocalLoading: Boolean, onBookSelected: (ContentBook?) -> Unit) {
-    val filteredBooks = remember(searchQuery, contentBooksState.toList()) {
-        if (searchQuery.isBlank()) {
-            contentBooksState
-        } else {
-            contentBooksState.filter { 
-                it.title.contains(searchQuery, ignoreCase = true) || 
+fun BooksList(selectedBook: ContentBook?, searchQuery: String, sortOption: MediaSortOption, isLocalLoading: Boolean, onBookSelected: (ContentBook?) -> Unit) {
+    val filteredBooks = remember(searchQuery, sortOption, contentBooksState.toList()) {
+        val matches = contentBooksState.toList().filter {
+            searchQuery.isBlank() ||
+                it.title.contains(searchQuery, ignoreCase = true) ||
                 it.author.contains(searchQuery, ignoreCase = true)
+        }
+        when (sortOption) {
+            MediaSortOption.RECENT -> matches.sortedByDescending { mediaTimestamp(it.id) }
+            MediaSortOption.OLDEST -> matches.sortedBy { mediaTimestamp(it.id) }
+            MediaSortOption.NAME -> matches.sortedBy { it.title.lowercase() }
+            MediaSortOption.PRESENTER -> matches.sortedWith(compareBy<ContentBook> { it.author.lowercase() }.thenBy { it.title.lowercase() })
+            MediaSortOption.RELEVANT -> if (searchQuery.isBlank()) {
+                matches.sortedByDescending { mediaTimestamp(it.id) }
+            } else {
+                matches.sortedWith(
+                    compareByDescending<ContentBook> { mediaRelevanceScore(searchQuery, it.title, it.author) }
+                        .thenByDescending { mediaTimestamp(it.id) }
+                )
             }
         }
     }
@@ -262,9 +337,8 @@ fun BooksList(selectedBook: ContentBook?, searchQuery: String, isLocalLoading: B
         ) { activeBook ->
             if (activeBook != null) {
                 BookReader(
-                    book = activeBook, 
+                    book = activeBook,
                     onBack = { onBookSelected(null) },
-                    
                     animatedVisibilityScope = this@AnimatedContent
                 )
             } else if (isLocalLoading) {
@@ -317,7 +391,7 @@ fun BooksList(selectedBook: ContentBook?, searchQuery: String, isLocalLoading: B
                                 Spacer(modifier = Modifier.width(16.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        book.title, 
+                                        book.title,
                                         style = MaterialTheme.typography.titleLarge,
                                         modifier = Modifier.sharedElement(
                                             rememberSharedContentState(key = "book_title_${book.id}"),
@@ -337,7 +411,6 @@ fun BooksList(selectedBook: ContentBook?, searchQuery: String, isLocalLoading: B
         }
     }
 }
-
 
 @OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 @Composable
@@ -366,7 +439,7 @@ fun androidx.compose.animation.SharedTransitionScope.BookReader(book: ContentBoo
             )
             Spacer(modifier = Modifier.width(16.dp))
             Text(
-                book.title, 
+                book.title,
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.sharedElement(
                     rememberSharedContentState(key = "book_title_${book.id}"),
@@ -390,30 +463,39 @@ fun androidx.compose.animation.SharedTransitionScope.BookReader(book: ContentBoo
     }
 }
 
-
 @OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 @Composable
-fun AudiosList(selectedAudio: ContentAudio?, searchQuery: String, isLocalLoading: Boolean, onAudioSelected: (ContentAudio?) -> Unit) {
-    val filteredAudios = remember(searchQuery, contentAudiosState.toList()) {
-        if (searchQuery.isBlank()) {
-            contentAudiosState
-        } else {
-            contentAudiosState.filter { 
-                it.title.contains(searchQuery, ignoreCase = true) || 
+fun AudiosList(selectedAudio: ContentAudio?, searchQuery: String, sortOption: MediaSortOption, isLocalLoading: Boolean, onAudioSelected: (ContentAudio?) -> Unit) {
+    val filteredAudios = remember(searchQuery, sortOption, contentAudiosState.toList()) {
+        val matches = contentAudiosState.toList().filter {
+            searchQuery.isBlank() ||
+                it.title.contains(searchQuery, ignoreCase = true) ||
                 it.artist.contains(searchQuery, ignoreCase = true)
+        }
+        when (sortOption) {
+            MediaSortOption.RECENT -> matches.sortedByDescending { mediaTimestamp(it.id) }
+            MediaSortOption.OLDEST -> matches.sortedBy { mediaTimestamp(it.id) }
+            MediaSortOption.NAME -> matches.sortedBy { it.title.lowercase() }
+            MediaSortOption.PRESENTER -> matches.sortedWith(compareBy<ContentAudio> { it.artist.lowercase() }.thenBy { it.title.lowercase() })
+            MediaSortOption.RELEVANT -> if (searchQuery.isBlank()) {
+                matches.sortedByDescending { mediaTimestamp(it.id) }
+            } else {
+                matches.sortedWith(
+                    compareByDescending<ContentAudio> { mediaRelevanceScore(searchQuery, it.title, it.artist) }
+                        .thenByDescending { mediaTimestamp(it.id) }
+                )
             }
         }
     }
 
     val context = LocalContext.current
-    
+
     androidx.compose.animation.SharedTransitionLayout {
         androidx.compose.animation.AnimatedContent(
             targetState = selectedAudio,
             label = "audio_transition"
         ) { activeAudio ->
             if (activeAudio != null) {
-                // Should not happen anymore, but just in case
                 Box(modifier = Modifier.fillMaxSize())
             } else {
                 Column(modifier = Modifier.fillMaxSize()) {
@@ -479,7 +561,7 @@ fun AudiosList(selectedAudio: ContentAudio?, searchQuery: String, isLocalLoading
                                             Spacer(modifier = Modifier.width(16.dp))
                                             Column(modifier = Modifier.weight(1f)) {
                                                 Text(
-                                                    audio.title, 
+                                                    audio.title,
                                                     style = MaterialTheme.typography.titleMedium,
                                                     modifier = Modifier.sharedElement(
                                                         rememberSharedContentState(key = "audio_title_${audio.id}"),
@@ -511,59 +593,85 @@ fun AudiosList(selectedAudio: ContentAudio?, searchQuery: String, isLocalLoading
     }
 }
 
-
 @Composable
-fun VideosList(selectedVideo: ContentVideo?, searchQuery: String, isLocalLoading: Boolean, onVideoSelected: (ContentVideo?) -> Unit) {
-    
-    val filteredVideos = remember(searchQuery, contentVideosState.toList()) {
-        if (searchQuery.isBlank()) {
-            contentVideosState
-        } else {
-            contentVideosState.filter { 
-                it.title.contains(searchQuery, ignoreCase = true) || 
+fun VideosList(selectedVideo: ContentVideo?, searchQuery: String, sortOption: MediaSortOption, isLocalLoading: Boolean, onVideoSelected: (ContentVideo?) -> Unit) {
+    val filteredVideos = remember(searchQuery, sortOption, contentVideosState.toList()) {
+        val matches = contentVideosState.toList().filter {
+            searchQuery.isBlank() ||
+                it.title.contains(searchQuery, ignoreCase = true) ||
                 it.description.contains(searchQuery, ignoreCase = true)
+        }
+        when (sortOption) {
+            MediaSortOption.RECENT -> matches.sortedByDescending { mediaTimestamp(it.id) }
+            MediaSortOption.OLDEST -> matches.sortedBy { mediaTimestamp(it.id) }
+            MediaSortOption.NAME -> matches.sortedBy { it.title.lowercase() }
+            MediaSortOption.PRESENTER -> matches.sortedWith(compareBy<ContentVideo> { it.description.lowercase() }.thenBy { it.title.lowercase() })
+            MediaSortOption.RELEVANT -> if (searchQuery.isBlank()) {
+                matches.sortedByDescending { mediaTimestamp(it.id) }
+            } else {
+                matches.sortedWith(
+                    compareByDescending<ContentVideo> { mediaRelevanceScore(searchQuery, it.title, it.description) }
+                        .thenByDescending { mediaTimestamp(it.id) }
+                )
             }
         }
     }
 
     val context = LocalContext.current
-    
+
     if (selectedVideo != null) {
-        val context = LocalContext.current
         val authorizedUser = loggedInMemberState.value?.let { it.isApproved || it.isIbr } ?: false
         Column(modifier = Modifier.fillMaxSize()) {
             CleanVideoPlayer(
-                videoUrl = selectedVideo!!.videoUrl,
-                title = selectedVideo!!.title,
+                videoUrl = selectedVideo.videoUrl,
+                title = selectedVideo.title,
                 onClose = { onVideoSelected(null) },
                 canDownload = authorizedUser,
                 onDownload = {
                     DownloadHelper.downloadFile(
                         context = context,
-                        url = selectedVideo!!.videoUrl,
-                        title = selectedVideo!!.title,
-                        fileName = "micrhema_video_${selectedVideo!!.id}.mp4"
+                        url = selectedVideo.videoUrl,
+                        title = selectedVideo.title,
+                        fileName = "micrhema_video_${selectedVideo.id}.mp4"
                     )
                 }
             )
             Spacer(modifier = Modifier.height(12.dp))
             Text(
-                text = selectedVideo!!.title,
+                text = selectedVideo.title,
                 modifier = Modifier.padding(horizontal = 16.dp),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
-            if (selectedVideo!!.description.isNotBlank()) {
+            if (selectedVideo.description.isNotBlank()) {
                 Text(
-                    text = selectedVideo!!.description,
+                    text = selectedVideo.description,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             YouTubeDescriptionSection(
-                videoUrl = selectedVideo!!.videoUrl
+                videoUrl = selectedVideo.videoUrl
             )
+        }
+    } else if (isLocalLoading) {
+        LazyColumn(
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            items(3) {
+                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp)) {
+                    Column {
+                        Box(modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(shimmerBrush()))
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            SkeletonItem(width = 220.dp, height = 22.dp)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            SkeletonItem(width = 150.dp, height = 16.dp)
+                        }
+                    }
+                }
+            }
         }
     } else {
         LazyColumn(
@@ -572,7 +680,7 @@ fun VideosList(selectedVideo: ContentVideo?, searchQuery: String, isLocalLoading
         ) {
             items(filteredVideos) { video ->
                 Card(
-                    modifier = Modifier.fillMaxWidth().clickable { 
+                    modifier = Modifier.fillMaxWidth().clickable {
                         onVideoSelected(video)
                     },
                     shape = RoundedCornerShape(24.dp)
@@ -607,19 +715,37 @@ fun VideosList(selectedVideo: ContentVideo?, searchQuery: String, isLocalLoading
     }
 }
 
-
 @Composable
 fun AlbumsList(
     selectedAlbum: ContentPhotoAlbum?,
     searchQuery: String,
+    sortOption: MediaSortOption,
     isLocalLoading: Boolean,
     onAlbumSelected: (ContentPhotoAlbum?) -> Unit
 ) {
     if (selectedAlbum != null) {
         AlbumDetail(album = selectedAlbum, onBack = { onAlbumSelected(null) })
     } else {
-        val matchedAlbums = contentAlbumsState.filter {
-            it.title.contains(searchQuery, ignoreCase = true) || it.description.contains(searchQuery, ignoreCase = true)
+        val matchedAlbums = remember(searchQuery, sortOption, contentAlbumsState.toList()) {
+            val matches = contentAlbumsState.toList().filter {
+                searchQuery.isBlank() ||
+                    it.title.contains(searchQuery, ignoreCase = true) ||
+                    it.description.contains(searchQuery, ignoreCase = true)
+            }
+            when (sortOption) {
+                MediaSortOption.RECENT -> matches.sortedByDescending { mediaTimestamp(it.id) }
+                MediaSortOption.OLDEST -> matches.sortedBy { mediaTimestamp(it.id) }
+                MediaSortOption.NAME -> matches.sortedBy { it.title.lowercase() }
+                MediaSortOption.PRESENTER -> matches.sortedWith(compareBy<ContentPhotoAlbum> { it.description.lowercase() }.thenBy { it.title.lowercase() })
+                MediaSortOption.RELEVANT -> if (searchQuery.isBlank()) {
+                    matches.sortedByDescending { mediaTimestamp(it.id) }
+                } else {
+                    matches.sortedWith(
+                        compareByDescending<ContentPhotoAlbum> { mediaRelevanceScore(searchQuery, it.title, it.description) }
+                            .thenByDescending { mediaTimestamp(it.id) }
+                    )
+                }
+            }
         }
 
         if (isLocalLoading) {
@@ -706,7 +832,7 @@ fun AlbumDetail(album: ContentPhotoAlbum, onBack: () -> Unit) {
                     onClose = { initialPhotoIndex = null }
                 )
             }
-            
+
             Column(
                 modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -741,7 +867,7 @@ fun AlbumDetail(album: ContentPhotoAlbum, onBack: () -> Unit) {
                 }
                 Text("Álbum", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
-            
+
             LazyColumn(
                 contentPadding = PaddingValues(16.dp),
                 modifier = Modifier.fillMaxSize()
@@ -752,7 +878,7 @@ fun AlbumDetail(album: ContentPhotoAlbum, onBack: () -> Unit) {
                     Text(album.description, style = MaterialTheme.typography.bodyMedium)
                     Spacer(modifier = Modifier.height(16.dp))
                 }
-                
+
                 if (album.driveFolderUrl.isNotBlank()) {
                     item {
                         val context = androidx.compose.ui.platform.LocalContext.current
@@ -784,7 +910,7 @@ fun AlbumDetail(album: ContentPhotoAlbum, onBack: () -> Unit) {
                         )
                     }
                 }
-                
+
                 val chunks = album.photos.chunked(2)
                 itemsIndexed(chunks) { rowIndex, rowPhotos ->
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -828,7 +954,6 @@ fun AlbumDetail(album: ContentPhotoAlbum, onBack: () -> Unit) {
         }
     }
 }
-
 
 @Composable
 fun ZoomableImage(model: Any?, onClose: () -> Unit) {
@@ -882,7 +1007,6 @@ fun ZoomableImage(model: Any?, onClose: () -> Unit) {
             }
     )
 }
-
 
 fun getThumbnailUrl(url: String): String {
     return if (url.contains("unsplash.com")) {
