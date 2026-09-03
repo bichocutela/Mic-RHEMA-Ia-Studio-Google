@@ -88,8 +88,18 @@ object BibleNewsEditorial {
             }
             .sortedByDescending { it.publishedAt }
 
-    fun withEditorialCatalog(items: List<BibleNews>): List<BibleNews> =
-        mergeUnique(items + BibleNewsData.newsList + BibleNewsEditorialCatalog.additionalNews)
+    /**
+     * O Firestore é a camada de sobrescrita. O catálogo empacotado só entra
+     * quando ainda não existe um registro remoto com o mesmo ID. Isso evita que
+     * uma edição remota dispute prioridade com a cópia local do APK.
+     */
+    fun withEditorialCatalog(items: List<BibleNews>): List<BibleNews> {
+        val remote = decorateAll(items)
+        val remoteIds = remote.map { it.id }.toSet()
+        val bundledFallback = (BibleNewsData.newsList + BibleNewsEditorialCatalog.additionalNews)
+            .filterNot { it.id in remoteIds }
+        return mergeUnique(remote + bundledFallback)
+    }
 
     fun matches(news: BibleNews, query: String, filter: String): Boolean {
         val normalizedQuery = query.trim().lowercase()
@@ -171,14 +181,12 @@ object BibleNewsEditorial {
             .trim()
 
     private fun editorialKey(news: BibleNews): String {
-        val text = "${news.title} ${news.content}".lowercase()
-        return when {
-            news.book.equals("Jonas", ignoreCase = true) -> "jonas-arco-completo"
-            text.contains("ananias") && text.contains("safira") -> "ananias-safira"
-            BibleNewsData.newsList.any { it.id == news.id } -> "legacy-${news.id}"
-            news.storyKey.isNotBlank() -> news.storyKey.lowercase()
-            else -> normalizeTitle(news.title).lowercase().replace(Regex("[^a-z0-9áéíóúãõç ]"), "").trim()
-        }
+        if (news.id > 0) return "id-${news.id}"
+        if (news.storyKey.isNotBlank()) return "story-${news.storyKey.lowercase()}"
+        return normalizeTitle(news.title)
+            .lowercase()
+            .replace(Regex("[^a-z0-9áéíóúãõç ]"), "")
+            .trim()
     }
 
     private fun buildStoryKey(news: BibleNews): String =
