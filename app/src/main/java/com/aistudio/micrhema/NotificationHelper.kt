@@ -251,7 +251,8 @@ object NotificationHelper {
         message: String,
         category: Category = Category.GENERAL,
         respectPreferences: Boolean = true,
-        destinationRoute: String? = null
+        destinationRoute: String? = null,
+        destinationDocumentId: String? = null
     ) {
         if (respectPreferences && !isAllowed(context, category)) return
         createNotificationChannel(context)
@@ -260,9 +261,25 @@ object NotificationHelper {
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) return
 
-        val intent = android.content.Intent(context, MainActivity::class.java).apply {
-            flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
-            destinationRoute?.takeIf { it.isNotBlank() }?.let { putExtra(EXTRA_NOTIFICATION_DESTINATION, it) }
+        val newsId = destinationRoute
+            ?.takeIf { it.startsWith("news_detail/") }
+            ?.substringAfter("news_detail/")
+            ?.substringBefore('/')
+            ?.toIntOrNull()
+
+        val intent = if (newsId != null && newsId > 0) {
+            android.content.Intent(context, NewsNotificationActivity::class.java).apply {
+                flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra(NewsNotificationActivity.EXTRA_NEWS_ID, newsId)
+                destinationDocumentId?.takeIf { it.isNotBlank() }?.let {
+                    putExtra(NewsNotificationActivity.EXTRA_DOCUMENT_ID, it)
+                }
+            }
+        } else {
+            android.content.Intent(context, MainActivity::class.java).apply {
+                flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
+                destinationRoute?.takeIf { it.isNotBlank() }?.let { putExtra(EXTRA_NOTIFICATION_DESTINATION, it) }
+            }
         }
         val pendingIntent = android.app.PendingIntent.getActivity(
             context,
