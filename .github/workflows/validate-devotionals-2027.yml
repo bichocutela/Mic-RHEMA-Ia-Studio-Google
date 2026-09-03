@@ -6,7 +6,7 @@ on:
       - feat/devotionals-2027-sort
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   validate:
@@ -14,6 +14,22 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: feat/devotionals-2027-sort
+          fetch-depth: 0
+
+      - name: Aplicar acabamento idempotente
+        run: python3 scripts/apply_devotional_2027.py
+
+      - name: Commitar acabamento se necessário
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/com/aistudio/micrhema/DevotionalsScreen.kt
+          if ! git diff --cached --quiet; then
+            git commit -m "fix(devocionais): finalizar ordenação e fallback 2027"
+            git push origin HEAD:feat/devotionals-2027-sort
+          fi
 
       - name: Restaurar google-services.json
         env:
