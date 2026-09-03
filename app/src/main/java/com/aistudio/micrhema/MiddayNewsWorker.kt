@@ -6,6 +6,8 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
+import java.time.LocalDate
+import kotlin.random.Random
 
 class MiddayNewsWorker(
     private val context: Context,
@@ -13,60 +15,84 @@ class MiddayNewsWorker(
 ) : CoroutineWorker(context, workerParams) {
 
     override suspend fun doWork(): Result {
+        val prefs = context.getSharedPreferences("micrhema_prefs", Context.MODE_PRIVATE)
+        val today = LocalDate.now().toString()
+        if (prefs.getString("last_daily_news_date", null) == today) return Result.success()
+
         return try {
-            if (com.google.firebase.FirebaseApp.getApps(context).isEmpty()) return Result.success()
+            val db = if (com.google.firebase.FirebaseApp.getApps(context).isNotEmpty()) FirebaseFirestore.getInstance() else null
+            val hiddenIds = db?.let { database ->
+                runCatching {
+                    val settings = database.collection("settings").document("bible_news_editorial").get().await()
+                    (settings.get("hiddenIds") as? List<*>).orEmpty().mapNotNull { value ->
+                        when (value) {
+                            is Number -> value.toInt()
+                            is String -> value.toIntOrNull()
+                            else -> null
+                        }
+                    }.toSet()
+                }.getOrDefault(emptySet())
+            } ?: emptySet()
 
-            val db = FirebaseFirestore.getInstance()
-            val selection = db.collection("settings").document("daily_news").get().await()
-            val selectedId = selection.getLong("selectedNewsId")?.toInt() ?: return Result.success()
-            val selectionVersion = selection.getLong("updatedAt") ?: selectedId.toLong()
+            val remote = db?.let { database -> loadRemote(database) }.orEmpty()
+            val combined = BibleNewsEditorial.withEditorialCatalog(remote.ifEmpty { BibleNewsData.newsList })
+                .filter { it.id !in hiddenIds }
+                .distinctBy { it.id }
+            if (combined.isEmpty()) return Result.retry()
 
-            val editorialSettings = db.collection("settings").document("bible_news_editorial").get().await()
-            val hiddenIds = (editorialSettings.get("hiddenIds") as? List<*>)
-                .orEmpty()
-                .mapNotNull { value ->
-                    when (value) {
-                        is Number -> value.toInt()
-                        is String -> value.toIntOrNull()
-                        else -> null
-                    }
-                }
-                .toSet()
-            if (selectedId in hiddenIds) return Result.success()
-
-            val selectedDocumentId = selection.getString("selectedDocumentId")
-                ?.takeIf { it.isNotBlank() }
-                ?: selectedId.toString()
-            val news = db.collection("bible_news").document(selectedDocumentId).get().await()
-            val selectedTitle = news.getString("title") ?: selection.getString("title") ?: return Result.success()
-            val selectedSummary = news.getString("summary")
-                ?: selection.getString("summary")
-                ?: news.getString("content")
-                ?: selection.getString("content")
-                ?: "Leia a história bíblica de hoje."
-
-            val prefs = context.getSharedPreferences("micrhema_prefs", Context.MODE_PRIVATE)
-            if (prefs.getLong("last_daily_news_selection_version", Long.MIN_VALUE) == selectionVersion) {
-                return Result.success()
-            }
+            val previousId = prefs.getInt("last_daily_news_id", -1)
+            val pool = combined.filter { it.id != previousId }.ifEmpty { combined }
+            val seed = today.hashCode() xor System.nanoTime().toInt()
+            val selected = pool.random(Random(seed))
+            val documentId = selected.id.toString()
+            val summary = selected.summary.ifBlank { selected.content }.replace(Regex("\\s+"), " ").trim()
 
             NotificationHelper.showNotification(
                 context = context,
                 title = "Notícia bíblica do dia",
-                message = "$selectedTitle — ${selectedSummary.take(180)}",
+                message = "${selected.title} — ${summary.take(180)}",
                 category = NotificationHelper.Category.DAILY_NEWS,
                 respectPreferences = true,
-                destinationRoute = "news_detail/$selectedId",
-                destinationDocumentId = selectedDocumentId
+                destinationRoute = "news_detail/${selected.id}",
+                destinationDocumentId = documentId
             )
             prefs.edit()
-                .putLong("last_daily_news_selection_version", selectionVersion)
-                .remove("last_daily_news_notification_key")
+                .putString("last_daily_news_date", today)
+                .putInt("last_daily_news_id", selected.id)
+                .remove("last_daily_news_selection_version")
                 .apply()
             Result.success()
         } catch (e: Exception) {
-            Log.e("MiddayNewsWorker", "Falha ao verificar notícia diária", e)
+            Log.e("MiddayNewsWorker", "Falha ao preparar notícia bíblica diária", e)
             Result.retry()
         }
+    }
+
+    private suspend fun loadRemote(db: FirebaseFirestore): List<BibleNews> {
+        return runCatching {
+            db.collection("bible_news").get().await().documents.mapNotNull { doc ->
+                val id = doc.getLong("id")?.toInt() ?: doc.id.toIntOrNull() ?: return@mapNotNull null
+                val title = doc.getString("title").orEmpty()
+                val content = doc.getString("content").orEmpty()
+                if (title.isBlank() || content.isBlank()) return@mapNotNull null
+                BibleNews(
+                    id = id,
+                    title = title,
+                    content = content,
+                    book = doc.getString("book").orEmpty(),
+                    chapter = doc.getLong("chapter")?.toInt() ?: 0,
+                    verse = doc.getLong("verse")?.toInt() ?: 0,
+                    imageUrl = doc.getString("imageUrl").orEmpty(),
+                    summary = doc.getString("summary").orEmpty(),
+                    category = doc.getString("category").orEmpty(),
+                    intensity = doc.getLong("intensity")?.toInt() ?: 0,
+                    tags = (doc.get("tags") as? List<*>)?.mapNotNull { it?.toString() }.orEmpty(),
+                    contentWarning = doc.getString("contentWarning").orEmpty(),
+                    publishedAt = doc.getLong("publishedAt") ?: 0L,
+                    featured = doc.getBoolean("featured") ?: false,
+                    storyKey = doc.getString("storyKey").orEmpty()
+                )
+            }
+        }.getOrDefault(emptyList())
     }
 }
