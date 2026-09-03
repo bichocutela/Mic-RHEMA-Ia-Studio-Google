@@ -47,7 +47,7 @@ fun DevotionalsScreen(initialDevotionalId: String? = null) {
         )
     } else {
         var isRefreshing by remember { mutableStateOf(false) }
-        var newestFirst by rememberSaveable { mutableStateOf(true) }
+        var newestFirst by remember { mutableStateOf(true) }
         var sortMenuExpanded by remember { mutableStateOf(false) }
         val coroutineScope = rememberCoroutineScope()
         val today = java.time.LocalDate.now()
@@ -134,7 +134,7 @@ fun DevotionalsScreen(initialDevotionalId: String? = null) {
                     }
                 }
                 
-                if (devotionalsState.isEmpty()) {
+                if (availableDevotionals.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text("Nenhum devocional encontrado.", color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f))
                     }
