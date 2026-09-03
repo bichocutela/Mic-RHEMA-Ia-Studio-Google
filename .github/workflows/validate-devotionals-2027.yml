@@ -1,0 +1,82 @@
+name: Validar devocionais 2027
+
+on:
+  push:
+    branches:
+      - feat/devotionals-2027-sort
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: feat/devotionals-2027-sort
+          fetch-depth: 0
+
+      - name: Aplicar ajustes integrados
+        run: python3 scripts/apply_devotional_2027.py
+
+      - name: Commitar arquivos ajustados
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/com/aistudio/micrhema/DevotionalsScreen.kt \
+                  app/src/main/java/com/aistudio/micrhema/HomeScreen.kt \
+                  app/src/main/java/com/aistudio/micrhema/DevotionalReminderWorker.kt
+          if ! git diff --cached --quiet; then
+            git commit -m "feat(devocionais): ordenar lista e integrar calendário 2027"
+            git push origin HEAD:feat/devotionals-2027-sort
+          fi
+
+      - name: Restaurar google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES_JSON" ]; then
+            echo "O secret GOOGLE_SERVICES_JSON não foi configurado."
+            exit 1
+          fi
+          printf '%s' "$GOOGLE_SERVICES_JSON" > app/google-services.json
+          jq empty app/google-services.json
+
+      - name: Configurar Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          validate-wrappers: false
+
+      - name: Restaurar assinatura
+        run: echo "${{ secrets.MICRHEMA_KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
+
+      - name: Configurar Supabase público
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          cp .env.example .env
+          if [ -n "$SUPABASE_URL" ]; then sed -i "s|^SUPABASE_URL=.*|SUPABASE_URL=$SUPABASE_URL|" .env; fi
+          if [ -n "$SUPABASE_ANON_KEY" ]; then sed -i "s|^SUPABASE_ANON_KEY=.*|SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY|" .env; fi
+
+      - name: Compilar APK release
+        env:
+          KEYSTORE_FILE: ../release.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.MICRHEMA_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.MICRHEMA_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.MICRHEMA_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Limpar temporários
+        if: always()
+        run: rm -f release.keystore .env app/google-services.json
