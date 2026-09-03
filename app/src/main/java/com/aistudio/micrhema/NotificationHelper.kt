@@ -24,6 +24,9 @@ object NotificationHelper {
     private const val CHANNEL_ID = "micrhema_notifications"
     private const val CHANNEL_NAME = "Notificações MIC Rhema"
     private const val CHANNEL_DESCRIPTION = "Alertas de novos devocionais, eventos e notícias"
+    private const val DEDUPE_PREFS = "micrhema_notification_dedupe"
+    private const val DEDUPE_EVENTS_KEY = "recent_events"
+    private const val DEFAULT_DEDUPE_TTL_MS = 6L * 60L * 60L * 1000L
     const val EXTRA_NOTIFICATION_DESTINATION = "notification_destination"
     private var notificationId = 100
 
@@ -187,7 +190,7 @@ object NotificationHelper {
             "service", "culto", "next_service" -> Category.NEXT_SERVICE
             "news", "noticia", "notícia", "daily_news" -> Category.DAILY_NEWS
             "ibr", "ibr_content", "course_ibr", "aula" -> Category.IBR_CONTENT
-            "content", "conteudo", "conteúdo", "content_updates" -> Category.CONTENT_UPDATES
+            "content", "conteudo", "conteúdo", "content_updates", "app_update" -> Category.CONTENT_UPDATES
             else -> Category.GENERAL
         }
     }
@@ -233,6 +236,48 @@ object NotificationHelper {
         prefs.edit().putStringSet("notified_media_ids", known).apply()
     }
 
+    /**
+     * Reserva uma chave semântica de notificação por algumas horas. Fontes diferentes
+     * (FCM, WorkManager etc.) podem usar a mesma chave e somente a primeira exibirá o aviso.
+     */
+    @Synchronized
+    fun claimNotificationEvent(
+        context: Context,
+        eventKey: String,
+        ttlMillis: Long = DEFAULT_DEDUPE_TTL_MS
+    ): Boolean {
+        val key = eventKey.trim()
+        if (key.isBlank()) return true
+
+        val prefs = context.getSharedPreferences(DEDUPE_PREFS, Context.MODE_PRIVATE)
+        val now = System.currentTimeMillis()
+        val validEntries = prefs.getStringSet(DEDUPE_EVENTS_KEY, emptySet())
+            .orEmpty()
+            .mapNotNull { entry ->
+                val separator = entry.lastIndexOf('|')
+                if (separator <= 0) return@mapNotNull null
+                val storedKey = entry.substring(0, separator)
+                val timestamp = entry.substring(separator + 1).toLongOrNull() ?: return@mapNotNull null
+                if (now - timestamp <= ttlMillis) storedKey to timestamp else null
+            }
+            .toMutableList()
+
+        if (validEntries.any { it.first == key }) {
+            prefs.edit().putStringSet(
+                DEDUPE_EVENTS_KEY,
+                validEntries.sortedByDescending { it.second }.take(160).map { "${it.first}|${it.second}" }.toSet()
+            ).apply()
+            return false
+        }
+
+        validEntries.add(key to now)
+        prefs.edit().putStringSet(
+            DEDUPE_EVENTS_KEY,
+            validEntries.sortedByDescending { it.second }.take(160).map { "${it.first}|${it.second}" }.toSet()
+        ).apply()
+        return true
+    }
+
     fun isIbrMember(context: Context): Boolean {
         return loggedInMemberState.value?.isIbr == true ||
             context.getSharedPreferences("micrhema_member_session", Context.MODE_PRIVATE).getBoolean("isIbr", false)
@@ -255,6 +300,10 @@ object NotificationHelper {
         }
     }
 
+    private fun isDeprecatedRealtimeDuplicate(title: String): Boolean {
+        return title == "Novo vídeo em Mídia" || title == "Novo áudio em Mídia"
+    }
+
     fun showNotification(
         context: Context,
         title: String,
@@ -264,6 +313,9 @@ object NotificationHelper {
         destinationRoute: String? = null,
         destinationDocumentId: String? = null
     ) {
+        // Esses dois títulos pertenciam a listeners locais legados que duplicavam o FCM oficial.
+        // O fallback em segundo plano usa títulos próprios e continua funcionando normalmente.
+        if (isDeprecatedRealtimeDuplicate(title)) return
         if (respectPreferences && !isAllowed(context, category)) return
         createNotificationChannel(context)
         if (!hasNotificationPermission(context)) return
