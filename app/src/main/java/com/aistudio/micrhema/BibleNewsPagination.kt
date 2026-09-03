@@ -8,7 +8,12 @@ import com.google.firebase.firestore.Source
 import kotlinx.coroutines.tasks.await
 
 object BibleNewsPagination {
-    const val pageSize = 20L
+    /**
+     * A interface continua revelando 20 cards por vez. A janela de sincronização
+     * é maior para que edições remotas de matérias antigas também sobrescrevam o
+     * fallback empacotado antes de o usuário rolar até elas.
+     */
+    const val pageSize = 100L
 
     private var firstPageListener: ListenerRegistration? = null
     private var hiddenIdsListener: ListenerRegistration? = null
@@ -75,7 +80,7 @@ object BibleNewsPagination {
             }
     }
 
-    /** Atualiza somente a primeira página, sem desmontar páginas já carregadas. */
+    /** Atualiza a janela sincronizada sem desmontar páginas adicionais já carregadas. */
     suspend fun refresh() {
         val snapshot = FirebaseFirestore.getInstance()
             .collection("bible_news")
