@@ -24,8 +24,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -36,6 +34,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -62,10 +61,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 
-private fun decoratedBibleNews(): List<BibleNews> =
-    BibleNewsEditorial.withEditorialCatalog(
-        if (bibleNewsState.isEmpty()) BibleNewsData.newsList else bibleNewsState.toList()
-    )
+private fun decoratedBibleNews(): List<BibleNews> = currentResolvedBibleNews()
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -87,14 +83,17 @@ fun NewsListScreen(onNavigateToDetail: (Int) -> Unit, onBack: () -> Unit) {
             if (selectedFilter == "Mais recentes") {
                 compareByDescending<BibleNews> { it.publishedAt }
             } else {
-                compareByDescending<BibleNews> { it.publishedAt }
+                compareByDescending<BibleNews> { it.featured }
+                    .thenByDescending { it.publishedAt }
             }
         )
     val visibleNews = filteredNews.take(visibleCount)
 
     LaunchedEffect(query, selectedFilter) {
         visibleCount = 20
-        listState.animateScrollToItem(0)
+        if (listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0) {
+            listState.animateScrollToItem(0)
+        }
     }
 
     Scaffold(
@@ -118,8 +117,11 @@ fun NewsListScreen(onNavigateToDetail: (Int) -> Unit, onBack: () -> Unit) {
             onRefresh = {
                 coroutineScope.launch {
                     isRefreshing = true
-                    forceRefreshData()
-                    isRefreshing = false
+                    try {
+                        BibleNewsPagination.refresh()
+                    } finally {
+                        isRefreshing = false
+                    }
                 }
             },
             modifier = Modifier
@@ -226,9 +228,12 @@ fun NewsListScreen(onNavigateToDetail: (Int) -> Unit, onBack: () -> Unit) {
                                     } else if (!isLoadingMore) {
                                         coroutineScope.launch {
                                             isLoadingMore = true
-                                            BibleNewsPagination.loadNextPage()
-                                            visibleCount += 20
-                                            isLoadingMore = false
+                                            try {
+                                                BibleNewsPagination.loadNextPage()
+                                                visibleCount += 20
+                                            } finally {
+                                                isLoadingMore = false
+                                            }
                                         }
                                     }
                                 },
@@ -292,6 +297,23 @@ fun BibleNewsImage(
 }
 
 @Composable
+private fun NewsMetaLabel(text: String) {
+    Surface(
+        shape = RoundedCornerShape(999.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
 private fun NewsCard(news: BibleNews, onClick: () -> Unit) {
     Card(
         modifier = Modifier
@@ -314,14 +336,8 @@ private fun NewsCard(news: BibleNews, onClick: () -> Unit) {
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    AssistChip(
-                        onClick = {},
-                        label = { Text(news.category, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                    )
-                    AssistChip(
-                        onClick = {},
-                        label = { Text(BibleNewsEditorial.intensityLabel(news.intensity), maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                    )
+                    NewsMetaLabel(news.category)
+                    NewsMetaLabel(BibleNewsEditorial.intensityLabel(news.intensity))
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
@@ -368,7 +384,7 @@ private fun NewsCard(news: BibleNews, onClick: () -> Unit) {
 fun NewsDetailScreen(
     newsId: Int,
     onBack: () -> Unit,
-    onNavigateToBible: (String, Int, String?) -> Unit
+    onNavigateToBible: (String, Int, Int, String?) -> Unit
 ) {
     val news = decoratedBibleNews().find { it.id == newsId } ?: return
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -408,8 +424,8 @@ fun NewsDetailScreen(
                     .padding(20.dp)
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AssistChip(onClick = {}, label = { Text(news.category) })
-                    AssistChip(onClick = {}, label = { Text(BibleNewsEditorial.intensityLabel(news.intensity)) })
+                    NewsMetaLabel(news.category)
+                    NewsMetaLabel(BibleNewsEditorial.intensityLabel(news.intensity))
                 }
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
@@ -448,7 +464,7 @@ fun NewsDetailScreen(
                     color = MaterialTheme.colorScheme.primary,
                     textDecoration = TextDecoration.Underline,
                     modifier = Modifier
-                        .clickable { onNavigateToBible(news.book, news.chapter, "NTLH") }
+                        .clickable { onNavigateToBible(news.book, news.chapter, news.verse, "NTLH") }
                         .padding(vertical = 8.dp)
                 )
                 Spacer(modifier = Modifier.height(60.dp))
