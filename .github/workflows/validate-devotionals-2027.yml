@@ -6,7 +6,7 @@ on:
       - feat/devotionals-2027-sort
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   validate:
@@ -14,24 +14,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: feat/devotionals-2027-sort
-          fetch-depth: 0
-
-      - name: Aplicar ajustes integrados
-        run: python3 scripts/apply_devotional_2027.py
-
-      - name: Commitar arquivos ajustados
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/src/main/java/com/aistudio/micrhema/DevotionalsScreen.kt \
-                  app/src/main/java/com/aistudio/micrhema/HomeScreen.kt \
-                  app/src/main/java/com/aistudio/micrhema/DevotionalReminderWorker.kt
-          if ! git diff --cached --quiet; then
-            git commit -m "feat(devocionais): ordenar lista e integrar calendário 2027"
-            git push origin HEAD:feat/devotionals-2027-sort
-          fi
 
       - name: Restaurar google-services.json
         env:
