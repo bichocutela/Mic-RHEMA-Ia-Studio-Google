@@ -12,6 +12,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
+import com.google.firebase.messaging.FirebaseMessaging
 import com.google.gson.Gson
 
 import androidx.work.PeriodicWorkRequestBuilder
@@ -141,14 +142,33 @@ object NotificationHelper {
         }
     }
 
+    /**
+     * Reconfirma os tópicos sempre que o app abre. onNewToken continua sendo
+     * usado, mas não dependemos mais exclusivamente dele para receber push.
+     */
+    fun ensureMessagingReady(context: Context) {
+        createNotificationChannel(context)
+        val messaging = FirebaseMessaging.getInstance()
+        messaging.subscribeToTopic("all_users")
+        messaging.subscribeToTopic("devocionais")
+        if (isIbrMember(context)) {
+            messaging.subscribeToTopic("ibr_users")
+        } else {
+            messaging.unsubscribeFromTopic("ibr_users")
+        }
+    }
+
     fun hasNotificationPermission(context: Context): Boolean {
+        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return false
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
         } else true
     }
 
     fun requestNotificationPermission(activity: Activity) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !hasNotificationPermission(activity)) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(activity, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
             ActivityCompat.requestPermissions(activity, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
         }
     }
@@ -206,8 +226,7 @@ object NotificationHelper {
 
     private fun adminNotificationsEnabled(context: Context): Boolean {
         val prefs = context.getSharedPreferences("micrhema_admin_settings", Context.MODE_PRIVATE)
-        return prefs.getBoolean("notificationsEnabled", adminAppSettingsState.value.notificationsEnabled) &&
-            adminAppSettingsState.value.notificationsEnabled
+        return prefs.getBoolean("notificationsEnabled", adminAppSettingsState.value.notificationsEnabled)
     }
 
     fun rememberMediaIds(context: Context, ids: Collection<String>) {
@@ -256,10 +275,7 @@ object NotificationHelper {
     ) {
         if (respectPreferences && !isAllowed(context, category)) return
         createNotificationChannel(context)
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-        ) return
+        if (!hasNotificationPermission(context)) return
 
         val newsId = destinationRoute
             ?.takeIf { it.startsWith("news_detail/") }
