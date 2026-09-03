@@ -27,7 +27,8 @@ class DevotionalReminderWorker(
         return try {
             val remote = loadRemoteDevotionals()
             val local = loadCachedDevotionals()
-            val candidates = (remote + local).distinctBy { it.id.ifBlank { "${it.date}:${it.title}" } }
+            val candidates = (remote + local + DevotionalCalendar2027.items)
+                .distinctBy { it.id.ifBlank { "${it.date}:${it.title}" } }
                 .filter { it.isApproved }
             val devotional = candidates.firstOrNull { parseDate(it.date) == today }
                 ?: candidates.maxByOrNull { it.timestamp }

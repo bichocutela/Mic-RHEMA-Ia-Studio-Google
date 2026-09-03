@@ -10,6 +10,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Book
 import androidx.compose.material3.*
@@ -46,7 +47,18 @@ fun DevotionalsScreen(initialDevotionalId: String? = null) {
         )
     } else {
         var isRefreshing by remember { mutableStateOf(false) }
+        var newestFirst by rememberSaveable { mutableStateOf(true) }
+        var sortMenuExpanded by remember { mutableStateOf(false) }
         val coroutineScope = rememberCoroutineScope()
+        val today = java.time.LocalDate.now()
+        val availableDevotionals = remember(devotionalsState.toList(), newestFirst, today) {
+            val dated = DevotionalDateUtils.availableUntilToday(devotionalsState.toList(), today)
+                .sortedWith(
+                    compareBy<Devotional> { DevotionalDateUtils.parse(it.date) ?: java.time.LocalDate.MIN }
+                        .thenBy { it.timestamp }
+                )
+            if (newestFirst) dated.asReversed() else dated
+        }
         
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background
@@ -84,8 +96,42 @@ fun DevotionalsScreen(initialDevotionalId: String? = null) {
                         text = "Devocionais",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
+                        color = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.weight(1f)
                     )
+                    Box {
+                        FilledTonalButton(
+                            onClick = { sortMenuExpanded = true },
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Sort,
+                                contentDescription = "Ordenar devocionais",
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(if (newestFirst) "Recentes" else "Antigos")
+                        }
+                        DropdownMenu(
+                            expanded = sortMenuExpanded,
+                            onDismissRequest = { sortMenuExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Mais recente") },
+                                onClick = {
+                                    newestFirst = true
+                                    sortMenuExpanded = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Mais antigo") },
+                                onClick = {
+                                    newestFirst = false
+                                    sortMenuExpanded = false
+                                }
+                            )
+                        }
+                    }
                 }
                 
                 if (devotionalsState.isEmpty()) {
@@ -98,10 +144,7 @@ fun DevotionalsScreen(initialDevotionalId: String? = null) {
                         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 100.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
-                        val todayStr = sdf.format(java.util.Date())
-                        val availableDevotionals = devotionalsState.filter { it.date <= todayStr }
-                        items(availableDevotionals.sortedByDescending { it.date }) { devotional ->
+                        items(availableDevotionals, key = { it.id.ifBlank { "${it.date}:${it.title}" } }) { devotional ->
                             DevotionalCard(devotional = devotional) {
                                 selectedDevotional = devotional
                             }
@@ -157,7 +200,7 @@ fun DevotionalCard(devotional: Devotional, onClick: () -> Unit) {
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = devotional.date,
+                    text = DevotionalDateUtils.display(devotional.date),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -265,7 +308,7 @@ fun DevotionalDetailScreen(devotional: Devotional, onBack: () -> Unit) {
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = devotional.date,
+                    text = DevotionalDateUtils.display(devotional.date),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary
                 )

@@ -132,10 +132,10 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
         today.plusDays(diff.toLong()).atTime(parsedTime)
     }.take(3)
     
-    // Devotional Logic
-    val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
-    val todayStr = today.format(formatter)
-    val todayDevotional = devotionalsState.find { it.date == todayStr } ?: devotionalsState.firstOrNull()
+    // Devocional Diário: aceita todos os formatos usados historicamente e
+    // prefere exatamente a data de hoje. Se não houver publicação para hoje,
+    // usa somente o devocional anterior mais recente, nunca um conteúdo futuro.
+    val todayDevotional = DevotionalDateUtils.todayOrLatest(devotionalsState.toList(), today)
     
     val editorialNews = BibleNewsEditorial.withEditorialCatalog(
         if (bibleNewsState.isEmpty()) BibleNewsData.newsList else bibleNewsState.toList()
