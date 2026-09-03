@@ -56,7 +56,8 @@ class MiddayNewsWorker(
                 message = "$selectedTitle — ${selectedSummary.take(180)}",
                 category = NotificationHelper.Category.DAILY_NEWS,
                 respectPreferences = true,
-                destinationRoute = "news_detail/$selectedId"
+                destinationRoute = "news_detail/$selectedId",
+                destinationDocumentId = selectedDocumentId
             )
             prefs.edit()
                 .putLong("last_daily_news_selection_version", selectionVersion)
