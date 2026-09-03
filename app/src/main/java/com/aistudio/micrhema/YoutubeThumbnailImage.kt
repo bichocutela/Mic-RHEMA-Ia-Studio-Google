@@ -27,13 +27,15 @@ fun YoutubeThumbnailImage(
 ) {
     val context = LocalContext.current
     val ytId = extractYouTubeVideoId(videoUrl)
-    
-    val targetUrl = if (explicitThumbnailUrl.isNotBlank()) {
-        explicitThumbnailUrl
-    } else if (ytId != null) {
-        "https://img.youtube.com/vi/$ytId/hqdefault.jpg"
-    } else {
-        ""
+
+    // Para links do YouTube, a miniatura oficial é a fonte mais confiável. Antes,
+    // uma URL de thumbnail antiga ou inválida podia impedir o fallback do YouTube e
+    // deixar o cartão com o ícone genérico de vídeo.
+    val targetUrl = when {
+        ytId != null -> "https://i.ytimg.com/vi/$ytId/hqdefault.jpg"
+        explicitThumbnailUrl.startsWith("http://", ignoreCase = true) ||
+            explicitThumbnailUrl.startsWith("https://", ignoreCase = true) -> explicitThumbnailUrl.trim()
+        else -> ""
     }
 
     Box(
@@ -46,7 +48,7 @@ fun YoutubeThumbnailImage(
                     .data(targetUrl)
                     .crossfade(true)
                     .build(),
-                contentDescription = "Video Thumbnail",
+                contentDescription = "Miniatura do vídeo",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
                 loading = {
@@ -54,25 +56,25 @@ fun YoutubeThumbnailImage(
                 },
                 error = {
                     Icon(
-                        imageVector = Icons.Default.VideoLibrary, 
-                        contentDescription = null, 
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant, 
+                        imageVector = Icons.Default.VideoLibrary,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(48.dp)
                     )
                 }
             )
         } else {
             Icon(
-                imageVector = Icons.Default.VideoLibrary, 
-                contentDescription = null, 
-                tint = MaterialTheme.colorScheme.onSurfaceVariant, 
+                imageVector = Icons.Default.VideoLibrary,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(48.dp)
             )
         }
 
         Icon(
             imageVector = Icons.Default.PlayArrow,
-            contentDescription = "Play",
+            contentDescription = "Reproduzir",
             tint = Color.White.copy(alpha = 0.8f),
             modifier = Modifier.size(48.dp)
         )
