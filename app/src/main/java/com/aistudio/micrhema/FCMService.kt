@@ -1,7 +1,6 @@
 package com.aistudio.micrhema
 
 import android.util.Log
-import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 
@@ -24,6 +23,7 @@ class FCMService : FirebaseMessagingService() {
             ?: "Nova mensagem"
         val category = NotificationHelper.categoryFrom(remoteMessage.data["category"])
         val destinationRoute = remoteMessage.data["destination"] ?: remoteMessage.data["route"]
+        val destinationDocumentId = remoteMessage.data["documentId"] ?: remoteMessage.data["document_id"]
 
         if (remoteMessage.notification != null || remoteMessage.data.isNotEmpty()) {
             NotificationHelper.showNotification(
@@ -32,7 +32,8 @@ class FCMService : FirebaseMessagingService() {
                 message = message,
                 category = category,
                 respectPreferences = true,
-                destinationRoute = destinationRoute
+                destinationRoute = destinationRoute,
+                destinationDocumentId = destinationDocumentId
             )
         }
     }
@@ -40,29 +41,7 @@ class FCMService : FirebaseMessagingService() {
     override fun onNewToken(token: String) {
         super.onNewToken(token)
         Log.d(TAG, "Token FCM renovado; reconciliando tópicos")
-        reconcileTopics()
-    }
-
-    private fun reconcileTopics() {
-        val messaging = FirebaseMessaging.getInstance()
-
-        messaging.subscribeToTopic("all_users")
-            .addOnSuccessListener { Log.d(TAG, "Inscrição all_users confirmada") }
-            .addOnFailureListener { Log.e(TAG, "Falha ao inscrever em all_users", it) }
-
-        messaging.subscribeToTopic("devocionais")
-            .addOnSuccessListener { Log.d(TAG, "Inscrição devocionais confirmada") }
-            .addOnFailureListener { Log.e(TAG, "Falha ao inscrever em devocionais", it) }
-
-        if (NotificationHelper.isIbrMember(this)) {
-            messaging.subscribeToTopic("ibr_users")
-                .addOnSuccessListener { Log.d(TAG, "Inscrição ibr_users confirmada") }
-                .addOnFailureListener { Log.e(TAG, "Falha ao inscrever em ibr_users", it) }
-        } else {
-            messaging.unsubscribeFromTopic("ibr_users")
-                .addOnSuccessListener { Log.d(TAG, "Usuário fora do tópico ibr_users") }
-                .addOnFailureListener { Log.e(TAG, "Falha ao remover de ibr_users", it) }
-        }
+        NotificationHelper.ensureMessagingReady(this)
     }
 
     companion object {
