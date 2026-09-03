@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit
 object BackgroundNotificationCoordinator {
     private const val PREFS = "micrhema_notification_schedule"
     private const val KEY_SCHEMA = "schema"
-    private const val SCHEMA = 3
+    private const val SCHEMA = 4
 
     private const val WORK_DEVOTIONAL = "DailyDevotionalReminderV3"
     private const val WORK_NEWS = "MiddayNewsWorkerV3"
@@ -30,7 +30,7 @@ object BackgroundNotificationCoordinator {
     private const val WORK_SERVICE_BOOTSTRAP = "ServiceAlertPlannerBootstrapV3"
     private const val WORK_MEDIA = "MediaUpdateWorker"
     private const val WORK_IBR = "IbrContentWorker"
-    private const val WORK_APP_UPDATE = "AppUpdateWorker"
+    private const val WORK_APP_UPDATE = "AppUpdateWorkerV2"
 
     private val networkConstraint = Constraints.Builder()
         .setRequiredNetworkType(NetworkType.CONNECTED)
@@ -139,7 +139,10 @@ object BackgroundNotificationCoordinator {
     }
 
     private fun scheduleAppUpdate(wm: WorkManager) {
+        // A consulta de versão acontece em segundo plano, sem incomodar o usuário.
+        // O primeiro ciclo só roda depois de 12h e então permanece nessa cadência.
         val request = PeriodicWorkRequestBuilder<AppUpdateWorker>(12, TimeUnit.HOURS)
+            .setInitialDelay(12, TimeUnit.HOURS)
             .setConstraints(networkConstraint)
             .build()
         wm.enqueueUniquePeriodicWork(WORK_APP_UPDATE, ExistingPeriodicWorkPolicy.KEEP, request)
@@ -153,7 +156,8 @@ object BackgroundNotificationCoordinator {
             "DailyDevotionalReminder",
             "MiddayNewsWorker",
             "ServiceAlertWorker",
-            "DevotionalSyncWorker"
+            "DevotionalSyncWorker",
+            "AppUpdateWorker"
         ).forEach(wm::cancelUniqueWork)
         ServiceAlertWorker.cancelScheduledServiceMoments(context, wm)
         prefs.edit().putInt(KEY_SCHEMA, SCHEMA).apply()
