@@ -18,6 +18,11 @@ import java.util.concurrent.TimeUnit
 /** Disparo automático de notificações via Supabase Edge Function + Firebase FCM. */
 object NotificationDispatcher {
     private const val FUNCTION_NAME = "notify-fcm"
+
+    // Estes conteúdos já possuem um único fluxo agendado no aparelho. Enviar também no
+    // momento do cadastro causava notificações extras fora do horário escolhido pelo usuário.
+    private val scheduledOnlyCollections = setOf("devocionais", "cultos_agenda", "bible_news")
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -25,6 +30,11 @@ object NotificationDispatcher {
         .build()
 
     fun enqueue(topic: String, title: String, body: String, collection: String, documentId: String) {
+        if (collection in scheduledOnlyCollections) {
+            Log.d("NotificationDispatcher", "Push imediato ignorado para conteúdo agendado: $collection/$documentId")
+            return
+        }
+
         val baseUrl = BuildConfig.SUPABASE_URL.trim().trimEnd('/')
         val anonKey = BuildConfig.SUPABASE_ANON_KEY.trim()
         if (baseUrl.isBlank() || anonKey.isBlank() || baseUrl.contains("your-project")) return
@@ -53,7 +63,7 @@ object NotificationDispatcher {
                             finalTitle = "Nova pregação: $videoTitle"
                             finalBody = preacher.takeIf { it.isNotBlank() }
                                 ?.let { "Pregador: $it" }
-                                ?: "Novo vídeo disponível na aba Mídia."
+                                ?: "Nova pregação disponível na aba Mídia."
                         }
                         "sermons"
                     }
@@ -61,19 +71,10 @@ object NotificationDispatcher {
                         destination = "content"
                         "media"
                     }
-                    "cultos_agenda" -> {
-                        destination = "services"
-                        "next_service"
-                    }
                     "events" -> {
                         destination = "services"
                         "events"
                     }
-                    "devocionais" -> {
-                        destination = "devocionais"
-                        "daily_devotional"
-                    }
-                    "bible_news" -> "daily_news"
                     else -> "content_updates"
                 }
 
