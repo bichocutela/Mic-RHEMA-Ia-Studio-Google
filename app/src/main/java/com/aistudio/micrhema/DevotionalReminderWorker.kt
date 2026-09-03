@@ -10,8 +10,6 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.tasks.await
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import java.time.format.DateTimeParseException
 
 class DevotionalReminderWorker(
     private val context: Context,
@@ -30,8 +28,11 @@ class DevotionalReminderWorker(
             val candidates = (remote + local + DevotionalCalendar2027.items)
                 .distinctBy { it.id.ifBlank { "${it.date}:${it.title}" } }
                 .filter { it.isApproved }
-            val devotional = candidates.firstOrNull { parseDate(it.date) == today }
-                ?: candidates.maxByOrNull { it.timestamp }
+
+            // Usa exatamente o devocional do dia quando existir. Se ele faltar, só
+            // permite o último conteúdo anterior; o calendário de 2027 nunca pode
+            // vazar para uma notificação de 2026 ou de uma data anterior.
+            val devotional = DevotionalDateUtils.todayOrLatest(candidates, today)
 
             NotificationHelper.showNotification(
                 context = context,
@@ -89,22 +90,5 @@ class DevotionalReminderWorker(
             val type = object : TypeToken<List<Devotional>>() {}.type
             Gson().fromJson<List<Devotional>>(json, type)
         }.getOrDefault(emptyList())
-    }
-
-    private fun parseDate(raw: String): LocalDate? {
-        val value = raw.trim()
-        if (value.isBlank()) return null
-        val formats = listOf(
-            DateTimeFormatter.ISO_LOCAL_DATE,
-            DateTimeFormatter.ofPattern("dd/MM/yyyy"),
-            DateTimeFormatter.ofPattern("dd-MM-yyyy")
-        )
-        formats.forEach { formatter ->
-            try {
-                return LocalDate.parse(value, formatter)
-            } catch (_: DateTimeParseException) {
-            }
-        }
-        return null
     }
 }
