@@ -10,7 +10,12 @@ class NotificationRescheduleReceiver : BroadcastReceiver() {
         val pending = goAsync()
         Thread {
             try {
-                BackgroundNotificationCoordinator.initialize(context.applicationContext)
+                val appContext = context.applicationContext
+                when (intent?.action) {
+                    Intent.ACTION_TIME_CHANGED,
+                    Intent.ACTION_TIMEZONE_CHANGED -> BackgroundNotificationCoordinator.reanchorAfterClockChange(appContext)
+                    else -> BackgroundNotificationCoordinator.initialize(appContext)
+                }
             } finally {
                 pending.finish()
             }
