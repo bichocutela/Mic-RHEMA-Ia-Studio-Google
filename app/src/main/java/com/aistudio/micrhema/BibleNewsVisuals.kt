@@ -11,9 +11,10 @@ object BibleNewsVisuals {
     )
 
     /**
-     * Resolve a imagem mesmo quando o registro remoto substituiu a notícia local
-     * com imageUrl vazio. O fallback continua sendo uma URL pública; a UI também
-     * possui um cartão visual caso a rede não consiga carregá-la.
+     * Imagens aprovadas pelo ADM ou pelo catálogo têm prioridade. Para matérias
+     * sensíveis, não geramos automaticamente uma cena externa: a UI usa o cartão
+     * editorial seguro. Em pautas leves, o fallback continua disponível, mas com
+     * prompt explicitamente simbólico e não gráfico.
      */
     fun imageUrlFor(news: BibleNews): String {
         val directUrl = news.imageUrl.trim()
@@ -26,7 +27,9 @@ object BibleNewsVisuals {
             .orEmpty()
         if (catalogUrl.isNotBlank()) return catalogUrl
 
-        val prompt = "black and white newspaper illustration, biblical story from ${news.book}, ${news.title}, dramatic editorial lighting, no text"
+        if (news.contentWarning.isNotBlank() || news.intensity >= 3) return ""
+
+        val prompt = "respectful symbolic black and white newspaper illustration, biblical story from ${news.book}, ${news.title}, non graphic, no violence, no text"
         return "https://image.pollinations.ai/prompt/${Uri.encode(prompt)}?width=900&height=520&nologo=true"
     }
 }
