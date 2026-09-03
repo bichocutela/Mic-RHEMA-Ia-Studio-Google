@@ -52,6 +52,29 @@ object BibleNewsDocumentIds {
     }
 }
 
+/**
+ * A rota atual do MainActivity já delega a montagem final para YouVersionLinks.
+ * Guardamos o versículo por poucos milissegundos, somente durante esse clique,
+ * para manter compatibilidade sem alterar toda a árvore de navegação existente.
+ */
+object BibleNewsPendingNavigation {
+    private data class Pending(val book: String, val chapter: Int, val verse: Int)
+    @Volatile private var pending: Pending? = null
+
+    fun remember(book: String, chapter: Int, verse: Int) {
+        if (book.isNotBlank() && chapter > 0 && verse > 0) {
+            pending = Pending(book, chapter, verse)
+        }
+    }
+
+    fun consume(book: String, chapter: Int): Int? {
+        val current = pending ?: return null
+        if (!current.book.equals(book, ignoreCase = true) || current.chapter != chapter) return null
+        pending = null
+        return current.verse
+    }
+}
+
 /** IDs ocultados pelo ADM. Serve também como tombstone para itens empacotados no APK. */
 val hiddenBibleNewsIdsState = mutableStateListOf<Int>()
 
