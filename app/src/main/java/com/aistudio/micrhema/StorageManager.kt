@@ -392,6 +392,65 @@ object StorageManager {
         File(context.filesDir, "profile_photos/${uid}_profile.jpg").delete()
     }
 
+    private fun mediaStorageTarget(reference: String): Pair<String, String>? {
+        val raw = reference.trim()
+        if (raw.isBlank()) return null
+
+        val objectPath = if (raw.startsWith("$MEDIA_BUCKET/")) {
+            raw.removePrefix("$MEDIA_BUCKET/").substringBefore('?')
+        } else {
+            val configuredHost = runCatching { Uri.parse(BuildConfig.SUPABASE_URL).host }.getOrNull()
+            val uri = runCatching { Uri.parse(raw) }.getOrNull() ?: return null
+            if (uri.scheme !in setOf("http", "https") || configuredHost.isNullOrBlank() || uri.host != configuredHost) return null
+            val path = uri.path.orEmpty()
+            val markers = listOf(
+                "/storage/v1/object/public/$MEDIA_BUCKET/",
+                "/storage/v1/object/sign/$MEDIA_BUCKET/",
+                "/storage/v1/object/authenticated/$MEDIA_BUCKET/"
+            )
+            val marker = markers.firstOrNull { path.contains(it) } ?: return null
+            path.substringAfter(marker).substringBefore('?')
+        }
+        if (objectPath.isBlank() || objectPath.contains("..") || objectPath.startsWith('/')) return null
+        val targetUid = objectPath.substringBefore('/', "")
+        if (targetUid.isBlank() || '/' !in objectPath) return null
+        return targetUid to "$MEDIA_BUCKET/$objectPath"
+    }
+
+    /**
+     * Remove apenas arquivos pertencentes ao bucket media-assets deste projeto.
+     * URLs externas (YouTube, Drive, Unsplash etc.) são ignoradas.
+     */
+    suspend fun deleteMediaAssetIfSupabase(context: Context, reference: String): Boolean = withContext(Dispatchers.IO) {
+        val (targetUid, storagePath) = mediaStorageTarget(reference) ?: return@withContext false
+        val payload = JSONObject()
+            .put("operation", "delete")
+            .put("bucket", MEDIA_BUCKET)
+            .put("targetUid", targetUid)
+            .put("storagePath", storagePath)
+        executeGatewayRequest(context) { token ->
+            Request.Builder()
+                .url(gatewayUrl())
+                .header("Authorization", "Bearer $token")
+                .header("apikey", publishableKey())
+                .header("X-Rhema-Bucket", MEDIA_BUCKET)
+                .header("X-Rhema-Operation", "delete")
+                .withAdminAuthorization()
+                .header("Content-Type", "application/json")
+                .post(payload.toString().toRequestBody("application/json".toMediaTypeOrNull()))
+                .build()
+        }.use { response -> responseJson(response) }
+        true
+    }
+
+    suspend fun deleteMediaAssetsFromReferences(context: Context, references: Collection<String>): Int {
+        var removed = 0
+        references.map { it.trim() }.filter { it.isNotBlank() }.distinct().forEach { reference ->
+            if (deleteMediaAssetIfSupabase(context, reference)) removed++
+        }
+        return removed
+    }
+
     /** Compatibilidade para telas antigas: todos os uploads gerais agora usam o Supabase. */
     suspend fun uploadFile(
         context: Context,

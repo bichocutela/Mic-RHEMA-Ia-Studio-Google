@@ -618,6 +618,8 @@ fun EditBannersSection() {
     
     var showDialog by remember { mutableStateOf(false) }
     var editingBanner by remember { mutableStateOf<CarouselItem?>(null) }
+    var bannerToDelete by remember { mutableStateOf<CarouselItem?>(null) }
+    var isDeletingBanner by remember { mutableStateOf(false) }
     
     val imagePickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
@@ -705,9 +707,7 @@ fun EditBannersSection() {
                                 color = if (banner.eventInfo.isNotBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        IconButton(onClick = {
-                            removeCarouselItem(banner)
-                        }) {
+                        IconButton(onClick = { bannerToDelete = banner }) {
                             Icon(androidx.compose.material.icons.Icons.Default.Delete, contentDescription = "Remover", tint = MaterialTheme.colorScheme.error)
                         }
                     }
@@ -743,6 +743,38 @@ fun EditBannersSection() {
                 }
             }
         }
+    }
+
+    if (bannerToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { if (!isDeletingBanner) bannerToDelete = null },
+            title = { Text("Excluir banner?") },
+            text = { Text("O banner será removido do aplicativo e, se a imagem estiver no Supabase do MIC Rhema, o arquivo também será apagado para liberar espaço.") },
+            confirmButton = {
+                TextButton(
+                    enabled = !isDeletingBanner,
+                    onClick = {
+                        val target = bannerToDelete ?: return@TextButton
+                        isDeletingBanner = true
+                        scope.launch {
+                            try {
+                                target.imageUrl?.let { StorageManager.deleteMediaAssetIfSupabase(context, it) }
+                                removeCarouselItem(target)
+                                android.widget.Toast.makeText(context, "Banner excluído com sucesso.", android.widget.Toast.LENGTH_SHORT).show()
+                                bannerToDelete = null
+                            } catch (error: Exception) {
+                                android.widget.Toast.makeText(context, "Não foi possível excluir: ${error.message ?: "erro no armazenamento"}", android.widget.Toast.LENGTH_LONG).show()
+                            } finally {
+                                isDeletingBanner = false
+                            }
+                        }
+                    }
+                ) { Text(if (isDeletingBanner) "Excluindo..." else "Excluir", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(enabled = !isDeletingBanner, onClick = { bannerToDelete = null }) { Text("Cancelar") }
+            }
+        )
     }
 
     if (showDialog && editingBanner != null) {

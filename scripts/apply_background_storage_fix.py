@@ -516,8 +516,6 @@ old_vip_photo = '''                                IconButton(onClick = {
 '''
 text = replace_once(text, old_vip_photo, '''                                IconButton(onClick = { photoToDelete = photo }) {
 ''', "botão foto VIP")
-if text.count('title = { Text("Excluir foto?") }') < 1:
-    raise RuntimeError("Diálogo de foto comum deveria existir apenas em outro arquivo")
 # Insere um diálogo de foto específico do VIP no fim do bloco editingAlbum.
 if 'title = { Text("Excluir foto do IBR?") }' not in text:
     tail = '''            dismissButton = {

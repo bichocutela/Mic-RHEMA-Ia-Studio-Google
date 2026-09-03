@@ -187,7 +187,17 @@ fun EditMediaSection() {
                     subtitle = audio.artist,
                     type = "Áudio",
                     onEdit = { editingAudio = audio },
-                    onDelete = { removeContentAudio(audio) }
+                    onDelete = {
+                        coroutineScope.launch {
+                            try {
+                                StorageManager.deleteMediaAssetsFromReferences(context, listOf(audio.audioUrl, audio.coverUrl))
+                                removeContentAudio(audio)
+                                android.widget.Toast.makeText(context, "Áudio excluído.", android.widget.Toast.LENGTH_SHORT).show()
+                            } catch (error: Exception) {
+                                android.widget.Toast.makeText(context, "Áudio não excluído: ${error.message ?: "erro no Supabase"}", android.widget.Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
                 )
             }
         }
@@ -260,7 +270,17 @@ fun EditMediaSection() {
                     subtitle = video.description,
                     type = "Vídeo",
                     onEdit = { editingVideo = video },
-                    onDelete = { removeContentVideo(video) }
+                    onDelete = {
+                        coroutineScope.launch {
+                            try {
+                                StorageManager.deleteMediaAssetsFromReferences(context, listOf(video.videoUrl, video.thumbnailUrl))
+                                removeContentVideo(video)
+                                android.widget.Toast.makeText(context, "Vídeo excluído.", android.widget.Toast.LENGTH_SHORT).show()
+                            } catch (error: Exception) {
+                                android.widget.Toast.makeText(context, "Vídeo não excluído: ${error.message ?: "erro no Supabase"}", android.widget.Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
                 )
             }
         }
@@ -358,7 +378,8 @@ fun EditMediaSection() {
                     subtitle = album.description,
                     type = "Álbum",
                     onEdit = { editingAlbum = album },
-                    onDelete = { albumToDelete = album }
+                    onDelete = { albumToDelete = album },
+                    confirmDelete = false
                 )
             }
         }
@@ -384,19 +405,21 @@ fun EditMediaSection() {
                     TextButton(onClick = {
                         isDeleting = true
                         deleteScope.launch {
-                            // Simulate network delay and explicit storage cleanup logic
-                            android.util.Log.i("StorageCleanup", "Deleting cover image: ${albumToDelete!!.coverUrl}")
-                            albumToDelete!!.photos.forEach { photo ->
-                                android.util.Log.i("StorageCleanup", "Deleting photo from storage: ${photo.url}")
+                            val target = albumToDelete!!
+                            try {
+                                val refs = buildList {
+                                    target.coverUrl?.let { add(it) }
+                                    addAll(target.photos.map { it.url })
+                                }
+                                StorageManager.deleteMediaAssetsFromReferences(context, refs)
+                                removeContentPhotoAlbum(target)
+                                albumToDelete = null
+                                android.widget.Toast.makeText(context, "Álbum e arquivos excluídos.", android.widget.Toast.LENGTH_SHORT).show()
+                            } catch (error: Exception) {
+                                android.widget.Toast.makeText(context, "Álbum não excluído: ${error.message ?: "erro no Supabase"}", android.widget.Toast.LENGTH_LONG).show()
+                            } finally {
+                                isDeleting = false
                             }
-                            kotlinx.coroutines.delay(1500)
-                            
-                            val idx = contentAlbumsState.indexOfFirst { it.id == albumToDelete!!.id }
-                            if (idx != -1) {
-                                removeContentPhotoAlbum(albumToDelete!!)
-                            }
-                            isDeleting = false
-                            albumToDelete = null
                         }
                     }) { Text("Excluir", color = MaterialTheme.colorScheme.error) }
                 }
@@ -528,6 +551,8 @@ fun EditMediaSection() {
         var isUploadingPhoto by remember { mutableStateOf(false) }
         var photoProgress by remember { mutableFloatStateOf(0f) }
         var newPhotoDriveUrl by remember { mutableStateOf("") }
+        var photoToDelete by remember(editingAlbum) { mutableStateOf<AlbumPhoto?>(null) }
+        var isDeletingPhoto by remember { mutableStateOf(false) }
         val scope = rememberCoroutineScope()
         val photoPicker = androidx.activity.compose.rememberLauncherForActivityResult(
             contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
@@ -635,17 +660,7 @@ fun EditMediaSection() {
                                     label = { Text("Legenda") },
                                     modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
                                 )
-                                IconButton(onClick = {
-                                    val updatedPhotos = editingAlbum!!.photos.filter { it.url != photo.url }
-                                    val updatedCover = if (editingAlbum!!.coverUrl == photo.url) updatedPhotos.firstOrNull()?.url else editingAlbum!!.coverUrl
-                                    val updatedAlbum = editingAlbum!!.copy(photos = updatedPhotos, coverUrl = updatedCover)
-                                    val index = contentAlbumsState.indexOfFirst { it.id == editingAlbum!!.id }
-                                    if (index != -1) {
-                                        contentAlbumsState[index] = updatedAlbum
-                                            addContentPhotoAlbum(updatedAlbum)
-                                        editingAlbum = updatedAlbum
-                                    }
-                                }) {
+                                IconButton(onClick = { photoToDelete = photo }) {
                                     Icon(Icons.Default.Delete, contentDescription = "Remover Foto", tint = MaterialTheme.colorScheme.error)
                                 }
                             }
@@ -668,6 +683,41 @@ fun EditMediaSection() {
                 TextButton(onClick = { editingAlbum = null }) { Text("Cancelar") }
             }
         )
+
+        if (photoToDelete != null) {
+            AlertDialog(
+                onDismissRequest = { if (!isDeletingPhoto) photoToDelete = null },
+                title = { Text("Excluir foto?") },
+                text = { Text("A foto será removida do álbum e do Supabase quando pertencer ao armazenamento do MIC Rhema.") },
+                confirmButton = {
+                    TextButton(
+                        enabled = !isDeletingPhoto,
+                        onClick = {
+                            val targetPhoto = photoToDelete ?: return@TextButton
+                            isDeletingPhoto = true
+                            scope.launch {
+                                try {
+                                    StorageManager.deleteMediaAssetIfSupabase(context, targetPhoto.url)
+                                    val updatedPhotos = editingAlbum!!.photos.filter { it.url != targetPhoto.url }
+                                    val updatedCover = if (editingAlbum!!.coverUrl == targetPhoto.url) updatedPhotos.firstOrNull()?.url else editingAlbum!!.coverUrl
+                                    val updatedAlbum = editingAlbum!!.copy(photos = updatedPhotos, coverUrl = updatedCover)
+                                    val index = contentAlbumsState.indexOfFirst { it.id == updatedAlbum.id }
+                                    if (index >= 0) contentAlbumsState[index] = updatedAlbum
+                                    addContentPhotoAlbum(updatedAlbum)
+                                    editingAlbum = updatedAlbum
+                                    photoToDelete = null
+                                } catch (error: Exception) {
+                                    android.widget.Toast.makeText(context, "Foto não excluída: ${error.message ?: "erro no Supabase"}", android.widget.Toast.LENGTH_LONG).show()
+                                } finally {
+                                    isDeletingPhoto = false
+                                }
+                            }
+                        }
+                    ) { Text(if (isDeletingPhoto) "Excluindo..." else "Excluir", color = MaterialTheme.colorScheme.error) }
+                },
+                dismissButton = { TextButton(enabled = !isDeletingPhoto, onClick = { photoToDelete = null }) { Text("Cancelar") } }
+            )
+        }
     }
 
 }
@@ -782,7 +832,8 @@ private fun mediaTypeIcon(type: String): androidx.compose.ui.graphics.vector.Ima
 }
 
 @Composable
-private fun MediaContentRow(title: String, subtitle: String, type: String, onEdit: () -> Unit, onDelete: () -> Unit) {
+private fun MediaContentRow(title: String, subtitle: String, type: String, onEdit: () -> Unit, onDelete: () -> Unit, confirmDelete: Boolean = true) {
+    var showDeleteConfirmation by remember(title, type) { mutableStateOf(false) }
     Card(shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(42.dp)) {
@@ -797,8 +848,21 @@ private fun MediaContentRow(title: String, subtitle: String, type: String, onEdi
                 Text(type, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
             }
             IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, contentDescription = "Editar $title", tint = MaterialTheme.colorScheme.primary) }
-            IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, contentDescription = "Excluir $title", tint = MaterialTheme.colorScheme.error) }
+            IconButton(onClick = { if (confirmDelete) showDeleteConfirmation = true else onDelete() }) { Icon(Icons.Default.Delete, contentDescription = "Excluir $title", tint = MaterialTheme.colorScheme.error) }
         }
+    }
+    if (showDeleteConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmation = false },
+            title = { Text("Confirmar exclusão") },
+            text = { Text("Deseja excluir '$title'? Se o arquivo estiver no Supabase do MIC Rhema, ele também será apagado para liberar espaço.") },
+            confirmButton = {
+                TextButton(onClick = { showDeleteConfirmation = false; onDelete() }) {
+                    Text("Excluir", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = { TextButton(onClick = { showDeleteConfirmation = false }) { Text("Cancelar") } }
+        )
     }
 }
 

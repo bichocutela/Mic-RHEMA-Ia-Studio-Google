@@ -112,24 +112,11 @@ object NotificationHelper {
     }
 
     fun applyAdminNotificationPolicy(context: Context, enabled: Boolean) {
-        val workManager = WorkManager.getInstance(context)
-        if (enabled) {
-            scheduleDailyReminder(context)
-            scheduleDevotionalSync(context)
-            scheduleServiceAlert(context)
-            scheduleDailyNews(context)
-            scheduleMediaSync(context)
-            scheduleIbrContentSync(context)
-            scheduleAppUpdateCheck(context)
-        } else {
-            workManager.cancelUniqueWork("DailyDevotionalReminder")
-            workManager.cancelUniqueWork("DevotionalSyncWorker")
-            workManager.cancelUniqueWork("ServiceAlertWorker")
-            workManager.cancelUniqueWork("MiddayNewsWorker")
-            workManager.cancelUniqueWork("MediaUpdateWorker")
-            workManager.cancelUniqueWork("IbrContentWorker")
-            workManager.cancelUniqueWork("AppUpdateWorker")
-        }
+        context.getSharedPreferences("micrhema_admin_settings", Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean("notificationsEnabled", enabled)
+            .apply()
+        BackgroundNotificationCoordinator.reconcile(context.applicationContext, enabled)
     }
 
     fun createNotificationChannel(context: Context) {
