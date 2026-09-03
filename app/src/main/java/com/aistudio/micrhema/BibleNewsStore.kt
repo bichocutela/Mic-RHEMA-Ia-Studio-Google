@@ -54,24 +54,32 @@ object BibleNewsDocumentIds {
 
 /**
  * A rota atual do MainActivity já delega a montagem final para YouVersionLinks.
- * Guardamos o versículo por poucos milissegundos, somente durante esse clique,
- * para manter compatibilidade sem alterar toda a árvore de navegação existente.
+ * O versículo pendente vive apenas por alguns segundos para nunca contaminar
+ * uma navegação posterior e não relacionada.
  */
 object BibleNewsPendingNavigation {
-    private data class Pending(val book: String, val chapter: Int, val verse: Int)
+    private const val MAX_AGE_MS = 5_000L
+    private data class Pending(
+        val book: String,
+        val chapter: Int,
+        val verse: Int,
+        val createdAt: Long
+    )
+
     @Volatile private var pending: Pending? = null
 
     fun remember(book: String, chapter: Int, verse: Int) {
         if (book.isNotBlank() && chapter > 0 && verse > 0) {
-            pending = Pending(book, chapter, verse)
+            pending = Pending(book, chapter, verse, System.currentTimeMillis())
         }
     }
 
     fun consume(book: String, chapter: Int): Int? {
         val current = pending ?: return null
-        if (!current.book.equals(book, ignoreCase = true) || current.chapter != chapter) return null
         pending = null
-        return current.verse
+        val isFresh = System.currentTimeMillis() - current.createdAt <= MAX_AGE_MS
+        val isSameReference = current.book.equals(book, ignoreCase = true) && current.chapter == chapter
+        return current.verse.takeIf { isFresh && isSameReference }
     }
 }
 
@@ -148,10 +156,27 @@ fun hideBibleNewsSafely(
             SetOptions.merge()
         )
         batch.delete(db.collection("bible_news").document(documentId))
+        if (dailyNewsNotificationIdState.value == news.id) {
+            batch.set(
+                db.collection("settings").document("daily_news"),
+                mapOf(
+                    "selectedNewsId" to FieldValue.delete(),
+                    "selectedDocumentId" to FieldValue.delete(),
+                    "title" to FieldValue.delete(),
+                    "summary" to FieldValue.delete(),
+                    "content" to FieldValue.delete(),
+                    "updatedAt" to System.currentTimeMillis()
+                ),
+                SetOptions.merge()
+            )
+        }
         batch.commit()
             .addOnSuccessListener {
                 if (news.id !in hiddenBibleNewsIdsState) hiddenBibleNewsIdsState.add(news.id)
                 bibleNewsState.removeAll { it.id == news.id }
+                if (dailyNewsNotificationIdState.value == news.id) {
+                    dailyNewsNotificationIdState.value = null
+                }
                 BibleNewsDocumentIds.forget(news.id)
                 onSuccess()
             }
