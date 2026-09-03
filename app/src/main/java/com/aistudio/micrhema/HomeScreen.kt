@@ -52,6 +52,11 @@ import java.time.LocalDateTime
 fun HomeScreen(onNavigate: (String) -> Unit = {}) {
     val scrollState = rememberScrollState()
     val context = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        NotificationHelper.ensureMessagingReady(context)
+        (context as? android.app.Activity)?.let { NotificationHelper.requestNotificationPermission(it) }
+    }
     
     val currentMember = loggedInMemberState.value
     var selectedService by remember { mutableStateOf<ChurchService?>(null) }
@@ -135,11 +140,8 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
     val editorialNews = BibleNewsEditorial.withEditorialCatalog(
         if (bibleNewsState.isEmpty()) BibleNewsData.newsList else bibleNewsState.toList()
     )
-    val latestNews = editorialNews
-        .filter { it.featured }
-        .ifEmpty { editorialNews }
-        .sortedByDescending { it.publishedAt }
-        .take(5)
+    // A seleção permanece estável durante esta sessão e muda em uma nova abertura real do app.
+    val latestNews = HomeNewsSession.select(editorialNews, limit = 5)
     
     // Mood State
     var showMoodSelector by remember { mutableStateOf(false) }
