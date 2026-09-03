@@ -910,6 +910,7 @@ fun EditVipIbrSection() {
     var videoUrl by remember { mutableStateOf("") }
     var audioUrl by remember { mutableStateOf("") }
     var textContent by remember { mutableStateOf("") }
+    var studyPdfUrl by remember { mutableStateOf("") }
     
     var courseSearch by remember { mutableStateOf("") }
     var courseThemeFilter by remember { mutableStateOf("Todos") }
@@ -1116,6 +1117,18 @@ fun EditVipIbrSection() {
                             )
                         }
 
+                        LocalUploadField(
+                            value = studyPdfUrl,
+                            onValueChange = { studyPdfUrl = it },
+                            label = "Conteúdo para estudo — PDF ou link do Drive (opcional)",
+                            mimeType = "application/pdf"
+                        )
+                        Text(
+                            "O PDF aparecerá abaixo da aula para o aluno baixar quando estiver disponível.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
                         GlassButton(
                             onClick = {
                                 if (chapterTitle.isNotBlank() && selectedCourseForChapter != null) {
@@ -1131,6 +1144,7 @@ fun EditVipIbrSection() {
                                         videoUrl = videoUrl,
                                         audioUrl = audioUrl,
                                         textContent = textContent,
+                                        studyPdfUrl = studyPdfUrl.trim(),
                                         isYoutube = detectedYoutube,
                                         youtubeId = detectedYoutubeId
                                     )
@@ -1156,6 +1170,7 @@ fun EditVipIbrSection() {
                                     chapterDescription = ""
                                     videoUrl = ""
                                     audioUrl = ""
+                                    studyPdfUrl = ""
                                     isYoutube = false
                                 } else {
                                     NotificationHelper.showNotification(context, "Erro", "Preencha o título da aula.")
@@ -1263,7 +1278,7 @@ fun EditVipIbrSection() {
                                         Column {
                                             Text(ch.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                                             Text(
-                                                text = "${ch.durationMinutes} min • ${if (ch.isYoutube) "YouTube 📺" else if (ch.videoUrl.isNotEmpty()) "Vídeo 🎥" else "Somente Áudio 🎵"}",
+                                                text = "${ch.durationMinutes} min • ${if (ch.isYoutube) "YouTube 📺" else if (ch.videoUrl.isNotEmpty()) "Vídeo 🎥" else "Somente Áudio 🎵"}${if (ch.studyPdfUrl.isNotBlank()) " • PDF 📄" else ""}",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = Color.Gray
                                             )
@@ -1337,6 +1352,7 @@ fun EditVipIbrSection() {
         var editDescription by remember(editingChapter) { mutableStateOf(editingChapter!!.description) }
         var editDuration by remember(editingChapter) { mutableStateOf(editingChapter!!.durationMinutes.toString()) }
         var editVideoUrl by remember(editingChapter) { mutableStateOf(editingChapter!!.videoUrl) }
+        var editStudyPdfUrl by remember(editingChapter) { mutableStateOf(editingChapter!!.studyPdfUrl) }
         
         AlertDialog(
             onDismissRequest = {
@@ -1350,6 +1366,12 @@ fun EditVipIbrSection() {
                     GlassTextField(value = editDescription, onValueChange = { editDescription = it }, label = { Text("Descrição") })
                     GlassTextField(value = editDuration, onValueChange = { editDuration = it }, label = { Text("Duração (Min)") })
                     GlassTextField(value = editVideoUrl, onValueChange = { editVideoUrl = it }, label = { Text("URL Vídeo") })
+                    LocalUploadField(
+                        value = editStudyPdfUrl,
+                        onValueChange = { editStudyPdfUrl = it },
+                        label = "Conteúdo para estudo — PDF ou link do Drive",
+                        mimeType = "application/pdf"
+                    )
                 }
             },
             confirmButton = {
@@ -1367,6 +1389,7 @@ fun EditVipIbrSection() {
                                 description = editDescription,
                                 durationMinutes = editDuration.toIntOrNull() ?: editingChapter!!.durationMinutes,
                                 videoUrl = editVideoUrl,
+                                studyPdfUrl = editStudyPdfUrl.trim(),
                                 isYoutube = isYt,
                                 youtubeId = ytId
                             )
