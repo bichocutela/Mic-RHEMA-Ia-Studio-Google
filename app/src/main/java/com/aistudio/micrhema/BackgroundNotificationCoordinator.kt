@@ -11,14 +11,7 @@ import androidx.work.WorkManager
 import java.util.Calendar
 import java.util.concurrent.TimeUnit
 
-/**
- * Fonte única dos agendamentos locais de notificação.
- *
- * Importante: este coordenador não depende de uma tela Compose estar aberta.
- * Ele é chamado pela Application, por mudanças nas Configurações e pelo receiver
- * de reinicialização/alteração de horário. Assim o WorkManager continua cuidando
- * dos avisos quando o app sai da tela ou o processo é encerrado normalmente.
- */
+/** Fonte única dos agendamentos locais de notificação, independente de telas Compose. */
 object BackgroundNotificationCoordinator {
     private const val PREFS = "micrhema_notification_schedule"
     private const val KEY_SCHEMA = "schema"
@@ -37,9 +30,21 @@ object BackgroundNotificationCoordinator {
         .build()
 
     fun initialize(context: Context) {
-        NotificationHelper.createNotificationChannel(context)
-        NotificationHelper.ensureMessagingReady(context)
-        reconcile(context.applicationContext)
+        val appContext = context.applicationContext
+        NotificationHelper.createNotificationChannel(appContext)
+        NotificationHelper.ensureMessagingReady(appContext)
+        reconcile(appContext)
+    }
+
+    fun reanchorAfterClockChange(context: Context) {
+        val appContext = context.applicationContext
+        val wm = WorkManager.getInstance(appContext)
+        wm.cancelUniqueWork(WORK_DEVOTIONAL)
+        wm.cancelUniqueWork(WORK_NEWS)
+        wm.cancelUniqueWork(WORK_SERVICE_PLANNER)
+        wm.cancelUniqueWork(WORK_SERVICE_BOOTSTRAP)
+        ServiceAlertWorker.cancelScheduledServiceMoments(appContext, wm)
+        reconcile(appContext)
     }
 
     fun reconcile(context: Context, adminEnabledOverride: Boolean? = null) {
@@ -55,11 +60,9 @@ object BackgroundNotificationCoordinator {
 
         reconcileDailyDevotional(wm, globallyEnabled && settings.notifDailyDevotional)
         reconcileDailyNews(wm, globallyEnabled && settings.notifDailyNews)
-        reconcileServiceAlerts(wm, globallyEnabled && (settings.notifNextService || settings.notifEvents))
+        reconcileServiceAlerts(appContext, wm, globallyEnabled && settings.notifNextService)
         reconcileMedia(wm, globallyEnabled && settings.notifNewMedia)
         reconcileIbr(wm, globallyEnabled && settings.notifIbrContent && NotificationHelper.isIbrMember(appContext))
-
-        // Atualização do aplicativo não é uma notificação editorial e continua independente.
         scheduleAppUpdate(wm)
     }
 
@@ -87,14 +90,13 @@ object BackgroundNotificationCoordinator {
         wm.enqueueUniquePeriodicWork(WORK_NEWS, ExistingPeriodicWorkPolicy.KEEP, request)
     }
 
-    private fun reconcileServiceAlerts(wm: WorkManager, enabled: Boolean) {
+    private fun reconcileServiceAlerts(context: Context, wm: WorkManager, enabled: Boolean) {
         if (!enabled) {
             wm.cancelUniqueWork(WORK_SERVICE_PLANNER)
             wm.cancelUniqueWork(WORK_SERVICE_BOOTSTRAP)
-            ServiceAlertWorker.cancelScheduledServiceMoments(wm)
+            ServiceAlertWorker.cancelScheduledServiceMoments(context, wm)
             return
         }
-
         val periodic = PeriodicWorkRequestBuilder<ServiceAlertWorker>(1, TimeUnit.HOURS)
             .setConstraints(networkConstraint)
             .build()
@@ -138,14 +140,9 @@ object BackgroundNotificationCoordinator {
     private fun migrateLegacySchedulesIfNeeded(context: Context, wm: WorkManager) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         if (prefs.getInt(KEY_SCHEMA, 0) == SCHEMA) return
-
-        listOf(
-            "DailyDevotionalReminder",
-            "MiddayNewsWorker",
-            "ServiceAlertWorker",
-            "DevotionalSyncWorker"
-        ).forEach(wm::cancelUniqueWork)
-        ServiceAlertWorker.cancelScheduledServiceMoments(wm)
+        listOf("DailyDevotionalReminder", "MiddayNewsWorker", "ServiceAlertWorker", "DevotionalSyncWorker")
+            .forEach(wm::cancelUniqueWork)
+        ServiceAlertWorker.cancelScheduledServiceMoments(context, wm)
         prefs.edit().putInt(KEY_SCHEMA, SCHEMA).apply()
     }
 
