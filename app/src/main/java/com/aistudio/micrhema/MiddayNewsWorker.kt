@@ -22,7 +22,24 @@ class MiddayNewsWorker(
             val db = FirebaseFirestore.getInstance()
             val selection = db.collection("settings").document("daily_news").get().await()
             val selectedId = selection.getLong("selectedNewsId")?.toInt() ?: return Result.success()
-            val news = db.collection("bible_news").document(selectedId.toString()).get().await()
+
+            val editorialSettings = db.collection("settings").document("bible_news_editorial").get().await()
+            val hiddenIds = (editorialSettings.get("hiddenIds") as? List<*>)
+                .orEmpty()
+                .mapNotNull { value ->
+                    when (value) {
+                        is Number -> value.toInt()
+                        is String -> value.toIntOrNull()
+                        else -> null
+                    }
+                }
+                .toSet()
+            if (selectedId in hiddenIds) return Result.success()
+
+            val selectedDocumentId = selection.getString("selectedDocumentId")
+                ?.takeIf { it.isNotBlank() }
+                ?: selectedId.toString()
+            val news = db.collection("bible_news").document(selectedDocumentId).get().await()
             val selectedTitle = news.getString("title") ?: selection.getString("title") ?: return Result.success()
             val selectedSummary = news.getString("summary")
                 ?: selection.getString("summary")
@@ -31,7 +48,7 @@ class MiddayNewsWorker(
                 ?: "Leia a história bíblica de hoje."
 
             val dateKey = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-            val notificationKey = "$dateKey:$selectedId"
+            val notificationKey = "$dateKey:$selectedDocumentId"
             val prefs = context.getSharedPreferences("micrhema_prefs", Context.MODE_PRIVATE)
             if (prefs.getString("last_daily_news_notification_key", null) == notificationKey) {
                 return Result.success()
@@ -42,7 +59,8 @@ class MiddayNewsWorker(
                 title = "Notícia bíblica do dia",
                 message = "$selectedTitle — ${selectedSummary.take(180)}",
                 category = NotificationHelper.Category.DAILY_NEWS,
-                respectPreferences = true
+                respectPreferences = true,
+                destinationRoute = "news_detail/$selectedId"
             )
             prefs.edit().putString("last_daily_news_notification_key", notificationKey).apply()
             Result.success()
