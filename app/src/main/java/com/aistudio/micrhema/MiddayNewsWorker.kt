@@ -6,9 +6,6 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 class MiddayNewsWorker(
     private val context: Context,
@@ -22,6 +19,7 @@ class MiddayNewsWorker(
             val db = FirebaseFirestore.getInstance()
             val selection = db.collection("settings").document("daily_news").get().await()
             val selectedId = selection.getLong("selectedNewsId")?.toInt() ?: return Result.success()
+            val selectionVersion = selection.getLong("updatedAt") ?: selectedId.toLong()
 
             val editorialSettings = db.collection("settings").document("bible_news_editorial").get().await()
             val hiddenIds = (editorialSettings.get("hiddenIds") as? List<*>)
@@ -47,10 +45,8 @@ class MiddayNewsWorker(
                 ?: selection.getString("content")
                 ?: "Leia a história bíblica de hoje."
 
-            val dateKey = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-            val notificationKey = "$dateKey:$selectedDocumentId"
             val prefs = context.getSharedPreferences("micrhema_prefs", Context.MODE_PRIVATE)
-            if (prefs.getString("last_daily_news_notification_key", null) == notificationKey) {
+            if (prefs.getLong("last_daily_news_selection_version", Long.MIN_VALUE) == selectionVersion) {
                 return Result.success()
             }
 
@@ -62,7 +58,10 @@ class MiddayNewsWorker(
                 respectPreferences = true,
                 destinationRoute = "news_detail/$selectedId"
             )
-            prefs.edit().putString("last_daily_news_notification_key", notificationKey).apply()
+            prefs.edit()
+                .putLong("last_daily_news_selection_version", selectionVersion)
+                .remove("last_daily_news_notification_key")
+                .apply()
             Result.success()
         } catch (e: Exception) {
             Log.e("MiddayNewsWorker", "Falha ao verificar notícia diária", e)
