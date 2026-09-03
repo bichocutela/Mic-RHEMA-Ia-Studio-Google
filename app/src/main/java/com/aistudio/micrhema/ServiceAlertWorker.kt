@@ -14,15 +14,10 @@ import java.time.DayOfWeek
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.LocalTime
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
-/**
- * Planejador dos avisos de culto. Ele não notifica ao ser executado: cria trabalhos
- * pontuais para 10h da véspera e 10h do próprio dia, permitindo funcionamento com
- * o app fechado e evitando o antigo disparo "assim que abrir".
- */
+/** Planeja avisos pontuais para 10h da véspera e 10h do próprio dia do culto. */
 class ServiceAlertWorker(
     private val context: Context,
     workerParams: WorkerParameters
@@ -38,7 +33,11 @@ class ServiceAlertWorker(
                 .await()
                 .documents
                 .mapNotNull { document ->
-                    runCatching { document.toObject(ChurchService::class.java)?.also { if (it.id.isBlank()) it.id = document.id } }.getOrNull()
+                    runCatching {
+                        document.toObject(ChurchService::class.java)?.also {
+                            if (it.id.isBlank()) it.id = document.id
+                        }
+                    }.getOrNull()
                 }
                 .filter { it.isApproved }
 
@@ -74,7 +73,9 @@ class ServiceAlertWorker(
         val now = LocalDateTime.now()
         if (target.isBefore(now.minusMinutes(15))) return null
 
-        val stableServiceId = service.id.ifBlank { service.title.lowercase(Locale.getDefault()).replace(Regex("[^a-z0-9]+"), "-") }
+        val stableServiceId = service.id.ifBlank {
+            service.title.lowercase(Locale.getDefault()).replace(Regex("[^a-z0-9]+"), "-")
+        }
         val workName = "ServiceMomentV3:${stableServiceId}:${expectedDate}:$kind"
         val delayMs = Duration.between(now, target).toMillis().coerceAtLeast(0L)
         val data = Data.Builder()
@@ -97,9 +98,7 @@ class ServiceAlertWorker(
             runCatching { LocalDate.parse(raw) }.getOrNull()?.let { return it }
         }
         val wantedDay = parseDay(service.day) ?: return null
-        return (0..7)
-            .map { from.plusDays(it.toLong()) }
-            .firstOrNull { it.dayOfWeek == wantedDay }
+        return (0..7).map { from.plusDays(it.toLong()) }.firstOrNull { it.dayOfWeek == wantedDay }
     }
 
     private fun parseDay(raw: String): DayOfWeek? {
@@ -128,17 +127,10 @@ class ServiceAlertWorker(
             prefs.edit().putStringSet(KEY_NAMES, desired).apply()
         }
 
-        fun cancelScheduledServiceMoments(wm: WorkManager) {
-            val context = runCatching {
-                val field = WorkManager::class.java.getDeclaredField("mContext")
-                field.isAccessible = true
-                field.get(wm) as? Context
-            }.getOrNull()
-            if (context != null) {
-                val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                prefs.getStringSet(KEY_NAMES, emptySet()).orEmpty().forEach(wm::cancelUniqueWork)
-                prefs.edit().remove(KEY_NAMES).apply()
-            }
+        fun cancelScheduledServiceMoments(context: Context, wm: WorkManager) {
+            val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            prefs.getStringSet(KEY_NAMES, emptySet()).orEmpty().forEach(wm::cancelUniqueWork)
+            prefs.edit().remove(KEY_NAMES).apply()
         }
     }
 }
