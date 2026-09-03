@@ -1,5 +1,7 @@
 package com.aistudio.micrhema
 
+import java.text.Normalizer
+
 object BibleNewsEditorial {
     val intensityLabels = mapOf(
         1 to "Para refletir",
@@ -99,18 +101,20 @@ object BibleNewsEditorial {
         val bundledFallback = (BibleNewsData.newsList + BibleNewsEditorialCatalog.additionalNews)
             .filterNot { it.id in remoteIds }
         return mergeUnique(remote + bundledFallback)
+            .filterNot { it.id in hiddenBibleNewsIdsState }
     }
 
     fun matches(news: BibleNews, query: String, filter: String): Boolean {
-        val normalizedQuery = query.trim().lowercase()
-        val textMatches = normalizedQuery.isBlank() || listOf(
+        val normalizedQuery = normalizeSearch(query)
+        val searchableText = listOf(
             news.title,
             news.summary,
             news.content,
             news.book,
             news.category,
             news.tags.joinToString(" ")
-        ).joinToString(" ").lowercase().contains(normalizedQuery)
+        ).joinToString(" ")
+        val textMatches = normalizedQuery.isBlank() || normalizeSearch(searchableText).contains(normalizedQuery)
         if (!textMatches) return false
         return when {
             filter.isBlank() || filter == "Tudo" -> true
@@ -119,6 +123,11 @@ object BibleNewsEditorial {
             else -> news.category == filter || news.tags.any { it.equals(filter, ignoreCase = true) }
         }
     }
+
+    private fun normalizeSearch(value: String): String =
+        Normalizer.normalize(value.trim().lowercase(), Normalizer.Form.NFD)
+            .replace(Regex("\\p{M}+"), "")
+            .replace(Regex("\\s+"), " ")
 
     private fun inferCategory(news: BibleNews): String {
         val text = "${news.title} ${news.content}".lowercase()
