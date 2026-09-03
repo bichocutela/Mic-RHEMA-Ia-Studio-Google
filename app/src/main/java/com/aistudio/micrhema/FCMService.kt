@@ -35,7 +35,8 @@ class FCMService : FirebaseMessagingService() {
         // Usuários comuns ignoram este push e deixam o WorkManager consultar a versão
         // silenciosamente a cada 12 horas, evitando avisos a cada publicação.
         val isAppUpdate = rawCategory == "app_update"
-        if (isAppUpdate && loggedInMemberState.value?.isAdmin != true) {
+        val hasAdminSession = adminAuthenticatedState.value || loggedInMemberState.value?.isAdmin == true
+        if (isAppUpdate && !hasAdminSession) {
             Log.d(TAG, "Push de atualização ignorado para usuário comum; verificação local cuidará do aviso.")
             return
         }
