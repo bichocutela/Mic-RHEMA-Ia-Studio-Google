@@ -21,27 +21,47 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          path = Path('app/src/main/java/com/aistudio/micrhema/HomeScreen.kt')
+
+          # 1) FCM deve ser tolerante a Firebase momentaneamente indisponível.
+          path = Path('app/src/main/java/com/aistudio/micrhema/NotificationHelper.kt')
           text = path.read_text()
+          old = '''    fun ensureMessagingReady(context: Context) {\n        createNotificationChannel(context)\n        val messaging = FirebaseMessaging.getInstance()\n        messaging.subscribeToTopic("all_users")\n        messaging.subscribeToTopic("devocionais")\n        if (isIbrMember(context)) {\n            messaging.subscribeToTopic("ibr_users")\n        } else {\n            messaging.unsubscribeFromTopic("ibr_users")\n        }\n    }\n'''
+          new = '''    fun ensureMessagingReady(context: Context) {\n        createNotificationChannel(context)\n        runCatching {\n            val messaging = FirebaseMessaging.getInstance()\n            messaging.subscribeToTopic("all_users")\n            messaging.subscribeToTopic("devocionais")\n            if (isIbrMember(context)) {\n                messaging.subscribeToTopic("ibr_users")\n            } else {\n                messaging.unsubscribeFromTopic("ibr_users")\n            }\n        }.onFailure { error ->\n            android.util.Log.w("NotificationHelper", "Não foi possível reconciliar tópicos FCM agora", error)\n        }\n    }\n'''
+          if old not in text:
+              raise SystemExit('Função ensureMessagingReady não encontrada')
+          path.write_text(text.replace(old, new, 1))
 
-          old_context = '''    val scrollState = rememberScrollState()\n    val context = LocalContext.current\n    \n    val currentMember = loggedInMemberState.value\n'''
-          new_context = '''    val scrollState = rememberScrollState()\n    val context = LocalContext.current\n\n    LaunchedEffect(Unit) {\n        NotificationHelper.ensureMessagingReady(context)\n        (context as? android.app.Activity)?.let { NotificationHelper.requestNotificationPermission(it) }\n    }\n    \n    val currentMember = loggedInMemberState.value\n'''
-          if old_context not in text:
-              raise SystemExit('Bloco de inicialização da Home não encontrado')
-          text = text.replace(old_context, new_context, 1)
-
-          old_news = '''    val latestNews = editorialNews\n        .filter { it.featured }\n        .ifEmpty { editorialNews }\n        .sortedByDescending { it.publishedAt }\n        .take(5)\n'''
-          new_news = '''    // A seleção permanece estável durante esta sessão e muda em uma nova abertura real do app.\n    val latestNews = HomeNewsSession.select(editorialNews, limit = 5)\n'''
-          if old_news not in text:
-              raise SystemExit('Bloco antigo de seleção de notícias não encontrado')
-          text = text.replace(old_news, new_news, 1)
-
+          # 2) Aba selecionada não pode estourar a largura da barra inferior.
+          path = Path('app/src/main/java/com/aistudio/micrhema/GlassComponents.kt')
+          text = path.read_text()
+          old = '''                                Text(\n                                    text = item.title,\n                                    style = MaterialTheme.typography.labelLarge,\n                                    fontWeight = FontWeight.Bold\n                                )\n'''
+          new = '''                                Text(\n                                    text = item.title,\n                                    style = MaterialTheme.typography.labelLarge,\n                                    fontWeight = FontWeight.Bold,\n                                    maxLines = 1,\n                                    softWrap = false\n                                )\n'''
+          if old not in text:
+              raise SystemExit('Texto da navegação inferior não encontrado')
+          text = text.replace(old, new, 1)
+          text = text.replace(
+              'modifier = Modifier.padding(horizontal = if (isSelected) 16.dp else 12.dp, vertical = 12.dp)',
+              'modifier = Modifier.padding(horizontal = if (isSelected) 14.dp else 10.dp, vertical = 11.dp)',
+              1
+          )
           path.write_text(text)
+
+          # 3) Configurações ganha um diagnóstico real de permissão/entrega local.
+          path = Path('app/src/main/java/com/aistudio/micrhema/SettingsScreen.kt')
+          text = path.read_text()
+          anchor = '''                    SettingsSwitch("Novas pregações", "Avisos de mensagens publicadas.", settings.notifNewSermons) { updateSettings(settings.copy(notifNewSermons = it)) }\n'''
+          addition = anchor + '''                    SettingsAction(\n                        "Testar notificações",\n                        if (NotificationHelper.hasNotificationPermission(context))\n                            "Permissão ativa. Toque para enviar um teste neste aparelho."\n                        else\n                            "As notificações do sistema ainda não estão liberadas neste aparelho.",\n                        icon = Icons.Default.Notifications\n                    ) {\n                        val activity = context as? android.app.Activity\n                        if (!NotificationHelper.hasNotificationPermission(context) && activity != null) {\n                            NotificationHelper.requestNotificationPermission(activity)\n                            android.widget.Toast.makeText(context, "Autorize as notificações e toque novamente em Testar notificações.", android.widget.Toast.LENGTH_LONG).show()\n                        } else {\n                            NotificationHelper.showNotification(\n                                context = context,\n                                title = "Teste MIC Rhema",\n                                message = "As notificações estão funcionando neste aparelho.",\n                                category = NotificationHelper.Category.GENERAL,\n                                respectPreferences = false\n                            )\n                            android.widget.Toast.makeText(context, "Notificação de teste enviada.", android.widget.Toast.LENGTH_SHORT).show()\n                        }\n                    }\n'''
+          if anchor not in text:
+              raise SystemExit('Seção de notificações das Configurações não encontrada')
+          path.write_text(text.replace(anchor, addition, 1))
           PY
       - name: Commit da correção
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/src/main/java/com/aistudio/micrhema/HomeScreen.kt
-          git commit -m "feat(home): randomizar notícias por abertura e preparar notificações"
+          git add \
+            app/src/main/java/com/aistudio/micrhema/NotificationHelper.kt \
+            app/src/main/java/com/aistudio/micrhema/GlassComponents.kt \
+            app/src/main/java/com/aistudio/micrhema/SettingsScreen.kt
+          git commit -m "fix(ui): validar notificações e compactar navegação"
           git push origin HEAD:fix/home-news-notifications-typography
