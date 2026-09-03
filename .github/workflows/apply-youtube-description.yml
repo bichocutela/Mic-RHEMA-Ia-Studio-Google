@@ -1,0 +1,38 @@
+name: Aplicar descrição do YouTube
+
+on:
+  push:
+    branches:
+      - feat/youtube-video-description
+    paths:
+      - '.github/workflows/apply-youtube-description.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/youtube-video-description
+      - name: Inserir descrição abaixo do vídeo
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('app/src/main/java/com/aistudio/micrhema/ContentScreens.kt')
+          text = path.read_text()
+          old = '''            Text(\n                text = selectedVideo!!.description,\n                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),\n                style = MaterialTheme.typography.bodyMedium,\n                color = MaterialTheme.colorScheme.onSurfaceVariant\n            )\n'''
+          new = '''            if (selectedVideo!!.description.isNotBlank()) {\n                Text(\n                    text = selectedVideo!!.description,\n                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),\n                    style = MaterialTheme.typography.bodyMedium,\n                    color = MaterialTheme.colorScheme.onSurfaceVariant\n                )\n            }\n            YouTubeDescriptionSection(\n                videoUrl = selectedVideo!!.videoUrl\n            )\n'''
+          if old not in text:
+              raise SystemExit('Bloco de descrição do vídeo não encontrado')
+          path.write_text(text.replace(old, new, 1))
+          PY
+      - name: Commit da integração
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/com/aistudio/micrhema/ContentScreens.kt
+          git commit -m "feat(media): mostrar descrição do YouTube abaixo do player"
+          git push origin HEAD:feat/youtube-video-description
