@@ -1,0 +1,232 @@
+name: Validar notificações em segundo plano
+
+on:
+  push:
+    branches:
+      - fix/background-notifications-storage-cleanup
+    paths:
+      - '.github/workflows/validate-background-notifications.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/background-notifications-storage-cleanup
+
+      - name: Aplicar integrações finais
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new, label):
+              p = Path(path)
+              text = p.read_text()
+              if old not in text:
+                  raise SystemExit(f'Bloco não encontrado: {label} em {path}')
+              p.write_text(text.replace(old, new, 1))
+
+          # NotificationHelper: impede que a abertura da UI recrie os workers legados.
+          replace_once(
+              'app/src/main/java/com/aistudio/micrhema/NotificationHelper.kt',
+              '''    fun applyAdminNotificationPolicy(context: Context, enabled: Boolean) {\n        val workManager = WorkManager.getInstance(context)\n        if (enabled) {\n            scheduleDailyReminder(context)\n            scheduleDevotionalSync(context)\n            scheduleServiceAlert(context)\n            scheduleDailyNews(context)\n            scheduleMediaSync(context)\n            scheduleIbrContentSync(context)\n            scheduleAppUpdateCheck(context)\n        } else {\n            workManager.cancelUniqueWork("DailyDevotionalReminder")\n            workManager.cancelUniqueWork("DevotionalSyncWorker")\n            workManager.cancelUniqueWork("ServiceAlertWorker")\n            workManager.cancelUniqueWork("MiddayNewsWorker")\n            workManager.cancelUniqueWork("MediaUpdateWorker")\n            workManager.cancelUniqueWork("IbrContentWorker")\n            workManager.cancelUniqueWork("AppUpdateWorker")\n        }\n    }\n''',
+              '''    fun applyAdminNotificationPolicy(context: Context, enabled: Boolean) {\n        context.getSharedPreferences("micrhema_admin_settings", Context.MODE_PRIVATE)\n            .edit().putBoolean("notificationsEnabled", enabled).apply()\n        BackgroundNotificationCoordinator.reconcile(context.applicationContext, enabled)\n    }\n''',
+              'applyAdminNotificationPolicy'
+          )
+
+          # StorageManager: usa a operação delete que já existe no gateway, sem tocar em keys.
+          storage = Path('app/src/main/java/com/aistudio/micrhema/StorageManager.kt')
+          text = storage.read_text()
+          anchor = '''    /** Compatibilidade para telas antigas: todos os uploads gerais agora usam o Supabase. */\n'''
+          addition = r'''    private fun mediaStorageTarget(reference: String): Pair<String, String>? {
+        val raw = reference.trim()
+        if (raw.isBlank()) return null
+
+        val objectPath = if (raw.startsWith("$MEDIA_BUCKET/")) {
+            raw.removePrefix("$MEDIA_BUCKET/").substringBefore('?')
+        } else {
+            val configuredHost = runCatching { Uri.parse(BuildConfig.SUPABASE_URL).host }.getOrNull()
+            val uri = runCatching { Uri.parse(raw) }.getOrNull() ?: return null
+            if (uri.scheme !in setOf("http", "https") || configuredHost.isNullOrBlank() || uri.host != configuredHost) return null
+            val path = uri.path.orEmpty()
+            val markers = listOf(
+                "/storage/v1/object/public/$MEDIA_BUCKET/",
+                "/storage/v1/object/sign/$MEDIA_BUCKET/",
+                "/storage/v1/object/authenticated/$MEDIA_BUCKET/"
+            )
+            val marker = markers.firstOrNull { path.contains(it) } ?: return null
+            path.substringAfter(marker).substringBefore('?')
+        }
+        if (objectPath.isBlank() || objectPath.contains("..") || objectPath.startsWith('/')) return null
+        val targetUid = objectPath.substringBefore('/', "")
+        if (targetUid.isBlank() || '/' !in objectPath) return null
+        return targetUid to "$MEDIA_BUCKET/$objectPath"
+    }
+
+    /**
+     * Remove somente arquivos pertencentes ao bucket media-assets deste projeto.
+     * Links do YouTube, Drive, Unsplash ou qualquer origem externa são ignorados.
+     */
+    suspend fun deleteMediaAssetIfSupabase(context: Context, reference: String): Boolean = withContext(Dispatchers.IO) {
+        val (targetUid, storagePath) = mediaStorageTarget(reference) ?: return@withContext false
+        val payload = JSONObject()
+            .put("operation", "delete")
+            .put("bucket", MEDIA_BUCKET)
+            .put("targetUid", targetUid)
+            .put("storagePath", storagePath)
+        executeGatewayRequest(context) { token ->
+            Request.Builder()
+                .url(gatewayUrl())
+                .header("Authorization", "Bearer $token")
+                .header("apikey", publishableKey())
+                .header("X-Rhema-Bucket", MEDIA_BUCKET)
+                .header("X-Rhema-Operation", "delete")
+                .withAdminAuthorization()
+                .header("Content-Type", "application/json")
+                .post(payload.toString().toRequestBody("application/json".toMediaTypeOrNull()))
+                .build()
+        }.use { response -> responseJson(response) }
+        true
+    }
+
+    suspend fun deleteMediaAssetsFromReferences(context: Context, references: Collection<String>): Int {
+        var removed = 0
+        references.map { it.trim() }.filter { it.isNotBlank() }.distinct().forEach { reference ->
+            if (deleteMediaAssetIfSupabase(context, reference)) removed++
+        }
+        return removed
+    }
+
+'''
+          if anchor not in text:
+              raise SystemExit('Âncora de StorageManager não encontrada')
+          storage.write_text(text.replace(anchor, addition + anchor, 1))
+
+          # Banners: confirmação + remoção do arquivo no Supabase antes do documento Firestore.
+          banners = Path('app/src/main/java/com/aistudio/micrhema/AdminMoreSections.kt')
+          text = banners.read_text()
+          text = text.replace(
+              '''    var showDialog by remember { mutableStateOf(false) }\n    var editingBanner by remember { mutableStateOf<CarouselItem?>(null) }\n''',
+              '''    var showDialog by remember { mutableStateOf(false) }\n    var editingBanner by remember { mutableStateOf<CarouselItem?>(null) }\n    var bannerToDelete by remember { mutableStateOf<CarouselItem?>(null) }\n    var isDeletingBanner by remember { mutableStateOf(false) }\n''', 1)
+          text = text.replace(
+              '''                        IconButton(onClick = {\n                            removeCarouselItem(banner)\n                        }) {\n''',
+              '''                        IconButton(onClick = { bannerToDelete = banner }) {\n''', 1)
+          banner_anchor = '''    if (showDialog && editingBanner != null) {\n'''
+          banner_dialog = '''    if (bannerToDelete != null) {\n        AlertDialog(\n            onDismissRequest = { if (!isDeletingBanner) bannerToDelete = null },\n            title = { Text("Excluir banner?") },\n            text = { Text("O banner será removido do aplicativo e, se a imagem estiver no Supabase do MIC Rhema, o arquivo também será apagado para liberar espaço.") },\n            confirmButton = {\n                TextButton(enabled = !isDeletingBanner, onClick = {\n                    val target = bannerToDelete ?: return@TextButton\n                    isDeletingBanner = true\n                    scope.launch {\n                        try {\n                            target.imageUrl?.let { StorageManager.deleteMediaAssetIfSupabase(context, it) }\n                            removeCarouselItem(target)\n                            android.widget.Toast.makeText(context, "Banner excluído com sucesso.", android.widget.Toast.LENGTH_SHORT).show()\n                            bannerToDelete = null\n                        } catch (error: Exception) {\n                            android.widget.Toast.makeText(context, "Não foi possível excluir: ${error.message ?: "erro no armazenamento"}", android.widget.Toast.LENGTH_LONG).show()\n                        } finally { isDeletingBanner = false }\n                    }\n                }) { Text(if (isDeletingBanner) "Excluindo..." else "Excluir", color = MaterialTheme.colorScheme.error) }\n            },\n            dismissButton = { TextButton(enabled = !isDeletingBanner, onClick = { bannerToDelete = null }) { Text("Cancelar") } }\n        )\n    }\n\n'''
+          if banner_anchor not in text:
+              raise SystemExit('Âncora de diálogo de banner não encontrada')
+          banners.write_text(text.replace(banner_anchor, banner_dialog + banner_anchor, 1))
+
+          # Mídia comum: confirmação em todas as linhas e limpeza real de áudio/vídeo/álbum/fotos.
+          media = Path('app/src/main/java/com/aistudio/micrhema/ContentAdmin.kt')
+          text = media.read_text()
+          text = text.replace(
+              '''                    onEdit = { editingAudio = audio },\n                    onDelete = { removeContentAudio(audio) }\n''',
+              '''                    onEdit = { editingAudio = audio },\n                    onDelete = {\n                        coroutineScope.launch {\n                            try {\n                                StorageManager.deleteMediaAssetsFromReferences(context, listOf(audio.audioUrl, audio.coverUrl))\n                                removeContentAudio(audio)\n                                android.widget.Toast.makeText(context, "Áudio excluído.", android.widget.Toast.LENGTH_SHORT).show()\n                            } catch (error: Exception) {\n                                android.widget.Toast.makeText(context, "Áudio não excluído: ${error.message ?: "erro no Supabase"}", android.widget.Toast.LENGTH_LONG).show()\n                            }\n                        }\n                    }\n''', 1)
+          text = text.replace(
+              '''                    onEdit = { editingVideo = video },\n                    onDelete = { removeContentVideo(video) }\n''',
+              '''                    onEdit = { editingVideo = video },\n                    onDelete = {\n                        coroutineScope.launch {\n                            try {\n                                StorageManager.deleteMediaAssetsFromReferences(context, listOf(video.videoUrl, video.thumbnailUrl))\n                                removeContentVideo(video)\n                                android.widget.Toast.makeText(context, "Vídeo excluído.", android.widget.Toast.LENGTH_SHORT).show()\n                            } catch (error: Exception) {\n                                android.widget.Toast.makeText(context, "Vídeo não excluído: ${error.message ?: "erro no Supabase"}", android.widget.Toast.LENGTH_LONG).show()\n                            }\n                        }\n                    }\n''', 1)
+
+          old_album_cleanup = '''                            // Simulate network delay and explicit storage cleanup logic\n                            android.util.Log.i("StorageCleanup", "Deleting cover image: ${albumToDelete!!.coverUrl}")\n                            albumToDelete!!.photos.forEach { photo ->\n                                android.util.Log.i("StorageCleanup", "Deleting photo from storage: ${photo.url}")\n                            }\n                            kotlinx.coroutines.delay(1500)\n                            \n                            val idx = contentAlbumsState.indexOfFirst { it.id == albumToDelete!!.id }\n                            if (idx != -1) {\n                                removeContentPhotoAlbum(albumToDelete!!)\n                            }\n                            isDeleting = false\n                            albumToDelete = null\n'''
+          new_album_cleanup = '''                            val target = albumToDelete!!\n                            try {\n                                val refs = buildList {\n                                    target.coverUrl?.let { add(it) }\n                                    addAll(target.photos.map { it.url })\n                                }\n                                StorageManager.deleteMediaAssetsFromReferences(context, refs)\n                                removeContentPhotoAlbum(target)\n                                albumToDelete = null\n                                android.widget.Toast.makeText(context, "Álbum e arquivos excluídos.", android.widget.Toast.LENGTH_SHORT).show()\n                            } catch (error: Exception) {\n                                android.widget.Toast.makeText(context, "Álbum não excluído: ${error.message ?: "erro no Supabase"}", android.widget.Toast.LENGTH_LONG).show()\n                            } finally {\n                                isDeleting = false\n                            }\n'''
+          if old_album_cleanup not in text:
+              raise SystemExit('Cleanup antigo de álbum comum não encontrado')
+          text = text.replace(old_album_cleanup, new_album_cleanup, 1)
+
+          text = text.replace(
+              '''        var newPhotoDriveUrl by remember { mutableStateOf("") }\n        val scope = rememberCoroutineScope()\n''',
+              '''        var newPhotoDriveUrl by remember { mutableStateOf("") }\n        var photoToDelete by remember(editingAlbum) { mutableStateOf<AlbumPhoto?>(null) }\n        var isDeletingPhoto by remember { mutableStateOf(false) }\n        val scope = rememberCoroutineScope()\n''', 1)
+          old_photo_button = '''                                IconButton(onClick = {\n                                    val updatedPhotos = editingAlbum!!.photos.filter { it.url != photo.url }\n                                    val updatedCover = if (editingAlbum!!.coverUrl == photo.url) updatedPhotos.firstOrNull()?.url else editingAlbum!!.coverUrl\n                                    val updatedAlbum = editingAlbum!!.copy(photos = updatedPhotos, coverUrl = updatedCover)\n                                    val index = contentAlbumsState.indexOfFirst { it.id == editingAlbum!!.id }\n                                    if (index != -1) {\n                                        contentAlbumsState[index] = updatedAlbum\n                                            addContentPhotoAlbum(updatedAlbum)\n                                        editingAlbum = updatedAlbum\n                                    }\n                                }) {\n'''
+          if old_photo_button not in text:
+              raise SystemExit('Botão antigo de excluir foto não encontrado')
+          text = text.replace(old_photo_button, '''                                IconButton(onClick = { photoToDelete = photo }) {\n''', 1)
+
+          tail_anchor = '''        )\n    }\n\n}\n\n\n@Composable\nprivate fun MediaAdminHeader'''
+          photo_dialog = '''        )\n\n        if (photoToDelete != null) {\n            AlertDialog(\n                onDismissRequest = { if (!isDeletingPhoto) photoToDelete = null },\n                title = { Text("Excluir foto?") },\n                text = { Text("A foto será removida do álbum e do Supabase quando pertencer ao armazenamento do MIC Rhema.") },\n                confirmButton = {\n                    TextButton(enabled = !isDeletingPhoto, onClick = {\n                        val targetPhoto = photoToDelete ?: return@TextButton\n                        isDeletingPhoto = true\n                        scope.launch {\n                            try {\n                                StorageManager.deleteMediaAssetIfSupabase(context, targetPhoto.url)\n                                val updatedPhotos = editingAlbum!!.photos.filter { it.url != targetPhoto.url }\n                                val updatedCover = if (editingAlbum!!.coverUrl == targetPhoto.url) updatedPhotos.firstOrNull()?.url else editingAlbum!!.coverUrl\n                                val updatedAlbum = editingAlbum!!.copy(photos = updatedPhotos, coverUrl = updatedCover)\n                                contentAlbumsState.indexOfFirst { it.id == updatedAlbum.id }.takeIf { it >= 0 }?.let { contentAlbumsState[it] = updatedAlbum }\n                                addContentPhotoAlbum(updatedAlbum)\n                                editingAlbum = updatedAlbum\n                                photoToDelete = null\n                            } catch (error: Exception) {\n                                android.widget.Toast.makeText(context, "Foto não excluída: ${error.message ?: "erro no Supabase"}", android.widget.Toast.LENGTH_LONG).show()\n                            } finally { isDeletingPhoto = false }\n                        }\n                    }) { Text(if (isDeletingPhoto) "Excluindo..." else "Excluir", color = MaterialTheme.colorScheme.error) }\n                },\n                dismissButton = { TextButton(enabled = !isDeletingPhoto, onClick = { photoToDelete = null }) { Text("Cancelar") } }\n            )\n        }\n    }\n\n}\n\n\n@Composable\nprivate fun MediaAdminHeader'''
+          if tail_anchor not in text:
+              raise SystemExit('Final do diálogo de álbum não encontrado')
+          text = text.replace(tail_anchor, photo_dialog, 1)
+
+          old_row = '''@Composable\nprivate fun MediaContentRow(title: String, subtitle: String, type: String, onEdit: () -> Unit, onDelete: () -> Unit) {\n    Card(shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {\n        Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {\n            Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(42.dp)) {\n                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {\n                    Icon(mediaTypeIcon(type), contentDescription = type, tint = MaterialTheme.colorScheme.onPrimaryContainer)\n                }\n            }\n            Spacer(Modifier.width(11.dp))\n            Column(modifier = Modifier.weight(1f)) {\n                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1)\n                Text(subtitle.ifBlank { "Sem descrição" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)\n                Text(type, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)\n            }\n            IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, contentDescription = "Editar $title", tint = MaterialTheme.colorScheme.primary) }\n            IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, contentDescription = "Excluir $title", tint = MaterialTheme.colorScheme.error) }\n        }\n    }\n}\n'''
+          new_row = '''@Composable\nprivate fun MediaContentRow(title: String, subtitle: String, type: String, onEdit: () -> Unit, onDelete: () -> Unit) {\n    var confirmDelete by remember(title, type) { mutableStateOf(false) }\n    Card(shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {\n        Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {\n            Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.size(42.dp)) {\n                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {\n                    Icon(mediaTypeIcon(type), contentDescription = type, tint = MaterialTheme.colorScheme.onPrimaryContainer)\n                }\n            }\n            Spacer(Modifier.width(11.dp))\n            Column(modifier = Modifier.weight(1f)) {\n                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1)\n                Text(subtitle.ifBlank { "Sem descrição" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)\n                Text(type, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)\n            }\n            IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, contentDescription = "Editar $title", tint = MaterialTheme.colorScheme.primary) }\n            IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Default.Delete, contentDescription = "Excluir $title", tint = MaterialTheme.colorScheme.error) }\n        }\n    }\n    if (confirmDelete) {\n        AlertDialog(\n            onDismissRequest = { confirmDelete = false },\n            title = { Text("Confirmar exclusão") },\n            text = { Text("Deseja excluir '$title'? Se o arquivo estiver no Supabase do MIC Rhema, ele também será apagado para liberar espaço.") },\n            confirmButton = { TextButton(onClick = { confirmDelete = false; onDelete() }) { Text("Excluir", color = MaterialTheme.colorScheme.error) } },\n            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancelar") } }\n        )\n    }\n}\n'''
+          if old_row not in text:
+              raise SystemExit('MediaContentRow não encontrado')
+          media.write_text(text.replace(old_row, new_row, 1))
+
+          # VIP/IBR: confirmação e limpeza de áudio/vídeo/álbum que forem do Supabase.
+          vip = Path('app/src/main/java/com/aistudio/micrhema/VipAdmin.kt')
+          text = vip.read_text()
+          text = text.replace(
+              '''    var editingAlbum by remember { mutableStateOf<ContentPhotoAlbum?>(null) }\n    var albumToDelete by remember { mutableStateOf<ContentPhotoAlbum?>(null) }\n    var isDeleting by remember { mutableStateOf(false) }\n''',
+              '''    var editingAlbum by remember { mutableStateOf<ContentPhotoAlbum?>(null) }\n    var albumToDelete by remember { mutableStateOf<ContentPhotoAlbum?>(null) }\n    var audioToDelete by remember { mutableStateOf<ContentAudio?>(null) }\n    var videoToDelete by remember { mutableStateOf<ContentVideo?>(null) }\n    var isDeleting by remember { mutableStateOf(false) }\n''', 1)
+          text = text.replace('IconButton(onClick = { removeVipAudio(audio) })', 'IconButton(onClick = { audioToDelete = audio })', 1)
+          text = text.replace('IconButton(onClick = { removeVipVideo(video) })', 'IconButton(onClick = { videoToDelete = video })', 1)
+          vip_album_anchor = '''    if (albumToDelete != null) {\n'''
+          vip_dialogs = '''    if (audioToDelete != null) {\n        AlertDialog(\n            onDismissRequest = { audioToDelete = null },\n            title = { Text("Excluir áudio?") },\n            text = { Text("O áudio será removido do IBR e do Supabase quando estiver armazenado nele.") },\n            confirmButton = { TextButton(onClick = {\n                val target = audioToDelete ?: return@TextButton\n                coroutineScope.launch {\n                    try {\n                        StorageManager.deleteMediaAssetsFromReferences(context, listOf(target.audioUrl, target.coverUrl))\n                        removeVipAudio(target)\n                        audioToDelete = null\n                    } catch (error: Exception) { Toast.makeText(context, "Áudio não excluído: ${error.message ?: "erro no Supabase"}", Toast.LENGTH_LONG).show() }\n                }\n            }) { Text("Excluir", color = MaterialTheme.colorScheme.error) } },\n            dismissButton = { TextButton(onClick = { audioToDelete = null }) { Text("Cancelar") } }\n        )\n    }\n    if (videoToDelete != null) {\n        AlertDialog(\n            onDismissRequest = { videoToDelete = null },\n            title = { Text("Excluir vídeo?") },\n            text = { Text("O vídeo será removido do IBR e do Supabase quando estiver armazenado nele.") },\n            confirmButton = { TextButton(onClick = {\n                val target = videoToDelete ?: return@TextButton\n                coroutineScope.launch {\n                    try {\n                        StorageManager.deleteMediaAssetsFromReferences(context, listOf(target.videoUrl, target.thumbnailUrl))\n                        removeVipVideo(target)\n                        videoToDelete = null\n                    } catch (error: Exception) { Toast.makeText(context, "Vídeo não excluído: ${error.message ?: "erro no Supabase"}", Toast.LENGTH_LONG).show() }\n                }\n            }) { Text("Excluir", color = MaterialTheme.colorScheme.error) } },\n            dismissButton = { TextButton(onClick = { videoToDelete = null }) { Text("Cancelar") } }\n        )\n    }\n\n'''
+          if vip_album_anchor not in text:
+              raise SystemExit('Âncora do álbum VIP não encontrada')
+          text = text.replace(vip_album_anchor, vip_dialogs + vip_album_anchor, 1)
+          old_vip_cleanup = '''                            // Simulate network delay and explicit storage cleanup logic\n                            android.util.Log.i("StorageCleanup", "Deleting cover image: ${albumToDelete!!.coverUrl}")\n                            albumToDelete!!.photos.forEach { photo ->\n                                android.util.Log.i("StorageCleanup", "Deleting photo from storage: ${photo.url}")\n                            }\n                            kotlinx.coroutines.delay(1500)\n                            \n                            val idx = vipAlbumsState.indexOfFirst { it.id == albumToDelete!!.id }\n                            if (idx != -1) {\n                                removeVipAlbum(albumToDelete!!)\n                            }\n                            isDeleting = false\n                            albumToDelete = null\n'''
+          new_vip_cleanup = '''                            val target = albumToDelete!!\n                            try {\n                                val refs = buildList { target.coverUrl?.let { add(it) }; addAll(target.photos.map { it.url }) }\n                                StorageManager.deleteMediaAssetsFromReferences(context, refs)\n                                removeVipAlbum(target)\n                                albumToDelete = null\n                            } catch (error: Exception) {\n                                Toast.makeText(context, "Álbum não excluído: ${error.message ?: "erro no Supabase"}", Toast.LENGTH_LONG).show()\n                            } finally { isDeleting = false }\n'''
+          if old_vip_cleanup not in text:
+              raise SystemExit('Cleanup antigo de álbum VIP não encontrado')
+          vip.write_text(text.replace(old_vip_cleanup, new_vip_cleanup, 1))
+          PY
+
+      - name: Commit das integrações
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main
+          git commit -m "fix: notificações persistentes e limpeza real do Supabase"
+          git push origin HEAD:fix/background-notifications-storage-cleanup
+
+      - name: Restaurar google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          test -n "$GOOGLE_SERVICES_JSON"
+          printf '%s' "$GOOGLE_SERVICES_JSON" > app/google-services.json
+          jq empty app/google-services.json
+
+      - name: Configurar Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          validate-wrappers: false
+
+      - name: Restaurar assinatura
+        run: echo "${{ secrets.MICRHEMA_KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
+
+      - name: Configurar Supabase público
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          cp .env.example .env
+          if [ -n "$SUPABASE_URL" ]; then sed -i "s|^SUPABASE_URL=.*|SUPABASE_URL=$SUPABASE_URL|" .env; fi
+          if [ -n "$SUPABASE_ANON_KEY" ]; then sed -i "s|^SUPABASE_ANON_KEY=.*|SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY|" .env; fi
+
+      - name: Compilar APK de validação
+        env:
+          KEYSTORE_FILE: ../release.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.MICRHEMA_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.MICRHEMA_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.MICRHEMA_KEY_PASSWORD }}
+          AUTO_BUILD_NUMBER: 999999
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Limpar temporários
+        if: always()
+        run: rm -f release.keystore .env app/google-services.json
