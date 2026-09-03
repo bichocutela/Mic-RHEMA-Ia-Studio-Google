@@ -6,11 +6,23 @@ function db() {
   return firestore;
 }
 
-export async function saveAdminDocument(collectionName: string, id: string, data: Record<string, unknown>) {
-  const documentId = id.trim() || crypto.randomUUID();
+function normalizedDocumentId(id: string | number | null | undefined) {
+  return String(id ?? "").trim() || crypto.randomUUID();
+}
+
+function storedId(collectionName: string, documentId: string) {
+  if (collectionName === "bible_news" && /^\d+$/.test(documentId)) {
+    const numeric = Number(documentId);
+    if (Number.isSafeInteger(numeric) && numeric > 0 && numeric <= 2_147_483_647) return numeric;
+  }
+  return documentId;
+}
+
+export async function saveAdminDocument(collectionName: string, id: string | number, data: Record<string, unknown>) {
+  const documentId = normalizedDocumentId(id);
   await setDoc(doc(db(), collectionName, documentId), {
     ...data,
-    id: documentId,
+    id: storedId(collectionName, documentId),
     updatedAt: Date.now(),
     updatedAtServer: serverTimestamp(),
     source: "pwa",
@@ -18,11 +30,11 @@ export async function saveAdminDocument(collectionName: string, id: string, data
   return documentId;
 }
 
-export async function replaceAdminDocument(collectionName: string, id: string, data: Record<string, unknown>) {
-  const documentId = id.trim() || crypto.randomUUID();
+export async function replaceAdminDocument(collectionName: string, id: string | number, data: Record<string, unknown>) {
+  const documentId = normalizedDocumentId(id);
   await setDoc(doc(db(), collectionName, documentId), {
     ...data,
-    id: documentId,
+    id: storedId(collectionName, documentId),
     updatedAt: Date.now(),
     updatedAtServer: serverTimestamp(),
     source: "pwa",
@@ -30,8 +42,8 @@ export async function replaceAdminDocument(collectionName: string, id: string, d
   return documentId;
 }
 
-export async function deleteAdminDocument(collectionName: string, id: string) {
-  await deleteDoc(doc(db(), collectionName, id));
+export async function deleteAdminDocument(collectionName: string, id: string | number) {
+  await deleteDoc(doc(db(), collectionName, normalizedDocumentId(id)));
 }
 
 export async function saveAdminSetting(documentName: string, data: Record<string, unknown>) {
@@ -51,5 +63,11 @@ export async function forceAdminSync() {
 }
 
 export function createAdminDocumentId(collectionName: string) {
+  if (collectionName === "bible_news") {
+    const random = new Uint32Array(1);
+    crypto.getRandomValues(random);
+    // Faixa reservada para a PWA, sempre positiva e compatível com Int do Android.
+    return String(1_000_000 + (random[0] % 2_000_000_000));
+  }
   return doc(collection(db(), collectionName)).id;
 }
