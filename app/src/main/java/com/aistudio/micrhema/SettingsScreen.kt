@@ -298,6 +298,29 @@ fun SettingsScreen(onNavigateProfile: () -> Unit = {}) {
                     SettingsSwitch("Novas mídias", "Livros, vídeos e áudios adicionados.", settings.notifNewMedia) { updateSettings(settings.copy(notifNewMedia = it)) }
                     SettingsSwitch("Novas aulas e módulos IBR", "Conteúdo direcionado aos alunos IBR.", settings.notifIbrContent) { updateSettings(settings.copy(notifIbrContent = it)) }
                     SettingsSwitch("Novas pregações", "Avisos de mensagens publicadas.", settings.notifNewSermons) { updateSettings(settings.copy(notifNewSermons = it)) }
+                    SettingsAction(
+                        "Testar notificações",
+                        if (NotificationHelper.hasNotificationPermission(context))
+                            "Permissão ativa. Toque para enviar um teste neste aparelho."
+                        else
+                            "As notificações do sistema ainda não estão liberadas neste aparelho.",
+                        icon = Icons.Default.Notifications
+                    ) {
+                        val activity = context as? android.app.Activity
+                        if (!NotificationHelper.hasNotificationPermission(context) && activity != null) {
+                            NotificationHelper.requestNotificationPermission(activity)
+                            android.widget.Toast.makeText(context, "Autorize as notificações e toque novamente em Testar notificações.", android.widget.Toast.LENGTH_LONG).show()
+                        } else {
+                            NotificationHelper.showNotification(
+                                context = context,
+                                title = "Teste MIC Rhema",
+                                message = "As notificações estão funcionando neste aparelho.",
+                                category = NotificationHelper.Category.GENERAL,
+                                respectPreferences = false
+                            )
+                            android.widget.Toast.makeText(context, "Notificação de teste enviada.", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 }
             }
 

@@ -290,7 +290,7 @@ fun FloatingNavigationBar(
                         modifier = Modifier.clip(RoundedCornerShape(50)).clickable { onNavigate(route) }
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = if (isSelected) 16.dp else 12.dp, vertical = 12.dp),
+                            modifier = Modifier.padding(horizontal = if (isSelected) 14.dp else 10.dp, vertical = 11.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.Center
                         ) {
@@ -304,7 +304,9 @@ fun FloatingNavigationBar(
                                 Text(
                                     text = item.title,
                                     style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
                         }

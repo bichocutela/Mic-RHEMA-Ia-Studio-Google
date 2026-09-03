@@ -148,13 +148,17 @@ object NotificationHelper {
      */
     fun ensureMessagingReady(context: Context) {
         createNotificationChannel(context)
-        val messaging = FirebaseMessaging.getInstance()
-        messaging.subscribeToTopic("all_users")
-        messaging.subscribeToTopic("devocionais")
-        if (isIbrMember(context)) {
-            messaging.subscribeToTopic("ibr_users")
-        } else {
-            messaging.unsubscribeFromTopic("ibr_users")
+        runCatching {
+            val messaging = FirebaseMessaging.getInstance()
+            messaging.subscribeToTopic("all_users")
+            messaging.subscribeToTopic("devocionais")
+            if (isIbrMember(context)) {
+                messaging.subscribeToTopic("ibr_users")
+            } else {
+                messaging.unsubscribeFromTopic("ibr_users")
+            }
+        }.onFailure { error ->
+            android.util.Log.w("NotificationHelper", "Não foi possível reconciliar tópicos FCM agora", error)
         }
     }
 
