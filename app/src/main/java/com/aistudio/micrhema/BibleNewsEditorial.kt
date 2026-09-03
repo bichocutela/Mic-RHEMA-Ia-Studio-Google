@@ -39,14 +39,15 @@ object BibleNewsEditorial {
     fun intensityLabel(value: Int): String = intensityLabels[normalizeIntensity(value)].orEmpty()
 
     fun decorate(news: BibleNews): BibleNews {
-        val canonicalTitle = BibleNewsData.newsList.firstOrNull { it.id == news.id }?.title
+        val enrichedNews = BibleNewsLegacyEditorial.enrich(news)
+        val canonicalTitle = BibleNewsData.newsList.firstOrNull { it.id == enrichedNews.id }?.title
         val shouldUseCanonicalTitle = canonicalTitle != null && (
-            news.title == news.title.uppercase() ||
-                news.title.contains("parte", ignoreCase = true)
+            enrichedNews.title == enrichedNews.title.uppercase() ||
+                enrichedNews.title.contains("parte", ignoreCase = true)
             )
-        val titleBeforeCleanup = if (shouldUseCanonicalTitle) canonicalTitle.orEmpty() else news.title
+        val titleBeforeCleanup = if (shouldUseCanonicalTitle) canonicalTitle.orEmpty() else enrichedNews.title
         val cleanTitle = normalizeTitle(titleBeforeCleanup)
-        val source = if (cleanTitle == news.title) news else news.copy(title = cleanTitle)
+        val source = if (cleanTitle == enrichedNews.title) enrichedNews else enrichedNews.copy(title = cleanTitle)
         val category = source.category.ifBlank { inferCategory(source) }
         val intensity = normalizeIntensity(if (source.intensity in 1..4) source.intensity else inferIntensity(source))
         val summary = source.summary.ifBlank { buildSummary(source.content) }
