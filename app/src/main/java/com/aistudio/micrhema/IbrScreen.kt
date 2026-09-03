@@ -684,11 +684,22 @@ fun IbrLessonScreen(
             modifier = Modifier.fillMaxSize().padding(paddingValues).verticalScroll(rememberScrollState()).padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Box(
-                modifier = Modifier.fillMaxWidth().height(190.dp).clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(typeIcon, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(74.dp))
+            if (chapter.type == "VIDEO") {
+                val videoSource = chapter.videoUrl.ifBlank { chapter.youtubeId }
+                CleanVideoPlayer(
+                    videoUrl = videoSource,
+                    title = chapter.title,
+                    modifier = Modifier.fillMaxWidth(),
+                    showTitleBar = false,
+                    showExternalButton = true
+                )
+            } else {
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(190.dp).clip(RoundedCornerShape(20.dp)).background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(typeIcon, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(74.dp))
+                }
             }
             Text(course.title, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
             Text(chapter.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
@@ -704,21 +715,7 @@ fun IbrLessonScreen(
                 Spacer(Modifier.width(10.dp))
                 Text("${chapter.durationMinutes} min", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            if (chapter.type == "VIDEO") {
-                Button(
-                    onClick = {
-                        val url = if (chapter.isYoutube && chapter.videoUrl.isNotEmpty() && !chapter.videoUrl.startsWith("http")) "https://www.youtube.com/watch?v=${chapter.videoUrl}" else chapter.videoUrl
-                        try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
-                        catch (_: Exception) { android.widget.Toast.makeText(context, "Não foi possível abrir o vídeo.", android.widget.Toast.LENGTH_SHORT).show() }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Abrir vídeo")
-                }
-            } else {
+            if (chapter.type != "VIDEO") {
                 OutlinedButton(
                     onClick = {
                         val track = AudioTrack(

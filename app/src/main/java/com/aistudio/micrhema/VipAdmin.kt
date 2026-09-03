@@ -1120,6 +1120,8 @@ fun EditVipIbrSection() {
                             onClick = {
                                 if (chapterTitle.isNotBlank() && selectedCourseForChapter != null) {
                                     val duration = chapterDuration.toIntOrNull() ?: 30
+                                    val detectedYoutubeId = extractYouTubeVideoId(videoUrl).orEmpty()
+                                    val detectedYoutube = isYoutube || detectedYoutubeId.isNotBlank() || isYoutubeUrl(videoUrl)
                                     val newChapter = IbrChapter(
                                         id = "chap_${System.currentTimeMillis()}",
                                         title = chapterTitle,
@@ -1129,7 +1131,8 @@ fun EditVipIbrSection() {
                                         videoUrl = videoUrl,
                                         audioUrl = audioUrl,
                                         textContent = textContent,
-                                        isYoutube = isYoutube
+                                        isYoutube = detectedYoutube,
+                                        youtubeId = detectedYoutubeId
                                     )
                                     // Add to the selected course chapters list
                                     val targetCourse = ibrCoursesState.find { it.id == selectedCourseForChapter!!.id }

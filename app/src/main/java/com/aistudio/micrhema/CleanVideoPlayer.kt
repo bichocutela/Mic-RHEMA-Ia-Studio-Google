@@ -55,11 +55,11 @@ import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.Abs
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView
 
 /**
- * Player único da aba Mídia.
+ * Player de vídeo reutilizável oficial do aplicativo.
  *
- * YouTube usa exclusivamente o player oficial da biblioteca, sem overlays de toque
- * personalizados sobre a WebView. Isso evita que os controles nativos sejam bloqueados.
- * MP4/links diretos continuam usando ExoPlayer com os controles nativos do PlayerView.
+ * Pode ser usado por Mídia, IBR e futuras telas sem duplicar implementação.
+ * YouTube usa a biblioteca Android YouTube Player; MP4/links diretos usam ExoPlayer.
+ * Links completos, Shorts, Live, youtu.be e IDs puros do YouTube são aceitos.
  */
 @Composable
 fun CleanVideoPlayer(
@@ -68,12 +68,17 @@ fun CleanVideoPlayer(
     modifier: Modifier = Modifier,
     onClose: (() -> Unit)? = null,
     canDownload: Boolean = false,
-    onDownload: (() -> Unit)? = null
+    onDownload: (() -> Unit)? = null,
+    showTitleBar: Boolean = true,
+    showExternalButton: Boolean = true
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val isYouTube = remember(videoUrl) { isYoutubeUrl(videoUrl) }
     val youtubeId = remember(videoUrl) { extractYouTubeVideoId(videoUrl) }
+    val externalVideoUrl = remember(videoUrl, youtubeId, isYouTube) {
+        if (isYouTube && youtubeId != null) "https://www.youtube.com/watch?v=$youtubeId" else videoUrl.trim()
+    }
 
     var errorMessage by remember(videoUrl) { mutableStateOf<String?>(null) }
     var isLoading by remember(videoUrl) { mutableStateOf(true) }
@@ -133,31 +138,37 @@ fun CleanVideoPlayer(
     }
 
     Column(modifier = modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = title,
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            if (!isYouTube && canDownload && onDownload != null) {
-                IconButton(onClick = onDownload) {
-                    Icon(Icons.Default.Download, contentDescription = "Baixar vídeo")
+        if (showTitleBar || (!isYouTube && canDownload && onDownload != null) || onClose != null) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (showTitleBar) {
+                    Text(
+                        text = title,
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                } else {
+                    Spacer(modifier = Modifier.weight(1f))
                 }
-            }
 
-            if (onClose != null) {
-                IconButton(onClick = onClose) {
-                    Icon(Icons.Default.Close, contentDescription = "Fechar player")
+                if (!isYouTube && canDownload && onDownload != null) {
+                    IconButton(onClick = onDownload) {
+                        Icon(Icons.Default.Download, contentDescription = "Baixar vídeo")
+                    }
+                }
+
+                if (onClose != null) {
+                    IconButton(onClick = onClose) {
+                        Icon(Icons.Default.Close, contentDescription = "Fechar player")
+                    }
                 }
             }
         }
@@ -179,10 +190,10 @@ fun CleanVideoPlayer(
                             isLoading = true
                             retryKey++
                         },
-                        onOpenExternal = if (videoUrl.startsWith("http", ignoreCase = true)) {
+                        onOpenExternal = if (externalVideoUrl.startsWith("http", ignoreCase = true)) {
                             {
                                 runCatching {
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(videoUrl)))
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(externalVideoUrl)))
                                 }
                             }
                         } else null
@@ -256,12 +267,12 @@ fun CleanVideoPlayer(
             }
         }
 
-        if (isYouTube) {
+        if (isYouTube && showExternalButton) {
             Spacer(Modifier.height(8.dp))
             Button(
                 onClick = {
                     runCatching {
-                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(videoUrl)))
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(externalVideoUrl)))
                     }
                 },
                 modifier = Modifier
