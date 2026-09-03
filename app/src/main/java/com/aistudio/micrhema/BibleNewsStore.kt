@@ -1,6 +1,10 @@
 package com.aistudio.micrhema
 
 import androidx.compose.runtime.mutableStateListOf
+import com.google.firebase.Firebase
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.SetOptions
+import com.google.firebase.firestore.firestore
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.abs
 
@@ -66,3 +70,95 @@ fun currentResolvedBibleNews(): List<BibleNews> =
         if (bibleNewsState.isEmpty()) BibleNewsData.newsList
         else bibleNewsState.toList()
     )
+
+/** Salva/edita sem perder o ID real de documentos legados da PWA. */
+fun saveBibleNewsSafely(
+    news: BibleNews,
+    onSuccess: () -> Unit = {},
+    onFailure: (Exception) -> Unit = {}
+) {
+    if (isOfflineModeState.value) {
+        onFailure(IllegalStateException("Modo offline ativado"))
+        return
+    }
+    runCatching {
+        val db = Firebase.firestore
+        val documentId = BibleNewsDocumentIds.documentIdFor(news.id) ?: news.id.toString()
+        val decorated = BibleNewsEditorial.decorate(news)
+        val batch = db.batch()
+        batch.set(db.collection("bible_news").document(documentId), decorated)
+        batch.set(
+            db.collection("settings").document("bible_news_editorial"),
+            mapOf("hiddenIds" to FieldValue.arrayRemove(news.id)),
+            SetOptions.merge()
+        )
+        batch.commit()
+            .addOnSuccessListener {
+                BibleNewsDocumentIds.register(news.id, documentId)
+                hiddenBibleNewsIdsState.remove(news.id)
+                onSuccess()
+            }
+            .addOnFailureListener(onFailure)
+    }.onFailure { onFailure(it as? Exception ?: IllegalStateException(it.message)) }
+}
+
+/**
+ * Excluir vira um tombstone administrativo. Assim um item que também existe no
+ * catálogo empacotado não reaparece na próxima recomposição ou atualização.
+ */
+fun hideBibleNewsSafely(
+    news: BibleNews,
+    onSuccess: () -> Unit = {},
+    onFailure: (Exception) -> Unit = {}
+) {
+    if (isOfflineModeState.value) {
+        onFailure(IllegalStateException("Modo offline ativado"))
+        return
+    }
+    runCatching {
+        val db = Firebase.firestore
+        val documentId = BibleNewsDocumentIds.documentIdFor(news.id) ?: news.id.toString()
+        val batch = db.batch()
+        batch.set(
+            db.collection("settings").document("bible_news_editorial"),
+            mapOf("hiddenIds" to FieldValue.arrayUnion(news.id)),
+            SetOptions.merge()
+        )
+        batch.delete(db.collection("bible_news").document(documentId))
+        batch.commit()
+            .addOnSuccessListener {
+                if (news.id !in hiddenBibleNewsIdsState) hiddenBibleNewsIdsState.add(news.id)
+                bibleNewsState.removeAll { it.id == news.id }
+                BibleNewsDocumentIds.forget(news.id)
+                onSuccess()
+            }
+            .addOnFailureListener(onFailure)
+    }.onFailure { onFailure(it as? Exception ?: IllegalStateException(it.message)) }
+}
+
+/** Seleção diária preserva também o ID real do documento para o Worker. */
+fun selectDailyBibleNewsSafely(
+    news: BibleNews,
+    onSuccess: () -> Unit = {},
+    onFailure: (Exception) -> Unit = {}
+) {
+    if (BuildConfig.FIREBASE_PROJECT_ID.isEmpty()) {
+        onFailure(IllegalStateException("Firebase não configurado"))
+        return
+    }
+    val documentId = BibleNewsDocumentIds.documentIdFor(news.id) ?: news.id.toString()
+    Firebase.firestore.collection("settings").document("daily_news").set(
+        mapOf(
+            "selectedNewsId" to news.id,
+            "selectedDocumentId" to documentId,
+            "title" to news.title,
+            "summary" to news.summary,
+            "content" to news.content,
+            "updatedAt" to System.currentTimeMillis()
+        ),
+        SetOptions.merge()
+    ).addOnSuccessListener {
+        dailyNewsNotificationIdState.value = news.id
+        onSuccess()
+    }.addOnFailureListener(onFailure)
+}
