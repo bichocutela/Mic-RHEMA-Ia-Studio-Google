@@ -22,7 +22,8 @@ class FCMService : FirebaseMessagingService() {
             ?: remoteMessage.notification?.body
             ?: remoteMessage.data["message"]
             ?: "Nova mensagem"
-        val category = NotificationHelper.categoryFrom(remoteMessage.data["category"])
+        val rawCategory = remoteMessage.data["category"].orEmpty()
+        val category = NotificationHelper.categoryFrom(rawCategory)
         val destinationRoute = remoteMessage.data["destination"] ?: remoteMessage.data["route"]
         val destinationDocumentId = remoteMessage.data["documentId"] ?: remoteMessage.data["document_id"]
         val collection = remoteMessage.data["collection"].orEmpty()
@@ -30,13 +31,22 @@ class FCMService : FirebaseMessagingService() {
 
         if (remoteMessage.notification == null && remoteMessage.data.isEmpty()) return
 
+        // Release nova: o push instantâneo é reservado ao ADM que estiver logado.
+        // Usuários comuns ignoram este push e deixam o WorkManager consultar a versão
+        // silenciosamente a cada 12 horas, evitando avisos a cada publicação.
+        val isAppUpdate = rawCategory == "app_update"
+        if (isAppUpdate && loggedInMemberState.value?.isAdmin != true) {
+            Log.d(TAG, "Push de atualização ignorado para usuário comum; verificação local cuidará do aviso.")
+            return
+        }
+
         // Conteúdo pode chegar pelo FCM e também pelo WorkManager. A chave abaixo garante
         // que apenas uma dessas fontes mostre a notificação daquele documento.
         val mediaCollections = setOf("conteudos_videos", "conteudos_audios", "conteudos_books", "conteudos_albums")
         val eventKey = when {
             collection in mediaCollections && !destinationDocumentId.isNullOrBlank() ->
                 "content:$collection:$destinationDocumentId"
-            version.isNotBlank() && remoteMessage.data["category"] == "app_update" ->
+            version.isNotBlank() && isAppUpdate ->
                 "app_update:$version"
             collection.isNotBlank() && !destinationDocumentId.isNullOrBlank() ->
                 "fcm:$collection:$destinationDocumentId:${category.name}"
@@ -44,7 +54,7 @@ class FCMService : FirebaseMessagingService() {
             else -> ""
         }
 
-        if (version.isNotBlank() && remoteMessage.data["category"] == "app_update") {
+        if (version.isNotBlank() && isAppUpdate) {
             val prefs = getSharedPreferences("micrhema_update_notifications", Context.MODE_PRIVATE)
             if (prefs.getString("last_notified_version", "") == version) return
         }
@@ -64,10 +74,11 @@ class FCMService : FirebaseMessagingService() {
         if (collection in mediaCollections && !destinationDocumentId.isNullOrBlank()) {
             NotificationHelper.rememberMediaIds(this, listOf(destinationDocumentId))
         }
-        if (version.isNotBlank() && remoteMessage.data["category"] == "app_update" && NotificationHelper.hasNotificationPermission(this)) {
+        if (version.isNotBlank() && isAppUpdate && NotificationHelper.hasNotificationPermission(this)) {
             getSharedPreferences("micrhema_update_notifications", Context.MODE_PRIVATE)
                 .edit()
                 .putString("last_notified_version", version)
+                .putLong("last_notified_at", System.currentTimeMillis())
                 .apply()
         }
     }
