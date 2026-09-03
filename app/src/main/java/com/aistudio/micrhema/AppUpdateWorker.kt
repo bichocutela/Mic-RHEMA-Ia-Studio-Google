@@ -14,7 +14,8 @@ class AppUpdateWorker(
     override suspend fun doWork(): Result {
         // ADM logado recebe o aviso imediato da Release via FCM. Não repetimos o mesmo
         // fluxo no verificador silencioso usado pelos usuários comuns.
-        if (loggedInMemberState.value?.isAdmin == true) return Result.success()
+        val hasAdminSession = adminAuthenticatedState.value || loggedInMemberState.value?.isAdmin == true
+        if (hasAdminSession) return Result.success()
 
         return when (val result = UpdateChecker.checkForUpdates(BuildConfig.VERSION_NAME)) {
             is UpdateResult.Success -> {
