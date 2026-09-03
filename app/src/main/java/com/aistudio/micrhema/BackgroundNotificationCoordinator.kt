@@ -14,19 +14,20 @@ import java.util.concurrent.TimeUnit
 /**
  * Fonte única dos agendamentos locais de notificação.
  *
- * Este coordenador não depende de uma tela Compose estar aberta. Ele é chamado
- * pela Application, por mudanças nas Configurações e pelo receiver de reinício/
- * mudança de relógio, mantendo os trabalhos ativos com o app em segundo plano.
+ * Importante: este coordenador não depende de uma tela Compose estar aberta.
+ * Ele é chamado pela Application, por mudanças nas Configurações e pelo receiver
+ * de reinicialização/alteração de horário. Assim o WorkManager continua cuidando
+ * dos avisos quando o app sai da tela ou o processo é encerrado normalmente.
  */
 object BackgroundNotificationCoordinator {
     private const val PREFS = "micrhema_notification_schedule"
     private const val KEY_SCHEMA = "schema"
-    private const val SCHEMA = 4
+    private const val SCHEMA = 3
 
-    private const val WORK_DEVOTIONAL = "DailyDevotionalReminderV4"
-    private const val WORK_NEWS = "MiddayNewsWorkerV4"
-    private const val WORK_SERVICE_PLANNER = "ServiceAlertPlannerV4"
-    private const val WORK_SERVICE_BOOTSTRAP = "ServiceAlertPlannerBootstrapV4"
+    private const val WORK_DEVOTIONAL = "DailyDevotionalReminderV3"
+    private const val WORK_NEWS = "MiddayNewsWorkerV3"
+    private const val WORK_SERVICE_PLANNER = "ServiceAlertPlannerV3"
+    private const val WORK_SERVICE_BOOTSTRAP = "ServiceAlertPlannerBootstrapV3"
     private const val WORK_MEDIA = "MediaUpdateWorker"
     private const val WORK_IBR = "IbrContentWorker"
     private const val WORK_APP_UPDATE = "AppUpdateWorker"
@@ -150,12 +151,8 @@ object BackgroundNotificationCoordinator {
 
         listOf(
             "DailyDevotionalReminder",
-            "DailyDevotionalReminderV3",
             "MiddayNewsWorker",
-            "MiddayNewsWorkerV3",
             "ServiceAlertWorker",
-            "ServiceAlertPlannerV3",
-            "ServiceAlertPlannerBootstrapV3",
             "DevotionalSyncWorker"
         ).forEach(wm::cancelUniqueWork)
         ServiceAlertWorker.cancelScheduledServiceMoments(context, wm)
