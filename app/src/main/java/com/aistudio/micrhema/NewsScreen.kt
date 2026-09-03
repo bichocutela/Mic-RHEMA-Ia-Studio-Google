@@ -384,7 +384,7 @@ private fun NewsCard(news: BibleNews, onClick: () -> Unit) {
 fun NewsDetailScreen(
     newsId: Int,
     onBack: () -> Unit,
-    onNavigateToBible: (String, Int, Int, String?) -> Unit
+    onNavigateToBible: (String, Int, String?) -> Unit
 ) {
     val news = decoratedBibleNews().find { it.id == newsId } ?: return
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -464,7 +464,10 @@ fun NewsDetailScreen(
                     color = MaterialTheme.colorScheme.primary,
                     textDecoration = TextDecoration.Underline,
                     modifier = Modifier
-                        .clickable { onNavigateToBible(news.book, news.chapter, news.verse, "NTLH") }
+                        .clickable {
+                            BibleNewsPendingNavigation.remember(news.book, news.chapter, news.verse)
+                            onNavigateToBible(news.book, news.chapter, "NTLH")
+                        }
                         .padding(vertical = 8.dp)
                 )
                 Spacer(modifier = Modifier.height(60.dp))
