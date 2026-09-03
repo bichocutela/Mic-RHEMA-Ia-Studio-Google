@@ -3,13 +3,26 @@ package com.aistudio.micrhema
 import android.content.Context
 import android.util.Log
 import androidx.work.CoroutineWorker
+import androidx.work.Data
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
-import java.text.SimpleDateFormat
-import java.util.Calendar
+import java.time.DayOfWeek
+import java.time.Duration
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 
+/**
+ * Planejador dos avisos de culto. Ele não notifica ao ser executado: cria trabalhos
+ * pontuais para 10h da véspera e 10h do próprio dia, permitindo funcionamento com
+ * o app fechado e evitando o antigo disparo "assim que abrir".
+ */
 class ServiceAlertWorker(
     private val context: Context,
     workerParams: WorkerParameters
@@ -17,7 +30,7 @@ class ServiceAlertWorker(
 
     override suspend fun doWork(): Result {
         return try {
-            if (com.google.firebase.FirebaseApp.getApps(context).isEmpty()) return Result.success()
+            if (com.google.firebase.FirebaseApp.getApps(context).isEmpty()) return Result.retry()
 
             val services = FirebaseFirestore.getInstance()
                 .collection("cultos_agenda")
@@ -25,48 +38,107 @@ class ServiceAlertWorker(
                 .await()
                 .documents
                 .mapNotNull { document ->
-                    runCatching { document.toObject(ChurchService::class.java) }.getOrNull()
+                    runCatching { document.toObject(ChurchService::class.java)?.also { if (it.id.isBlank()) it.id = document.id } }.getOrNull()
                 }
-            if (services.isEmpty()) return Result.success()
+                .filter { it.isApproved }
 
-            val dayMap = mapOf(
-                Calendar.SUNDAY to "Domingo",
-                Calendar.MONDAY to "Segunda",
-                Calendar.TUESDAY to "Terça",
-                Calendar.WEDNESDAY to "Quarta",
-                Calendar.THURSDAY to "Quinta",
-                Calendar.FRIDAY to "Sexta",
-                Calendar.SATURDAY to "Sábado"
-            )
-            val now = Calendar.getInstance()
-            val nextService = services.mapNotNull { service ->
-                val daysAhead = (0..6).firstOrNull { offset ->
-                    val candidate = (now.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, offset) }
-                    val dayName = dayMap[candidate.get(Calendar.DAY_OF_WEEK)] ?: return@firstOrNull false
-                    service.day.contains(dayName, ignoreCase = true)
-                } ?: return@mapNotNull null
-                val date = (now.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, daysAhead) }
-                Triple(daysAhead, date, service)
-            }.minWithOrNull(compareBy<Triple<Int, Calendar, ChurchService>> { it.first }.thenBy { it.third.time })
-                ?: return Result.success()
+            val workManager = WorkManager.getInstance(context)
+            val desiredNames = linkedSetOf<String>()
+            val today = LocalDate.now()
 
-            val dateKey = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(nextService.second.time)
-            val serviceKey = "${dateKey}:${nextService.third.id}:${nextService.third.title}"
-            val prefs = context.getSharedPreferences("micrhema_prefs", Context.MODE_PRIVATE)
-            if (prefs.getString("last_notified_service_key", null) == serviceKey) return Result.success()
+            services.forEach { service ->
+                val serviceDate = resolveNextServiceDate(service, today) ?: return@forEach
+                if (serviceDate.isBefore(today) || serviceDate.isAfter(today.plusDays(8))) return@forEach
 
-            NotificationHelper.showNotification(
-                context = context,
-                title = "Próximo culto: ${nextService.third.title}",
-                message = "${nextService.third.day} às ${nextService.third.time}. Prepare-se para estar conosco.",
-                category = NotificationHelper.Category.NEXT_SERVICE,
-                respectPreferences = true
-            )
-            prefs.edit().putString("last_notified_service_key", serviceKey).apply()
+                scheduleMoment(workManager, service, serviceDate.minusDays(1), ServiceMomentNotificationWorker.KIND_DAY_BEFORE)
+                    ?.let(desiredNames::add)
+                scheduleMoment(workManager, service, serviceDate, ServiceMomentNotificationWorker.KIND_TODAY)
+                    ?.let(desiredNames::add)
+            }
+
+            reconcileStaleMoments(context, workManager, desiredNames)
             Result.success()
         } catch (e: Exception) {
-            Log.e("ServiceAlertWorker", "Falha ao verificar o próximo culto", e)
+            Log.e("ServiceAlertWorker", "Falha ao planejar notificações de culto", e)
             Result.retry()
+        }
+    }
+
+    private fun scheduleMoment(
+        workManager: WorkManager,
+        service: ChurchService,
+        expectedDate: LocalDate,
+        kind: String
+    ): String? {
+        val target = expectedDate.atTime(10, 0)
+        val now = LocalDateTime.now()
+        if (target.isBefore(now.minusMinutes(15))) return null
+
+        val stableServiceId = service.id.ifBlank { service.title.lowercase(Locale.getDefault()).replace(Regex("[^a-z0-9]+"), "-") }
+        val workName = "ServiceMomentV3:${stableServiceId}:${expectedDate}:$kind"
+        val delayMs = Duration.between(now, target).toMillis().coerceAtLeast(0L)
+        val data = Data.Builder()
+            .putString(ServiceMomentNotificationWorker.KEY_SERVICE_ID, stableServiceId)
+            .putString(ServiceMomentNotificationWorker.KEY_TITLE, service.title)
+            .putString(ServiceMomentNotificationWorker.KEY_TIME, service.time)
+            .putString(ServiceMomentNotificationWorker.KEY_EXPECTED_DATE, expectedDate.toString())
+            .putString(ServiceMomentNotificationWorker.KEY_KIND, kind)
+            .build()
+        val request = OneTimeWorkRequestBuilder<ServiceMomentNotificationWorker>()
+            .setInitialDelay(delayMs, TimeUnit.MILLISECONDS)
+            .setInputData(data)
+            .build()
+        workManager.enqueueUniqueWork(workName, ExistingWorkPolicy.REPLACE, request)
+        return workName
+    }
+
+    private fun resolveNextServiceDate(service: ChurchService, from: LocalDate): LocalDate? {
+        service.date.trim().takeIf { it.isNotBlank() }?.let { raw ->
+            runCatching { LocalDate.parse(raw) }.getOrNull()?.let { return it }
+        }
+        val wantedDay = parseDay(service.day) ?: return null
+        return (0..7)
+            .map { from.plusDays(it.toLong()) }
+            .firstOrNull { it.dayOfWeek == wantedDay }
+    }
+
+    private fun parseDay(raw: String): DayOfWeek? {
+        val normalized = java.text.Normalizer.normalize(raw.lowercase(Locale.getDefault()), java.text.Normalizer.Form.NFD)
+            .replace(Regex("\\p{M}+"), "")
+        return when {
+            "domingo" in normalized -> DayOfWeek.SUNDAY
+            "segunda" in normalized -> DayOfWeek.MONDAY
+            "terca" in normalized -> DayOfWeek.TUESDAY
+            "quarta" in normalized -> DayOfWeek.WEDNESDAY
+            "quinta" in normalized -> DayOfWeek.THURSDAY
+            "sexta" in normalized -> DayOfWeek.FRIDAY
+            "sabado" in normalized -> DayOfWeek.SATURDAY
+            else -> null
+        }
+    }
+
+    companion object {
+        private const val PREFS = "micrhema_service_moment_schedule"
+        private const val KEY_NAMES = "scheduled_names"
+
+        private fun reconcileStaleMoments(context: Context, wm: WorkManager, desired: Set<String>) {
+            val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            val previous = prefs.getStringSet(KEY_NAMES, emptySet()).orEmpty()
+            (previous - desired).forEach(wm::cancelUniqueWork)
+            prefs.edit().putStringSet(KEY_NAMES, desired).apply()
+        }
+
+        fun cancelScheduledServiceMoments(wm: WorkManager) {
+            val context = runCatching {
+                val field = WorkManager::class.java.getDeclaredField("mContext")
+                field.isAccessible = true
+                field.get(wm) as? Context
+            }.getOrNull()
+            if (context != null) {
+                val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                prefs.getStringSet(KEY_NAMES, emptySet()).orEmpty().forEach(wm::cancelUniqueWork)
+                prefs.edit().remove(KEY_NAMES).apply()
+            }
         }
     }
 }
