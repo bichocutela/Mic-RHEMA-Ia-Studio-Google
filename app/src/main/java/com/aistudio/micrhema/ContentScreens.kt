@@ -553,11 +553,16 @@ fun VideosList(selectedVideo: ContentVideo?, searchQuery: String, isLocalLoading
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
-            Text(
-                text = selectedVideo!!.description,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+            if (selectedVideo!!.description.isNotBlank()) {
+                Text(
+                    text = selectedVideo!!.description,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            YouTubeDescriptionSection(
+                videoUrl = selectedVideo!!.videoUrl
             )
         }
     } else {
