@@ -11,17 +11,54 @@ firebase.initializeApp({
 });
 firebase.messaging();
 
-const CACHE = "mic-rhema-pwa-v3";
+const CACHE = "mic-rhema-pwa-v4";
 const APP_SHELL = ["./", "./manifest.webmanifest"];
-self.addEventListener("install", (event) => event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting())));
+
+self.addEventListener("install", (event) => event.waitUntil(
+  caches.open(CACHE).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()),
+));
+
 self.addEventListener("activate", (event) => event.waitUntil(
   caches.keys()
     .then((keys) => Promise.all(keys.filter((key) => key.startsWith("mic-rhema-pwa-") && key !== CACHE).map((key) => caches.delete(key))))
     .then(() => self.clients.claim()),
 ));
+
 self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET") return;
-  if (event.request.mode === "navigate") {
-    event.respondWith(fetch(event.request).catch(() => caches.match("./")));
+  const request = event.request;
+  if (request.method !== "GET") return;
+
+  if (request.mode === "navigate") {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const copy = response.clone();
+            event.waitUntil(caches.open(CACHE).then((cache) => cache.put("./", copy)));
+          }
+          return response;
+        })
+        .catch(() => caches.match("./")),
+    );
+    return;
   }
+
+  const url = new URL(request.url);
+  const cacheable = url.origin === self.location.origin && ["script", "style", "font", "image"].includes(request.destination);
+  if (!cacheable) return;
+
+  event.respondWith(
+    caches.open(CACHE).then(async (cache) => {
+      const cached = await cache.match(request);
+      const refresh = fetch(request).then((response) => {
+        if (response.ok) cache.put(request, response.clone());
+        return response;
+      });
+      if (cached) {
+        event.waitUntil(refresh.catch(() => undefined));
+        return cached;
+      }
+      return refresh;
+    }),
+  );
 });

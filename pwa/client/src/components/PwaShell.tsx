@@ -1,4 +1,4 @@
-import { Children, isValidElement, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import {
   BookHeart, BookOpen, ChevronDown, ChevronRight, CircleUserRound, Copy, FileText, Grid2X2,
   HandHeart, Heart, Home, Info, Landmark, LockKeyhole, Menu as MenuIcon, PlayCircle, School,
@@ -6,26 +6,26 @@ import {
 } from "lucide-react";
 import { listenToCollection, listenToDocument } from "@/lib/firebase";
 import { startPwaActiveMinuteTracker } from "@/lib/badge-activity";
-import type { PwaSession } from "@/lib/pwa-auth";
-import { MembersParityView, type PwaSessionLike } from "./AndroidParityViews";
-import { AdminParityView } from "./AdminParityView";
-import { PrayerParityView } from "./PrayerParityView";
-import { AboutParityView } from "./AboutParityView";
-import { SettingsParityViewV2 } from "./SettingsParityViewV2";
-import { ProfileParityViewV2 } from "./ProfileParityViewV2";
+import type { PwaSessionLike } from "./AndroidParityViews";
 import { HomeParityView } from "./HomeParityView";
-import { BibleParityViewV2 } from "./BibleParityViewV2";
-import { MediaParityViewV2 } from "./MediaParityViewV2";
-import { DevotionalsParityView } from "./DevotionalsParityView";
-import { IbrParityView } from "./IbrParityView";
-import { NewsParityView } from "./NewsParityView";
-import { PlansParityView } from "./PlansParityView";
-import { CultosParityView } from "./CultosParityView";
-import { DiscipuladoParityViewV2 } from "./DiscipuladoParityViewV2";
 import { DrawerBadgesParity } from "./DrawerBadgesParity";
 import { BadgeUnlockCelebration } from "./BadgeUnlockCelebration";
-import { AndroidLoginParity } from "./AndroidLoginParity";
 import "./AndroidParityViews.css";
+
+const AdminParityView=lazy(()=>import("./AdminParityView").then(module=>({default:module.AdminParityView})));
+const PrayerParityView=lazy(()=>import("./PrayerParityView").then(module=>({default:module.PrayerParityView})));
+const AboutParityView=lazy(()=>import("./AboutParityView").then(module=>({default:module.AboutParityView})));
+const SettingsParityViewV2=lazy(()=>import("./SettingsParityViewV2").then(module=>({default:module.SettingsParityViewV2})));
+const ProfileParityViewV2=lazy(()=>import("./ProfileParityViewV2").then(module=>({default:module.ProfileParityViewV2})));
+const BibleParityViewV2=lazy(()=>import("./BibleParityViewV2").then(module=>({default:module.BibleParityViewV2})));
+const MediaParityViewV2=lazy(()=>import("./MediaParityViewV2").then(module=>({default:module.MediaParityViewV2})));
+const DevotionalsParityView=lazy(()=>import("./DevotionalsParityView").then(module=>({default:module.DevotionalsParityView})));
+const IbrParityView=lazy(()=>import("./IbrParityView").then(module=>({default:module.IbrParityView})));
+const NewsParityView=lazy(()=>import("./NewsParityView").then(module=>({default:module.NewsParityView})));
+const PlansParityView=lazy(()=>import("./PlansParityView").then(module=>({default:module.PlansParityView})));
+const CultosParityView=lazy(()=>import("./CultosParityView").then(module=>({default:module.CultosParityView})));
+const DiscipuladoParityViewV2=lazy(()=>import("./DiscipuladoParityViewV2").then(module=>({default:module.DiscipuladoParityViewV2})));
+const MembersParityView=lazy(()=>import("./AndroidParityViews").then(module=>({default:module.MembersParityView})));
 
 export type AppView =
   | "home" | "bible" | "news" | "devotionals" | "media" | "ibr" | "menu" | "profile"
@@ -34,7 +34,6 @@ export type AppView =
 
 type TeamMember = { id:string; name?:string; role?:string; category?:string; imageUrl?:string; order?:number };
 type DonationSettings = { pixKey?:string; qrCodeUrl?:string };
-type LoginOverlayProps = { onClose:()=>void; onSuccess:(session:PwaSession)=>void; initialAdmin?:boolean };
 
 const primaryItems:Array<{id:AppView;label:string;icon:LucideIcon}>=[
   {id:"home",label:"Início",icon:Home},
@@ -62,6 +61,9 @@ const drawerGroups:Array<{title:string;icon:LucideIcon;items:Array<{id:AppView;l
   ]},
 ];
 
+function RouteFallback(){return <section className="page-pad android-module"><div className="parity-empty"><span className="pwa-route-spinner" aria-hidden="true"/><p>Carregando…</p></div></section>}
+function AccessPrompt({admin,onAction}:{admin?:boolean;onAction:()=>void}){return <section className="parity-page"><div className="parity-empty"><LockKeyhole size={48}/><h1>{admin?"Área Administrativa":"Área de Membros"}</h1><p>{admin?"Entre com o acesso administrativo para continuar.":"Entre na sua conta para abrir este conteúdo."}</p><button className="android-primary-action" onClick={onAction}>{admin?"Entrar como administrador":"Entrar"}</button></div></section>}
+
 function TeamParityView(){
   const[members,setMembers]=useState<TeamMember[]>([]);
   const[category,setCategory]=useState("Todos");
@@ -74,7 +76,7 @@ function TeamParityView(){
     <div className="android-section-heading"><div><p>EQUIPE</p><h2>Nossa Equipe</h2></div></div>
     <div className="filter-pills">{categories.map(item=><button key={item} className={category===item?"selected":""} onClick={()=>setCategory(item)}>{item}</button>)}</div>
     {!visible.length?<p className="empty-module">Nenhum membro da equipe cadastrado nesta categoria.</p>:<div className="android-list-cards">{visible.map(member=><article key={member.id} className="android-module-card">
-      {member.imageUrl?<img src={member.imageUrl} alt={`Foto de ${member.name||"membro"}`} style={{width:58,height:58,borderRadius:"50%",objectFit:"cover"}}/>:<CircleUserRound size={38}/>}<div><strong>{member.name||"Membro da equipe"}</strong><small>{[member.role,member.category].filter(Boolean).join(" · ")||"Equipe MIC Rhema"}</small></div>
+      {member.imageUrl?<img loading="lazy" src={member.imageUrl} alt={`Foto de ${member.name||"membro"}`} style={{width:58,height:58,borderRadius:"50%",objectFit:"cover"}}/>:<CircleUserRound size={38}/>}<div><strong>{member.name||"Membro da equipe"}</strong><small>{[member.role,member.category].filter(Boolean).join(" · ")||"Equipe MIC Rhema"}</small></div>
     </article>)}</div>}
   </section>;
 }
@@ -88,7 +90,7 @@ function DonationsParityView(){
   return <section className="page-pad android-module">
     <div className="android-section-heading"><div><p>IGREJA</p><h2>Dízimos e Ofertas</h2></div></div><p>Contribua com a obra de Deus.</p>
     {!pixKey&&!qr?<p className="empty-module">As informações de doação ainda não foram configuradas.</p>:<article className="android-module-card" style={{display:"flex",flexDirection:"column",alignItems:"center",gap:14}}>
-      {qr&&<img src={qr} alt="QR Code Pix" style={{width:210,maxWidth:"100%",aspectRatio:"1 / 1",objectFit:"contain",borderRadius:16}}/>}
+      {qr&&<img loading="lazy" src={qr} alt="QR Code Pix" style={{width:210,maxWidth:"100%",aspectRatio:"1 / 1",objectFit:"contain",borderRadius:16}}/>}
       {pixKey&&<><div style={{textAlign:"center"}}><strong>Chave PIX</strong><small style={{display:"block",marginTop:6,wordBreak:"break-all"}}>{pixKey}</small></div><button className="android-primary-action" onClick={()=>void copy()}><Copy size={18}/><span>Copiar Chave</span></button></>}
     </article>}
   </section>;
@@ -114,17 +116,8 @@ function AndroidDrawer({active,onNavigate,onProfile,onClose,session,onNotificati
   </aside>;
 }
 
-export function PwaShell({children,active,onNavigate,drawerOpen,onCloseDrawer,onOpenDrawer,onProfile,session,onNotifications}:{children:React.ReactNode;active:AppView;onNavigate:(view:AppView)=>void;drawerOpen:boolean;onCloseDrawer:()=>void;onOpenDrawer:()=>void;onProfile:()=>void;session:PwaSessionLike;onNotifications:()=>void}){
+export function PwaShell({active,onNavigate,drawerOpen,onCloseDrawer,onOpenDrawer,onProfile,onAdminLogin,session,onNotifications}:{active:AppView;onNavigate:(view:AppView)=>void;drawerOpen:boolean;onCloseDrawer:()=>void;onOpenDrawer:()=>void;onProfile:()=>void;onAdminLogin:()=>void;session:PwaSessionLike;onNotifications:()=>void}){
   useEffect(()=>startPwaActiveMinuteTracker(),[]);
-  const childNodes=Children.toArray(children);
-  const overlays=childNodes.slice(1).map((node,index)=>{
-    if(!isValidElement(node))return node;
-    const props=node.props as Partial<LoginOverlayProps>;
-    if(typeof props.onClose==="function"&&typeof props.onSuccess==="function"){
-      return <AndroidLoginParity key={`login-overlay-${index}`} onClose={props.onClose} onSuccess={props.onSuccess} initialAdmin={props.initialAdmin===true}/>;
-    }
-    return node;
-  });
   const content=active==="home"?<HomeParityView session={session} onNavigate={onNavigate}/>
     :active==="bible"?<BibleParityViewV2/>
     :active==="news"?<NewsParityView onNavigate={onNavigate}/>
@@ -134,21 +127,22 @@ export function PwaShell({children,active,onNavigate,drawerOpen,onCloseDrawer,on
     :active==="plans"?<PlansParityView/>
     :active==="cultos"?<CultosParityView/>
     :active==="discipulado"?<DiscipuladoParityViewV2/>
+    :active==="admin"&&!session?.isAdmin?<AccessPrompt admin onAction={onAdminLogin}/>
     :active==="admin"?<AdminParityView session={session}/>
-    :active==="profile"&&session?<ProfileParityViewV2 session={session} onNavigateHome={()=>onNavigate("home")}/>
+    :active==="profile"&&!session?<AccessPrompt onAction={onProfile}/>
+    :active==="profile"?<ProfileParityViewV2 session={session} onNavigateHome={()=>onNavigate("home")}/>
     :active==="settings"?<SettingsParityViewV2 session={session} onProfile={onProfile} onNotifications={onNotifications}/>
-    :active==="members"&&!session?.isAdmin?<MembersParityView session={session} onProfile={onProfile}/>
+    :active==="members"?<MembersParityView session={session} onProfile={onProfile}/>
     :active==="prayer"?<PrayerParityView session={session}/>
     :active==="team"?<TeamParityView/>
     :active==="donations"?<DonationsParityView/>
     :active==="about"?<AboutParityView/>
-    :children;
+    :<HomeParityView session={session} onNavigate={onNavigate}/>;
   return <div className="android-app-shell">
-    <main className="android-app-content">{content}</main>
+    <main className="android-app-content"><Suspense fallback={<RouteFallback/>}>{content}</Suspense></main>
     <nav className="android-bottom-dock" aria-label="Navegação principal">{primaryItems.map(({id,label,icon:Icon})=>{const selected=active===id;return <button className={selected?"is-active":""} key={id} onClick={()=>onNavigate(id)} aria-current={selected?"page":undefined}><Icon size={20} strokeWidth={selected?2.4:1.9}/>{selected&&<span>{label}</span>}</button>})}<button onClick={onOpenDrawer} aria-label="Abrir menu"><MenuIcon size={22}/></button></nav>
     {drawerOpen&&<AndroidDrawer active={active} onNavigate={onNavigate} onProfile={onProfile} onClose={onCloseDrawer} session={session} onNotifications={onNotifications}/>} 
     <BadgeUnlockCelebration onOpenBadges={()=>{onCloseDrawer();onNavigate("profile")}}/>
-    {overlays}
   </div>;
 }
 
