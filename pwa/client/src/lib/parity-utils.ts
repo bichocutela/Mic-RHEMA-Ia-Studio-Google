@@ -1,6 +1,8 @@
 export type AcceptedDate = Date | null;
 
-const MEDIA_ASSETS_PUBLIC_BASE = "https://cwphbkdtorfpgmnlafqb.supabase.co/storage/v1/object/public/media-assets/";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://cwphbkdtorfpgmnlafqb.supabase.co";
+const MEDIA_ASSETS_PUBLIC_BASE = `${SUPABASE_URL}/storage/v1/object/public/media-assets/`;
+const PWA_MEDIA_STREAM_BASE = `${SUPABASE_URL}/functions/v1/pwa-media-stream`;
 
 export function parseAppDate(raw?: string): AcceptedDate {
   const value = String(raw || "").trim();
@@ -68,7 +70,7 @@ export function googleDriveFileId(value?: string) {
   try {
     const url = new URL(raw);
     const host = url.hostname.replace(/^www\./, "").toLowerCase();
-    if (host !== "drive.google.com" && host !== "docs.google.com") return "";
+    if (host !== "drive.google.com" && host !== "docs.google.com" && host !== "drive.usercontent.google.com") return "";
     return url.pathname.match(/\/d\/([A-Za-z0-9_-]+)/)?.[1] || url.searchParams.get("id") || "";
   } catch { return ""; }
 }
@@ -95,6 +97,15 @@ function firebaseStorageHttpUrl(raw: string) {
   return `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(gsMatch[1])}/o/${encodeURIComponent(gsMatch[2])}?alt=media`;
 }
 
+function isManagedPortableSource(raw: string) {
+  if (raw.startsWith("media-assets/") || raw.startsWith("gs://")) return true;
+  try {
+    const host = new URL(raw).hostname.replace(/^www\./, "").toLowerCase();
+    return host === "drive.google.com" || host === "docs.google.com" || host === "drive.usercontent.google.com"
+      || host === "cwphbkdtorfpgmnlafqb.supabase.co" || host === "firebasestorage.googleapis.com";
+  } catch { return false; }
+}
+
 /** URL direta e durável para arquivos que o Android e a PWA compartilham. */
 export function resolvePortableAssetUrl(value?: string) {
   const raw = String(value || "").trim();
@@ -104,20 +115,34 @@ export function resolvePortableAssetUrl(value?: string) {
   const firebase = firebaseStorageHttpUrl(raw);
   if (firebase) return firebase;
   const driveId = googleDriveFileId(raw);
-  if (driveId) return `https://drive.google.com/uc?export=download&id=${encodeURIComponent(driveId)}`;
+  if (driveId) return `https://drive.usercontent.google.com/download?id=${encodeURIComponent(driveId)}&export=download&confirm=t`;
   try {
     const url = new URL(raw);
     return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : "";
   } catch { return ""; }
 }
 
-/** URL apropriada para leitura do PDF dentro da própria PWA. */
+/**
+ * No Safari/iOS, Google Drive e alguns storages não entregam Range/CORS de forma estável ao <audio>.
+ * Arquivos administrados pelo MIC Rhema passam pelo streaming seguro com suporte a byte ranges.
+ */
+export function resolveAudioStreamUrl(value?: string) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  return isManagedPortableSource(raw)
+    ? `${PWA_MEDIA_STREAM_BASE}?url=${encodeURIComponent(raw)}`
+    : resolvePortableAssetUrl(raw);
+}
+
+/** URL apropriada para leitura multipágina do PDF dentro da própria PWA. */
 export function resolvePdfEmbedUrl(value?: string) {
   const raw = String(value || "").trim();
   if (!raw) return "";
   const driveId = googleDriveFileId(raw);
   if (driveId) return `https://drive.google.com/file/d/${encodeURIComponent(driveId)}/preview`;
-  return resolvePortableAssetUrl(raw);
+  const direct = resolvePortableAssetUrl(raw);
+  if (!direct) return "";
+  return `https://docs.google.com/gview?embedded=1&url=${encodeURIComponent(direct)}`;
 }
 
 /**
