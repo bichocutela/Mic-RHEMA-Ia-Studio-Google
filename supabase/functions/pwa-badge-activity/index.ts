@@ -42,7 +42,7 @@ async function firestoreAccessToken(account: ServiceAccount) {
   const response = await fetch(GOOGLE_TOKEN_URL, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion }),
+    body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth2:grant-type:jwt-bearer", assertion }),
   });
   const payload = await response.json();
   if (!response.ok || !payload.access_token) throw new HttpError(500, "Falha ao sincronizar progresso.");
@@ -116,10 +116,11 @@ Deno.serve(async (request: Request) => {
   if (request.method !== "POST") return json({ error: "Método não permitido." }, 405);
   try {
     const memberId = await verifiedMemberId(bearerToken(request));
-    const input = await request.json() as { activity?: unknown; itemId?: unknown };
+    const input = await request.json() as { activity?: unknown; itemId?: unknown; reconcile?: unknown };
+    const reconcileOnly = input.reconcile === true;
     const activity = String(input.activity || "").trim();
     const itemId = String(input.itemId || "").trim().slice(0, 180);
-    if (!ALLOWED_ACTIVITIES.has(activity) || !itemId) return json({ error: "Atividade inválida." }, 400);
+    if (!reconcileOnly && (!ALLOWED_ACTIVITIES.has(activity) || !itemId)) return json({ error: "Atividade inválida." }, 400);
     const account = JSON.parse(Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON") || "{}") as ServiceAccount;
     const projectId = account.project_id || FIREBASE_PROJECT_ID;
     const accessToken = await firestoreAccessToken(account);
@@ -129,8 +130,10 @@ Deno.serve(async (request: Request) => {
     const data = fields(member);
     if (data.isApproved !== true && data.isAdmin !== true) throw new HttpError(403, "Perfil ainda não aprovado.");
     const activities = (data.badgeActivityIds && typeof data.badgeActivityIds === "object" ? data.badgeActivityIds : {}) as Record<string, string[]>;
-    const current = Array.isArray(activities[activity]) ? activities[activity].map(String) : [];
-    if (!current.includes(itemId)) activities[activity] = [...current, itemId].slice(-6000);
+    if (!reconcileOnly) {
+      const current = Array.isArray(activities[activity]) ? activities[activity].map(String) : [];
+      if (!current.includes(itemId)) activities[activity] = [...current, itemId].slice(-6000);
+    }
     const previousBadges = Array.isArray(data.unlockedBadgeIds) ? data.unlockedBadgeIds.map(String) : [];
     const completedCourses = await countCompletedCourses(projectId, accessToken, memberId);
     const unlockedBadgeIds = calculateBadges(previousBadges, activities, completedCourses);
