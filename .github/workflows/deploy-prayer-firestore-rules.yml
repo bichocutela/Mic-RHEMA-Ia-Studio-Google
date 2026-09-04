@@ -1,0 +1,47 @@
+name: Publicar regras privadas dos pedidos de oração
+
+on:
+  push:
+    branches:
+      - feature/android-prayer-priority-flow
+    paths:
+      - '.github/workflows/deploy-prayer-firestore-rules.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-rules:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout da branch validada
+        uses: actions/checkout@v4
+        with:
+          ref: feature/android-prayer-priority-flow
+
+      - name: Validar regra de propriedade
+        run: |
+          grep -q 'request.resource.data.requesterUid == request.auth.uid' firestore.rules
+          grep -q 'resource.data.requesterUid == request.auth.uid' firestore.rules
+          grep -q 'allow update, delete: if isAdmin();' firestore.rules
+
+      - name: Validar credencial de publicação
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT_JSON" ]; then
+            echo "O secret FIREBASE_SERVICE_ACCOUNT_JSON não foi configurado."
+            exit 1
+          fi
+
+      - name: Autenticar no Firebase
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          project_id: mic-rhema
+
+      - name: Instalar Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Publicar somente regras do Firestore
+        run: firebase deploy --only firestore:rules --project mic-rhema --non-interactive
