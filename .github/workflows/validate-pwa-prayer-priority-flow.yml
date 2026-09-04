@@ -23,6 +23,19 @@ jobs:
       - name: Aplicar implementação PWA
         run: |
           python3 scripts/apply_pwa_prayer_priority_flow.py
+          python3 - <<'PY'
+          from pathlib import Path
+          prayer = Path('pwa/client/src/components/PrayerParityView.tsx')
+          text = prayer.read_text(encoding='utf-8')
+          text = text.replace('import type { PwaSession } from "@/lib/pwa-auth";\n', '')
+          text = text.replace('export function PrayerParityView({ session }: { session?: PwaSession | null })', 'export function PrayerParityView({ session }: { session?: { uid: string; name: string; isAdmin: boolean; isIbr?: boolean } | null })')
+          prayer.write_text(text, encoding='utf-8')
+
+          device = Path('pwa/client/src/lib/prayer-device.ts')
+          text = device.read_text(encoding='utf-8')
+          text = text.replace('  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return `${prefix}_${crypto.randomUUID()}`;\n  const bytes = new Uint8Array(24);\n  crypto.getRandomValues(bytes);', '  const webCrypto = globalThis.crypto;\n  if (typeof webCrypto.randomUUID === "function") return `${prefix}_${webCrypto.randomUUID()}`;\n  const bytes = new Uint8Array(24);\n  webCrypto.getRandomValues(bytes);')
+          device.write_text(text, encoding='utf-8')
+          PY
           git diff --check
           git status --short
 
