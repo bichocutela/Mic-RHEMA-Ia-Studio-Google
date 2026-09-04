@@ -60,6 +60,53 @@ export function youtubeThumbnail(value?: string) {
   return id ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : "";
 }
 
+/**
+ * Resolve formatos de imagem usados historicamente pelo Android/PWA para uma URL exibível no navegador.
+ * - links assinados antigos do bucket público media-assets viram URLs públicas permanentes;
+ * - storage_path do media-assets vira URL pública;
+ * - links compartilhados/download do Google Drive viram thumbnail própria para <img>;
+ * - gs:// antigo é convertido para o endpoint HTTP do Firebase Storage.
+ */
+export function resolveDisplayImageUrl(value?: string) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  if (raw.startsWith("media-assets/")) {
+    return `https://cwphbkdtorfpgmnlafqb.supabase.co/storage/v1/object/public/${raw}`;
+  }
+
+  const gsMatch = raw.match(/^gs:\/\/([^/]+)\/(.+)$/i);
+  if (gsMatch) {
+    return `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(gsMatch[1])}/o/${encodeURIComponent(gsMatch[2])}?alt=media`;
+  }
+
+  try {
+    const url = new URL(raw);
+    const host = url.hostname.replace(/^www\./, "").toLowerCase();
+
+    const signedMediaMarker = "/storage/v1/object/sign/media-assets/";
+    const authenticatedMediaMarker = "/storage/v1/object/authenticated/media-assets/";
+    const marker = url.pathname.includes(signedMediaMarker)
+      ? signedMediaMarker
+      : url.pathname.includes(authenticatedMediaMarker)
+        ? authenticatedMediaMarker
+        : "";
+    if (marker) {
+      const objectPath = url.pathname.slice(url.pathname.indexOf(marker) + marker.length);
+      return `${url.origin}/storage/v1/object/public/media-assets/${objectPath}`;
+    }
+
+    if (host === "drive.google.com" || host === "docs.google.com") {
+      const fileId = url.pathname.match(/\/d\/([A-Za-z0-9_-]+)/)?.[1] || url.searchParams.get("id") || "";
+      if (fileId) return `https://drive.google.com/thumbnail?id=${encodeURIComponent(fileId)}&sz=w2000`;
+    }
+
+    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : "";
+  } catch {
+    return "";
+  }
+}
+
 export function normalizeSearch(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 }
