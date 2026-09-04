@@ -39,7 +39,18 @@ jobs:
 
       - name: Aplicar ajustes finais de paridade
         working-directory: pwa
-        run: node scripts/finalize-pwa-parity.mjs
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("scripts/finalize-pwa-parity.mjs")
+          text = path.read_text()
+          old = '  text=replaceRegex(text,/function BannerForm\\([\\s\\S]*?\\n\\nfunction DonationsAdmin/,bannerBlock+"\\n\\nfunction DonationsAdmin","banner ADM","Enviar banner 16:9");'
+          new = '  if(!text.includes("Enviar banner 16:9")){const start=text.indexOf("function BannerForm(");const end=text.indexOf("function DonationsAdmin",start);if(start<0||end<0)throw new Error("banner ADM: marcadores não encontrados");text=text.slice(0,start)+bannerBlock+"\\n\\n"+text.slice(end);}'
+          if old not in text:
+              raise SystemExit("Trecho do banner não encontrado para correção do validador")
+          path.write_text(text.replace(old, new))
+          PY
+          node scripts/finalize-pwa-parity.mjs
 
       - name: Instalar dependências
         working-directory: pwa
