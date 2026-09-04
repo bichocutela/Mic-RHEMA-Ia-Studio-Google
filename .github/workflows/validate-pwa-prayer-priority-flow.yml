@@ -112,10 +112,10 @@ jobs:
 
       - name: Commitar implementação somente após verde
         run: |
+          git checkout -- .github/workflows/main.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add \
-            .github/workflows/main.yml \
             pwa/client/src/lib/prayer-device.ts \
             pwa/client/src/lib/push.ts \
             pwa/client/src/lib/firebase.ts \
