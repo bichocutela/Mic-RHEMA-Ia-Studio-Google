@@ -127,7 +127,16 @@ data class PrayerRequest(
     var id: String = "",
     var name: String = "",
     var request: String = "",
-    var date: String = ""
+    var date: String = "",
+    var createdAt: Long = 0L,
+    var requesterUid: String = "",
+    var requesterMemberId: String = "",
+    var requesterFcmToken: String = "",
+    var status: String = "pendente",
+    var answeredAt: Long = 0L,
+    var answeredDate: String = "",
+    var responseMessage: String = "",
+    var answeredBy: String = ""
 )
 
 data class CarouselItem(
@@ -166,20 +175,7 @@ val carouselItemsState = mutableStateListOf<CarouselItem>(
     )
 )
 
-val prayerRequestsState = mutableStateListOf<PrayerRequest>(
-    PrayerRequest(
-        id = "1",
-        name = "Maria Souza",
-        request = "Pela saúde da minha família e restauração do meu casamento.",
-        date = "2026-07-13"
-    ),
-    PrayerRequest(
-        id = "2",
-        name = "João Silva",
-        request = "Agradecimento pela porta de emprego aberta e oração para que tudo corra bem no novo trabalho.",
-        date = "2026-07-12"
-    )
-)
+val prayerRequestsState = mutableStateListOf<PrayerRequest>()
 
 val devotionalsState = mutableStateListOf<Devotional>(
     Devotional(
@@ -1043,12 +1039,8 @@ fun loadContentFromFirebase(context: Context) {
                 
                 
                 
-        db.collection("prayer_requests").addSnapshotListener { snapshot, e ->
-            if (e != null || snapshot == null) return@addSnapshotListener
-            val list = snapshot.documents.mapNotNull { try { it.toObject(PrayerRequest::class.java) } catch(ex: Exception) { null } }
-            prayerRequestsState.clear()
-                    prayerRequestsState.addAll(list)
-        }
+        // Pedidos de oração são carregados por PrayerRepository:
+        // o usuário lê somente os próprios pedidos e o ADM lê a fila completa.
         
         db.collection("ibr_courses").addSnapshotListener { snapshot, e ->
             if (e != null || snapshot == null) return@addSnapshotListener

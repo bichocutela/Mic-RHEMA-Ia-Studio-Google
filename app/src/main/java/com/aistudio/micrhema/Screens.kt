@@ -200,7 +200,10 @@ fun AdminScreen() {
                 ),
                 com.google.firebase.firestore.SetOptions.merge()
             )
-            .addOnSuccessListener { MemberManager.syncFromFirestore(context) }
+            .addOnSuccessListener {
+                MemberManager.syncFromFirestore(context)
+                PrayerRepository.startAdminListener()
+            }
             .addOnFailureListener { error ->
                 android.util.Log.e("AdminScreen", "A sessão Firebase foi autenticada, mas o documento admin foi recusado", error)
             }
@@ -224,6 +227,16 @@ fun AdminScreen() {
                             }
                     }
             }
+        }
+    }
+
+    LaunchedEffect(isAuthenticated) {
+        runCatching {
+            val messaging = com.google.firebase.messaging.FirebaseMessaging.getInstance()
+            if (isAuthenticated) messaging.subscribeToTopic("prayer_admins")
+            else messaging.unsubscribeFromTopic("prayer_admins")
+        }.onFailure {
+            android.util.Log.w("AdminScreen", "Não foi possível atualizar o tópico de oração do ADM", it)
         }
     }
 
@@ -286,6 +299,11 @@ fun AdminScreen() {
                             }
                             IconButton(onClick = {
                                 isAuthenticated = false
+                                adminPrayerTargetState.value = null
+                                runCatching {
+                                    com.google.firebase.messaging.FirebaseMessaging.getInstance().unsubscribeFromTopic("prayer_admins")
+                                    com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
+                                }
                             }) {
                                 Icon(androidx.compose.material.icons.Icons.Default.ExitToApp, contentDescription = "Sair", tint = MaterialTheme.colorScheme.error)
                             }
@@ -402,9 +420,16 @@ fun AdminScreen() {
                 return@Scaffold
             }
 
-            var currentSection by remember { mutableStateOf(AdminSection.DASHBOARD) }
+            var currentSection by remember {
+                mutableStateOf(if (!adminPrayerTargetState.value.isNullOrBlank()) AdminSection.PRAYERS else AdminSection.DASHBOARD)
+            }
+
+            LaunchedEffect(adminPrayerTargetState.value) {
+                if (!adminPrayerTargetState.value.isNullOrBlank()) currentSection = AdminSection.PRAYERS
+            }
 
             BackHandler(enabled = currentSection != AdminSection.DASHBOARD) {
+                if (currentSection == AdminSection.PRAYERS) adminPrayerTargetState.value = null
                 currentSection = AdminSection.DASHBOARD
             }
 
@@ -424,6 +449,7 @@ fun AdminScreen() {
                     AdminSection.SERVICES -> "Cultos"
                     AdminSection.BANNERS -> "Destaques"
                     AdminSection.DONATIONS -> "Dízimos e Ofertas"
+                    AdminSection.PRAYERS -> "Pedidos de Oração"
                     AdminSection.TEAM -> "Equipe"
                     AdminSection.MEMBERS -> "Membros"
                     AdminSection.PROFILES -> "Perfis dos Membros"
@@ -437,7 +463,10 @@ fun AdminScreen() {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { currentSection = AdminSection.DASHBOARD }
+                            .clickable {
+                                if (currentSection == AdminSection.PRAYERS) adminPrayerTargetState.value = null
+                                currentSection = AdminSection.DASHBOARD
+                            }
                             .padding(16.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -483,6 +512,7 @@ fun AdminScreen() {
                             AdminSection.SETTINGS -> EditSettingsSection()
                             AdminSection.DONATIONS -> EditDonationsSection()
                             AdminSection.PROFILES -> EditProfilesSection()
+                            AdminSection.PRAYERS -> AdminPrayerRequestsScreen(adminPrayerTargetState.value)
                             else -> {}
                         }
                     }

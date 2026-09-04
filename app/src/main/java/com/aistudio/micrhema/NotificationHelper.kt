@@ -177,7 +177,8 @@ object NotificationHelper {
         NEXT_SERVICE,
         DAILY_NEWS,
         IBR_CONTENT,
-        CONTENT_UPDATES
+        CONTENT_UPDATES,
+        PRAYER
     }
 
     fun categoryFrom(value: String?): Category {
@@ -190,6 +191,7 @@ object NotificationHelper {
             "service", "culto", "next_service" -> Category.NEXT_SERVICE
             "news", "noticia", "notícia", "daily_news" -> Category.DAILY_NEWS
             "ibr", "ibr_content", "course_ibr", "aula" -> Category.IBR_CONTENT
+            "prayer", "oracao", "oração", "prayer_response" -> Category.PRAYER
             "content", "conteudo", "conteúdo", "content_updates", "app_update" -> Category.CONTENT_UPDATES
             else -> Category.GENERAL
         }
@@ -204,7 +206,7 @@ object NotificationHelper {
         Category.NEXT_SERVICE -> R.drawable.ic_notif_service
         Category.DAILY_NEWS -> R.drawable.ic_notif_news
         Category.IBR_CONTENT -> R.drawable.ic_notif_ibr
-        Category.GENERAL, Category.CONTENT_UPDATES -> R.drawable.ic_notification
+        Category.PRAYER, Category.GENERAL, Category.CONTENT_UPDATES -> R.drawable.ic_notification
     }
 
     private fun appLogoBitmap(context: Context) = runCatching {
@@ -296,7 +298,7 @@ object NotificationHelper {
             Category.NEXT_SERVICE -> settings.notifNextService
             Category.DAILY_NEWS -> settings.notifDailyNews
             Category.IBR_CONTENT -> settings.notifIbrContent && isIbrMember(context)
-            Category.GENERAL, Category.CONTENT_UPDATES -> true
+            Category.PRAYER, Category.GENERAL, Category.CONTENT_UPDATES -> true
         }
     }
 

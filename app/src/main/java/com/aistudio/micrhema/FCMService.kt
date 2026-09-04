@@ -67,7 +67,7 @@ class FCMService : FirebaseMessagingService() {
             title = title,
             message = message,
             category = category,
-            respectPreferences = true,
+            respectPreferences = category != NotificationHelper.Category.PRAYER,
             destinationRoute = destinationRoute,
             destinationDocumentId = destinationDocumentId
         )

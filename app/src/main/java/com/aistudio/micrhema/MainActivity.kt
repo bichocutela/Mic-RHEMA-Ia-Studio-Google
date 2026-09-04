@@ -97,6 +97,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
 }
 
 val notificationDestinationState = mutableStateOf<String?>(null)
+val adminPrayerTargetState = mutableStateOf<String?>(null)
 
 val drawerItems = listOf(
     Screen.Home,
@@ -115,9 +116,15 @@ val drawerItems = listOf(
 
 class MainActivity : ComponentActivity() {
     private fun captureNotificationDestination(source: Intent?) {
-        notificationDestinationState.value = source
+        val destination = source
             ?.getStringExtra(NotificationHelper.EXTRA_NOTIFICATION_DESTINATION)
-            ?.takeIf { it == Screen.About.route }
+            ?.takeIf {
+                it == Screen.About.route || it == Screen.Prayer.route || it == Screen.Admin.route || it.startsWith("admin_prayer/")
+            }
+        notificationDestinationState.value = destination
+        if (destination?.startsWith("admin_prayer/") == true) {
+            adminPrayerTargetState.value = destination.substringAfter("admin_prayer/").takeIf { it.isNotBlank() }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -320,13 +327,21 @@ fun MainScreen() {
 
     val navController = rememberNavController()
     LaunchedEffect(notificationDestinationState.value) {
-        if (notificationDestinationState.value == Screen.About.route) {
-            navController.navigate(Screen.About.route) {
+        val destination = notificationDestinationState.value ?: return@LaunchedEffect
+        val route = when {
+            destination.startsWith("admin_prayer/") -> Screen.Admin.route
+            destination == Screen.Prayer.route -> Screen.Prayer.route
+            destination == Screen.Admin.route -> Screen.Admin.route
+            destination == Screen.About.route -> Screen.About.route
+            else -> null
+        }
+        route?.let {
+            navController.navigate(it) {
                 popUpTo(navController.graph.startDestinationId)
                 launchSingleTop = true
             }
-            notificationDestinationState.value = null
         }
+        notificationDestinationState.value = null
     }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
