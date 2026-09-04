@@ -16,6 +16,10 @@ function isStandalonePwa() {
   return window.matchMedia?.("(display-mode: standalone)").matches || Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
 }
 function isAppleMobile() { return /iPad|iPhone|iPod/.test(navigator.userAgent); }
+function localTimeZone() {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Fortaleza"; }
+  catch { return "America/Fortaleza"; }
+}
 
 export function pwaPushPreferences(): PwaPushPreferences {
   let settings: Record<string, unknown> = {};
@@ -42,7 +46,7 @@ async function registerToken(requestPermission: boolean) {
   const response = await fetch(`${supabaseUrl}/functions/v1/pwa-push-subscribe`, {
     method: "POST",
     headers: { "content-type": "application/json", ...(idToken ? { authorization: `Bearer ${idToken}` } : {}) },
-    body: JSON.stringify({ token, deviceId, platform: isAppleMobile() ? "ios-web" : "web", preferences: pwaPushPreferences() }),
+    body: JSON.stringify({ token, deviceId, platform: isAppleMobile() ? "ios-web" : "web", timeZone: localTimeZone(), preferences: pwaPushPreferences() }),
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.ok !== true) throw new Error(payload.error || "Não foi possível concluir a inscrição de avisos.");
