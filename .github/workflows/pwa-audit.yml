@@ -1,0 +1,66 @@
+name: Validar auditoria PWA Android
+
+on:
+  push:
+    branches:
+      - audit/pwa-parity-fix-impl
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pwa-parity-audit
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      BASE_PATH: /${{ github.event.repository.name }}/
+      VITE_SUPABASE_URL: https://cwphbkdtorfpgmnlafqb.supabase.co
+    steps:
+      - name: Baixar código da auditoria
+        uses: actions/checkout@v4
+        with:
+          ref: audit/pwa-parity-fix-impl
+
+      - name: Configurar pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pwa/pnpm-lock.yaml
+
+      - name: Aplicar ajustes finais de paridade
+        working-directory: pwa
+        run: node scripts/finalize-pwa-parity.mjs
+
+      - name: Instalar dependências
+        working-directory: pwa
+        run: pnpm install --frozen-lockfile
+
+      - name: Validar TypeScript e dados Android
+        working-directory: pwa
+        run: pnpm check
+
+      - name: Gerar build completo
+        working-directory: pwa
+        run: pnpm build
+
+      - name: Persistir ajustes gerados após validação
+        run: |
+          if git diff --quiet; then
+            echo "Nenhuma alteração gerada."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pwa/client/src/components pwa/client/src/data pwa/package.json
+          git commit -m "fix(pwa): concluir paridade funcional com Android"
+          git push origin HEAD:audit/pwa-parity-fix-impl
