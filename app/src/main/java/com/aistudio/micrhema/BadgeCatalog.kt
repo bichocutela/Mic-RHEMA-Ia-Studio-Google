@@ -3,6 +3,7 @@ package com.aistudio.micrhema
 /**
  * Catálogo central das molduras de nível e dos emblemas simples do MIC Rhema.
  * Os identificadores são estáveis para que possam ser persistidos no Firebase.
+ * No perfil, todos os emblemas podem ser visualizados antes de serem equipados.
  */
 data class BiblicalBadge(
     val id: String,
