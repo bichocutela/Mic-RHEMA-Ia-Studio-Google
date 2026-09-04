@@ -42,7 +42,7 @@ export default function Home() {
 
   useEffect(()=>{
     let cancelled=false;
-    let unsubscribe=()=>undefined;
+    let unsubscribe:()=>void=()=>undefined;
     const start=()=>{
       void import("@/lib/push").then(async module=>{
         if(cancelled)return;
