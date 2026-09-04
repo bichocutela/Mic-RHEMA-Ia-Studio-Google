@@ -1,1 +1,57 @@
 /* IBR PWA — layout próprio para não herdar a grade genérica de .android-module-card. */
+.ibr-progress-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 16px;
+  min-height: 0;
+  padding: 20px;
+}
+
+.ibr-progress-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.ibr-progress-copy { min-width: 0; }
+.ibr-progress-copy > small { display:block; margin:0 0 5px; color:#8a6500; font-size:.72rem; font-weight:900; letter-spacing:.08em; }
+.ibr-progress-copy > strong { display:block; margin:0; color:#3c2f00; font-size:clamp(2rem,9vw,2.8rem); line-height:1; letter-spacing:-.04em; }
+.ibr-progress-copy > span { display:block; margin-top:7px; color:#6b6252; font-size:.84rem; line-height:1.35; }
+.ibr-progress-total { flex:0 0 auto; min-width:58px; padding:8px 10px; border-radius:14px; background:rgba(138,101,0,.10); color:#705000; text-align:center; }
+.ibr-progress-total b,.ibr-progress-total small { display:block; }
+.ibr-progress-total b { font-size:1.1rem; line-height:1.05; }
+.ibr-progress-total small { margin:3px 0 0; color:#705000; font-size:.62rem; font-weight:800; line-height:1.15; }
+.ibr-progress-track { width:100%; height:9px; overflow:hidden; border-radius:999px; background:rgba(128,128,128,.18); }
+.ibr-progress-track > i { display:block; height:100%; border-radius:inherit; background:var(--pwa-primary,#8a6500); transition:width .25s ease; }
+.ibr-progress-stats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; }
+.ibr-progress-stat { min-width:0; padding:10px 8px; border-radius:13px; background:rgba(255,255,255,.50); text-align:center; }
+.ibr-progress-stat b,.ibr-progress-stat small { display:block; }
+.ibr-progress-stat b { color:#3c2f00; font-size:1rem; line-height:1.1; }
+.ibr-progress-stat small { margin:4px 0 0; color:#6b6252; font-size:.66rem; line-height:1.2; }
+.ibr-certificate-action { width:100%; min-height:46px; margin:0; padding:10px 13px; border:0; border-radius:14px; display:inline-flex; align-items:center; justify-content:center; gap:7px; background:rgba(138,101,0,.08); color:#705000; font-size:.84rem; font-weight:800; text-decoration:none; }
+.ibr-certificate-action:disabled { cursor:default; opacity:.70; }
+.ibr-continue-card { width:100%; display:grid; grid-template-columns:34px minmax(0,1fr) 20px; align-items:center; gap:12px; padding:17px; margin-top:14px; text-align:left; }
+.ibr-continue-card > div { min-width:0; }
+.ibr-continue-card small,.ibr-continue-card strong,.ibr-continue-card span { display:block; }
+.ibr-continue-card small { margin:0 0 4px; color:#6b6252; font-size:.72rem; }
+.ibr-continue-card strong { color:#1c1917; font-size:.98rem; line-height:1.25; }
+.ibr-continue-card span { margin-top:4px; color:#705000; font-size:.82rem; line-height:1.3; }
+.ibr-course-list > button { grid-template-columns:66px minmax(0,1fr) 20px; min-height:82px; gap:12px; padding:12px; }
+.ibr-course-list > button > div { min-width:0; }
+.ibr-course-list > button strong { overflow-wrap:anywhere; line-height:1.25; }
+.ibr-course-cover,.ibr-course-cover-fallback { width:66px; height:56px; border-radius:11px; }
+.ibr-course-cover { object-fit:cover; }
+.ibr-course-cover-fallback { display:grid; place-items:center; background:rgba(138,101,0,.10); color:#8a6500; }
+.ibr-course-list > button.is-locked { opacity:.62; }
+html[data-pwa-theme="dark"] .ibr-progress-copy > strong,html[data-pwa-theme="dark"] .ibr-progress-stat b,html[data-pwa-theme="dark"] .ibr-continue-card strong { color:#f3f0f5; }
+html[data-pwa-theme="dark"] .ibr-progress-copy > span,html[data-pwa-theme="dark"] .ibr-progress-stat small,html[data-pwa-theme="dark"] .ibr-continue-card small { color:#c6c0b8; }
+html[data-pwa-theme="dark"] .ibr-progress-stat,html[data-pwa-theme="dark"] .ibr-course-cover-fallback { background:rgba(255,255,255,.08); }
+@media (max-width:390px) {
+  .ibr-progress-card { padding:17px; gap:14px; }
+  .ibr-progress-stats { grid-template-columns:1fr 1fr; }
+  .ibr-progress-stat:last-child { grid-column:1 / -1; }
+  .ibr-course-list > button { grid-template-columns:58px minmax(0,1fr) 18px; gap:10px; }
+  .ibr-course-cover,.ibr-course-cover-fallback { width:58px; height:52px; }
+}
