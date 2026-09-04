@@ -4,6 +4,8 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://cwphbkdtorfpgm
 
 export type BadgeActivityKey = "plans" | "plan_themes" | "books" | "videos" | "bible_chapters" | "bible_news" | "devotionals" | "audios" | "active_minutes";
 
+export const PWA_BADGE_UNLOCK_EVENT = "micrhema:pwa:badge-unlocked";
+
 export async function recordPwaActivity(activity: BadgeActivityKey, itemId: string) {
   const user = firebaseAuth?.currentUser;
   const normalized = String(itemId || "").trim();
@@ -16,7 +18,11 @@ export async function recordPwaActivity(activity: BadgeActivityKey, itemId: stri
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.ok !== true) throw new Error(payload.error || "Não foi possível sincronizar a atividade agora.");
-  return payload as { ok: true; unlockedBadgeIds: string[]; newlyUnlocked: string[] };
+  const result = payload as { ok: true; unlockedBadgeIds: string[]; newlyUnlocked: string[] };
+  if (result.newlyUnlocked.length && typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(PWA_BADGE_UNLOCK_EVENT, { detail: { badgeIds: result.newlyUnlocked } }));
+  }
+  return result;
 }
 
 /**

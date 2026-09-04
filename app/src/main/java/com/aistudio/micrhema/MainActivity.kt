@@ -846,67 +846,18 @@ fun MainScreen() {
         badgeAwardNotificationState.value?.let { notification ->
             val awardMember = loggedInMemberState.value
             val awardAvatar = biblicalAvatarForId(awardMember?.avatarId ?: DEFAULT_BIBLICAL_AVATAR_ID)
-            AlertDialog(
-                onDismissRequest = { badgeAwardNotificationState.value = null },
-                title = {
-                    Text(if (notification.badges.size == 1) "Novo emblema conquistado!" else "Novos emblemas conquistados!")
-                },
-                text = {
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                        Text(
-                            if (notification.badges.size == 1) "Parabéns! Você avançou na sua jornada." else "Parabéns! Você avançou em vários objetivos.",
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            notification.badges.forEach { badge ->
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    BiblicalAvatarWithBadge(
-                                        avatar = awardAvatar,
-                                        badge = badge,
-                                        modifier = Modifier.size(94.dp),
-                                        contentDescription = badge.name
-                                    )
-                                    Text(
-                                        badge.name,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(10.dp))
-                            Text(
-                                "Vá ao Meu Perfil para ativar o emblema e exibir sua nova moldura.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        ConfettiBurst(
-                            modifier = Modifier
-                                .matchParentSize()
-                                .zIndex(1f)
-                        )
+            BadgeUnlockCelebration(
+                notification = notification,
+                avatar = awardAvatar,
+                onOpenBadge = { badgeId ->
+                    badgeUnlockFocusState.value = badgeId
+                    badgeAwardNotificationState.value = null
+                    navController.navigate(Screen.Profile.route) {
+                        popUpTo(navController.graph.startDestinationId)
+                        launchSingleTop = true
                     }
                 },
-                confirmButton = {
-                    TextButton(onClick = {
-                        badgeAwardNotificationState.value = null
-                        navController.navigate(Screen.Profile.route) {
-                            popUpTo(navController.graph.startDestinationId)
-                            launchSingleTop = true
-                        }
-                    }) {
-                        Text("Ir para Meu Perfil")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { badgeAwardNotificationState.value = null }) { Text("Depois") }
-                }
+                onDismiss = { badgeAwardNotificationState.value = null }
             )
         }
         }

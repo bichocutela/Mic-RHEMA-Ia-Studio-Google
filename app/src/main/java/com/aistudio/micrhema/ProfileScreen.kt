@@ -21,6 +21,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -73,6 +74,7 @@ fun ProfileScreen(
     var showAvatarPicker by remember { mutableStateOf(false) }
     var showAvatarPreview by remember { mutableStateOf(false) }
     var showBadgePicker by remember { mutableStateOf(false) }
+    var focusedBadgeId by remember { mutableStateOf<String?>(null) }
     val selectedAvatar = biblicalAvatarForId(selectedAvatarId)
     val equippedBadge = biblicalBadgeForId(equippedBadgeId)
     val badgeProgress = calculateBadgeProgress(loggedInMember)
@@ -86,6 +88,14 @@ fun ProfileScreen(
         if (!isEditingEmail) email = loggedInMember.email
         selectedAvatarId = loggedInMember.avatarId.ifBlank { DEFAULT_BIBLICAL_AVATAR_ID }
         equippedBadgeId = loggedInMember.equippedBadgeId.ifBlank { DEFAULT_BIBLICAL_BADGE_ID }
+    }
+
+    LaunchedEffect(badgeUnlockFocusState.value) {
+        badgeUnlockFocusState.value?.let { badgeId ->
+            focusedBadgeId = badgeId
+            showBadgePicker = true
+            badgeUnlockFocusState.value = null
+        }
     }
 
     Scaffold(
@@ -428,8 +438,16 @@ fun ProfileScreen(
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .then(
+                                    if (badge.id == focusedBadgeId) Modifier.border(
+                                        2.dp,
+                                        MaterialTheme.colorScheme.primary,
+                                        RoundedCornerShape(16.dp)
+                                    ) else Modifier
+                                )
                                 .then(if (isUnlocked) Modifier.clickable {
                                     equippedBadgeId = badge.id
+                                    focusedBadgeId = null
                                     showBadgePicker = false
                                     saveProfile(
                                         loggedInMember,
@@ -454,12 +472,22 @@ fun ProfileScreen(
                                 modifier = Modifier.fillMaxWidth().padding(12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(
-                                    if (isUnlocked) Icons.Default.EmojiEvents else Icons.Default.Lock,
-                                    contentDescription = null,
-                                    tint = if (isUnlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(28.dp)
-                                )
+                                Box(contentAlignment = Alignment.Center) {
+                                    BiblicalAvatarWithBadge(
+                                        avatar = selectedAvatar,
+                                        badge = badge,
+                                        contentDescription = badge.name,
+                                        modifier = Modifier.size(64.dp).alpha(if (isUnlocked) 1f else 0.28f)
+                                    )
+                                    if (!isUnlocked) {
+                                        Icon(
+                                            Icons.Default.Lock,
+                                            contentDescription = "Bloqueado",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
+                                }
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
@@ -472,6 +500,14 @@ fun ProfileScreen(
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
+                                    if (badge.id == focusedBadgeId && isUnlocked) {
+                                        Text(
+                                            "Novo emblema desbloqueado · toque para usar",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
                                 }
                                 if (isEquipped) {
                                     Icon(Icons.Default.CheckCircle, contentDescription = "Emblema equipado", tint = MaterialTheme.colorScheme.primary)

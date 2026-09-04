@@ -11,6 +11,8 @@ import kotlin.math.min
 data class BadgeAwardNotification(val badges: List<BiblicalBadge>)
 
 val badgeAwardNotificationState = mutableStateOf<BadgeAwardNotification?>(null)
+/** Emblema que deve ser destacado ao abrir Meu Perfil pela celebração. */
+val badgeUnlockFocusState = mutableStateOf<String?>(null)
 
 object BadgeActivityKeys {
     const val PLANS = "plans"
