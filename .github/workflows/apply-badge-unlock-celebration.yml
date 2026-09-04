@@ -1,0 +1,106 @@
+name: Validar celebração de emblemas
+
+on:
+  push:
+    branches:
+      - feature/badge-unlock-celebration
+    paths:
+      - '.github/workflows/apply-badge-unlock-celebration.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-validate:
+    runs-on: ubuntu-latest
+    env:
+      BASE_PATH: /Mic-RHEMA-Ia-Studio-Google/
+      VITE_SUPABASE_URL: https://cwphbkdtorfpgmnlafqb.supabase.co
+      AUTO_BUILD_NUMBER: 999999
+    steps:
+      - name: Baixar branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/badge-unlock-celebration
+          fetch-depth: 0
+
+      - name: Aplicar alterações
+        run: python3 scripts/apply_badge_unlock_celebration.py
+
+      - name: Conferir patch
+        run: |
+          git diff --check
+          git status --short
+          test -n "$(git status --porcelain app pwa)"
+
+      - name: Restaurar google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES_JSON" ]; then
+            echo "O secret GOOGLE_SERVICES_JSON não foi configurado."
+            exit 1
+          fi
+          printf '%s' "$GOOGLE_SERVICES_JSON" > app/google-services.json
+          jq empty app/google-services.json
+
+      - name: Configurar variáveis públicas do Android
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          cp .env.example .env
+          if [ -n "$SUPABASE_URL" ]; then sed -i "s|^SUPABASE_URL=.*|SUPABASE_URL=$SUPABASE_URL|" .env; fi
+          if [ -n "$SUPABASE_ANON_KEY" ]; then sed -i "s|^SUPABASE_ANON_KEY=.*|SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY|" .env; fi
+
+      - name: Configurar Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+
+      - name: Configurar Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          validate-wrappers: false
+
+      - name: Compilar Kotlin Android
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:compileReleaseKotlin --no-daemon --stacktrace
+
+      - name: Configurar pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pwa/pnpm-lock.yaml
+
+      - name: Instalar dependências PWA
+        working-directory: pwa
+        run: pnpm install --frozen-lockfile
+
+      - name: Validar TypeScript PWA
+        working-directory: pwa
+        run: pnpm check
+
+      - name: Gerar PWA
+        working-directory: pwa
+        run: pnpm build
+
+      - name: Remover arquivos temporários
+        if: always()
+        run: rm -f .env app/google-services.json
+
+      - name: Commitar somente após validação verde
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app pwa
+          git commit -m "feat: celebrar desbloqueio de emblemas no Android e PWA"
+          git push origin HEAD:feature/badge-unlock-celebration
