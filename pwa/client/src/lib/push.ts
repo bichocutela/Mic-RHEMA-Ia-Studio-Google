@@ -20,6 +20,9 @@ function localTimeZone() {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Fortaleza"; }
   catch { return "America/Fortaleza"; }
 }
+function isAndroidAppUpdateCategory(category?: string) {
+  return category?.trim().toLowerCase() === "app_update";
+}
 
 export function pwaPushPreferences(): PwaPushPreferences {
   let settings: Record<string, unknown> = {};
@@ -62,10 +65,14 @@ export async function syncPwaPushPreferences() {
 
 export async function listenToForegroundPush(onPayload: (payload: MessagePayload) => void) {
   if (!firebaseApp || !(await isSupported())) return () => undefined;
-  return onMessage(getMessaging(firebaseApp), onPayload);
+  return onMessage(getMessaging(firebaseApp), (payload) => {
+    if (isAndroidAppUpdateCategory(payload.data?.category)) return;
+    onPayload(payload);
+  });
 }
 
 export async function sendPwaPush(input: { title: string; body: string; link?: string; category?: string }) {
+  if (isAndroidAppUpdateCategory(input.category)) throw new Error("Atualizações do aplicativo Android não são enviadas para a PWA.");
   const idToken = await firebaseAuth?.currentUser?.getIdToken();
   if (!idToken) throw new Error("Entre novamente como administrador para enviar o aviso.");
   const response = await fetch(`${supabaseUrl}/functions/v1/pwa-push-send`, {
