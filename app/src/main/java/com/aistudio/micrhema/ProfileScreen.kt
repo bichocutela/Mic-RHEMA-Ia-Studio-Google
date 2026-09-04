@@ -74,6 +74,7 @@ fun ProfileScreen(
     var showAvatarPicker by remember { mutableStateOf(false) }
     var showAvatarPreview by remember { mutableStateOf(false) }
     var showBadgePicker by remember { mutableStateOf(false) }
+    var showAchievementProgress by remember { mutableStateOf(false) }
     var focusedBadgeId by remember { mutableStateOf<String?>(null) }
     val selectedAvatar = biblicalAvatarForId(selectedAvatarId)
     val equippedBadge = biblicalBadgeForId(equippedBadgeId)
@@ -174,7 +175,9 @@ fun ProfileScreen(
             }
 
             Card(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showAchievementProgress = true },
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)),
                 shape = RoundedCornerShape(20.dp)
             ) {
@@ -320,6 +323,13 @@ fun ProfileScreen(
             }
             Spacer(modifier = Modifier.height(16.dp))
         }
+    }
+
+    if (showAchievementProgress) {
+        AchievementProgressDialog(
+            progress = badgeProgress,
+            onDismiss = { showAchievementProgress = false }
+        )
     }
 
     if (showAvatarPreview) {
