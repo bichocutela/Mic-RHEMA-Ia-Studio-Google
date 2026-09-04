@@ -42,6 +42,13 @@ object BadgeActivityTracker {
     fun reconcile(context: Context, member: MemberRequest) {
         val calculated = calculateBadgeProgress(member)
         if (calculated.unlockedIds.toSet() == member.unlockedBadgeIds.toSet()) return
+        val previousUnlockedIds = member.unlockedBadgeIds.toSet()
+        val newlyUnlocked = calculated.unlockedIds
+            .filterNot { it in previousUnlockedIds }
+            .mapNotNull { id -> biblicalBadgeForId(id).takeIf { it.id == id } }
+        if (newlyUnlocked.isNotEmpty()) {
+            badgeAwardNotificationState.value = BadgeAwardNotification(newlyUnlocked)
+        }
         val updatedMember = member.copy(unlockedBadgeIds = calculated.unlockedIds)
         val index = memberRequestsState.indexOfFirst { it.id == member.id }
         if (index >= 0) memberRequestsState[index] = updatedMember
