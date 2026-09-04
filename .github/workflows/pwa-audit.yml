@@ -44,11 +44,22 @@ jobs:
           from pathlib import Path
           path = Path("scripts/finalize-pwa-parity.mjs")
           text = path.read_text()
-          old = '  text=replaceRegex(text,/function BannerForm\\([\\s\\S]*?\\n\\nfunction DonationsAdmin/,bannerBlock+"\\n\\nfunction DonationsAdmin","banner ADM","Enviar banner 16:9");'
-          new = '  if(!text.includes("Enviar banner 16:9")){const start=text.indexOf("function BannerForm(");const end=text.indexOf("function DonationsAdmin",start);if(start<0||end<0)throw new Error("banner ADM: marcadores não encontrados");text=text.slice(0,start)+bannerBlock+"\\n\\n"+text.slice(end);}'
-          if old not in text:
-              raise SystemExit("Trecho do banner não encontrado para correção do validador")
-          path.write_text(text.replace(old, new))
+
+          old_media = '''function PlansAdmin`;
+            text=replaceRegex(text,/function MediaAdmin\\(\\)[\\s\\S]*?\\nfunction PlansAdmin/,mediaBlock,"bloco mídia ADM","function AlbumForm(");'''
+          new_media = '''function ServicesAdmin`;
+            text=replaceRegex(text,/function MediaAdmin\\(\\)[\\s\\S]*?\\nfunction ServicesAdmin/,mediaBlock,"bloco mídia ADM","function AlbumForm(");'''
+          if old_media not in text:
+              raise SystemExit("Trecho de mídia do ADM não encontrado para correção")
+          text = text.replace(old_media, new_media)
+
+          old_banner = '  text=replaceRegex(text,/function BannerForm\\([\\s\\S]*?\\n\\nfunction DonationsAdmin/,bannerBlock+"\\n\\nfunction DonationsAdmin","banner ADM","Enviar banner 16:9");'
+          new_banner = '  if(!text.includes("Enviar banner 16:9")){const start=text.indexOf("function BannerForm(");const end=text.indexOf("function DonationsAdmin",start);if(start<0||end<0)throw new Error("banner ADM: marcadores não encontrados");text=text.slice(0,start)+bannerBlock+"\\n\\n"+text.slice(end);}'
+          if old_banner not in text:
+              raise SystemExit("Trecho do banner não encontrado para correção")
+          text = text.replace(old_banner, new_banner)
+
+          path.write_text(text)
           PY
           node scripts/finalize-pwa-parity.mjs
 
