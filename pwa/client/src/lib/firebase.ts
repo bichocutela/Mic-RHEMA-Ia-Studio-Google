@@ -6,6 +6,7 @@
 import { getApp, getApps, initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { addDoc, collection, doc, getFirestore, onSnapshot, serverTimestamp, setDoc, updateDoc, type DocumentData } from "firebase/firestore";
+import { getPrayerDeviceIdentity } from "./prayer-device";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyD-GPqTLRFmOiNATJwzKUHGqJeTPQcf0E8",
@@ -122,15 +123,40 @@ export async function submitPendingAccessRequest(input: { name: string; phone: s
   });
 }
 
-/** PARIDADE ANDROID — grava PrayerRequest com os mesmos campos usados pela PrayerScreen do APK. */
-export async function submitPrayerRequest(input: { name: string; request: string }) {
-  const response = await fetch(`${supabaseUrl}/functions/v1/pwa-prayer-request`, {
+export type PrayerHistoryItem = {
+  id: string; name: string; request: string; date: string; createdAt: number; status: string;
+  answeredAt: number; answeredDate: string; responseMessage: string; answeredBy: string;
+};
+
+async function prayerApi(body: Record<string, unknown>, admin = false) {
+  const idToken = await firebaseAuth?.currentUser?.getIdToken().catch(() => "") || "";
+  const functionName = admin ? "pwa-prayer-admin" : "pwa-prayer-request";
+  const response = await fetch(`${supabaseUrl}/functions/v1/${functionName}`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ name: input.name.trim(), request: input.request.trim() }),
+    headers: { "content-type": "application/json", ...(idToken ? { authorization: `Bearer ${idToken}` } : {}) },
+    body: JSON.stringify(body),
   });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok || !payload.ok) throw new Error(payload.error || "Não foi possível enviar o pedido agora.");
+  if (!response.ok || payload.ok !== true) throw new Error(payload.error || "Não foi possível atualizar os pedidos de oração agora.");
+  return payload;
+}
+
+/** PARIDADE ANDROID — grava o pedido com identidade do membro e também do aparelho PWA. */
+export async function submitPrayerRequest(input: { name: string; request: string; notificationToken?: string }) {
+  const identity = getPrayerDeviceIdentity();
+  return prayerApi({ action: "submit", name: input.name.trim(), request: input.request.trim(), notificationToken: input.notificationToken || "", ...identity });
+}
+
+/** Histórico privado: membro autenticado vê sua conta; visitante vê somente este aparelho. */
+export async function loadPrayerHistory(): Promise<PrayerHistoryItem[]> {
+  const identity = getPrayerDeviceIdentity();
+  const payload = await prayerApi({ action: "history", ...identity });
+  return Array.isArray(payload.items) ? payload.items as PrayerHistoryItem[] : [];
+}
+
+/** Ação pastoral protegida, compartilhada com o mesmo documento que o Android usa. */
+export async function markPrayerAsAnswered(requestId: string) {
+  return prayerApi({ action: "mark_answered", requestId }, true);
 }
 
 async function profileRequest(body: Record<string, unknown>, forceRefresh = false) {

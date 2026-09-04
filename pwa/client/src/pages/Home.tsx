@@ -16,7 +16,7 @@ import { ASSETS, bibleBookChapters, bibleBooks, sampleMedia, sampleNews, setting
 import { approveMemberRequest, createAdminContent, firebaseAuth, firebaseEnabled, listenToCollection, listenToDocument, listenToIbrProgress, saveIbrProgress, savePwaProfile, submitPendingAccessRequest, submitPrayerRequest } from "@/lib/firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { signInPwa, type PwaSession } from "@/lib/pwa-auth";
-import { listenToForegroundPush, sendPwaPush, subscribeToPwaPush } from "@/lib/push";
+import { listenToForegroundPush, sendPwaPush, subscribeToPwaPush, syncPwaPushPreferences } from "@/lib/push";
 import androidPlans from "@/data/android-plans.json";
 
 type CollectionItem = ContentCard & { description?: string; imageUrl?: string; thumbnailUrl?: string; coverUrl?: string; name?: string; phone?: string; isApproved?: boolean; approved?: boolean; isIbr?: boolean; content?: string; summary?: string; book?: string; chapter?: number; chapters?: IbrChapter[]; verse?: string | number; verseReference?: string; category?: string; intensity?: number; featured?: boolean; publishedAt?: number; timestamp?: number; date?: string; day?: string; dayShort?: string; time?: string; videoUrl?: string; audioUrl?: string; bookUrl?: string; mediaUrl?: string; author?: string; artist?: string; mediaType?: "Vídeo" | "Áudio" | "Livro" };
@@ -501,8 +501,15 @@ function SignInDialog({ onClose, onSuccess, initialAdmin = false }: { onClose: (
   return <div className="content-dialog-backdrop" role="presentation"><form className="auth-dialog" onSubmit={submit}><button className="dialog-close" type="button" onClick={onClose}><X size={19}/></button><img src={ASSETS.logo} alt=""/><p className="eyebrow">{requesting ? "SOLICITAR ACESSO" : "ENTRAR NO MIC RHEMA"}</p><h2>{requesting ? "Vamos conhecer você." : admin ? "Acesso administrativo" : "Seu espaço na comunidade"}</h2><p>{requesting ? "Envie seu nome e telefone. A administração aprovará seu acesso no painel." : admin ? "Use o login administrativo registrado para a igreja." : "Informe o mesmo nome e telefone aprovados no aplicativo."}</p>{!admin && <label>Nome<input value={name} onChange={(e) => setName(e.target.value)} required placeholder="Seu nome"/></label>}<label>{admin ? "Telefone ou usuário" : "Telefone"}<input inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required placeholder={admin ? "admin" : "(00) 00000-0000"}/></label>{admin && <label>Senha<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="Sua senha"/></label>}{requesting ? <button className="solid-button" type="button" disabled={busy} onClick={request}>{busy ? "Enviando…" : "Enviar solicitação"}<ArrowRight size={17}/></button> : <button className="solid-button" disabled={busy}>{busy ? "Entrando…" : "Continuar"}<ArrowRight size={17}/></button>}{!admin && <button className="text-button" type="button" onClick={() => setRequesting(!requesting)}>{requesting ? "Já fui aprovado" : "Ainda não tenho acesso"}</button>}<button className="text-button" type="button" onClick={() => { setAdmin(!admin); setRequesting(false); }}>{admin ? "Entrar como membro" : "Sou administrador"}</button></form></div>;
 }
 
+
+function initialViewFromUrl(): AppView {
+  const requested = new URLSearchParams(window.location.search).get("view") || "";
+  const allowed = new Set<AppView>(["home","bible","news","devotionals","media","ibr","menu","profile","settings","admin","discipulado","cultos","plans","prayer","members","team","donations","about"]);
+  return allowed.has(requested as AppView) ? requested as AppView : "home";
+}
+
 export default function Home() {
-  const [view, setView] = useState<AppView>("home"); const [session, setSession] = useState<PwaSession | null>(null); const [showLogin, setShowLogin] = useState(false); const [showAdminLogin, setShowAdminLogin] = useState(false); const [drawerOpen, setDrawerOpen] = useState(false);
+  const [view, setView] = useState<AppView>(() => initialViewFromUrl()); const [session, setSession] = useState<PwaSession | null>(null); const [showLogin, setShowLogin] = useState(false); const [showAdminLogin, setShowAdminLogin] = useState(false); const [drawerOpen, setDrawerOpen] = useState(false);
   useEffect(() => {
     const stored = localStorage.getItem("mic-rhema-pwa-session");
     if (stored) setSession(JSON.parse(stored) as PwaSession);
@@ -515,12 +522,28 @@ export default function Home() {
   }, []);
   useEffect(() => {
     let unsubscribe: () => void = () => undefined;
-    listenToForegroundPush((payload) => toast.message(payload.notification?.title || "MIC Rhema", { description: payload.notification?.body || "Você recebeu uma novidade." }))
-      .then((cleanup) => { unsubscribe = cleanup; })
-      .catch(() => undefined);
+    listenToForegroundPush((payload) => {
+      const data = payload.data || {};
+      const collection = String(data.collection || "");
+      const documentId = String(data.documentId || "");
+      const isAdminPrayer = collection === "prayer_requests";
+      const isPrayerResponse = collection === "prayer_response" || String(data.category || "") === "prayer_response";
+      if (isAdminPrayer || isPrayerResponse) window.dispatchEvent(new CustomEvent("micrhema:prayer-updated"));
+      const target = isAdminPrayer ? "admin" : isPrayerResponse ? "prayer" : "";
+      toast.message(payload.notification?.title || String(data.title || "MIC Rhema"), {
+        description: payload.notification?.body || String(data.body || "Você recebeu uma novidade."),
+        action: target ? { label: "Abrir", onClick: () => {
+          const params = new URLSearchParams(); params.set("view", target);
+          if (isAdminPrayer) { params.set("section", "prayers"); if (documentId) params.set("request", documentId); window.dispatchEvent(new CustomEvent("micrhema:open-admin-prayer")); }
+          else if (documentId) params.set("request", documentId);
+          window.history.replaceState({}, "", `${window.location.pathname}?${params.toString()}`);
+          setView(target as AppView);
+        } } : undefined,
+      });
+    }).then((cleanup) => { unsubscribe = cleanup; }).catch(() => undefined);
     return () => unsubscribe();
   }, []);
-  const persistSession = (next: PwaSession) => { localStorage.setItem("mic-rhema-pwa-session", JSON.stringify(next)); setSession(next); };
+  const persistSession = (next: PwaSession) => { localStorage.setItem("mic-rhema-pwa-session", JSON.stringify(next)); setSession(next); window.setTimeout(() => void syncPwaPushPreferences(), 0); };
   const enableNotifications = async () => {
     try {
       await subscribeToPwaPush();
@@ -529,7 +552,7 @@ export default function Home() {
       toast.error(error instanceof Error ? error.message : "Não foi possível ativar os avisos agora.");
     }
   };
-  const logout = async () => { if (firebaseAuth) await signOut(firebaseAuth); localStorage.removeItem("mic-rhema-pwa-session"); setSession(null); setView("home"); toast.message("Você saiu da sua conta."); };
+  const logout = async () => { if (firebaseAuth) await signOut(firebaseAuth); await syncPwaPushPreferences().catch(() => false); localStorage.removeItem("mic-rhema-pwa-session"); setSession(null); setView("home"); toast.message("Você saiu da sua conta."); };
   const viewComponent = useMemo(() => {
     if (view === "bible") return <BibleView />; if (view === "news") return <NewsView />; if (view === "media") return <MediaView />; if (view === "devotionals") return <DevotionalsView />; if (view === "ibr") return <IbrView session={session} onLogin={() => setShowLogin(true)} />; if (view === "menu") return <MenuView session={session} onNavigate={setView} onLogin={() => setShowLogin(true)} />; if (view === "profile") return <ProfileView session={session} onLogin={() => setShowLogin(true)} onLogout={logout} />; if (view === "settings") return <SettingsView session={session} />; if (view === "admin") return <AdminView session={session} onLogin={() => setShowAdminLogin(true)} />; if (view === "discipulado") return <DiscipuladoView />; if (view === "cultos") return <CultosView />; if (view === "plans") return <PlansView />; if (["prayer", "members", "team", "donations", "about"].includes(view)) return <CommunityView view={view as "prayer" | "members" | "team" | "donations" | "about"} session={session} onLogin={() => setShowLogin(true)} />; return <HomeView onNavigate={setView} />;
   }, [view, session]);

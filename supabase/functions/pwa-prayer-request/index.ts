@@ -1,76 +1,14 @@
 import { importPKCS8, SignJWT } from "npm:jose@5.10.0";
-
-const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
-const DATASTORE_SCOPE = "https://www.googleapis.com/auth/datastore";
-const cors = {
-  "access-control-allow-origin": "*",
-  "access-control-allow-headers": "authorization, apikey, content-type, x-client-info",
-  "access-control-allow-methods": "POST, OPTIONS",
-  "content-type": "application/json; charset=utf-8",
-  "cache-control": "no-store",
-};
-
-type ServiceAccount = { project_id?: string; client_email?: string; private_key?: string };
-
-function json(body: Record<string, unknown>, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: cors });
-}
-
-function clean(value: unknown) {
-  return String(value ?? "").trim();
-}
-
-async function googleAccessToken(account: ServiceAccount) {
-  if (!account.client_email || !account.private_key) throw new Error("Credencial Firebase incompleta.");
-  const now = Math.floor(Date.now() / 1000);
-  const privateKey = await importPKCS8(account.private_key.replace(/\\n/g, "\n"), "RS256");
-  const assertion = await new SignJWT({ iss: account.client_email, scope: DATASTORE_SCOPE, aud: GOOGLE_TOKEN_URL })
-    .setProtectedHeader({ alg: "RS256", typ: "JWT" })
-    .setIssuedAt(now)
-    .setExpirationTime(now + 3600)
-    .sign(privateKey);
-  const response = await fetch(GOOGLE_TOKEN_URL, {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion }),
-  });
-  const payload = await response.json();
-  if (!response.ok || !payload.access_token) throw new Error("Não foi possível autenticar o envio do pedido.");
-  return payload.access_token as string;
-}
-
-Deno.serve(async (request) => {
-  if (request.method === "OPTIONS") return new Response("ok", { headers: cors });
-  if (request.method !== "POST") return json({ error: "Método não permitido." }, 405);
-  try {
-    const input = await request.json() as { name?: unknown; request?: unknown };
-    const name = clean(input.name);
-    const prayer = clean(input.request);
-    if (!name || !prayer) return json({ error: "Preencha seu nome e o pedido de oração." }, 400);
-    if (name.length > 120 || prayer.length > 4000) return json({ error: "Seu pedido ultrapassa o tamanho permitido." }, 400);
-
-    const account = JSON.parse(Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON") || "{}") as ServiceAccount;
-    const projectId = account.project_id || Deno.env.get("FIREBASE_PROJECT_ID") || "mic-rhema";
-    const id = crypto.randomUUID();
-    const response = await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/prayer_requests/${id}`, {
-      method: "PATCH",
-      headers: { authorization: `Bearer ${await googleAccessToken(account)}`, "content-type": "application/json" },
-      body: JSON.stringify({
-        fields: {
-          id: { stringValue: id },
-          name: { stringValue: name },
-          request: { stringValue: prayer },
-          date: { stringValue: "Hoje" },
-          createdAt: { integerValue: String(Date.now()) },
-          createdAtServer: { timestampValue: new Date().toISOString() },
-          source: { stringValue: "pwa-public" },
-        },
-      }),
-    });
-    if (!response.ok) throw new Error("Não foi possível salvar o pedido.");
-    return json({ ok: true });
-  } catch (error) {
-    console.error("pwa-prayer-request failed", error instanceof Error ? error.message : "unknown");
-    return json({ error: "Não foi possível enviar o pedido agora. Tente novamente." }, 500);
-  }
-});
+const GOOGLE_TOKEN_URL="https://oauth2.googleapis.com/token";const GOOGLE_SCOPE="https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/firebase.messaging";const FIREBASE_API_KEY=Deno.env.get("FIREBASE_WEB_API_KEY")||"AIzaSyD-GPqTLRFmOiNATJwzKUHGqJeTPQcf0E8";const DEFAULT_LINK="https://bichocutela.github.io/Mic-RHEMA-Ia-Studio-Google/";
+const cors={"access-control-allow-origin":"*","access-control-allow-headers":"authorization, apikey, content-type, x-client-info","access-control-allow-methods":"POST, OPTIONS","content-type":"application/json; charset=utf-8","cache-control":"no-store"};type ServiceAccount={project_id?:string;client_email?:string;private_key?:string};type Field={stringValue?:string;integerValue?:string;booleanValue?:boolean;timestampValue?:string};type Document={name?:string;fields?:Record<string,Field>};
+function json(body:Record<string,unknown>,status=200){return new Response(JSON.stringify(body),{status,headers:cors})}function clean(v:unknown){return String(v??"").trim()}function base(projectId:string){return`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`}
+async function sha256(value:string){const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value));return[...new Uint8Array(digest)].map(byte=>byte.toString(16).padStart(2,"0")).join("")}
+async function accessToken(account:ServiceAccount){if(!account.client_email||!account.private_key)throw new Error("Credencial Firebase incompleta.");const now=Math.floor(Date.now()/1000);const key=await importPKCS8(account.private_key.replace(/\\n/g,"\n"),"RS256");const assertion=await new SignJWT({iss:account.client_email,scope:GOOGLE_SCOPE,aud:GOOGLE_TOKEN_URL}).setProtectedHeader({alg:"RS256",typ:"JWT"}).setIssuedAt(now).setExpirationTime(now+3600).sign(key);const response=await fetch(GOOGLE_TOKEN_URL,{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:new URLSearchParams({grant_type:"urn:ietf:params:oauth:grant-type:jwt-bearer",assertion})});const payload=await response.json();if(!response.ok||!payload.access_token)throw new Error("Não foi possível autenticar o pedido.");return payload.access_token as string}
+async function session(request:Request){const idToken=request.headers.get("authorization")?.replace(/^Bearer\s+/i,"");if(!idToken)return null;const response=await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${FIREBASE_API_KEY}`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({idToken})});const payload=await response.json() as {users?:Array<{localId?:string}>};return response.ok&&payload.users?.[0]?.localId?{uid:payload.users[0].localId}:null}
+function fieldValue(field?:Field):unknown{return field?.stringValue??field?.integerValue??field?.booleanValue??field?.timestampValue}function item(document:Document){const f=document.fields||{};return{id:clean(fieldValue(f.id))||clean(document.name).split("/").pop()||"",name:clean(fieldValue(f.name)),request:clean(fieldValue(f.request)),date:clean(fieldValue(f.date)),createdAt:Number(fieldValue(f.createdAt)||0),status:clean(fieldValue(f.status))||"pendente",answeredAt:Number(fieldValue(f.answeredAt)||0),answeredDate:clean(fieldValue(f.answeredDate)),responseMessage:clean(fieldValue(f.responseMessage)),answeredBy:clean(fieldValue(f.answeredBy)),requesterAccessHash:clean(fieldValue(f.requesterAccessHash))}}
+async function query(projectId:string,token:string,fieldPath:string,value:string){const response=await fetch(`${base(projectId)}:runQuery`,{method:"POST",headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},body:JSON.stringify({structuredQuery:{from:[{collectionId:"prayer_requests"}],where:{fieldFilter:{field:{fieldPath},op:"EQUAL",value:{stringValue:value}}},limit:100}})});if(!response.ok)throw new Error("Não foi possível carregar seu histórico.");const rows=await response.json() as Array<{document?:Document}>;return rows.map(row=>row.document).filter((doc):doc is Document=>Boolean(doc))}
+async function pwaAdminTokens(projectId:string,token:string){const response=await fetch(`${base(projectId)}/pwa_push_tokens?pageSize=500`,{headers:{authorization:`Bearer ${token}`}});if(!response.ok)return[];const payload=await response.json() as {documents?:Document[]};return(payload.documents||[]).filter(doc=>doc.fields?.isAdmin?.booleanValue===true&&doc.fields?.enabled?.booleanValue!==false).map(doc=>clean(doc.fields?.token?.stringValue)).filter(Boolean)}
+async function fcm(projectId:string,token:string,target:Record<string,string>,title:string,body:string,data:Record<string,string>,webLink?:string){const message:Record<string,unknown>={...target,data,android:{priority:"high",ttl:"86400s"}};if(webLink)message.webpush={headers:{Urgency:"high"},notification:{title,body,icon:`${DEFAULT_LINK}icons/icon-192.png`},fcm_options:{link:webLink}};const response=await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,{method:"POST",headers:{authorization:`Bearer ${token}`,"content-type":"application/json; UTF-8"},body:JSON.stringify({message})});return response.ok}
+Deno.serve(async(request)=>{if(request.method==="OPTIONS")return new Response("ok",{headers:cors});if(request.method!=="POST")return json({error:"Método não permitido."},405);try{const input=await request.json() as Record<string,unknown>;const action=clean(input.action)||"submit";const account=JSON.parse(Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON")||"{}") as ServiceAccount;const projectId=account.project_id||Deno.env.get("FIREBASE_PROJECT_ID")||"mic-rhema";const token=await accessToken(account);const identity=await session(request);const deviceId=clean(input.deviceId).slice(0,160);const deviceSecret=clean(input.deviceSecret).slice(0,220);
+if(action==="history"){if(identity?.uid){const docs=await query(projectId,token,"requesterUid",identity.uid);return json({ok:true,items:docs.map(item).sort((a,b)=>b.createdAt-a.createdAt).map(({requesterAccessHash,...safe})=>safe)})}if(!deviceId||!deviceSecret)return json({ok:true,items:[]});const hash=await sha256(deviceSecret);const docs=await query(projectId,token,"requesterDeviceId",deviceId);return json({ok:true,items:docs.map(item).filter(entry=>entry.requesterAccessHash===hash).sort((a,b)=>b.createdAt-a.createdAt).map(({requesterAccessHash,...safe})=>safe)})}
+const name=clean(input.name);const prayer=clean(input.request);if(!name||!prayer)return json({error:"Preencha seu nome e o pedido de oração."},400);if(name.length>120||prayer.length>4000)return json({error:"Seu pedido ultrapassa o tamanho permitido."},400);if(!deviceId||!deviceSecret)return json({error:"Não foi possível identificar este aparelho com segurança."},400);const id=crypto.randomUUID();const now=Date.now();const date=new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Fortaleza"}).format(new Date(now));const notificationToken=clean(input.notificationToken).slice(0,4096);const response=await fetch(`${base(projectId)}/prayer_requests/${id}`,{method:"PATCH",headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},body:JSON.stringify({fields:{id:{stringValue:id},name:{stringValue:name},request:{stringValue:prayer},date:{stringValue:date},createdAt:{integerValue:String(now)},requesterUid:{stringValue:identity?.uid||""},requesterMemberId:{stringValue:identity?.uid||""},requesterFcmToken:{stringValue:notificationToken},requesterDeviceId:{stringValue:deviceId},requesterAccessHash:{stringValue:await sha256(deviceSecret)},status:{stringValue:"pendente"},answeredAt:{integerValue:"0"},answeredDate:{stringValue:""},responseMessage:{stringValue:""},answeredBy:{stringValue:""},source:{stringValue:"pwa"},createdAtServer:{timestampValue:new Date(now).toISOString()}}})});if(!response.ok)throw new Error("Não foi possível salvar o pedido.");const title="Novo pedido de oração";const body="Há um novo pedido aguardando a equipe pastoral.";const data={collection:"prayer_requests",documentId:id,category:"prayer",destination:`admin_prayer/${id}`,title,body};await fcm(projectId,token,{topic:"prayer_admins"},title,body,data);const adminTokens=await pwaAdminTokens(projectId,token);await Promise.all(adminTokens.map(registrationToken=>fcm(projectId,token,{token:registrationToken},title,body,data,`${DEFAULT_LINK}?view=admin&section=prayers&request=${encodeURIComponent(id)}`)));return json({ok:true,id,adminWebRecipients:adminTokens.length})}catch(error){console.error("pwa-prayer-request failed",error instanceof Error?error.message:"unknown");return json({error:error instanceof Error?error.message:"Não foi possível enviar o pedido agora. Tente novamente."},500)}});
