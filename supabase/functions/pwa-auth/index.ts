@@ -16,9 +16,7 @@ const cors = {
   "cache-control": "no-store",
 };
 
-function json(body: Record<string, unknown>, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: cors });
-}
+function json(body: Record<string, unknown>, status = 200) { return new Response(JSON.stringify(body), { status, headers: cors }); }
 function clean(value: unknown) { return String(value ?? "").trim(); }
 function normalizedPhone(value: string) { return value.replace(/\D/g, ""); }
 
@@ -29,20 +27,12 @@ async function googleAccessToken(account: ServiceAccount) {
   const assertion = await new SignJWT({ iss: account.client_email, scope: "https://www.googleapis.com/auth/datastore", aud: GOOGLE_TOKEN_URL })
     .setProtectedHeader({ alg: "RS256", typ: "JWT" }).setIssuedAt(now).setExpirationTime(now + 3600).sign(privateKey);
   const response = await fetch(GOOGLE_TOKEN_URL, {
-    method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth-type:jwt-bearer", assertion }),
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion }),
   });
-  if (!response.ok) {
-    const retry = await fetch(GOOGLE_TOKEN_URL, {
-      method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion }),
-    });
-    const retryPayload = await retry.json();
-    if (!retry.ok || !retryPayload.access_token) throw new Error("Não foi possível autenticar a consulta de membros.");
-    return retryPayload.access_token as string;
-  }
   const payload = await response.json();
-  if (!payload.access_token) throw new Error("Não foi possível autenticar a consulta de membros.");
+  if (!response.ok || !payload.access_token) throw new Error("Não foi possível autenticar a consulta de membros.");
   return payload.access_token as string;
 }
 
@@ -78,10 +68,7 @@ async function queryMember(account: ServiceAccount, fieldPath: string, value: Re
   return memberFromDocument(rows.find((row) => row.document)?.document);
 }
 
-async function findMember(account: ServiceAccount, phone: string) {
-  return queryMember(account, "phone", { stringValue: phone });
-}
-
+async function findMember(account: ServiceAccount, phone: string) { return queryMember(account, "phone", { stringValue: phone }); }
 async function findAndroidAdmin(account: ServiceAccount) {
   const byEmail = await queryMember(account, "email", { stringValue: ADMIN_EMAIL }).catch(() => null);
   if (byEmail?.isAdmin) return byEmail;
