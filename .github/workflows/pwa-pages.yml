@@ -2,7 +2,7 @@ name: Publicar PWA MIC Rhema
 
 on:
   push:
-    branches: [main, fix/pwa-full-parity-profile-media-ibr]
+    branches: [main]
     paths:
       - "pwa/**"
       - "app/src/main/java/com/aistudio/micrhema/PlansData.kt"
@@ -58,7 +58,6 @@ jobs:
           path: pwa/dist/public
 
   deploy:
-    if: github.ref == 'refs/heads/main'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
