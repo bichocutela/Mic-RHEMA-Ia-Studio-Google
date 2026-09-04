@@ -30,7 +30,7 @@ async function accessToken(account: ServiceAccount) {
     .sign(await importPKCS8(account.private_key.replace(/\\n/g, "\n"), "RS256"));
   const response = await fetch(FCM_TOKEN_URL, {
     method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion }),
+    body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth-type:jwt-bearer", assertion }),
   });
   if (!response.ok) throw new Error(`Falha ao autenticar no FCM: ${response.status}`);
   const payload = await response.json();
@@ -56,7 +56,12 @@ function requiresIbr(category: string, topic: string) {
   return topic === "ibr_users" || value.includes("ibr") || value.includes("course") || value.includes("curso");
 }
 
+function isAndroidOnlyCategory(category: string) {
+  return category.trim().toLowerCase() === "app_update";
+}
+
 function acceptsWebToken(doc: WebToken, category: string, topic: string) {
+  if (isAndroidOnlyCategory(category)) return false;
   if (!bool(doc.fields, "enabled", true)) return false;
   if (topic === "prayer_admins" && !bool(doc.fields, "isAdmin", false)) return false;
   if (requiresIbr(category, topic) && !bool(doc.fields, "isIbr", false)) return false;
@@ -120,8 +125,9 @@ Deno.serve(async (request) => {
     data.title = data.title || title;
     data.body = data.body || body;
     data.category = data.category || "content_updates";
+    const androidOnly = isAndroidOnlyCategory(data.category);
 
-    const primary = await send(projectId, token, directToken ? { token: directToken } : { topic }, title, body, data, true);
+    const primary = await send(projectId, token, directToken ? { token: directToken } : { topic }, title, body, data, !androidOnly);
     if (!primary.ok) {
       console.error("FCM rejected notification", primary.status, primary.body);
       return json({ error: "FCM rejeitou a notificação.", details: primary.body.slice(0, 500) }, 502);
@@ -130,7 +136,7 @@ Deno.serve(async (request) => {
     let webRecipients = 0;
     let webSent = 0;
     let webFiltered = 0;
-    if (!directToken) {
+    if (!directToken && !androidOnly) {
       const allWeb = await pwaTokens(projectId, token);
       const selected = allWeb.filter((item) => acceptsWebToken(item, data.category, topic));
       webRecipients = selected.length;
