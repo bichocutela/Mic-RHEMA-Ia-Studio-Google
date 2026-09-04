@@ -76,6 +76,7 @@ fun ProfileScreen(
     var showBadgePicker by remember { mutableStateOf(false) }
     var showAchievementProgress by remember { mutableStateOf(false) }
     var focusedBadgeId by remember { mutableStateOf<String?>(null) }
+    var previewBadgeId by remember { mutableStateOf<String?>(null) }
     val selectedAvatar = biblicalAvatarForId(selectedAvatarId)
     val equippedBadge = biblicalBadgeForId(equippedBadgeId)
     val badgeProgress = calculateBadgeProgress(loggedInMember)
@@ -455,24 +456,10 @@ fun ProfileScreen(
                                         RoundedCornerShape(16.dp)
                                     ) else Modifier
                                 )
-                                .then(if (isUnlocked) Modifier.clickable {
-                                    equippedBadgeId = badge.id
-                                    focusedBadgeId = null
+                                .clickable {
+                                    previewBadgeId = badge.id
                                     showBadgePicker = false
-                                    saveProfile(
-                                        loggedInMember,
-                                        name,
-                                        phone,
-                                        address,
-                                        birthDate,
-                                        loggedInMember.profilePhotoUrl,
-                                        context,
-                                        email = email,
-                                        avatarId = selectedAvatarId,
-                                        equippedBadgeId = badge.id,
-                                        showToast = false
-                                    )
-                                } else Modifier),
+                                },
                             colors = CardDefaults.cardColors(
                                 containerColor = if (isEquipped) MaterialTheme.colorScheme.primaryContainer
                                 else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (isUnlocked) 0.55f else 0.25f)
@@ -531,6 +518,127 @@ fun ProfileScreen(
                 TextButton(onClick = { showBadgePicker = false }) { Text("Fechar") }
             }
         )
+    }
+
+    previewBadgeId?.let { badgeId ->
+        val badge = allBiblicalBadges.firstOrNull { it.id == badgeId }
+        if (badge != null) {
+            val isUnlocked = badge.id in unlockedBadgeIds
+            val isEquipped = badge.id == equippedBadgeId
+            AlertDialog(
+                onDismissRequest = {
+                    previewBadgeId = null
+                    showBadgePicker = true
+                },
+                title = {
+                    Text(if (badge.level != null) "Nível ${badge.level}: ${badge.name}" else badge.name)
+                },
+                text = {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            BiblicalAvatarWithBadge(
+                                avatar = selectedAvatar,
+                                badge = badge,
+                                modifier = Modifier.size(230.dp),
+                                contentDescription = "Visualização ampliada do emblema ${badge.name}"
+                            )
+                            if (!isUnlocked) {
+                                Icon(
+                                    Icons.Default.Lock,
+                                    contentDescription = "Emblema bloqueado",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(34.dp)
+                                )
+                            }
+                        }
+                        badge.rarity?.let { rarity ->
+                            Text(
+                                rarity.label,
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Text(
+                            if (isUnlocked) "Emblema conquistado" else "Ainda bloqueado",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isUnlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            badge.description,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (!isUnlocked) {
+                            Text(
+                                "Para desbloquear: ${badge.requirement}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    if (isUnlocked) {
+                        Button(
+                            onClick = {
+                                val previousBadgeId = equippedBadgeId
+                                equippedBadgeId = badge.id
+                                previewBadgeId = null
+                                focusedBadgeId = null
+                                saveProfile(
+                                    loggedInMember,
+                                    name,
+                                    phone,
+                                    address,
+                                    birthDate,
+                                    loggedInMember.profilePhotoUrl,
+                                    context,
+                                    email = email,
+                                    avatarId = selectedAvatarId,
+                                    equippedBadgeId = badge.id,
+                                    showToast = false
+                                ) { synced, error ->
+                                    if (!synced) {
+                                        equippedBadgeId = previousBadgeId
+                                        android.widget.Toast.makeText(
+                                            context,
+                                            "Não foi possível usar o emblema: ${error?.message ?: "verifique sua conexão"}",
+                                            android.widget.Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                }
+                            },
+                            enabled = !isEquipped
+                        ) {
+                            Text(if (isEquipped) "Em uso" else "Usar emblema")
+                        }
+                    } else {
+                        TextButton(onClick = {
+                            previewBadgeId = null
+                            showBadgePicker = true
+                        }) {
+                            Text("Voltar")
+                        }
+                    }
+                },
+                dismissButton = if (isUnlocked) {
+                    {
+                        TextButton(onClick = {
+                            previewBadgeId = null
+                            showBadgePicker = true
+                        }) {
+                            Text("Voltar")
+                        }
+                    }
+                } else null
+            )
+        }
     }
 
     if (showLogoutDialog) {
