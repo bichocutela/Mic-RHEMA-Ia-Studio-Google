@@ -1,0 +1,123 @@
+name: Validar fluxo Android de pedidos de oração
+
+on:
+  push:
+    branches:
+      - feature/android-prayer-priority-flow
+    paths:
+      - '.github/workflows/validate-android-prayer-priority-flow.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  validate-android:
+    runs-on: ubuntu-latest
+    env:
+      AUTO_BUILD_NUMBER: 999999
+    steps:
+      - name: Baixar branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/android-prayer-priority-flow
+          fetch-depth: 0
+
+      - name: Aplicar implementação Android
+        run: |
+          python3 scripts/apply_android_prayer_priority_flow.py
+          git diff --check
+          git status --short
+
+      - name: Validar escopo da alteração
+        run: |
+          python3 - <<'PY'
+          import subprocess
+          allowed = {
+            'app/src/main/java/com/aistudio/micrhema/Data.kt',
+            'app/src/main/java/com/aistudio/micrhema/PrayerRepository.kt',
+            'app/src/main/java/com/aistudio/micrhema/PrayerScreen.kt',
+            'app/src/main/java/com/aistudio/micrhema/AdminPrayerRequests.kt',
+            'app/src/main/java/com/aistudio/micrhema/AdminDashboard.kt',
+            'app/src/main/java/com/aistudio/micrhema/Screens.kt',
+            'app/src/main/java/com/aistudio/micrhema/NotificationDispatcher.kt',
+            'app/src/main/java/com/aistudio/micrhema/NotificationHelper.kt',
+            'app/src/main/java/com/aistudio/micrhema/FCMService.kt',
+            'app/src/main/java/com/aistudio/micrhema/MainActivity.kt',
+            'firestore.rules',
+            'supabase/functions/notify-fcm/index.ts',
+          }
+          changed = set(subprocess.check_output(['git','diff','--name-only'], text=True).splitlines())
+          unexpected = sorted(changed - allowed)
+          missing = sorted(allowed - changed)
+          if unexpected:
+              raise SystemExit('Arquivos inesperados alterados: ' + ', '.join(unexpected))
+          if missing:
+              raise SystemExit('Arquivos esperados não foram alterados: ' + ', '.join(missing))
+          print('Escopo validado:', len(changed), 'arquivos de produção.')
+          PY
+
+      - name: Restaurar google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES_JSON" ]; then
+            echo "O secret GOOGLE_SERVICES_JSON não foi configurado."
+            exit 1
+          fi
+          printf '%s' "$GOOGLE_SERVICES_JSON" > app/google-services.json
+          jq empty app/google-services.json
+
+      - name: Configurar variáveis públicas do Android
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          cp .env.example .env
+          if [ -n "$SUPABASE_URL" ]; then sed -i "s|^SUPABASE_URL=.*|SUPABASE_URL=$SUPABASE_URL|" .env; fi
+          if [ -n "$SUPABASE_ANON_KEY" ]; then sed -i "s|^SUPABASE_ANON_KEY=.*|SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY|" .env; fi
+
+      - name: Configurar Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+
+      - name: Configurar Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          validate-wrappers: false
+
+      - name: Compilar Kotlin Android
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:compileReleaseKotlin --no-daemon --stacktrace
+
+      - name: Verificar regras de privacidade dos pedidos
+        run: |
+          grep -q 'request.resource.data.requesterUid == request.auth.uid' firestore.rules
+          grep -q 'resource.data.requesterUid == request.auth.uid' firestore.rules
+          grep -q 'allow update, delete: if isAdmin();' firestore.rules
+
+      - name: Remover arquivos temporários
+        if: always()
+        run: rm -f .env app/google-services.json
+
+      - name: Commitar implementação somente após verde
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            app/src/main/java/com/aistudio/micrhema/Data.kt \
+            app/src/main/java/com/aistudio/micrhema/PrayerRepository.kt \
+            app/src/main/java/com/aistudio/micrhema/PrayerScreen.kt \
+            app/src/main/java/com/aistudio/micrhema/AdminPrayerRequests.kt \
+            app/src/main/java/com/aistudio/micrhema/AdminDashboard.kt \
+            app/src/main/java/com/aistudio/micrhema/Screens.kt \
+            app/src/main/java/com/aistudio/micrhema/NotificationDispatcher.kt \
+            app/src/main/java/com/aistudio/micrhema/NotificationHelper.kt \
+            app/src/main/java/com/aistudio/micrhema/FCMService.kt \
+            app/src/main/java/com/aistudio/micrhema/MainActivity.kt \
+            firestore.rules \
+            supabase/functions/notify-fcm/index.ts
+          git commit -m "feat(android): priorizar e responder pedidos de oração"
+          git push origin HEAD:feature/android-prayer-priority-flow
