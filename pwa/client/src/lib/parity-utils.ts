@@ -1,5 +1,7 @@
 export type AcceptedDate = Date | null;
 
+const MEDIA_ASSETS_PUBLIC_BASE = "https://cwphbkdtorfpgmnlafqb.supabase.co/storage/v1/object/public/media-assets/";
+
 export function parseAppDate(raw?: string): AcceptedDate {
   const value = String(raw || "").trim();
   if (!value) return null;
@@ -60,6 +62,64 @@ export function youtubeThumbnail(value?: string) {
   return id ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : "";
 }
 
+export function googleDriveFileId(value?: string) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  try {
+    const url = new URL(raw);
+    const host = url.hostname.replace(/^www\./, "").toLowerCase();
+    if (host !== "drive.google.com" && host !== "docs.google.com") return "";
+    return url.pathname.match(/\/d\/([A-Za-z0-9_-]+)/)?.[1] || url.searchParams.get("id") || "";
+  } catch { return ""; }
+}
+
+function mediaAssetsPublicUrl(raw: string) {
+  if (raw.startsWith("media-assets/")) return `${MEDIA_ASSETS_PUBLIC_BASE}${raw.slice("media-assets/".length)}`;
+  try {
+    const url = new URL(raw);
+    const markers = [
+      "/storage/v1/object/sign/media-assets/",
+      "/storage/v1/object/authenticated/media-assets/",
+      "/storage/v1/object/public/media-assets/",
+    ];
+    const marker = markers.find((candidate) => url.pathname.includes(candidate));
+    if (!marker) return "";
+    const objectPath = url.pathname.slice(url.pathname.indexOf(marker) + marker.length);
+    return `${url.origin}/storage/v1/object/public/media-assets/${objectPath}`;
+  } catch { return ""; }
+}
+
+function firebaseStorageHttpUrl(raw: string) {
+  const gsMatch = raw.match(/^gs:\/\/([^/]+)\/(.+)$/i);
+  if (!gsMatch) return "";
+  return `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(gsMatch[1])}/o/${encodeURIComponent(gsMatch[2])}?alt=media`;
+}
+
+/** URL direta e durável para arquivos que o Android e a PWA compartilham. */
+export function resolvePortableAssetUrl(value?: string) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const media = mediaAssetsPublicUrl(raw);
+  if (media) return media;
+  const firebase = firebaseStorageHttpUrl(raw);
+  if (firebase) return firebase;
+  const driveId = googleDriveFileId(raw);
+  if (driveId) return `https://drive.google.com/uc?export=download&id=${encodeURIComponent(driveId)}`;
+  try {
+    const url = new URL(raw);
+    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : "";
+  } catch { return ""; }
+}
+
+/** URL apropriada para leitura do PDF dentro da própria PWA. */
+export function resolvePdfEmbedUrl(value?: string) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const driveId = googleDriveFileId(raw);
+  if (driveId) return `https://drive.google.com/file/d/${encodeURIComponent(driveId)}/preview`;
+  return resolvePortableAssetUrl(raw);
+}
+
 /**
  * Resolve formatos de imagem usados historicamente pelo Android/PWA para uma URL exibível no navegador.
  * - links assinados antigos do bucket público media-assets viram URLs públicas permanentes;
@@ -70,41 +130,16 @@ export function youtubeThumbnail(value?: string) {
 export function resolveDisplayImageUrl(value?: string) {
   const raw = String(value || "").trim();
   if (!raw) return "";
-
-  if (raw.startsWith("media-assets/")) {
-    return `https://cwphbkdtorfpgmnlafqb.supabase.co/storage/v1/object/public/${raw}`;
-  }
-
-  const gsMatch = raw.match(/^gs:\/\/([^/]+)\/(.+)$/i);
-  if (gsMatch) {
-    return `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(gsMatch[1])}/o/${encodeURIComponent(gsMatch[2])}?alt=media`;
-  }
-
+  const media = mediaAssetsPublicUrl(raw);
+  if (media) return media;
+  const firebase = firebaseStorageHttpUrl(raw);
+  if (firebase) return firebase;
+  const driveId = googleDriveFileId(raw);
+  if (driveId) return `https://drive.google.com/thumbnail?id=${encodeURIComponent(driveId)}&sz=w2000`;
   try {
     const url = new URL(raw);
-    const host = url.hostname.replace(/^www\./, "").toLowerCase();
-
-    const signedMediaMarker = "/storage/v1/object/sign/media-assets/";
-    const authenticatedMediaMarker = "/storage/v1/object/authenticated/media-assets/";
-    const marker = url.pathname.includes(signedMediaMarker)
-      ? signedMediaMarker
-      : url.pathname.includes(authenticatedMediaMarker)
-        ? authenticatedMediaMarker
-        : "";
-    if (marker) {
-      const objectPath = url.pathname.slice(url.pathname.indexOf(marker) + marker.length);
-      return `${url.origin}/storage/v1/object/public/media-assets/${objectPath}`;
-    }
-
-    if (host === "drive.google.com" || host === "docs.google.com") {
-      const fileId = url.pathname.match(/\/d\/([A-Za-z0-9_-]+)/)?.[1] || url.searchParams.get("id") || "";
-      if (fileId) return `https://drive.google.com/thumbnail?id=${encodeURIComponent(fileId)}&sz=w2000`;
-    }
-
     return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : "";
-  } catch {
-    return "";
-  }
+  } catch { return ""; }
 }
 
 export function normalizeSearch(value: string) {
@@ -112,7 +147,6 @@ export function normalizeSearch(value: string) {
 }
 
 export function stableSessionShuffle<T extends { id: string }>(items: T[], storageKey: string, limit = items.length): T[] {
-  const ids = items.map((item) => item.id);
   try {
     const existing = JSON.parse(sessionStorage.getItem(storageKey) || "[]") as string[];
     if (Array.isArray(existing)) {
