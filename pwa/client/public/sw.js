@@ -9,17 +9,41 @@ firebase.initializeApp({
   appId: "1:894363387794:web:f8010218d4f6c6e085234b",
   messagingSenderId: "894363387794",
 });
+
+function pushCategory(payload) {
+  return String(payload?.data?.category || payload?.category || "").trim().toLowerCase();
+}
+
+function isAndroidUpdatePayload(payload) {
+  if (pushCategory(payload) === "app_update") return true;
+  const title = String(payload?.notification?.title || payload?.data?.title || "").trim().toLowerCase();
+  const body = String(payload?.notification?.body || payload?.data?.body || "").trim().toLowerCase();
+  return title === "tem atualização nova!" || (body.includes("mic rhema") && body.includes("já está disponível"));
+}
+
+// Bloqueio no nível mais baixo do Service Worker. Este listener é registrado antes do
+// Firebase Messaging, então até tokens Web antigos que ainda estejam em algum tópico
+// legado têm o evento interrompido antes que o SDK possa exibir uma notificação.
+self.addEventListener("push", (event) => {
+  try {
+    const payload = event.data?.json?.();
+    if (isAndroidUpdatePayload(payload)) {
+      event.stopImmediatePropagation();
+    }
+  } catch {
+    // Payloads que não sejam JSON seguem normalmente para o Firebase Messaging.
+  }
+});
+
 const messaging = firebase.messaging();
 
-// Segurança adicional: mesmo que um token Web antigo ainda receba uma mensagem de atualização
-// por um tópico legado, a PWA ignora completamente a categoria exclusiva do Android.
+// Segunda barreira para mensagens de dados processadas pelo SDK.
 messaging.onBackgroundMessage((payload) => {
-  const category = String(payload?.data?.category || "").trim().toLowerCase();
-  if (category === "app_update") return;
+  if (isAndroidUpdatePayload(payload)) return;
 });
 
 const CACHE_PREFIX = "mic-rhema-pwa-";
-const CACHE = "mic-rhema-pwa-v6";
+const CACHE = "mic-rhema-pwa-v7";
 const SHELL_URL = "./";
 const MANIFEST_URL = "./manifest.webmanifest";
 const BASE_PATH = new URL("./", self.location.href).pathname;
@@ -69,6 +93,19 @@ async function primeShell() {
   }
 }
 
+async function clearLegacyAndroidUpdateNotifications() {
+  if (!self.registration?.getNotifications) return;
+  const notifications = await self.registration.getNotifications();
+  notifications.forEach((notification) => {
+    const title = String(notification.title || "").trim().toLowerCase();
+    const body = String(notification.body || "").trim().toLowerCase();
+    const tag = String(notification.tag || "").trim().toLowerCase();
+    if (title === "tem atualização nova!" || tag.includes("app_update") || (body.includes("mic rhema") && body.includes("já está disponível"))) {
+      notification.close();
+    }
+  });
+}
+
 self.addEventListener("install", (event) => event.waitUntil(
   primeShell().then(() => self.skipWaiting()),
 ));
@@ -79,6 +116,7 @@ self.addEventListener("activate", (event) => event.waitUntil((async () => {
   const keep = new Set(keys.sort((a, b) => version(b) - version(a)).slice(0, 2));
   keep.add(CACHE);
   await Promise.all(keys.filter((key) => !keep.has(key)).map((key) => caches.delete(key)));
+  await clearLegacyAndroidUpdateNotifications().catch(() => undefined);
   await self.clients.claim();
 })()));
 
