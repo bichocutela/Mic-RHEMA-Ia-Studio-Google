@@ -1,0 +1,66 @@
+name: Aplicar visualização clicável dos emblemas
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/patch-profile-badge-preview.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-profile-badges:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Tornar emblemas clicáveis e adicionar prévia ampliada
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('app/src/main/java/com/aistudio/micrhema/ProfileScreen.kt')
+          text = path.read_text(encoding='utf-8')
+
+          state_old = '''    var focusedBadgeId by remember { mutableStateOf<String?>(null) }\n'''
+          state_new = '''    var focusedBadgeId by remember { mutableStateOf<String?>(null) }\n    var previewBadgeId by remember { mutableStateOf<String?>(null) }\n'''
+          if state_old not in text:
+              raise SystemExit('Estado focusedBadgeId não encontrado')
+          text = text.replace(state_old, state_new, 1)
+
+          click_old = '''                                .then(if (isUnlocked) Modifier.clickable {\n                                    equippedBadgeId = badge.id\n                                    focusedBadgeId = null\n                                    showBadgePicker = false\n                                    saveProfile(\n                                        loggedInMember,\n                                        name,\n                                        phone,\n                                        address,\n                                        birthDate,\n                                        loggedInMember.profilePhotoUrl,\n                                        context,\n                                        email = email,\n                                        avatarId = selectedAvatarId,\n                                        equippedBadgeId = badge.id,\n                                        showToast = false\n                                    )\n                                } else Modifier),\n'''
+          click_new = '''                                .clickable {\n                                    previewBadgeId = badge.id\n                                    showBadgePicker = false\n                                },\n'''
+          if click_old not in text:
+              raise SystemExit('Bloco de clique dos emblemas não encontrado')
+          text = text.replace(click_old, click_new, 1)
+
+          marker = '''    if (showLogoutDialog) {\n'''
+          preview = '''    previewBadgeId?.let { badgeId ->\n        val badge = allBiblicalBadges.firstOrNull { it.id == badgeId }\n        if (badge != null) {\n            val isUnlocked = badge.id in unlockedBadgeIds\n            val isEquipped = badge.id == equippedBadgeId\n            AlertDialog(\n                onDismissRequest = {\n                    previewBadgeId = null\n                    showBadgePicker = true\n                },\n                title = {\n                    Text(if (badge.level != null) "Nível ${badge.level}: ${badge.name}" else badge.name)\n                },\n                text = {\n                    Column(\n                        modifier = Modifier.fillMaxWidth(),\n                        horizontalAlignment = Alignment.CenterHorizontally,\n                        verticalArrangement = Arrangement.spacedBy(10.dp)\n                    ) {\n                        Box(contentAlignment = Alignment.Center) {\n                            BiblicalAvatarWithBadge(\n                                avatar = selectedAvatar,\n                                badge = badge,\n                                modifier = Modifier.size(230.dp),\n                                contentDescription = "Visualização ampliada do emblema ${badge.name}"\n                            )\n                            if (!isUnlocked) {\n                                Icon(\n                                    Icons.Default.Lock,\n                                    contentDescription = "Emblema bloqueado",\n                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,\n                                    modifier = Modifier.size(34.dp)\n                                )\n                            }\n                        }\n                        badge.rarity?.let { rarity ->\n                            Text(\n                                rarity.label,\n                                style = MaterialTheme.typography.labelLarge,\n                                color = MaterialTheme.colorScheme.primary,\n                                fontWeight = FontWeight.Bold\n                            )\n                        }\n                        Text(\n                            if (isUnlocked) "Emblema conquistado" else "Ainda bloqueado",\n                            style = MaterialTheme.typography.titleSmall,\n                            fontWeight = FontWeight.Bold,\n                            color = if (isUnlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant\n                        )\n                        Text(\n                            badge.description,\n                            style = MaterialTheme.typography.bodyMedium,\n                            color = MaterialTheme.colorScheme.onSurfaceVariant\n                        )\n                        if (!isUnlocked) {\n                            Text(\n                                "Para desbloquear: ${badge.requirement}",\n                                style = MaterialTheme.typography.bodySmall,\n                                color = MaterialTheme.colorScheme.onSurfaceVariant\n                            )\n                        }\n                    }\n                },\n                confirmButton = {\n                    if (isUnlocked) {\n                        Button(\n                            onClick = {\n                                val previousBadgeId = equippedBadgeId\n                                equippedBadgeId = badge.id\n                                previewBadgeId = null\n                                focusedBadgeId = null\n                                saveProfile(\n                                    loggedInMember,\n                                    name,\n                                    phone,\n                                    address,\n                                    birthDate,\n                                    loggedInMember.profilePhotoUrl,\n                                    context,\n                                    email = email,\n                                    avatarId = selectedAvatarId,\n                                    equippedBadgeId = badge.id,\n                                    showToast = false\n                                ) { synced, error ->\n                                    if (!synced) {\n                                        equippedBadgeId = previousBadgeId\n                                        android.widget.Toast.makeText(\n                                            context,\n                                            "Não foi possível usar o emblema: ${error?.message ?: "verifique sua conexão"}",\n                                            android.widget.Toast.LENGTH_LONG\n                                        ).show()\n                                    }\n                                }\n                            },\n                            enabled = !isEquipped\n                        ) {\n                            Text(if (isEquipped) "Em uso" else "Usar emblema")\n                        }\n                    } else {\n                        TextButton(onClick = {\n                            previewBadgeId = null\n                            showBadgePicker = true\n                        }) {\n                            Text("Voltar")\n                        }\n                    }\n                },\n                dismissButton = if (isUnlocked) {\n                    {\n                        TextButton(onClick = {\n                            previewBadgeId = null\n                            showBadgePicker = true\n                        }) {\n                            Text("Voltar")\n                        }\n                    }\n                } else null\n            )\n        }\n    }\n\n'''
+          if marker not in text:
+              raise SystemExit('Marcador do diálogo de logout não encontrado')
+          text = text.replace(marker, preview + marker, 1)
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Validar alteração
+        shell: bash
+        run: |
+          grep -q 'var previewBadgeId by remember' app/src/main/java/com/aistudio/micrhema/ProfileScreen.kt
+          grep -q 'Visualização ampliada do emblema' app/src/main/java/com/aistudio/micrhema/ProfileScreen.kt
+          grep -q 'previewBadgeId = badge.id' app/src/main/java/com/aistudio/micrhema/ProfileScreen.kt
+
+      - name: Commitar correção e remover workflow temporário
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          rm -f .github/workflows/patch-profile-badge-preview.yml
+          git add app/src/main/java/com/aistudio/micrhema/ProfileScreen.kt .github/workflows/patch-profile-badge-preview.yml
+          git commit -m 'feat(android): permitir visualizar emblemas ao tocar'
+          git push origin HEAD:main
