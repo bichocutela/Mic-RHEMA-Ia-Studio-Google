@@ -9,10 +9,17 @@ firebase.initializeApp({
   appId: "1:894363387794:web:f8010218d4f6c6e085234b",
   messagingSenderId: "894363387794",
 });
-firebase.messaging();
+const messaging = firebase.messaging();
+
+// Segurança adicional: mesmo que um token Web antigo ainda receba uma mensagem de atualização
+// por um tópico legado, a PWA ignora completamente a categoria exclusiva do Android.
+messaging.onBackgroundMessage((payload) => {
+  const category = String(payload?.data?.category || "").trim().toLowerCase();
+  if (category === "app_update") return;
+});
 
 const CACHE_PREFIX = "mic-rhema-pwa-";
-const CACHE = "mic-rhema-pwa-v5";
+const CACHE = "mic-rhema-pwa-v6";
 const SHELL_URL = "./";
 const MANIFEST_URL = "./manifest.webmanifest";
 const BASE_PATH = new URL("./", self.location.href).pathname;

@@ -126,7 +126,7 @@ jobs:
           fi
           RELEASE_URL="https://github.com/bichocutela/Mic-RHEMA-Ia-Studio-Google/releases/tag/v${VERSION_NAME}"
           jq -n \
-            --arg topic "all_users" \
+            --arg topic "android_app_updates" \
             --arg title "Tem atualização nova!" \
             --arg body "O MIC Rhema ${VERSION_NAME} já está disponível. Toque para conferir." \
             --arg version "${VERSION_NAME}" \
