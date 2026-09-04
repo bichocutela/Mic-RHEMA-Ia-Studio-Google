@@ -30,7 +30,7 @@ async function accessToken(account: ServiceAccount) {
     .sign(await importPKCS8(account.private_key.replace(/\\n/g, "\n"), "RS256"));
   const response = await fetch(FCM_TOKEN_URL, {
     method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth-type:jwt-bearer", assertion }),
+    body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion }),
   });
   if (!response.ok) throw new Error(`Falha ao autenticar no FCM: ${response.status}`);
   const payload = await response.json();
