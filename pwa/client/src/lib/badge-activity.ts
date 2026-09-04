@@ -6,23 +6,38 @@ export type BadgeActivityKey = "plans" | "plan_themes" | "books" | "videos" | "b
 
 export const PWA_BADGE_UNLOCK_EVENT = "micrhema:pwa:badge-unlocked";
 
-export async function recordPwaActivity(activity: BadgeActivityKey, itemId: string) {
-  const user = firebaseAuth?.currentUser;
-  const normalized = String(itemId || "").trim();
-  if (!user || !normalized) return { ok: false, skipped: true, newlyUnlocked: [] as string[] };
-  const token = await user.getIdToken();
-  const response = await fetch(`${supabaseUrl}/functions/v1/pwa-badge-activity`, {
-    method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-    body: JSON.stringify({ activity, itemId: normalized }),
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.ok !== true) throw new Error(payload.error || "Não foi possível sincronizar a atividade agora.");
-  const result = payload as { ok: true; unlockedBadgeIds: string[]; newlyUnlocked: string[] };
+type BadgeActivityResult = { ok: true; unlockedBadgeIds: string[]; newlyUnlocked: string[] };
+
+function announceBadgeUnlock(result: BadgeActivityResult) {
   if (result.newlyUnlocked.length && typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent(PWA_BADGE_UNLOCK_EVENT, { detail: { badgeIds: result.newlyUnlocked } }));
   }
   return result;
+}
+
+async function postBadgeProgress(body: Record<string, unknown>) {
+  const user = firebaseAuth?.currentUser;
+  if (!user) return { ok: false, skipped: true, newlyUnlocked: [] as string[] };
+  const token = await user.getIdToken();
+  const response = await fetch(`${supabaseUrl}/functions/v1/pwa-badge-activity`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload.ok !== true) throw new Error(payload.error || "Não foi possível sincronizar o progresso agora.");
+  return announceBadgeUnlock(payload as BadgeActivityResult);
+}
+
+export async function recordPwaActivity(activity: BadgeActivityKey, itemId: string) {
+  const normalized = String(itemId || "").trim();
+  if (!normalized) return { ok: false, skipped: true, newlyUnlocked: [] as string[] };
+  return postBadgeProgress({ activity, itemId: normalized });
+}
+
+/** Recalcula níveis sem criar uma atividade artificial, usado após progresso do IBR. */
+export async function reconcilePwaBadges() {
+  return postBadgeProgress({ reconcile: true });
 }
 
 /**
