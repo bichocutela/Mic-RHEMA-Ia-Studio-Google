@@ -8,6 +8,7 @@ import {
 import {
   resolveDisplayImageUrl, resolvePdfEmbedUrl, resolvePortableAssetUrl, safeFilename, youtubeVideoId,
 } from "@/lib/parity-utils";
+import { reconcilePwaBadges } from "@/lib/badge-activity";
 import type { PwaSessionLike } from "./AndroidParityViews";
 import "./AndroidParityViews.css";
 
@@ -45,7 +46,7 @@ export function IbrParityView({ session, onLogin }: { session: PwaSessionLike; o
     return null;
   },[ordered,progress]);
   const openLesson=async(course:Course,chapter:Chapter)=>{if(!memberId)return;const current=progressFor(course.id,chapter.id);if(!current){await saveIbrProgress(memberId,{courseId:course.id,chapterId:chapter.id,lastPositionSeconds:1,totalDurationSeconds:Number(chapter.durationMinutes||0)*60,isCompleted:false}).catch(()=>undefined);}setLessonKey({courseId:course.id,chapterId:chapter.id})};
-  const complete=async()=>{if(!lessonCourse||!lesson||!memberId)return;try{await saveIbrProgress(memberId,{courseId:lessonCourse.id,chapterId:lesson.id,lastPositionSeconds:Number(lesson.durationMinutes||0)*60,totalDurationSeconds:Number(lesson.durationMinutes||0)*60,isCompleted:true});toast.success("Aula concluída e sincronizada com o Android.");}catch(error){toast.error(error instanceof Error?error.message:"Não foi possível salvar o progresso.")}};
+  const complete=async()=>{if(!lessonCourse||!lesson||!memberId)return;try{await saveIbrProgress(memberId,{courseId:lessonCourse.id,chapterId:lesson.id,lastPositionSeconds:Number(lesson.durationMinutes||0)*60,totalDurationSeconds:Number(lesson.durationMinutes||0)*60,isCompleted:true});await reconcilePwaBadges().catch(()=>undefined);toast.success("Aula concluída e sincronizada com o Android.");}catch(error){toast.error(error instanceof Error?error.message:"Não foi possível salvar o progresso.")}};
 
   if(lessonCourse&&lesson)return <IbrLesson course={lessonCourse} lesson={lesson} done={Boolean(progressFor(lessonCourse.id,lesson.id)?.isCompleted)} onBack={()=>setLessonKey(null)} onComplete={()=>void complete()}/>;
   if(selectedCourse){const index=ordered.findIndex(item=>item.id===selectedCourse.id);if(courseLocked(index)){setCourseId(null);return null;}return <section className="parity-page"><button className="back-link" onClick={()=>setCourseId(null)}><ChevronLeft size={18}/> Voltar ao IBR</button><div className="parity-title"><div><p>{selectedCourse.theme||"MÓDULO IBR"}</p><h1>{selectedCourse.title||"Curso IBR"}</h1><span>{selectedCourse.description||"Formação bíblica"}</span></div><School size={30}/></div>{resolveDisplayImageUrl(selectedCourse.imageUrl)&&<img src={resolveDisplayImageUrl(selectedCourse.imageUrl)} alt="" style={{width:"100%",maxHeight:210,objectFit:"cover",borderRadius:18,marginBottom:15}}/>}<div className="android-list-cards">{(selectedCourse.chapters||[]).map((chapter,lessonIndex)=>{const done=Boolean(progressFor(selectedCourse.id,chapter.id)?.isCompleted);const type=(chapter.type||"AULA").toUpperCase();return <button key={chapter.id} onClick={()=>void openLesson(selectedCourse,chapter)}><span>{String(lessonIndex+1).padStart(2,"0")}</span><div><strong>{chapter.title||"Aula IBR"}</strong><small>{type==="VIDEO"?"Vídeo":type==="AUDIO"?"Áudio":type==="TEXT"?"Leitura":"Aula"} · {Number(chapter.durationMinutes||0)} min</small></div>{done?<BadgeCheck size={20}/>:<ChevronRight size={19}/>}</button>})}</div></section>}
