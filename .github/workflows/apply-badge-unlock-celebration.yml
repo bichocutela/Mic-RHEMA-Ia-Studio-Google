@@ -25,7 +25,9 @@ jobs:
           fetch-depth: 0
 
       - name: Aplicar alterações
-        run: python3 scripts/apply_badge_unlock_celebration.py
+        run: |
+          python3 scripts/apply_badge_unlock_celebration.py
+          sed -i 's/import androidx.compose.ui.draw.zIndex/import androidx.compose.ui.zIndex/' app/src/main/java/com/aistudio/micrhema/BadgeUnlockCelebration.kt
 
       - name: Conferir patch
         run: |
