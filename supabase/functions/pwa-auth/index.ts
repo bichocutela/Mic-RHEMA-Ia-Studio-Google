@@ -2,7 +2,7 @@ import { importPKCS8, SignJWT } from "npm:jose@5.10.0";
 
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const IDENTITY_TOOLKIT_AUDIENCE = "https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit";
-const ADMIN_PASSWORD = Deno.env.get("RHEMA_ADMIN_PASSWORD") || "igreja10";
+const ADMIN_PASSWORD_SHA256 = Deno.env.get("RHEMA_ADMIN_PASSWORD_SHA256") || "42fd905d0baa828374a8801ad5e12d730109b02fd0f16f0a8414cb8c40d0c329";
 const ADMIN_EMAIL = "admin@micrhema.app";
 
 type ServiceAccount = { project_id?: string; client_email?: string; private_key?: string };
@@ -19,6 +19,10 @@ const cors = {
 function json(body: Record<string, unknown>, status = 200) { return new Response(JSON.stringify(body), { status, headers: cors }); }
 function clean(value: unknown) { return String(value ?? "").trim(); }
 function normalizedPhone(value: string) { return value.replace(/\D/g, ""); }
+async function sha256(value: string) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
 
 async function googleAccessToken(account: ServiceAccount) {
   if (!account.client_email || !account.private_key) throw new Error("Credencial Firebase incompleta.");
@@ -89,9 +93,9 @@ Deno.serve(async (request) => {
   if (request.method !== "POST") return json({ error: "Método não permitido." }, 405);
   try {
     const input = await request.json() as { name?: string; phone?: string; password?: string };
-    const name = clean(input.name); const phone = clean(input.phone);
+    const name = clean(input.name); const phone = clean(input.phone); const password = clean(input.password);
     const account = JSON.parse(Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON") || "{}") as ServiceAccount;
-    const isAdministrator = name.toLowerCase() === "admin" && clean(input.password) === ADMIN_PASSWORD;
+    const isAdministrator = name.toLowerCase() === "admin" && password.length > 0 && await sha256(password) === ADMIN_PASSWORD_SHA256;
 
     let member: Member;
     if (isAdministrator) {
