@@ -12,6 +12,8 @@ on:
       - 'supabase/functions/pwa-push-send/**'
       - 'supabase/functions/pwa-badge-activity/**'
       - 'supabase/functions/pwa-prayer-request/**'
+      - 'supabase/functions/pwa-prayer-admin/**'
+      - 'supabase/functions/notify-fcm/**'
       - 'PWA_*.md'
       - 'todo.md'
       - '.github/workflows/pwa-pages.yml'
