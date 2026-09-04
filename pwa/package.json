@@ -6,10 +6,11 @@
   "scripts": {
     "dev": "vite --host",
     "sync:android-plans": "node scripts/sync-android-plans.mjs",
-    "build": "pnpm sync:android-plans && vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
+    "sync:android-devotionals": "node scripts/sync-android-devotionals-2027.mjs",
+    "build": "pnpm sync:android-plans && pnpm sync:android-devotionals && vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "NODE_ENV=production node dist/index.js",
     "preview": "vite preview --host",
-    "check": "tsc --noEmit",
+    "check": "pnpm sync:android-plans && pnpm sync:android-devotionals && tsc --noEmit",
     "format": "prettier --write ."
   },
   "dependencies": {
