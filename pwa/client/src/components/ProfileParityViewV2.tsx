@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { signOut } from "firebase/auth";
-import { BadgeCheck, BookOpen, CheckCircle2, LockKeyhole, LogOut, RefreshCcw, Save, Trophy, UserRound } from "lucide-react";
+import { BadgeCheck, BookOpen, LogOut, RefreshCcw, Save, Trophy, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import {
   firebaseAuth, listenToCollection, listenToIbrProgress, loadPwaMemberProfile, savePwaMemberProfile,
   type PwaMemberProfile,
 } from "@/lib/firebase";
 import type { PwaSessionLike } from "./AndroidParityViews";
+import { BiblicalBadgeAvatar } from "./BiblicalBadgeAvatar";
 import "./ProfileParityViewV2.css";
 
 type Avatar = { id: string; name: string };
@@ -99,7 +100,7 @@ export function ProfileParityViewV2({ session, onNavigateHome }: { session: PwaS
   const levels=badges.filter((badge)=>badge.level);
 
   return <section className="parity-page profile-v2-root">
-    <header className="profile-v2-hero"><img src={avatarUrl(avatar.id)} alt={`Avatar bíblico ${avatar.name}`}/><div><p>{session.isAdmin?"ADMINISTRADOR · ":""}SEU AVATAR BÍBLICO</p><h1>{draft.name}</h1><span>{avatar.name} · Nível {equipped.level||1}: {equipped.name}</span></div></header>
+    <header className="profile-v2-hero"><BiblicalBadgeAvatar avatarId={avatar.id} badgeId={equipped.id} size={96} title={`${avatar.name} · ${equipped.name}`}/><div><p>{session.isAdmin?"ADMINISTRADOR · ":""}SEU AVATAR BÍBLICO</p><h1>{draft.name}</h1><span>{avatar.name} · Nível {equipped.level||1}: {equipped.name}</span></div></header>
     <article className="profile-v2-level"><Trophy size={25}/><div><strong>Progresso das conquistas</strong><span>{summary.completedLessons} aulas IBR concluídas · {summary.completedCourses} cursos concluídos</span>{summary.next?<><small>Próximo: {summary.next.name} — {summary.next.requirement}</small><div className="profile-v2-progress"><i style={{width:`${Math.round(summary.fraction*100)}%`}}/></div><b>{Math.round(summary.fraction*100)}%</b></>:<small>Todos os níveis principais foram alcançados.</small>}</div></article>
     <div className="profile-v2-stats"><div><strong>{summary.calculated.size}</strong><span>Conquistas</span></div><div><strong>{summary.activeMinutes}</strong><span>Minutos ativos</span></div><div><strong>{summary.completedCourses}</strong><span>Cursos IBR</span></div><div><strong>{summary.counts.bible_chapters}</strong><span>Capítulos</span></div></div>
 
@@ -108,8 +109,8 @@ export function ProfileParityViewV2({ session, onNavigateHome }: { session: PwaS
 
     <div className="profile-choice-actions"><button onClick={()=>setAvatarsOpen(!avatarsOpen)}><UserRound size={18}/> Escolher avatar</button><button onClick={()=>setBadgesOpen(!badgesOpen)}><BadgeCheck size={18}/> Emblemas e níveis</button><button onClick={()=>setMissionsOpen(!missionsOpen)}><Trophy size={18}/> Missões</button></div>
     {avatarsOpen&&<div className="profile-v2-avatar-grid">{avatars.map((item)=><button disabled={saving} key={item.id} className={draft.avatarId===item.id?"selected":""} onClick={()=>chooseAvatar(item.id)}><img src={avatarUrl(item.id)} alt={item.name} loading="lazy"/><small>{item.name}</small></button>)}</div>}
-    {badgesOpen&&<div className="profile-v2-badges">{badges.map((badge)=>{const unlocked=summary.calculated.has(badge.id);return <button key={badge.id} disabled={!unlocked||saving} className={draft.equippedBadgeId===badge.id?"selected":""} onClick={()=>chooseBadge(badge.id)}>{unlocked?<CheckCircle2 size={20}/>:<LockKeyhole size={20}/>}<span><strong>{badge.level?`Nível ${badge.level} · `:""}{badge.name}</strong><small>{unlocked?badge.description:`Bloqueado — ${badge.requirement}`}</small></span></button>})}</div>}
-    {missionsOpen&&<section className="profile-v2-missions"><header><strong>Missões dos emblemas</strong><small>As mesmas regras do Android. O progresso feito em qualquer versão conta para a mesma conta.</small></header>{levels.map((badge)=>{const fraction=Math.max(0,Math.min(1,summary.missionFraction(badge.id)));const done=summary.calculated.has(badge.id);return <article key={badge.id} className={done?"done":""}><span>{done?<CheckCircle2 size={20}/>:<Trophy size={20}/>}</span><div><strong>Nível {badge.level} · {badge.name}</strong><small>{badge.requirement}</small><div className="profile-v2-progress"><i style={{width:`${Math.round(fraction*100)}%`}}/></div><em>{done?"Concluída":`${Math.round(fraction*100)}% concluído`}</em></div></article>})}</section>}
+    {badgesOpen&&<div className="profile-v2-badges">{badges.map((badge)=>{const unlocked=summary.calculated.has(badge.id);const selected=draft.equippedBadgeId===badge.id;return <button key={badge.id} disabled={!unlocked||saving} className={selected?"selected":""} onClick={()=>chooseBadge(badge.id)}><BiblicalBadgeAvatar avatarId={avatar.id} badgeId={badge.id} size={64} locked={!unlocked} title={badge.name}/><span><strong>{badge.level?`Nível ${badge.level} · `:""}{badge.name}</strong><small>{unlocked?badge.description:`Bloqueado — ${badge.requirement}`}</small><em>{selected?"Emblema equipado":unlocked?"Conquistado · toque para equipar":"Ainda não conquistado"}</em></span></button>})}</div>}
+    {missionsOpen&&<section className="profile-v2-missions"><header><strong>Missões dos emblemas</strong><small>As mesmas regras do Android. O progresso feito em qualquer versão conta para a mesma conta.</small></header>{levels.map((badge)=>{const fraction=Math.max(0,Math.min(1,summary.missionFraction(badge.id)));const done=summary.calculated.has(badge.id);return <article key={badge.id} className={done?"done":""}><BiblicalBadgeAvatar avatarId={avatar.id} badgeId={badge.id} size={72} locked={!done} title={`Nível ${badge.level} · ${badge.name}`}/><div><strong>Nível {badge.level} · {badge.name}</strong><small>{badge.requirement}</small><div className="profile-v2-progress"><i style={{width:`${Math.round(fraction*100)}%`}}/></div><em>{done?"Concluída":`${Math.round(fraction*100)}% concluído`}</em></div></article>})}</section>}
     <article className="profile-v2-activity"><BookOpen size={21}/><div><strong>Atividade sincronizada</strong><small>{summary.counts.devotionals} devocionais · {summary.counts.plan_themes} temas · {summary.counts.plans} planos · {summary.counts.books} livros · {summary.counts.videos} vídeos · {summary.counts.audios} áudios · {summary.counts.bible_news} notícias · {summary.counts.bible_chapters} capítulos</small></div></article>
     <button className="parity-danger" onClick={()=>void logout()}><LogOut size={18}/> Sair da conta</button><button className="profile-v2-refresh" onClick={()=>void reload()}><RefreshCcw size={17}/> Atualizar progresso</button>
   </section>;
