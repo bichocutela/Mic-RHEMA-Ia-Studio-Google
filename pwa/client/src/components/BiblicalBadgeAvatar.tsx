@@ -1,4 +1,5 @@
 import { Lock } from "lucide-react";
+import { profileEmblemLevelById } from "./BiblicalBadgeCatalog";
 
 type BadgeVisual = {
   accent: string;
@@ -23,6 +24,7 @@ const badgeVisuals: Record<string, BadgeVisual> = {
 
 const rawBase = "https://raw.githubusercontent.com/bichocutela/Mic-RHEMA-Ia-Studio-Google/main/app/src/main/res/drawable-nodpi";
 const avatarUrl = (id: string) => `${rawBase}/avatar_${id}.png`;
+const profileEmblemUrl = (level: number) => `${rawBase}/profile_emblem_level_${String(level).padStart(2,"0")}.webp`;
 
 function TopSymbol({ visual }: { visual: BadgeVisual }) {
   const { accent, style } = visual;
@@ -53,7 +55,18 @@ function BottomMedallion({ accent, level }: { accent: string; level: number }) {
   return <g filter="url(#badgeShadow)"><circle cx="50" cy="89" r="9.2" fill="#1f1f1f" opacity=".72"/><polygon points={points} fill={accent} stroke="white" strokeOpacity=".5" strokeWidth="1"/></g>;
 }
 
-export function BiblicalBadgeAvatar({ avatarId, badgeId, size = 64, locked = false, className = "", title }: { avatarId: string; badgeId: string; size?: number; locked?: boolean; className?: string; title?: string }) {
+export function BiblicalBadgeAvatar({ avatarId, badgeId, size = 64, locked = false, dimWhenLocked = true, className = "", title }: { avatarId: string; badgeId: string; size?: number; locked?: boolean; dimWhenLocked?: boolean; className?: string; title?: string }) {
+  const profileLevel = profileEmblemLevelById[badgeId];
+  const opacity = locked && dimWhenLocked ? .34 : 1;
+
+  if (profileLevel) {
+    return <div className={`biblical-badge-avatar ${className}`} title={title} aria-label={title} style={{ width:size,height:size,position:"relative",flex:"0 0 auto",opacity,transition:"opacity .2s ease, transform .2s ease" }}>
+      <img src={avatarUrl(avatarId)} alt="" draggable={false} style={{ position:"absolute",left:"21%",top:"21%",width:"58%",height:"58%",borderRadius:"50%",objectFit:"cover",background:"#f4ecd8" }}/>
+      <img src={profileEmblemUrl(profileLevel)} alt="" draggable={false} style={{ position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"contain",pointerEvents:"none" }}/>
+      {locked && <span aria-hidden="true" style={{ position:"absolute",inset:0,display:"grid",placeItems:"center",color:"var(--muted-foreground,#666)",opacity:1 }}><Lock size={Math.max(16,Math.round(size*.28))} strokeWidth={2.4}/></span>}
+    </div>;
+  }
+
   const visual = badgeVisuals[badgeId] || badgeVisuals.caminhante;
   const leaves = Math.min(8, Math.max(2, visual.level + 1));
   const leafRows = Array.from({ length: leaves }, (_, index) => {
@@ -62,7 +75,7 @@ export function BiblicalBadgeAvatar({ avatarId, badgeId, size = 64, locked = fal
     const rotate = -34 + index * (32 / Math.max(1, leaves - 1));
     return { y, x, rotate };
   });
-  return <div className={`biblical-badge-avatar ${className}`} title={title} aria-label={title} style={{ width: size, height: size, position: "relative", flex: "0 0 auto", opacity: locked ? .34 : 1, transition: "opacity .2s ease, transform .2s ease" }}>
+  return <div className={`biblical-badge-avatar ${className}`} title={title} aria-label={title} style={{ width: size, height: size, position: "relative", flex: "0 0 auto", opacity, transition: "opacity .2s ease, transform .2s ease" }}>
     <svg viewBox="0 0 100 100" aria-hidden="true" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible" }}>
       <defs><filter id="badgeShadow" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" dy="1.2" stdDeviation="1.4" floodOpacity=".48"/></filter></defs>
       <circle cx="50" cy="50" r="44.5" fill="none" stroke="#161616" strokeOpacity=".48" strokeWidth="4.5"/>
