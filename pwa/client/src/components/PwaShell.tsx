@@ -5,6 +5,7 @@ import {
   Settings, Users, type LucideIcon,
 } from "lucide-react";
 import { listenToCollection, listenToDocument } from "@/lib/firebase";
+import { startPwaActiveMinuteTracker } from "@/lib/badge-activity";
 import { MembersParityView, type PwaSessionLike } from "./AndroidParityViews";
 import { AdminParityView } from "./AdminParityView";
 import { PrayerParityView } from "./PrayerParityView";
@@ -79,7 +80,7 @@ function DonationsParityView(){
   useEffect(()=>listenToDocument<DonationSettings>("settings","donations",setDonationSettings,()=>setDonationSettings(null)),[]);
   const pixKey=settings?.pixKey?.trim()||"";
   const qr=settings?.qrCodeUrl?.trim()||"";
-  const copy=async()=>{if(!pixKey)return;try{await navigator.clipboard.writeText(pixKey)}catch{ return; }};
+  const copy=async()=>{if(!pixKey)return;try{await navigator.clipboard.writeText(pixKey)}catch{return}};
   return <section className="page-pad android-module">
     <div className="android-section-heading"><div><p>IGREJA</p><h2>Dízimos e Ofertas</h2></div></div><p>Contribua com a obra de Deus.</p>
     {!pixKey&&!qr?<p className="empty-module">As informações de doação ainda não foram configuradas.</p>:<article className="android-module-card" style={{display:"flex",flexDirection:"column",alignItems:"center",gap:14}}>
@@ -110,6 +111,7 @@ function AndroidDrawer({active,onNavigate,onProfile,onClose,session,onNotificati
 }
 
 export function PwaShell({children,active,onNavigate,drawerOpen,onCloseDrawer,onOpenDrawer,onProfile,session,onNotifications}:{children:React.ReactNode;active:AppView;onNavigate:(view:AppView)=>void;drawerOpen:boolean;onCloseDrawer:()=>void;onOpenDrawer:()=>void;onProfile:()=>void;session:PwaSessionLike;onNotifications:()=>void}){
+  useEffect(()=>startPwaActiveMinuteTracker(),[]);
   const content=active==="home"?<HomeParityView session={session} onNavigate={onNavigate}/>
     :active==="bible"?<BibleParityViewV2/>
     :active==="news"?<NewsParityView onNavigate={onNavigate}/>
