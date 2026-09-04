@@ -1,13 +1,6 @@
 package com.aistudio.micrhema
 
-/**
- * Estrutura base da Jornada Bíblica.
- *
- * Esta etapa apenas descreve e calcula o progresso das missões usando atividades
- * reais já registradas pelo aplicativo. A concessão de XP e a persistência de
- * conclusão entram na etapa específica de progressão, evitando recompensas
- * duplicadas enquanto o restante da Jornada Bíblica ainda está sendo montado.
- */
+/** Missões da Jornada Bíblica: sempre calculadas a partir do ponto zero da própria jornada. */
 enum class BibleMissionDifficulty(val label: String, val xpReward: Int) {
     EASY("Fácil", 15),
     MEDIUM("Médio", 35),
@@ -24,7 +17,11 @@ enum class BibleMissionMetric {
     AUDIOS,
     BIBLE_NEWS,
     ACTIVE_MINUTES,
-    TOTAL_ACTIVITIES
+    TOTAL_ACTIVITIES,
+    QUIZ_CORRECT,
+    QUIZ_CORRECT_NO_EASY_HINT,
+    QUIZ_CORRECT_NO_HINT,
+    QUIZ_HARD_CORRECT
 }
 
 data class BibleMissionObjective(
@@ -63,6 +60,8 @@ data class BibleMissionProgress(
         get() = if (objectives.isEmpty()) 0f else objectives.map { it.fraction }.average().toFloat().coerceIn(0f, 1f)
 }
 
+internal const val BIBLE_JOURNEY_BASELINE_KEY = "__bible_journey_baseline__"
+
 private val bibleMissionActivityKeys = listOf(
     BadgeActivityKeys.PLANS,
     BadgeActivityKeys.PLAN_THEMES,
@@ -77,7 +76,7 @@ private val bibleMissionActivityKeys = listOf(
 private fun MemberRequest.missionActivityCount(key: String): Int =
     badgeActivityIds[key].orEmpty().distinct().size
 
-private fun MemberRequest.missionMetricValue(metric: BibleMissionMetric): Int = when (metric) {
+internal fun MemberRequest.rawBibleMissionMetricValue(metric: BibleMissionMetric): Int = when (metric) {
     BibleMissionMetric.BIBLE_CHAPTERS -> missionActivityCount(BadgeActivityKeys.BIBLE_CHAPTERS)
     BibleMissionMetric.DEVOTIONALS -> missionActivityCount(BadgeActivityKeys.DEVOTIONALS)
     BibleMissionMetric.PLAN_THEMES -> missionActivityCount(BadgeActivityKeys.PLAN_THEMES)
@@ -88,66 +87,100 @@ private fun MemberRequest.missionMetricValue(metric: BibleMissionMetric): Int = 
     BibleMissionMetric.BIBLE_NEWS -> missionActivityCount(BadgeActivityKeys.BIBLE_NEWS)
     BibleMissionMetric.ACTIVE_MINUTES -> missionActivityCount(BadgeActivityKeys.ACTIVE_MINUTES)
     BibleMissionMetric.TOTAL_ACTIVITIES -> bibleMissionActivityKeys.sumOf(::missionActivityCount)
+    BibleMissionMetric.QUIZ_CORRECT -> missionActivityCount(BadgeActivityKeys.QUIZ_CORRECT)
+    BibleMissionMetric.QUIZ_CORRECT_NO_EASY_HINT -> missionActivityCount(BadgeActivityKeys.QUIZ_CORRECT_NO_EASY_HINT)
+    BibleMissionMetric.QUIZ_CORRECT_NO_HINT -> missionActivityCount(BadgeActivityKeys.QUIZ_CORRECT_NO_HINT)
+    BibleMissionMetric.QUIZ_HARD_CORRECT -> missionActivityCount(BadgeActivityKeys.QUIZ_HARD_CORRECT)
+}
+
+private fun readBibleJourneyBaseline(member: MemberRequest): Map<BibleMissionMetric, Int> {
+    return member.badgeActivityIds[BIBLE_JOURNEY_BASELINE_KEY].orEmpty().mapNotNull { entry ->
+        val separator = entry.indexOf('=')
+        if (separator <= 0) return@mapNotNull null
+        val metric = runCatching { BibleMissionMetric.valueOf(entry.substring(0, separator)) }.getOrNull()
+            ?: return@mapNotNull null
+        val value = entry.substring(separator + 1).toIntOrNull() ?: return@mapNotNull null
+        metric to value
+    }.toMap()
+}
+
+fun ensureBibleJourneyBaseline(member: MemberRequest): MemberRequest {
+    if (member.badgeActivityIds.containsKey(BIBLE_JOURNEY_BASELINE_KEY)) return member
+    val snapshot = BibleMissionMetric.entries.map { metric ->
+        "${metric.name}=${member.rawBibleMissionMetricValue(metric)}"
+    }
+    val activities = member.badgeActivityIds.toMutableMap()
+    activities[BIBLE_JOURNEY_BASELINE_KEY] = snapshot
+    return member.copy(badgeActivityIds = activities)
+}
+
+fun bibleJourneyMetricValue(member: MemberRequest, metric: BibleMissionMetric): Int {
+    val prepared = ensureBibleJourneyBaseline(member)
+    val baseline = readBibleJourneyBaseline(prepared)
+    val current = prepared.rawBibleMissionMetricValue(metric)
+    return (current - (baseline[metric] ?: current)).coerceAtLeast(0)
 }
 
 object BibleMissionCatalog {
     val missions: List<BibleMissionDefinition> = listOf(
-        // Fácil — pequenas ações para criar constância sem transformar a Bíblia em obrigação.
+        // Fácil
         BibleMissionDefinition(
             id = "easy_first_chapter",
             title = "Primeiro passo na Palavra",
             description = "Leia um capítulo completo da Bíblia.",
             difficulty = BibleMissionDifficulty.EASY,
-            objectives = listOf(
-                BibleMissionObjective(BibleMissionMetric.BIBLE_CHAPTERS, 1, "capítulo", "Ler capítulo da Bíblia")
-            )
+            objectives = listOf(BibleMissionObjective(BibleMissionMetric.BIBLE_CHAPTERS, 1, "capítulo", "Ler capítulo da Bíblia"))
         ),
         BibleMissionDefinition(
             id = "easy_devotional",
             title = "Momento de reflexão",
             description = "Conclua um devocional no MIC Rhema.",
             difficulty = BibleMissionDifficulty.EASY,
-            objectives = listOf(
-                BibleMissionObjective(BibleMissionMetric.DEVOTIONALS, 1, "devocional", "Concluir devocional")
-            )
+            objectives = listOf(BibleMissionObjective(BibleMissionMetric.DEVOTIONALS, 1, "devocional", "Concluir devocional"))
         ),
         BibleMissionDefinition(
             id = "easy_plan_theme",
             title = "Explore um tema",
             description = "Conheça um tema dos planos bíblicos.",
             difficulty = BibleMissionDifficulty.EASY,
-            objectives = listOf(
-                BibleMissionObjective(BibleMissionMetric.PLAN_THEMES, 1, "tema", "Explorar tema de plano")
-            )
+            objectives = listOf(BibleMissionObjective(BibleMissionMetric.PLAN_THEMES, 1, "tema", "Explorar tema de plano"))
         ),
         BibleMissionDefinition(
             id = "easy_five_minutes",
             title = "Cinco minutos com propósito",
             description = "Permaneça cinco minutos ativos estudando no aplicativo.",
             difficulty = BibleMissionDifficulty.EASY,
-            objectives = listOf(
-                BibleMissionObjective(BibleMissionMetric.ACTIVE_MINUTES, 5, "minutos", "Tempo ativo")
-            )
+            objectives = listOf(BibleMissionObjective(BibleMissionMetric.ACTIVE_MINUTES, 5, "minutos", "Tempo ativo"))
         ),
         BibleMissionDefinition(
             id = "easy_three_activities",
             title = "Comece a jornada",
             description = "Realize três atividades válidas em áreas de conteúdo do MIC Rhema.",
             difficulty = BibleMissionDifficulty.EASY,
-            objectives = listOf(
-                BibleMissionObjective(BibleMissionMetric.TOTAL_ACTIVITIES, 3, "atividades", "Atividades válidas")
-            )
+            objectives = listOf(BibleMissionObjective(BibleMissionMetric.TOTAL_ACTIVITIES, 3, "atividades", "Atividades válidas"))
+        ),
+        BibleMissionDefinition(
+            id = "easy_first_quiz_correct",
+            title = "Primeira resposta certa",
+            description = "Acerte sua primeira pergunta no Quiz Bíblico.",
+            difficulty = BibleMissionDifficulty.EASY,
+            objectives = listOf(BibleMissionObjective(BibleMissionMetric.QUIZ_CORRECT, 1, "acerto", "Responder corretamente"))
+        ),
+        BibleMissionDefinition(
+            id = "easy_three_quiz_correct",
+            title = "Conhecimento em crescimento",
+            description = "Acerte três perguntas bíblicas diferentes.",
+            difficulty = BibleMissionDifficulty.EASY,
+            objectives = listOf(BibleMissionObjective(BibleMissionMetric.QUIZ_CORRECT, 3, "acertos", "Responder corretamente"))
         ),
 
-        // Médio — combina leitura com exploração de outros conteúdos de estudo.
+        // Médio
         BibleMissionDefinition(
             id = "medium_three_chapters",
             title = "Aprofunde a leitura",
             description = "Leia três capítulos diferentes da Bíblia.",
             difficulty = BibleMissionDifficulty.MEDIUM,
-            objectives = listOf(
-                BibleMissionObjective(BibleMissionMetric.BIBLE_CHAPTERS, 3, "capítulos", "Ler capítulos da Bíblia")
-            )
+            objectives = listOf(BibleMissionObjective(BibleMissionMetric.BIBLE_CHAPTERS, 3, "capítulos", "Ler capítulos da Bíblia"))
         ),
         BibleMissionDefinition(
             id = "medium_devotional_and_plan",
@@ -189,16 +222,28 @@ object BibleMissionCatalog {
                 BibleMissionObjective(BibleMissionMetric.BIBLE_NEWS, 2, "notícias", "Ler notícias bíblicas")
             )
         ),
+        BibleMissionDefinition(
+            id = "medium_five_quiz_correct",
+            title = "Cinco respostas certas",
+            description = "Acerte cinco perguntas bíblicas diferentes.",
+            difficulty = BibleMissionDifficulty.MEDIUM,
+            objectives = listOf(BibleMissionObjective(BibleMissionMetric.QUIZ_CORRECT, 5, "acertos", "Responder corretamente"))
+        ),
+        BibleMissionDefinition(
+            id = "medium_three_without_easy_hint",
+            title = "Sem atalho fácil",
+            description = "Acerte três perguntas sem usar a Dica Fácil.",
+            difficulty = BibleMissionDifficulty.MEDIUM,
+            objectives = listOf(BibleMissionObjective(BibleMissionMetric.QUIZ_CORRECT_NO_EASY_HINT, 3, "acertos", "Acertar sem Dica Fácil"))
+        ),
 
-        // Difícil — metas longas, sempre formadas por atividades reais e deduplicadas.
+        // Difícil
         BibleMissionDefinition(
             id = "hard_ten_chapters",
             title = "Mergulho na Palavra",
             description = "Leia dez capítulos diferentes da Bíblia.",
             difficulty = BibleMissionDifficulty.HARD,
-            objectives = listOf(
-                BibleMissionObjective(BibleMissionMetric.BIBLE_CHAPTERS, 10, "capítulos", "Ler capítulos da Bíblia")
-            )
+            objectives = listOf(BibleMissionObjective(BibleMissionMetric.BIBLE_CHAPTERS, 10, "capítulos", "Ler capítulos da Bíblia"))
         ),
         BibleMissionDefinition(
             id = "hard_hour_of_study",
@@ -247,6 +292,27 @@ object BibleMissionCatalog {
                 BibleMissionObjective(BibleMissionMetric.BIBLE_NEWS, 1, "notícia", "Ler notícia bíblica"),
                 BibleMissionObjective(BibleMissionMetric.ACTIVE_MINUTES, 90, "minutos", "Tempo ativo")
             )
+        ),
+        BibleMissionDefinition(
+            id = "hard_ten_without_easy_hint",
+            title = "Conhecimento sem atalhos",
+            description = "Acerte dez perguntas sem usar a Dica Fácil.",
+            difficulty = BibleMissionDifficulty.HARD,
+            objectives = listOf(BibleMissionObjective(BibleMissionMetric.QUIZ_CORRECT_NO_EASY_HINT, 10, "acertos", "Acertar sem Dica Fácil"))
+        ),
+        BibleMissionDefinition(
+            id = "hard_five_hard_questions",
+            title = "Desafio das perguntas difíceis",
+            description = "Acerte cinco perguntas classificadas como difíceis.",
+            difficulty = BibleMissionDifficulty.HARD,
+            objectives = listOf(BibleMissionObjective(BibleMissionMetric.QUIZ_HARD_CORRECT, 5, "acertos", "Acertar pergunta difícil"))
+        ),
+        BibleMissionDefinition(
+            id = "hard_five_without_hint",
+            title = "Resposta de primeira",
+            description = "Acerte cinco perguntas sem usar nenhuma dica.",
+            difficulty = BibleMissionDifficulty.HARD,
+            objectives = listOf(BibleMissionObjective(BibleMissionMetric.QUIZ_CORRECT_NO_HINT, 5, "acertos", "Acertar sem dica"))
         )
     )
 
@@ -254,15 +320,17 @@ object BibleMissionCatalog {
         missions.filter { it.difficulty == difficulty }
 }
 
-fun calculateBibleMissionProgress(member: MemberRequest): List<BibleMissionProgress> =
-    BibleMissionCatalog.missions.map { mission ->
+fun calculateBibleMissionProgress(member: MemberRequest): List<BibleMissionProgress> {
+    val prepared = ensureBibleJourneyBaseline(member)
+    return BibleMissionCatalog.missions.map { mission ->
         BibleMissionProgress(
             mission = mission,
             objectives = mission.objectives.map { objective ->
                 BibleMissionObjectiveProgress(
                     objective = objective,
-                    current = member.missionMetricValue(objective.metric)
+                    current = bibleJourneyMetricValue(prepared, objective.metric)
                 )
             }
         )
     }
+}

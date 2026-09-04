@@ -24,6 +24,15 @@ object BadgeActivityKeys {
     const val DEVOTIONALS = "devotionals"
     const val AUDIOS = "audios"
     const val ACTIVE_MINUTES = "active_minutes"
+
+    // Jornada Bíblica / Quiz. IDs estáveis garantem que a mesma ação não gere XP duas vezes.
+    const val QUIZ_ANSWERED = "quiz_answered"
+    const val QUIZ_CORRECT = "quiz_correct"
+    const val QUIZ_CORRECT_NO_EASY_HINT = "quiz_correct_no_easy_hint"
+    const val QUIZ_CORRECT_NO_HINT = "quiz_correct_no_hint"
+    const val QUIZ_HARD_CORRECT = "quiz_hard_correct"
+    const val JOURNEY_MISSIONS = "journey_missions"
+    const val XP_AWARDS = "journey_xp_awards"
 }
 
 object BadgeActivityTracker {
@@ -40,7 +49,8 @@ object BadgeActivityTracker {
     }
 
     fun reconcile(context: Context, member: MemberRequest) {
-        val preparedMember = ensureCurrentLevelMissionBaseline(member)
+        val journeyPrepared = ensureBibleJourneyBaseline(member)
+        val preparedMember = ensureCurrentLevelMissionBaseline(journeyPrepared)
         val calculated = calculateBadgeProgress(preparedMember)
         val previousUnlockedIds = preparedMember.unlockedBadgeIds.toSet()
         val newlyUnlocked = calculated.unlockedIds
@@ -59,23 +69,20 @@ object BadgeActivityTracker {
                 updatedMember.badgeActivityIds != member.badgeActivityIds
         if (!changed) return
 
-        val index = memberRequestsState.indexOfFirst { it.id == member.id }
-        if (index >= 0) memberRequestsState[index] = updatedMember
-        if (loggedInMemberState.value?.id == member.id) loggedInMemberState.value = updatedMember
+        updateMemberStates(updatedMember)
         syncPortableState(context, updatedMember)
     }
 
     fun prepareForIbrMissionAction(context: Context) {
         val member = loggedInMemberState.value ?: return
+        val journeyPrepared = ensureBibleJourneyBaseline(member)
         val preparedMember = ensureCurrentLevelMissionBaseline(
-            member = member,
+            member = journeyPrepared,
             allowIbrDependentBaseline = true
         )
         if (preparedMember.badgeActivityIds == member.badgeActivityIds) return
 
-        val index = memberRequestsState.indexOfFirst { it.id == member.id }
-        if (index >= 0) memberRequestsState[index] = preparedMember
-        loggedInMemberState.value = preparedMember
+        updateMemberStates(preparedMember)
         syncPortableState(context, preparedMember)
     }
 
@@ -98,8 +105,10 @@ object BadgeActivityTracker {
     }
 
     private fun persist(context: Context, member: MemberRequest, activity: String, ids: List<String>) {
+        // Os dois pontos-zero são capturados ANTES da nova ação entrar no histórico.
+        val journeyPrepared = ensureBibleJourneyBaseline(member)
         val preparedMember = ensureCurrentLevelMissionBaseline(
-            member = member,
+            member = journeyPrepared,
             allowIbrDependentBaseline = true
         )
         val updatedActivities = preparedMember.badgeActivityIds.toMutableMap()
@@ -118,14 +127,21 @@ object BadgeActivityTracker {
         val unlockedMember = activityMember.copy(unlockedBadgeIds = calculated.unlockedIds)
         val updatedMember = ensureCurrentLevelMissionBaseline(unlockedMember)
 
-        val index = memberRequestsState.indexOfFirst { it.id == member.id }
-        if (index >= 0) memberRequestsState[index] = updatedMember
-        if (loggedInMemberState.value?.id == member.id) loggedInMemberState.value = updatedMember
-
+        updateMemberStates(updatedMember)
         syncPortableState(context, updatedMember)
+
+        // Uma missão da Jornada só entrega XP uma vez, mesmo que seus requisitos
+        // continuem verdadeiros em todas as reconciliações seguintes.
+        BibleJourneyProgressTracker.reconcileMissionRewards(context, updatedMember)
     }
 
-    private fun syncPortableState(context: Context, member: MemberRequest) {
+    internal fun updateMemberStates(member: MemberRequest) {
+        val index = memberRequestsState.indexOfFirst { it.id == member.id }
+        if (index >= 0) memberRequestsState[index] = member
+        if (loggedInMemberState.value?.id == member.id) loggedInMemberState.value = member
+    }
+
+    internal fun syncPortableState(context: Context, member: MemberRequest) {
         MemberSessionClient.syncMemberState(
             context = context,
             member = member,
