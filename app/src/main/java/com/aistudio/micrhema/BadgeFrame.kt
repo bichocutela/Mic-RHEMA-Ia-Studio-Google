@@ -30,13 +30,8 @@ fun BiblicalAvatarWithBadge(
     contentDescription: String? = avatar.displayName
 ) {
     val clickableModifier = if (onClick != null) modifier.clickable(onClick = onClick) else modifier
-    Box(
-        modifier = clickableModifier,
-        contentAlignment = Alignment.Center
-    ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            drawBadgeFrame(badge)
-        }
+    Box(modifier = clickableModifier, contentAlignment = Alignment.Center) {
+        Canvas(modifier = Modifier.fillMaxSize()) { drawBadgeFrame(badge) }
         BiblicalAvatarImage(
             avatar = avatar,
             modifier = Modifier.fillMaxSize(0.72f).clip(CircleShape),
@@ -60,25 +55,14 @@ private fun DrawScope.drawBadgeFrame(badge: BiblicalBadge) {
         BadgeFrameStyle.GOLDEN_BOOK -> 5
         BadgeFrameStyle.MASTER_WORD -> 6
         BadgeFrameStyle.GUARDIAN_SHIELD -> 7
+        BadgeFrameStyle.PROFILE_EMBLEM -> 8
     }
     val stroke = size.minDimension * (0.018f + level * 0.0035f)
     val outerRadius = radius * (1.03f + level * 0.012f)
 
-    // Halo escuro e brilho metálico para separar a moldura do fundo e da foto.
-    drawCircle(
-        color = shadow,
-        center = center,
-        radius = outerRadius * 1.06f,
-        style = Stroke(stroke * 2.4f)
-    )
-    drawCircle(
-        color = accent.copy(alpha = 0.20f + level * 0.025f),
-        center = center,
-        radius = outerRadius * 1.08f,
-        style = Stroke(stroke * 1.25f)
-    )
+    drawCircle(color = shadow, center = center, radius = outerRadius * 1.06f, style = Stroke(stroke * 2.4f))
+    drawCircle(color = accent.copy(alpha = 0.20f + level * 0.025f), center = center, radius = outerRadius * 1.08f, style = Stroke(stroke * 1.25f))
 
-    // A base da insígnia é aberta no topo, como o arco/laurel da referência.
     val leftStart = 132f - level * 1.2f
     val leftSweep = 124f + level * 2.5f
     val rightStart = 48f + level * 1.2f
@@ -86,7 +70,6 @@ private fun DrawScope.drawBadgeFrame(badge: BiblicalBadge) {
     drawMetalArc(center, outerRadius, leftStart, leftSweep, stroke, accent, highlight, shadow)
     drawMetalArc(center, outerRadius, rightStart, rightSweep, stroke, accent, highlight, shadow)
 
-    // Ramos ficam mais densos e fortes à medida que o usuário sobe de nível.
     val leavesPerSide = (level + 1).coerceAtMost(8)
     repeat(leavesPerSide) { index ->
         val fraction = (index + 1f) / (leavesPerSide + 1f)
@@ -99,11 +82,9 @@ private fun DrawScope.drawBadgeFrame(badge: BiblicalBadge) {
         drawMetalLeaf(rightPoint, accent, highlight, rightAngle + 90f, leafSize)
     }
 
-    // O medalhão inferior cresce junto com a moldura e ajuda a identificar o nível.
     val bottomPoint = pointOnCircle(center, outerRadius * 1.02f, 90f)
     drawMedallion(bottomPoint, accent, highlight, shadow, radius * (0.075f + level * 0.006f), level)
 
-    // Cada faixa acrescenta um símbolo central, sem invadir o rosto do avatar.
     when {
         level >= 7 -> drawShield(pointOnCircle(center, outerRadius * 1.04f, 270f), accent, highlight, shadow, radius * 0.14f)
         level >= 6 -> {
@@ -117,36 +98,21 @@ private fun DrawScope.drawBadgeFrame(badge: BiblicalBadge) {
 
     if (level >= 4) {
         drawArc(
-            color = highlight.copy(alpha = 0.38f),
-            startAngle = leftStart + 3f,
-            sweepAngle = leftSweep - 6f,
+            color = highlight.copy(alpha = 0.38f), startAngle = leftStart + 3f, sweepAngle = leftSweep - 6f,
             useCenter = false,
             topLeft = Offset(center.x - outerRadius * 0.965f, center.y - outerRadius * 0.965f),
-            size = Size(outerRadius * 1.93f, outerRadius * 1.93f),
-            style = Stroke(stroke * 0.42f)
+            size = Size(outerRadius * 1.93f, outerRadius * 1.93f), style = Stroke(stroke * 0.42f)
         )
         drawArc(
-            color = highlight.copy(alpha = 0.38f),
-            startAngle = rightStart - 3f,
-            sweepAngle = rightSweep + 6f,
+            color = highlight.copy(alpha = 0.38f), startAngle = rightStart - 3f, sweepAngle = rightSweep + 6f,
             useCenter = false,
             topLeft = Offset(center.x - outerRadius * 0.965f, center.y - outerRadius * 0.965f),
-            size = Size(outerRadius * 1.93f, outerRadius * 1.93f),
-            style = Stroke(stroke * 0.42f)
+            size = Size(outerRadius * 1.93f, outerRadius * 1.93f), style = Stroke(stroke * 0.42f)
         )
     }
 }
 
-private fun DrawScope.drawMetalArc(
-    center: Offset,
-    radius: Float,
-    startAngle: Float,
-    sweepAngle: Float,
-    stroke: Float,
-    accent: Color,
-    highlight: Color,
-    shadow: Color
-) {
+private fun DrawScope.drawMetalArc(center: Offset, radius: Float, startAngle: Float, sweepAngle: Float, stroke: Float, accent: Color, highlight: Color, shadow: Color) {
     val bounds = Size(radius * 2f, radius * 2f)
     val topLeft = Offset(center.x - radius, center.y - radius)
     drawArc(shadow, startAngle + 2f, sweepAngle, false, topLeft, bounds, style = Stroke(stroke * 2.1f))
@@ -168,12 +134,7 @@ private fun DrawScope.drawMetalLeaf(center: Offset, color: Color, highlight: Col
             close()
         }
         drawPath(path, color = color.copy(alpha = 0.92f), style = Fill)
-        drawLine(
-            color = highlight.copy(alpha = 0.62f),
-            start = Offset(center.x, center.y - length * 0.72f),
-            end = Offset(center.x, center.y + length * 0.68f),
-            strokeWidth = length * 0.13f
-        )
+        drawLine(color = highlight.copy(alpha = 0.62f), start = Offset(center.x, center.y - length * 0.72f), end = Offset(center.x, center.y + length * 0.68f), strokeWidth = length * 0.13f)
     }
 }
 
