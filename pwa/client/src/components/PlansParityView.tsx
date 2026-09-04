@@ -1,9 +1,8 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { ArrowRight, BookOpen, CheckCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import androidPlans from "@/data/android-plans.json";
 import { recordPwaActivity } from "@/lib/badge-activity";
-import { safeFilename } from "@/lib/parity-utils";
 import "./AndroidParityViews.css";
 
 type Category=(typeof androidPlans)[number];
