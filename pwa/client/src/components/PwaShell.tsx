@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Children, isValidElement, useEffect, useMemo, useState } from "react";
 import {
   BookHeart, BookOpen, ChevronDown, ChevronRight, CircleUserRound, Copy, FileText, Grid2X2,
   HandHeart, Heart, Home, Info, Landmark, LockKeyhole, Menu as MenuIcon, PlayCircle, School,
@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { listenToCollection, listenToDocument } from "@/lib/firebase";
 import { startPwaActiveMinuteTracker } from "@/lib/badge-activity";
+import type { PwaSession } from "@/lib/pwa-auth";
 import { MembersParityView, type PwaSessionLike } from "./AndroidParityViews";
 import { AdminParityView } from "./AdminParityView";
 import { PrayerParityView } from "./PrayerParityView";
@@ -22,6 +23,7 @@ import { PlansParityView } from "./PlansParityView";
 import { CultosParityView } from "./CultosParityView";
 import { DiscipuladoParityViewV2 } from "./DiscipuladoParityViewV2";
 import { DrawerBadgesParity } from "./DrawerBadgesParity";
+import { AndroidLoginParity } from "./AndroidLoginParity";
 import "./AndroidParityViews.css";
 
 export type AppView =
@@ -31,6 +33,7 @@ export type AppView =
 
 type TeamMember = { id:string; name?:string; role?:string; category?:string; imageUrl?:string; order?:number };
 type DonationSettings = { pixKey?:string; qrCodeUrl?:string };
+type LoginOverlayProps = { onClose:()=>void; onSuccess:(session:PwaSession)=>void; initialAdmin?:boolean };
 
 const primaryItems:Array<{id:AppView;label:string;icon:LucideIcon}>=[
   {id:"home",label:"Início",icon:Home},
@@ -112,6 +115,15 @@ function AndroidDrawer({active,onNavigate,onProfile,onClose,session,onNotificati
 
 export function PwaShell({children,active,onNavigate,drawerOpen,onCloseDrawer,onOpenDrawer,onProfile,session,onNotifications}:{children:React.ReactNode;active:AppView;onNavigate:(view:AppView)=>void;drawerOpen:boolean;onCloseDrawer:()=>void;onOpenDrawer:()=>void;onProfile:()=>void;session:PwaSessionLike;onNotifications:()=>void}){
   useEffect(()=>startPwaActiveMinuteTracker(),[]);
+  const childNodes=Children.toArray(children);
+  const overlays=childNodes.slice(1).map((node,index)=>{
+    if(!isValidElement(node))return node;
+    const props=node.props as Partial<LoginOverlayProps>;
+    if(typeof props.onClose==="function"&&typeof props.onSuccess==="function"){
+      return <AndroidLoginParity key={`login-overlay-${index}`} onClose={props.onClose} onSuccess={props.onSuccess} initialAdmin={props.initialAdmin===true}/>;
+    }
+    return node;
+  });
   const content=active==="home"?<HomeParityView session={session} onNavigate={onNavigate}/>
     :active==="bible"?<BibleParityViewV2/>
     :active==="news"?<NewsParityView onNavigate={onNavigate}/>
@@ -134,6 +146,7 @@ export function PwaShell({children,active,onNavigate,drawerOpen,onCloseDrawer,on
     <main className="android-app-content">{content}</main>
     <nav className="android-bottom-dock" aria-label="Navegação principal">{primaryItems.map(({id,label,icon:Icon})=>{const selected=active===id;return <button className={selected?"is-active":""} key={id} onClick={()=>onNavigate(id)} aria-current={selected?"page":undefined}><Icon size={20} strokeWidth={selected?2.4:1.9}/>{selected&&<span>{label}</span>}</button>})}<button onClick={onOpenDrawer} aria-label="Abrir menu"><MenuIcon size={22}/></button></nav>
     {drawerOpen&&<AndroidDrawer active={active} onNavigate={onNavigate} onProfile={onProfile} onClose={onCloseDrawer} session={session} onNotifications={onNotifications}/>} 
+    {overlays}
   </div>;
 }
 
