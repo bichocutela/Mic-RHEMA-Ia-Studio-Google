@@ -1,5 +1,6 @@
 import {
   collection,
+  documentId,
   limit as firestoreLimit,
   onSnapshot,
   orderBy,
@@ -60,4 +61,20 @@ export function listenToRecentCollection<T extends DocumentData>(
     primary();
     fallback?.();
   };
+}
+
+/** IDs de mídia do Android usam timestamp em texto; ordenar o documentId evita baixar toda a biblioteca. */
+export function listenToRecentDocumentIds<T extends DocumentData>(
+  collectionName: string,
+  maxItems: number,
+  onData: (items: Array<T & { id: string }>) => void,
+  onError?: (error: Error) => void,
+) {
+  if (!firestore) return () => undefined;
+  const source = query(
+    collection(firestore, collectionName),
+    orderBy(documentId(), "desc"),
+    firestoreLimit(Math.max(1, maxItems)),
+  );
+  return onSnapshot(source, (snapshot) => onData(mapSnapshot<T>(snapshot)), (error) => onError?.(error));
 }
