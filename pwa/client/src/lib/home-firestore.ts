@@ -6,10 +6,11 @@ import {
   query,
   type DocumentData,
   type OrderByDirection,
+  type QuerySnapshot,
 } from "firebase/firestore";
 import { firestore } from "./firebase";
 
-function mapSnapshot<T extends DocumentData>(snapshot: Parameters<Parameters<typeof onSnapshot>[1]>[0]) {
+function mapSnapshot<T extends DocumentData>(snapshot: QuerySnapshot<DocumentData>) {
   return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }) as T & { id: string });
 }
 
