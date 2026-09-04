@@ -1,0 +1,12 @@
+import { useEffect, useMemo, useState } from "react";
+import { BookHeart, ChevronLeft, ChevronRight, Download, FileText } from "lucide-react";
+import { listenToCollection } from "@/lib/firebase";
+import { safeFilename } from "@/lib/parity-utils";
+import "./AndroidParityViews.css";
+
+type Pdf={id:string;title?:string;subtitle?:string;description?:string;category?:string;fileUrl?:string;storagePath?:string;order?:number;isPublished?:boolean;createdAt?:number};
+export function DiscipuladoParityViewV2(){
+ const[items,setItems]=useState<Pdf[]>([]);const[selected,setSelected]=useState<Pdf|null>(null);useEffect(()=>listenToCollection<Pdf>("discipulado_pdfs",setItems,()=>setItems([])),[]);const published=useMemo(()=>items.filter(i=>i.isPublished!==false).sort((a,b)=>Number(a.order||0)-Number(b.order||0)||Number(b.createdAt||0)-Number(a.createdAt||0)),[items]);
+ if(selected){const url=selected.fileUrl||"";const download=()=>{if(!url)return;const a=document.createElement("a");a.href=url;a.target="_blank";a.rel="noopener noreferrer";a.download=`${safeFilename(selected.title||"discipulado-mic-rhema")}.pdf`;a.click()};return <section className="parity-page"><button className="back-link" onClick={()=>setSelected(null)}><ChevronLeft size={18}/> Voltar ao discipulado</button><div className="parity-title"><div><p>{selected.category||"DISCIPULADO"}</p><h1>{selected.title||"Estudo bíblico"}</h1><span>{selected.subtitle||selected.description||"Material de estudo"}</span></div><FileText size={30}/></div>{url?<><iframe className="parity-document" src={url} title={selected.title||"PDF de discipulado"}/><button className="parity-primary" onClick={download}><Download size={18}/> Baixar PDF</button></>:<p className="parity-status">O arquivo deste estudo ainda não está disponível.</p>}</section>}
+ return <section className="parity-page"><div className="parity-title"><div><p>DISCIPULADO</p><h1>Estudos de Discipulado</h1><span>PDFs publicados pela igreja para leitura e download.</span></div><BookHeart size={30}/></div>{!published.length?<p className="parity-status">Nenhum estudo publicado ainda.</p>:<div className="android-list-cards">{published.map((item,index)=><button key={item.id} onClick={()=>setSelected(item)}><span>{String(index+1).padStart(2,"0")}</span><div><strong>{item.title||"Estudo bíblico"}</strong><small>{[item.category,item.subtitle,item.description].filter(Boolean).join(" · ")||"PDF de discipulado"}</small></div><ChevronRight size={19}/></button>)}</div>}</section>
+}
