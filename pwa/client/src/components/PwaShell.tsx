@@ -4,12 +4,13 @@ import {
   HandHeart, Heart, Home, Info, Landmark, LockKeyhole, Menu as MenuIcon, PlayCircle, School,
   Settings, Users, type LucideIcon,
 } from "lucide-react";
-import { listenToCollection, listenToDocument } from "@/lib/firebase";
+import { listenToCollection, listenToDocument, loadPwaMemberProfile, type PwaMemberProfile } from "@/lib/firebase";
 import { startPwaActiveMinuteTracker } from "@/lib/badge-activity";
 import type { PwaSessionLike } from "./AndroidParityViews";
 import { HomeParityView } from "./HomeParityView";
 import { DrawerBadgesParity } from "./DrawerBadgesParity";
 import { BadgeUnlockCelebration } from "./BadgeUnlockCelebration";
+import { BiblicalBadgeAvatar } from "./BiblicalBadgeAvatar";
 import "./AndroidParityViews.css";
 
 const AdminParityView=lazy(()=>import("./AdminParityView").then(module=>({default:module.AdminParityView})));
@@ -98,13 +99,25 @@ function DonationsParityView(){
 
 function AndroidDrawer({active,onNavigate,onProfile,onClose,session,onNotifications}:{active:AppView;onNavigate:(view:AppView)=>void;onProfile:()=>void;onClose:()=>void;session:PwaSessionLike;onNotifications:()=>void}){
   const[expanded,setExpanded]=useState<Set<string>>(()=>new Set(["CONTEÚDO"]));
+  const[drawerProfile,setDrawerProfile]=useState<PwaMemberProfile|null>(null);
+  useEffect(()=>{
+    if(!session){setDrawerProfile(null);return;}
+    let activeRequest=true;
+    void loadPwaMemberProfile().then(profile=>{if(activeRequest)setDrawerProfile(profile)}).catch(()=>{if(activeRequest)setDrawerProfile(null)});
+    return()=>{activeRequest=false};
+  },[session?.uid]);
   const toggle=(title:string)=>setExpanded(current=>{const next=new Set(current);next.has(title)?next.delete(title):next.add(title);return next});
   const go=(view:AppView)=>{onNavigate(view);onClose()};
   const userName=session?.name||"Entrar";
+  const drawerAvatarId=drawerProfile?.avatarId||"davi";
+  const drawerBadgeId=drawerProfile?.equippedBadgeId||"caminhante";
   return <aside className="android-drawer" role="dialog" aria-modal="true" aria-label="Menu do MIC Rhema">
     <button className="drawer-dismiss" aria-label="Fechar menu" onClick={onClose}/>
     <section className="drawer-sheet">
-      <button className="drawer-profile" onClick={()=>{onProfile();onClose()}}><span className="drawer-avatar">{session?userName.slice(0,1).toUpperCase():<CircleUserRound size={25}/>}</span><span><strong>{userName}</strong><small>{session?"Meu Perfil":"Solicite acesso para membros"}</small></span><ChevronRight size={19}/></button>
+      <button className="drawer-profile" onClick={()=>{onProfile();onClose()}}>
+        {session?<span className="drawer-avatar" style={{width:58,height:58,display:"grid",placeItems:"center",background:"transparent",overflow:"visible"}}><BiblicalBadgeAvatar avatarId={drawerAvatarId} badgeId={drawerBadgeId} size={58} title={`Avatar de ${userName}`}/></span>:<span className="drawer-avatar"><CircleUserRound size={25}/></span>}
+        <span><strong>{userName}</strong><small>{session?"Meu Perfil":"Solicite acesso para membros"}</small></span><ChevronRight size={19}/>
+      </button>
       <DrawerBadgesParity session={session}/>
       {drawerGroups.map(group=>{const GroupIcon=group.icon;const open=expanded.has(group.title);return <section className="drawer-group" key={group.title}>
         <button className="drawer-group-title" onClick={()=>toggle(group.title)}><span><GroupIcon size={18}/>{group.title}</span><ChevronDown className={open?"is-open":""} size={18}/></button>
