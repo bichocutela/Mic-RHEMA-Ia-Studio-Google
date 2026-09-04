@@ -134,7 +134,7 @@ private fun bibleBookEditDistance(left: String, right: String): Int {
         for (j in right.indices) {
             val insertion = current[j] + 1
             val deletion = previous[j + 1] + 1
-            val substitution = previous[j] + if (left[i] == right[j]) 0 else 1
+            val substitution = previous[j + 1] + if (left[i] == right[j]) 0 else 1
             current[j + 1] = minOf(insertion, deletion, substitution)
         }
         val swap = previous
@@ -243,6 +243,7 @@ fun BibleScreen(
     val startChapter = validChapter(startBook, initialChapter)
     val normalizedInitialVersion = BollsBibleCatalog.normalize(initialVersion)
     val rememberedPosition = remember { BibleReadingPreferences.getLastReading(context) }
+    val journeyMember = loggedInMemberState.value
 
     var selectedBook by rememberSaveable { mutableStateOf(startBook) }
     var expandedBook by rememberSaveable { mutableStateOf<String?>(startBook) }
@@ -256,6 +257,7 @@ fun BibleScreen(
     var verseLoadError by remember { mutableStateOf<String?>(null) }
     var reloadKey by remember { mutableIntStateOf(0) }
     var showVersionDialog by rememberSaveable { mutableStateOf(false) }
+    var showBibleJourney by rememberSaveable { mutableStateOf(false) }
     var showResumeDialog by rememberSaveable {
         mutableStateOf(initialValidBook == null && initialChapter == null && rememberedPosition != null)
     }
@@ -367,6 +369,12 @@ fun BibleScreen(
                             }
                         }
 
+                        if (journeyMember != null) {
+                            IconButton(onClick = { showBibleJourney = true }) {
+                                Icon(Icons.Default.Star, contentDescription = "Abrir Jornada Bíblica")
+                            }
+                        }
+
                         TextButton(onClick = { showVersionDialog = true }) {
                             Text(selectedVersion, fontWeight = FontWeight.Bold)
                             Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Escolher versão")
@@ -417,6 +425,7 @@ fun BibleScreen(
                 onDeepSearchResultClick = { book, chapter, verse ->
                     openChapter(BibleChapterReference(book, chapter), verse)
                 },
+                onOpenJourney = journeyMember?.let { { showBibleJourney = true } },
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
@@ -488,6 +497,13 @@ fun BibleScreen(
             confirmButton = { TextButton(onClick = { showVersionDialog = false }) { Text("Fechar") } }
         )
     }
+
+    if (showBibleJourney && journeyMember != null) {
+        BibleJourneyDialog(
+            member = journeyMember,
+            onDismiss = { showBibleJourney = false }
+        )
+    }
 }
 
 @Composable
@@ -498,6 +514,7 @@ private fun BibleBookAndChapterPicker(
     onBookClick: (String) -> Unit,
     onChapterClick: (String, Int) -> Unit,
     onDeepSearchResultClick: (String, Int, Int) -> Unit,
+    onOpenJourney: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var searchQuery by rememberSaveable { mutableStateOf("") }
@@ -510,6 +527,43 @@ private fun BibleBookAndChapterPicker(
     ) {
         item {
             Column {
+                onOpenJourney?.let { openJourney ->
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 12.dp)
+                            .clickable(onClick = openJourney),
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.48f),
+                        tonalElevation = 1.dp
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.Star,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(30.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "Jornada Bíblica",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    "Quiz com 4 alternativas, dicas, missões Fácil/Médio/Difícil, XP e Emblemas do Perfil.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+
                 Text(
                     "Toque em um livro e escolha o capítulo. A leitura começa imediatamente e você pode seguir para o próximo capítulo sem voltar à lista.",
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
@@ -687,7 +741,6 @@ private fun ContinuousBibleChapterReader(
     LaunchedEffect(verses, focusedVerse) {
         val targetIndex = verses.indexOfFirst { it.verse == focusedVerse }
         if (targetIndex >= 0) {
-            // Há um cabeçalho no índice 0 da LazyColumn; os versículos começam no índice 1.
             listState.scrollToItem(targetIndex + 1)
             transientFocusedVerse = focusedVerse
             delay(1300)
@@ -712,7 +765,6 @@ private fun ContinuousBibleChapterReader(
             snapshotFlow { listState.firstVisibleItemIndex }
                 .distinctUntilChanged()
                 .collect { readerIndex ->
-                    // Índice 0 é o cabeçalho. Mantém o versículo salvo alinhado ao que está na tela.
                     val verseIndex = (readerIndex - 1).coerceAtLeast(0)
                     verses.getOrNull(verseIndex)?.let { visibleVerse ->
                         BibleReadingPreferences.saveLastReading(
