@@ -22,6 +22,22 @@ function readStoredSession(): PwaSession | null {
   }
 }
 
+type PushRoute={view:AppView;adminPrayer?:boolean;requestId?:string};
+function routeForPush(data:Record<string,string>):PushRoute|null{
+  const collection=String(data.collection||"").toLowerCase();
+  const category=String(data.category||"").toLowerCase();
+  const destination=String(data.destination||"").toLowerCase();
+  const documentId=String(data.documentId||"");
+  if(collection==="prayer_requests"||destination.startsWith("admin_prayer"))return{view:"admin",adminPrayer:true,requestId:documentId};
+  if(collection==="prayer_response"||category==="prayer_response"||destination==="prayer")return{view:"prayer",requestId:documentId};
+  if(destination==="ibr"||category.includes("ibr")||category.includes("course"))return{view:"ibr"};
+  if(destination==="content"||category.includes("sermon")||category.includes("media")||category.includes("audio")||category.includes("video")||category.includes("book"))return{view:"media"};
+  if(destination==="services"||category.includes("event")||category.includes("service")||category.includes("culto"))return{view:"cultos"};
+  if(category.includes("devotional"))return{view:"devotionals"};
+  if(category.includes("news")||category.includes("noticia"))return{view:"news"};
+  return null;
+}
+
 export default function Home() {
   const[view,setView]=useState<AppView>(()=>initialViewFromUrl());
   const[session,setSession]=useState<PwaSession|null>(()=>readStoredSession());
@@ -47,30 +63,24 @@ export default function Home() {
       void import("@/lib/push").then(async module=>{
         if(cancelled)return;
         unsubscribe=await module.listenToForegroundPush(payload=>{
-          const data=payload.data||{};
+          const data=(payload.data||{}) as Record<string,string>;
+          const collection=String(data.collection||"");
           const category=String(data.category||"");
+          const documentId=String(data.documentId||"");
           const title=payload.notification?.title||String(data.title||"MIC Rhema");
           const body=payload.notification?.body||String(data.body||"Você recebeu uma novidade.");
-          if(category==="pwa_self_test"){
-            void navigator.serviceWorker?.ready
-              .then(registration=>registration.showNotification(title,{body,tag:"micrhema-pwa-self-test"}))
-              .catch(()=>undefined);
-            return;
-          }
-          const collection=String(data.collection||"");
-          const documentId=String(data.documentId||"");
           const isAdminPrayer=collection==="prayer_requests";
           const isPrayerResponse=collection==="prayer_response"||category==="prayer_response";
           if(isAdminPrayer||isPrayerResponse)window.dispatchEvent(new CustomEvent("micrhema:prayer-updated"));
-          const target=isAdminPrayer?"admin":isPrayerResponse?"prayer":"";
+          const target=routeForPush(data);
           toast.message(title,{
             description:body,
             action:target?{label:"Abrir",onClick:()=>{
-              const params=new URLSearchParams();params.set("view",target);
-              if(isAdminPrayer){params.set("section","prayers");if(documentId)params.set("request",documentId);window.dispatchEvent(new CustomEvent("micrhema:open-admin-prayer"));}
-              else if(documentId)params.set("request",documentId);
+              const params=new URLSearchParams();params.set("view",target.view);
+              if(target.adminPrayer){params.set("section","prayers");if(documentId)params.set("request",documentId);window.dispatchEvent(new CustomEvent("micrhema:open-admin-prayer"));}
+              else if(target.view==="prayer"&&target.requestId)params.set("request",target.requestId);
               window.history.replaceState({},"",`${window.location.pathname}?${params.toString()}`);
-              setView(target as AppView);
+              setView(target.view);
             }}:undefined,
           });
         });
@@ -90,10 +100,9 @@ export default function Home() {
 
   const enableNotifications=async()=>{
     try{
-      const {subscribeToPwaPush,sendPwaSelfTest}=await import("@/lib/push");
-      const registration=await subscribeToPwaPush();
-      await sendPwaSelfTest(registration.token);
-      toast.success("Avisos ativados",{description:"Enviei agora uma notificação de teste para este aparelho."});
+      const {subscribeToPwaPush}=await import("@/lib/push");
+      await subscribeToPwaPush();
+      toast.success("Notificações ativadas",{description:"Este aparelho receberá os avisos permitidos nas suas configurações."});
     }catch(error){toast.error("Não foi possível ativar os avisos",{description:error instanceof Error?error.message:"Tente novamente em instantes."})}
   };
 
