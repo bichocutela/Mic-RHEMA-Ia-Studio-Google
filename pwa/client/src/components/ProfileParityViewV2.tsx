@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { signOut } from "firebase/auth";
-import { BadgeCheck, BookOpen, LogOut, RefreshCcw, Save, Trophy, UserRound } from "lucide-react";
+import { BadgeCheck, BookOpen, CheckCircle2, LockKeyhole, LogOut, RefreshCcw, Save, Trophy, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import {
   firebaseAuth, listenToCollection, listenToIbrProgress, loadPwaMemberProfile, savePwaMemberProfile,
@@ -48,53 +48,69 @@ function computeProgress(profile: PwaMemberProfile, courses: IbrCourse[], progre
     videos: count(profile,"videos"), bible_chapters: count(profile,"bible_chapters"), bible_news: count(profile,"bible_news"),
     devotionals: count(profile,"devotionals"), audios: count(profile,"audios"),
   };
+  const totalActivities=Object.values(counts).reduce((a,b)=>a+b,0);
   const activeMinutes = count(profile,"active_minutes");
+  const completedLessons=progress.filter((item)=>item.isCompleted).length;
   const completedCourses = courses.filter((course) => (course.chapters?.length || 0) > 0 && course.chapters!.every((chapter) => progress.some((item) => item.courseId===course.id && item.chapterId===chapter.id && item.isCompleted))).length;
   const calculated = new Set(profile.unlockedBadgeIds?.length ? profile.unlockedBadgeIds : ["caminhante"]);
+  calculated.add("caminhante");
   if(counts.devotionals>=3 && counts.plan_themes>=1) calculated.add("semeador");
   if(counts.plans>=1 && counts.plan_themes>=3 && counts.bible_chapters>=3) calculated.add("discipulo");
-  if(activeMinutes>=60 && Object.values(counts).reduce((a,b)=>a+b,0)>=10) calculated.add("perseverante");
+  if(activeMinutes>=60 && totalActivities>=10) calculated.add("perseverante");
   if(counts.books>=3 && counts.videos>=3 && counts.audios>=2) calculated.add("estudante_rhema");
   if(completedCourses>=1 && counts.bible_news>=3 && counts.bible_chapters>=10) calculated.add("mestre_da_palavra");
   if(calculated.has("mestre_da_palavra") && Object.values(counts).every((value)=>value>=1) && activeMinutes>=180) calculated.add("guardiao_da_fe");
   const levels = badges.filter((badge)=>badge.level).sort((a,b)=>(a.level||0)-(b.level||0));
   const highest = Math.max(1,...levels.filter((badge)=>calculated.has(badge.id)).map((badge)=>badge.level||1));
   const next = levels.find((badge)=>(badge.level||0)>highest);
-  let fraction=1;
-  if(next?.id==="semeador") fraction=Math.min(counts.devotionals/3,counts.plan_themes/1);
-  if(next?.id==="discipulo") fraction=Math.min(counts.plans/1,counts.plan_themes/3,counts.bible_chapters/3);
-  if(next?.id==="perseverante") fraction=Math.min(activeMinutes/60,Object.values(counts).reduce((a,b)=>a+b,0)/10);
-  if(next?.id==="estudante_rhema") fraction=Math.min(counts.books/3,counts.videos/3,counts.audios/2);
-  if(next?.id==="mestre_da_palavra") fraction=Math.min(completedCourses/1,counts.bible_news/3,counts.bible_chapters/10);
-  if(next?.id==="guardiao_da_fe") fraction=Math.min(1,Math.min(...Object.values(counts)),activeMinutes/180);
-  return { counts, activeMinutes, completedCourses, calculated, next, fraction: Math.max(0,Math.min(1,fraction)) };
+  const missionFraction=(id:string)=>{
+    if(id==="caminhante")return 1;
+    if(id==="semeador")return Math.min(counts.devotionals/3,counts.plan_themes/1);
+    if(id==="discipulo")return Math.min(counts.plans/1,counts.plan_themes/3,counts.bible_chapters/3);
+    if(id==="perseverante")return Math.min(activeMinutes/60,totalActivities/10);
+    if(id==="estudante_rhema")return Math.min(counts.books/3,counts.videos/3,counts.audios/2);
+    if(id==="mestre_da_palavra")return Math.min(completedCourses/1,counts.bible_news/3,counts.bible_chapters/10);
+    if(id==="guardiao_da_fe")return calculated.has("mestre_da_palavra")?Math.min(Math.min(...Object.values(counts)),activeMinutes/180):0;
+    return calculated.has(id)?1:0;
+  };
+  const fraction=next?missionFraction(next.id):1;
+  return { counts, totalActivities, activeMinutes, completedLessons, completedCourses, calculated, next, missionFraction, fraction: Math.max(0,Math.min(1,fraction)) };
 }
 
 export function ProfileParityViewV2({ session, onNavigateHome }: { session: PwaSessionLike; onNavigateHome: () => void }) {
   const [profile,setProfile]=useState<PwaMemberProfile|null>(null); const [draft,setDraft]=useState<PwaMemberProfile|null>(null);
   const [courses,setCourses]=useState<IbrCourse[]>([]); const [ibrProgress,setIbrProgress]=useState<IbrProgress[]>([]);
-  const [loading,setLoading]=useState(true); const [saving,setSaving]=useState(false); const [avatarsOpen,setAvatarsOpen]=useState(false); const [badgesOpen,setBadgesOpen]=useState(false);
-  const reload=async()=>{setLoading(true);try{const value=await loadPwaMemberProfile();setProfile(value);setDraft(value);}catch(error){toast.error(error instanceof Error?error.message:"Não foi possível carregar o perfil.");}finally{setLoading(false)}};
+  const [loading,setLoading]=useState(true); const [loadError,setLoadError]=useState(""); const [saving,setSaving]=useState(false); const [avatarsOpen,setAvatarsOpen]=useState(false); const [badgesOpen,setBadgesOpen]=useState(false); const [missionsOpen,setMissionsOpen]=useState(true);
+  const reload=async()=>{setLoading(true);setLoadError("");try{const value=await loadPwaMemberProfile();setProfile(value);setDraft(value);}catch(error){const message=error instanceof Error?error.message:"Não foi possível carregar o perfil.";setLoadError(message);toast.error(message);}finally{setLoading(false)}};
   useEffect(()=>{if(session)void reload()},[session?.uid]);
   useEffect(()=>listenToCollection<IbrCourse>("ibr_courses",setCourses,()=>setCourses([])),[]);
   useEffect(()=>profile?.id?listenToIbrProgress<IbrProgress>(profile.id,setIbrProgress,()=>setIbrProgress([])):()=>undefined,[profile?.id]);
   const summary=useMemo(()=>profile?computeProgress(profile,courses,ibrProgress):null,[profile,courses,ibrProgress]);
+  const logout=async()=>{if(firebaseAuth)await signOut(firebaseAuth).catch(()=>undefined);localStorage.removeItem("mic-rhema-pwa-session");onNavigateHome();window.location.reload();};
   if(!session)return <section className="parity-page"><div className="parity-empty"><UserRound size={46}/><h1>Meu Perfil</h1><p>Entre para acessar seus dados e conquistas.</p></div></section>;
-  if(loading||!profile||!draft||!summary)return <section className="parity-page"><p className="parity-status">Sincronizando seu perfil…</p></section>;
+  if(loading)return <section className="parity-page"><p className="parity-status">Sincronizando seu perfil com o Android…</p></section>;
+  if(loadError||!profile||!draft||!summary)return <section className="parity-page"><div className="parity-empty"><UserRound size={46}/><h1>Não foi possível sincronizar o perfil</h1><p>{session.isAdmin?"Sua sessão de administrador pode ser anterior à unificação com o perfil Android. Atualize ou saia e entre novamente uma vez para vincular o mesmo cadastro.":loadError}</p><button className="parity-primary" onClick={()=>void reload()}><RefreshCcw size={17}/> Tentar novamente</button>{session.isAdmin&&<button className="parity-danger" onClick={()=>void logout()}><LogOut size={18}/> Sair e renovar sessão</button>}</div></section>;
   const avatar=avatars.find((item)=>item.id===draft.avatarId)||avatars[0];
   const equipped=badges.find((item)=>item.id===draft.equippedBadgeId)||badges[0];
-  const save=async()=>{setSaving(true);try{const updated=await savePwaMemberProfile({name:draft.name,phone:draft.phone,address:draft.address,birthDate:draft.birthDate,email:draft.email,avatarId:draft.avatarId,equippedBadgeId:draft.equippedBadgeId});setProfile(updated);setDraft(updated);const stored=localStorage.getItem("mic-rhema-pwa-session");if(stored){const parsed=JSON.parse(stored);parsed.name=updated.name;localStorage.setItem("mic-rhema-pwa-session",JSON.stringify(parsed));}toast.success("Perfil atualizado também para o Android.");}catch(error){toast.error(error instanceof Error?error.message:"Não foi possível salvar.");}finally{setSaving(false)}};
-  const logout=async()=>{if(firebaseAuth)await signOut(firebaseAuth).catch(()=>undefined);localStorage.removeItem("mic-rhema-pwa-session");onNavigateHome();window.location.reload();};
+  const persist=async(next:PwaMemberProfile,success:string)=>{setSaving(true);try{const updated=await savePwaMemberProfile({name:next.name,phone:next.phone,address:next.address,birthDate:next.birthDate,email:next.email,avatarId:next.avatarId,equippedBadgeId:next.equippedBadgeId});setProfile(updated);setDraft(updated);const stored=localStorage.getItem("mic-rhema-pwa-session");if(stored){const parsed=JSON.parse(stored);parsed.name=updated.name;localStorage.setItem("mic-rhema-pwa-session",JSON.stringify(parsed));}toast.success(success);}catch(error){toast.error(error instanceof Error?error.message:"Não foi possível salvar.");setDraft(profile);}finally{setSaving(false)}};
+  const save=()=>persist(draft,"Perfil atualizado também para o Android.");
+  const chooseAvatar=(id:string)=>{const next={...draft,avatarId:id};setDraft(next);setAvatarsOpen(false);void persist(next,"Avatar sincronizado com o Android.")};
+  const chooseBadge=(id:string)=>{if(!summary.calculated.has(id))return;const next={...draft,equippedBadgeId:id};setDraft(next);setBadgesOpen(false);void persist(next,"Emblema equipado na sua conta.")};
+  const levels=badges.filter((badge)=>badge.level);
 
   return <section className="parity-page profile-v2-root">
-    <header className="profile-v2-hero"><img src={avatarUrl(avatar.id)} alt={`Avatar bíblico ${avatar.name}`}/><div><p>SEU AVATAR BÍBLICO</p><h1>{draft.name}</h1><span>{avatar.name} · {equipped.name}</span></div></header>
-    <article className="profile-v2-level"><Trophy size={25}/><div><strong>{equipped.name}</strong><span>{equipped.description}</span>{summary.next?<><small>Próximo nível: {summary.next.name} — {summary.next.requirement}</small><div className="profile-v2-progress"><i style={{width:`${Math.round(summary.fraction*100)}%`}}/></div><b>{Math.round(summary.fraction*100)}%</b></>:<small>Todos os níveis principais alcançados.</small>}</div></article>
+    <header className="profile-v2-hero"><img src={avatarUrl(avatar.id)} alt={`Avatar bíblico ${avatar.name}`}/><div><p>{session.isAdmin?"ADMINISTRADOR · ":""}SEU AVATAR BÍBLICO</p><h1>{draft.name}</h1><span>{avatar.name} · Nível {equipped.level||1}: {equipped.name}</span></div></header>
+    <article className="profile-v2-level"><Trophy size={25}/><div><strong>Progresso das conquistas</strong><span>{summary.completedLessons} aulas IBR concluídas · {summary.completedCourses} cursos concluídos</span>{summary.next?<><small>Próximo: {summary.next.name} — {summary.next.requirement}</small><div className="profile-v2-progress"><i style={{width:`${Math.round(summary.fraction*100)}%`}}/></div><b>{Math.round(summary.fraction*100)}%</b></>:<small>Todos os níveis principais foram alcançados.</small>}</div></article>
     <div className="profile-v2-stats"><div><strong>{summary.calculated.size}</strong><span>Conquistas</span></div><div><strong>{summary.activeMinutes}</strong><span>Minutos ativos</span></div><div><strong>{summary.completedCourses}</strong><span>Cursos IBR</span></div><div><strong>{summary.counts.bible_chapters}</strong><span>Capítulos</span></div></div>
+
     <div className="profile-fields"><label>Nome completo<input value={draft.name} onChange={(e)=>setDraft({...draft,name:e.target.value})}/></label><label>Telefone<input inputMode="tel" value={draft.phone} onChange={(e)=>setDraft({...draft,phone:e.target.value.replace(/\D/g,"").slice(0,15)})}/></label><label>Endereço<input value={draft.address} onChange={(e)=>setDraft({...draft,address:e.target.value})}/></label><label>Data de nascimento<input inputMode="numeric" placeholder="dd/mm/aaaa" value={draft.birthDate} onChange={(e)=>setDraft({...draft,birthDate:e.target.value.replace(/[^0-9/]/g,"").slice(0,10)})}/></label><label>E-mail para certificado IBR<input type="email" value={draft.email} onChange={(e)=>setDraft({...draft,email:e.target.value})}/></label></div>
-    <div className="profile-choice-actions"><button onClick={()=>setAvatarsOpen(!avatarsOpen)}><UserRound size={18}/> Trocar avatar</button><button onClick={()=>setBadgesOpen(!badgesOpen)}><BadgeCheck size={18}/> Emblemas e níveis</button></div>
-    {avatarsOpen&&<div className="profile-v2-avatar-grid">{avatars.map((item)=><button key={item.id} className={draft.avatarId===item.id?"selected":""} onClick={()=>{setDraft({...draft,avatarId:item.id});setAvatarsOpen(false)}}><img src={avatarUrl(item.id)} alt={item.name} loading="lazy"/><small>{item.name}</small></button>)}</div>}
-    {badgesOpen&&<div className="profile-v2-badges">{badges.map((badge)=>{const unlocked=summary.calculated.has(badge.id);const equipable=(profile.unlockedBadgeIds||[]).includes(badge.id)||badge.id==="caminhante";return <button key={badge.id} disabled={!equipable} className={draft.equippedBadgeId===badge.id?"selected":""} onClick={()=>equipable&&setDraft({...draft,equippedBadgeId:badge.id})}><BadgeCheck size={20}/><span><strong>{badge.level?`Nível ${badge.level} · `:""}{badge.name}</strong><small>{unlocked?badge.description:`Bloqueado — ${badge.requirement}`}</small>{unlocked&&!equipable&&<em>Conquista calculada; abra o Android para sincronizar o desbloqueio.</em>}</span></button>})}</div>}
-    <article className="profile-v2-activity"><BookOpen size={21}/><div><strong>Atividade registrada</strong><small>{summary.counts.devotionals} devocionais · {summary.counts.plan_themes} temas · {summary.counts.books} livros · {summary.counts.videos} vídeos · {summary.counts.audios} áudios · {summary.counts.bible_news} notícias</small></div></article>
-    <button className="parity-primary" disabled={saving} onClick={()=>void save()}><Save size={18}/>{saving?"Salvando…":"Salvar alterações"}</button><button className="parity-danger" onClick={()=>void logout()}><LogOut size={18}/> Sair da conta</button><button className="profile-v2-refresh" onClick={()=>void reload()}><RefreshCcw size={17}/> Atualizar progresso</button>
+    <button className="parity-primary" disabled={saving} onClick={()=>void save()}><Save size={18}/>{saving?"Sincronizando…":"Salvar dados pessoais"}</button>
+
+    <div className="profile-choice-actions"><button onClick={()=>setAvatarsOpen(!avatarsOpen)}><UserRound size={18}/> Escolher avatar</button><button onClick={()=>setBadgesOpen(!badgesOpen)}><BadgeCheck size={18}/> Emblemas e níveis</button><button onClick={()=>setMissionsOpen(!missionsOpen)}><Trophy size={18}/> Missões</button></div>
+    {avatarsOpen&&<div className="profile-v2-avatar-grid">{avatars.map((item)=><button disabled={saving} key={item.id} className={draft.avatarId===item.id?"selected":""} onClick={()=>chooseAvatar(item.id)}><img src={avatarUrl(item.id)} alt={item.name} loading="lazy"/><small>{item.name}</small></button>)}</div>}
+    {badgesOpen&&<div className="profile-v2-badges">{badges.map((badge)=>{const unlocked=summary.calculated.has(badge.id);return <button key={badge.id} disabled={!unlocked||saving} className={draft.equippedBadgeId===badge.id?"selected":""} onClick={()=>chooseBadge(badge.id)}>{unlocked?<CheckCircle2 size={20}/>:<LockKeyhole size={20}/>}<span><strong>{badge.level?`Nível ${badge.level} · `:""}{badge.name}</strong><small>{unlocked?badge.description:`Bloqueado — ${badge.requirement}`}</small></span></button>})}</div>}
+    {missionsOpen&&<section className="profile-v2-missions"><header><strong>Missões dos emblemas</strong><small>As mesmas regras do Android. O progresso feito em qualquer versão conta para a mesma conta.</small></header>{levels.map((badge)=>{const fraction=Math.max(0,Math.min(1,summary.missionFraction(badge.id)));const done=summary.calculated.has(badge.id);return <article key={badge.id} className={done?"done":""}><span>{done?<CheckCircle2 size={20}/>:<Trophy size={20}/>}</span><div><strong>Nível {badge.level} · {badge.name}</strong><small>{badge.requirement}</small><div className="profile-v2-progress"><i style={{width:`${Math.round(fraction*100)}%`}}/></div><em>{done?"Concluída":`${Math.round(fraction*100)}% concluído`}</em></div></article>})}</section>}
+    <article className="profile-v2-activity"><BookOpen size={21}/><div><strong>Atividade sincronizada</strong><small>{summary.counts.devotionals} devocionais · {summary.counts.plan_themes} temas · {summary.counts.plans} planos · {summary.counts.books} livros · {summary.counts.videos} vídeos · {summary.counts.audios} áudios · {summary.counts.bible_news} notícias · {summary.counts.bible_chapters} capítulos</small></div></article>
+    <button className="parity-danger" onClick={()=>void logout()}><LogOut size={18}/> Sair da conta</button><button className="profile-v2-refresh" onClick={()=>void reload()}><RefreshCcw size={17}/> Atualizar progresso</button>
   </section>;
 }
