@@ -48,14 +48,23 @@ export default function Home() {
         if(cancelled)return;
         unsubscribe=await module.listenToForegroundPush(payload=>{
           const data=payload.data||{};
+          const category=String(data.category||"");
+          const title=payload.notification?.title||String(data.title||"MIC Rhema");
+          const body=payload.notification?.body||String(data.body||"Você recebeu uma novidade.");
+          if(category==="pwa_self_test"){
+            void navigator.serviceWorker?.ready
+              .then(registration=>registration.showNotification(title,{body,tag:"micrhema-pwa-self-test"}))
+              .catch(()=>undefined);
+            return;
+          }
           const collection=String(data.collection||"");
           const documentId=String(data.documentId||"");
           const isAdminPrayer=collection==="prayer_requests";
-          const isPrayerResponse=collection==="prayer_response"||String(data.category||"")==="prayer_response";
+          const isPrayerResponse=collection==="prayer_response"||category==="prayer_response";
           if(isAdminPrayer||isPrayerResponse)window.dispatchEvent(new CustomEvent("micrhema:prayer-updated"));
           const target=isAdminPrayer?"admin":isPrayerResponse?"prayer":"";
-          toast.message(payload.notification?.title||String(data.title||"MIC Rhema"),{
-            description:payload.notification?.body||String(data.body||"Você recebeu uma novidade."),
+          toast.message(title,{
+            description:body,
             action:target?{label:"Abrir",onClick:()=>{
               const params=new URLSearchParams();params.set("view",target);
               if(isAdminPrayer){params.set("section","prayers");if(documentId)params.set("request",documentId);window.dispatchEvent(new CustomEvent("micrhema:open-admin-prayer"));}
@@ -81,10 +90,11 @@ export default function Home() {
 
   const enableNotifications=async()=>{
     try{
-      const {subscribeToPwaPush}=await import("@/lib/push");
-      await subscribeToPwaPush();
-      toast.success("Avisos ativados. Você receberá novidades mesmo com a PWA fechada.");
-    }catch(error){toast.error(error instanceof Error?error.message:"Não foi possível ativar os avisos agora.")}
+      const {subscribeToPwaPush,sendPwaSelfTest}=await import("@/lib/push");
+      const registration=await subscribeToPwaPush();
+      await sendPwaSelfTest(registration.token);
+      toast.success("Avisos ativados",{description:"Enviei agora uma notificação de teste para este aparelho."});
+    }catch(error){toast.error("Não foi possível ativar os avisos",{description:error instanceof Error?error.message:"Tente novamente em instantes."})}
   };
 
   return <>
