@@ -1,0 +1,1 @@
+Emblemas do Perfil (níveis 8–22): assets extraídos diretamente da arte aprovada, sem recriação. Os arquivos .b64 são partes ordenadas de imagens WebP com transparência, reconstruídas em tempo de execução pelo Android.
