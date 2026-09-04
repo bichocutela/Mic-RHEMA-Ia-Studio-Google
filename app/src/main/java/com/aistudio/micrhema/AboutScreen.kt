@@ -12,7 +12,8 @@ import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Android
+import androidx.compose.material.icons.filled.PhoneIphone
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.*
@@ -329,7 +330,7 @@ fun AboutScreen() {
                             Spacer(modifier = Modifier.height(8.dp))
 
                             Text(
-                                text = "Compartilhar acesso",
+                                text = "Compartilhar Via",
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -380,7 +381,7 @@ fun AboutScreen() {
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text("Gerando")
                                     } else {
-                                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Icon(Icons.Default.Android, contentDescription = "Android", modifier = Modifier.size(20.dp))
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text("Android")
                                     }
@@ -398,14 +399,14 @@ fun AboutScreen() {
                                     },
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.PhoneIphone, contentDescription = "iPhone", modifier = Modifier.size(20.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("PWA")
+                                    Text("iPhone")
                                 }
                             }
 
                             Text(
-                                text = "Android baixa a APK mais recente. PWA abre a versão web instalável diretamente no navegador.",
+                                text = "Android baixa a APK mais recente. iPhone abre a versão web instalável diretamente no navegador.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -495,7 +496,7 @@ fun AboutScreen() {
             onDismissRequest = { showPwaQrModal = false },
             title = {
                 Text(
-                    text = "MIC Rhema PWA",
+                    text = "MIC Rhema no iPhone",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
@@ -511,7 +512,7 @@ fun AboutScreen() {
                     pwaQrCodeBitmap?.let {
                         androidx.compose.foundation.Image(
                             bitmap = it,
-                            contentDescription = "QR Code do MIC Rhema PWA",
+                            contentDescription = "QR Code do MIC Rhema para iPhone",
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .aspectRatio(1f)
@@ -520,20 +521,20 @@ fun AboutScreen() {
                         )
                     }
                     Text(
-                        text = "Escaneie para abrir o MIC Rhema PWA no navegador",
+                        text = "Escaneie para abrir o MIC Rhema no iPhone",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
                     )
                     Text(
-                        text = "No celular, o PWA pode ser adicionado à tela inicial pelo próprio navegador.",
+                        text = "No iPhone, o MIC Rhema pode ser adicionado à Tela de Início pelo navegador.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
                     )
                     if (showPwaCopiedToast) {
                         Text(
-                            text = "Link do PWA copiado!",
+                            text = "Link para iPhone copiado!",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary
                         )
