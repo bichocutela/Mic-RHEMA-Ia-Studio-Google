@@ -1,6 +1,7 @@
 /** Web Push da PWA com preferências equivalentes às Configurações do Android. */
 import { getMessaging, getToken, isSupported, onMessage, type MessagePayload } from "firebase/messaging";
 import { firebaseApp, firebaseAuth } from "./firebase";
+import { getPrayerDeviceIdentity } from "./prayer-device";
 
 const VAPID_PUBLIC_KEY = "BHkibd35bzMzP9t3If0K32xxrgMlulTQXvevAe370icbBosqINSM1WDL_TEi3k6Ja7LhHHqn6ec7NiCyArEjSkM";
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://cwphbkdtorfpgmnlafqb.supabase.co";
@@ -36,16 +37,20 @@ async function registerToken(requestPermission: boolean) {
   const registration = await navigator.serviceWorker.ready;
   const token = await getToken(getMessaging(firebaseApp), { vapidKey: VAPID_PUBLIC_KEY, serviceWorkerRegistration: registration });
   if (!token) throw new Error("Não foi possível registrar este dispositivo para receber avisos.");
+  const { deviceId } = getPrayerDeviceIdentity();
+  const idToken = await firebaseAuth?.currentUser?.getIdToken().catch(() => "") || "";
   const response = await fetch(`${supabaseUrl}/functions/v1/pwa-push-subscribe`, {
-    method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ token, platform: isAppleMobile() ? "ios-web" : "web", preferences: pwaPushPreferences() }),
+    method: "POST",
+    headers: { "content-type": "application/json", ...(idToken ? { authorization: `Bearer ${idToken}` } : {}) },
+    body: JSON.stringify({ token, deviceId, platform: isAppleMobile() ? "ios-web" : "web", preferences: pwaPushPreferences() }),
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.ok !== true) throw new Error(payload.error || "Não foi possível concluir a inscrição de avisos.");
-  return { token };
+  return { token, deviceId };
 }
 
 export async function subscribeToPwaPush() { return registerToken(true); }
+export async function ensurePrayerPushRegistration() { return registerToken(true); }
 export async function syncPwaPushPreferences() {
   if (!("Notification" in window) || Notification.permission !== "granted") return false;
   try { await registerToken(false); return true; } catch { return false; }

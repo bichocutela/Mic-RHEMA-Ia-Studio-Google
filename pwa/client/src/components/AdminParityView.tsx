@@ -2,10 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   ArrowLeft, BadgeCheck, BookOpen, ChevronDown, ChevronRight, CircleUserRound, FileText,
-  Heart, Image, LayoutDashboard, LockKeyhole, Newspaper, Pencil, Plus, RefreshCcw, Save,
+  BellRing, CheckCircle2, HandHeart, Heart, Image, LayoutDashboard, LockKeyhole, Newspaper, Pencil, Plus, RefreshCcw, Save,
   School, Settings, Trash2, Users, Video, X,
 } from "lucide-react";
-import { listenToCollection, listenToDocument } from "@/lib/firebase";
+import { listenToCollection, listenToDocument, markPrayerAsAnswered } from "@/lib/firebase";
 import {
   createAdminDocumentId, deleteAdminDocument, forceAdminSync, replaceAdminDocument,
   saveAdminDocument, saveAdminSetting,
@@ -15,7 +15,7 @@ import "./AdminParityView.css";
 
 type Session = { uid: string; name: string; isAdmin: boolean; isIbr?: boolean } | null;
 type AnyDoc = { id: string; [key: string]: any };
-type Section = "dashboard" | "devotionals" | "news" | "media" | "plans" | "ibr" | "discipulado" | "services" | "banners" | "donations" | "members" | "profiles" | "team" | "tabs" | "settings" | "about";
+type Section = "dashboard" | "devotionals" | "news" | "media" | "plans" | "ibr" | "discipulado" | "services" | "banners" | "donations" | "prayers" | "members" | "profiles" | "team" | "tabs" | "settings" | "about";
 
 type Chapter = { id: string; title: string; description: string; durationMinutes: number; type: "VIDEO" | "AUDIO" | "TEXT"; videoUrl: string; audioUrl: string; textContent: string; studyPdfUrl?: string; isYoutube?: boolean; youtubeId?: string };
 type PlanTheme = { title: string; content: string; verses: string[]; imageUrl: string };
@@ -60,6 +60,7 @@ const modules: Array<{ group: string; items: Array<{ id: Section; title: string;
     { id: "services", title: "Cultos", subtitle: "Agenda e programação", icon: Heart },
     { id: "banners", title: "Destaques", subtitle: "Banners e eventos da Home", icon: Image },
     { id: "donations", title: "Dízimos e Ofertas", subtitle: "PIX e QR Code", icon: Heart },
+    { id: "prayers", title: "Pedidos de Oração", subtitle: "Fila pastoral e histórico", icon: HandHeart },
     { id: "team", title: "Equipe", subtitle: "Líderes e ministérios", icon: Users },
   ] },
   { group: "MEMBROS", items: [
@@ -74,7 +75,8 @@ const modules: Array<{ group: string; items: Array<{ id: Section; title: string;
 ];
 
 export function AdminParityView({ session }: { session: Session }) {
-  const [section, setSection] = useState<Section>("dashboard");
+  const [section, setSection] = useState<Section>(() => new URLSearchParams(window.location.search).get("section") === "prayers" ? "prayers" : "dashboard");
+  useEffect(() => { const open = () => setSection("prayers"); window.addEventListener("micrhema:open-admin-prayer", open); return () => window.removeEventListener("micrhema:open-admin-prayer", open); }, []);
   if (!session?.isAdmin) return <section className="parity-page"><div className="parity-empty"><LockKeyhole size={48}/><h1>Área Administrativa</h1><p>Use o login administrativo para acessar o painel.</p></div></section>;
   return <section className="admin-parity-root">{section !== "dashboard" && <button className="admin-back" onClick={() => setSection("dashboard")}><ArrowLeft size={18}/> Painel</button>}{section === "dashboard" ? <AdminDashboardView onOpen={setSection}/> : <AdminSectionView section={section}/>}</section>;
 }
@@ -84,6 +86,8 @@ function AdminDashboardView({ onOpen }: { onOpen: (section: Section) => void }) 
   const videos = useAdminCollection("conteudos_videos");
   const audios = useAdminCollection("conteudos_audios");
   const books = useAdminCollection("conteudos_books");
+  const prayers = useAdminCollection("prayer_requests");
+  const pendingPrayerCount = prayers.filter((item) => item.status !== "respondida" && Number(item.answeredAt || 0) <= 0).length;
   const pending = members.filter((item) => item.isApproved !== true && item.status !== "aprovado").length;
   const approved = members.filter((item) => item.isApproved === true || item.status === "aprovado").length;
   const ibr = members.filter((item) => item.isIbr === true).length;
@@ -91,6 +95,7 @@ function AdminDashboardView({ onOpen }: { onOpen: (section: Section) => void }) 
   return <div className="admin-parity-dashboard">
     <header className="admin-parity-hero"><div><p>MIC RHEMA • VISÃO GERAL</p><h1>Painel Administrativo</h1><span>A mesma estrutura de gestão do Android, sincronizada pelo Firebase.</span></div><LayoutDashboard size={34}/></header>
     <h2>Resumo do ministério</h2><div className="admin-metrics"><Metric label="Pendentes" value={pending} icon={Users} onClick={() => onOpen("members")}/><Metric label="Aprovados" value={approved} icon={BadgeCheck}/><Metric label="Alunos IBR" value={ibr} icon={School} onClick={() => onOpen("ibr")}/><Metric label="Itens de mídia" value={videos.length + audios.length + books.length} icon={Video} onClick={() => onOpen("media")}/></div>
+    {pendingPrayerCount > 0 && <button className="admin-prayer-priority" onClick={() => onOpen("prayers")}><span className="admin-prayer-priority-icon"><BellRing size={24}/></span><span><small>ATENÇÃO PASTORAL</small><strong>Oração Pendente</strong><em>{pendingPrayerCount === 1 ? "1 novo pedido aguarda oração" : `${pendingPrayerCount} pedidos aguardam oração`}</em></span><b>{pendingPrayerCount}</b><ChevronRight size={20}/></button>}
     <h2>Ações rápidas</h2><div className="admin-quick-grid"><button onClick={() => onOpen("news")}><Newspaper/>Nova notícia</button><button onClick={() => onOpen("media")}><Video/>Adicionar mídia</button><button onClick={() => onOpen("members")}><Users/>Aprovar membros</button><button onClick={() => onOpen("banners")}><Image/>Novo destaque</button><button onClick={() => onOpen("services")}><Heart/>Atualizar culto</button><button onClick={() => onOpen("ibr")}><School/>Curso IBR</button></div>
     <h2>Módulos administrativos</h2>{modules.map((group) => <section className="admin-module-group" key={group.group}><button className="admin-module-group-title" onClick={() => setExpanded((current) => ({ ...current, [group.group]: !current[group.group] }))}><span>{group.group}</span><ChevronDown className={expanded[group.group] ? "open" : ""}/></button>{expanded[group.group] && <div>{group.items.map(({ id, title, subtitle, icon: Icon }) => <button className="admin-module-row" key={id} onClick={() => onOpen(id)}><Icon size={22}/><span><strong>{title}</strong><small>{subtitle}</small></span><ChevronRight size={19}/></button>)}</div>}</section>)}
   </div>;
@@ -106,11 +111,33 @@ function AdminSectionView({ section }: { section: Exclude<Section, "dashboard"> 
   if (section === "services") return <ServicesAdmin/>;
   if (section === "banners") return <BannersAdmin/>;
   if (section === "donations") return <DonationsAdmin/>;
+  if (section === "prayers") return <PrayerAdmin/>;
   if (section === "members" || section === "profiles") return <MembersAdmin profilesOnly={section === "profiles"}/>;
   if (section === "team") return <TeamAdmin/>;
   if (section === "tabs") return <TabsAdmin/>;
   if (section === "settings") return <GlobalSettingsAdmin/>;
   return <AboutAdmin/>;
+}
+
+
+function PrayerAdmin() {
+  const items = useAdminCollection("prayer_requests");
+  const focusedId = new URLSearchParams(window.location.search).get("request") || "";
+  const pending = items.filter((item) => item.status !== "respondida" && Number(item.answeredAt || 0) <= 0).slice().sort((a,b) => Number(b.id === focusedId) - Number(a.id === focusedId) || Number(b.createdAt || 0) - Number(a.createdAt || 0));
+  const answered = items.filter((item) => item.status === "respondida" || Number(item.answeredAt || 0) > 0).slice().sort((a,b) => Number(b.answeredAt || 0) - Number(a.answeredAt || 0)).slice(0,30);
+  const [busyId,setBusyId]=useState("");
+  const mark = async (item: AnyDoc) => {
+    if (!window.confirm(`Confirmar que a oração por ${item.name || "este pedido"} foi realizada?`)) return;
+    setBusyId(item.id);
+    try { const result = await markPrayerAsAnswered(item.id); toast.success("Oração marcada como respondida.", { description: result.notified ? `A confirmação foi enviada para ${result.notified} aparelho(s).` : "O histórico da pessoa já foi atualizado." }); }
+    catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível confirmar a oração."); }
+    finally { setBusyId(""); }
+  };
+  return <div className="admin-section admin-prayer-section"><SectionHeader title="Oração Pendente" subtitle="Pedidos que aguardam o cuidado da equipe pastoral."/>
+    <article className="admin-prayer-summary"><HandHeart size={30}/><div><strong>{pending.length}</strong><span>{pending.length === 1 ? "pedido aguardando oração" : "pedidos aguardando oração"}</span></div></article>
+    {!pending.length ? <div className="admin-prayer-empty"><CheckCircle2 size={34}/><strong>Nenhuma oração pendente</strong><span>Todos os pedidos recebidos já foram cuidados.</span></div> : <div className="admin-prayer-list">{pending.map((item) => <article key={item.id} className={item.id === focusedId ? "is-focused" : ""}>{item.id === focusedId && <small className="admin-prayer-focus"><BellRing size={14}/> ABERTO PELA NOTIFICAÇÃO</small>}<header><div><strong>{item.name || "Pedido sem nome"}</strong><span>{item.date || "Data não informada"}</span></div><em>Pendente</em></header><p>{item.request}</p><button disabled={busyId === item.id} onClick={() => void mark(item)}><CheckCircle2 size={18}/>{busyId === item.id ? "Confirmando…" : "Oração Feita"}</button></article>)}</div>}
+    {answered.length > 0 && <><h2 className="admin-prayer-history-title">Histórico de orações respondidas</h2><div className="admin-prayer-answered">{answered.map((item) => <article key={item.id}><CheckCircle2 size={18}/><div><strong>{item.name || "Pedido sem nome"}</strong><p>{item.request}</p><small>Oração respondida · {item.answeredDate || item.date || "data registrada"}</small></div></article>)}</div></>}
+  </div>;
 }
 
 function SectionHeader({ title, subtitle, onAdd, addLabel = "Novo" }: { title: string; subtitle: string; onAdd?: () => void; addLabel?: string }) {

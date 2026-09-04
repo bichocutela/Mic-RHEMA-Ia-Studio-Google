@@ -138,7 +138,7 @@ export function PwaShell({children,active,onNavigate,drawerOpen,onCloseDrawer,on
     :active==="profile"&&session?<ProfileParityViewV2 session={session} onNavigateHome={()=>onNavigate("home")}/>
     :active==="settings"?<SettingsParityViewV2 session={session} onProfile={onProfile} onNotifications={onNotifications}/>
     :active==="members"&&!session?.isAdmin?<MembersParityView session={session} onProfile={onProfile}/>
-    :active==="prayer"?<PrayerParityView/>
+    :active==="prayer"?<PrayerParityView session={session}/>
     :active==="team"?<TeamParityView/>
     :active==="donations"?<DonationsParityView/>
     :active==="about"?<AboutParityView/>
