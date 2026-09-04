@@ -1,0 +1,120 @@
+name: Validar fluxo PWA de pedidos de oração
+
+on:
+  push:
+    branches:
+      - feature/pwa-prayer-priority-flow
+    paths:
+      - '.github/workflows/validate-pwa-prayer-priority-flow.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  validate-pwa:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/pwa-prayer-priority-flow
+          fetch-depth: 0
+
+      - name: Aplicar implementação PWA
+        run: |
+          python3 scripts/apply_pwa_prayer_priority_flow.py
+          git diff --check
+          git status --short
+
+      - name: Validar escopo
+        run: |
+          python3 - <<'PY'
+          import subprocess
+          allowed = {
+            '.github/workflows/main.yml',
+            'pwa/client/src/lib/prayer-device.ts',
+            'pwa/client/src/lib/push.ts',
+            'pwa/client/src/lib/firebase.ts',
+            'pwa/client/src/components/PrayerParityView.tsx',
+            'pwa/client/src/components/PrayerParityView.css',
+            'pwa/client/src/components/PwaShell.tsx',
+            'pwa/client/src/components/AdminParityView.tsx',
+            'pwa/client/src/components/AdminParityView.css',
+            'pwa/client/src/pages/Home.tsx',
+            'supabase/functions/pwa-push-subscribe/index.ts',
+            'supabase/functions/pwa-prayer-request/index.ts',
+            'supabase/functions/pwa-prayer-admin/index.ts',
+            'supabase/functions/notify-fcm/index.ts',
+          }
+          tracked = set(subprocess.check_output(['git','diff','--name-only'], text=True).splitlines())
+          untracked = set(subprocess.check_output(['git','ls-files','--others','--exclude-standard'], text=True).splitlines())
+          changed = tracked | {path for path in untracked if path in allowed}
+          unexpected = sorted(changed - allowed)
+          missing = sorted(allowed - changed)
+          if unexpected:
+              raise SystemExit('Arquivos inesperados alterados: ' + ', '.join(unexpected))
+          if missing:
+              raise SystemExit('Arquivos esperados não foram alterados: ' + ', '.join(missing))
+          print('Escopo PWA validado:', len(changed), 'arquivos de produção.')
+          PY
+
+      - name: Configurar pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pwa/pnpm-lock.yaml
+
+      - name: Instalar dependências PWA
+        working-directory: pwa
+        run: pnpm install --frozen-lockfile
+
+      - name: Validar TypeScript PWA
+        working-directory: pwa
+        run: pnpm check
+
+      - name: Gerar build PWA
+        working-directory: pwa
+        env:
+          BASE_PATH: /Mic-RHEMA-Ia-Studio-Google/
+          VITE_SUPABASE_URL: https://cwphbkdtorfpgmnlafqb.supabase.co
+        run: pnpm build
+
+      - name: Configurar Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Validar Edge Functions
+        run: |
+          deno check supabase/functions/pwa-push-subscribe/index.ts
+          deno check supabase/functions/pwa-prayer-request/index.ts
+          deno check supabase/functions/pwa-prayer-admin/index.ts
+          deno check supabase/functions/notify-fcm/index.ts
+
+      - name: Commitar implementação somente após verde
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            .github/workflows/main.yml \
+            pwa/client/src/lib/prayer-device.ts \
+            pwa/client/src/lib/push.ts \
+            pwa/client/src/lib/firebase.ts \
+            pwa/client/src/components/PrayerParityView.tsx \
+            pwa/client/src/components/PrayerParityView.css \
+            pwa/client/src/components/PwaShell.tsx \
+            pwa/client/src/components/AdminParityView.tsx \
+            pwa/client/src/components/AdminParityView.css \
+            pwa/client/src/pages/Home.tsx \
+            supabase/functions/pwa-push-subscribe/index.ts \
+            supabase/functions/pwa-prayer-request/index.ts \
+            supabase/functions/pwa-prayer-admin/index.ts \
+            supabase/functions/notify-fcm/index.ts
+          git commit -m "feat(pwa): sincronizar fluxo pastoral de pedidos de oração"
+          git push origin HEAD:feature/pwa-prayer-priority-flow
