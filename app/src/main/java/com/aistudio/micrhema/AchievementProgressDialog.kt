@@ -20,10 +20,15 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -99,6 +104,16 @@ private fun missionsForNextBadge(s: BadgeProgressSummary): List<AchievementMissi
 
 @Composable
 fun AchievementProgressDialog(progress: BadgeProgressSummary, onDismiss: () -> Unit) {
+    var showJourney by remember { mutableStateOf(false) }
+    if (showJourney) {
+        val member = loggedInMemberState.value
+        if (member != null) {
+            BibleJourneyDialog(member = member, onDismiss = { showJourney = false })
+            return
+        }
+        showJourney = false
+    }
+
     val nextBadge = progress.nextLevel
     val missions = missionsForNextBadge(progress)
     val completed = missions.filter { it.completed }
@@ -129,6 +144,13 @@ fun AchievementProgressDialog(progress: BadgeProgressSummary, onDismiss: () -> U
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+                }
+
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.34f)), shape = RoundedCornerShape(18.dp)) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Jornada Bíblica", fontWeight = FontWeight.Bold)
+                        Text("${progress.totalXp} XP acumulados · Quiz com 120 perguntas, dicas e missões", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
 
@@ -163,6 +185,9 @@ fun AchievementProgressDialog(progress: BadgeProgressSummary, onDismiss: () -> U
                     )
                 }
 
+                OutlinedButton(onClick = { showJourney = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Abrir Jornada Bíblica e Quiz")
+                }
                 TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Fechar") }
             }
         }
