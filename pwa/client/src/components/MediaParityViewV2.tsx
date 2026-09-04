@@ -3,10 +3,11 @@ import { BookOpen, Check, ChevronLeft, Download, ExternalLink, Headphones, Image
 import { listenToCollection } from "@/lib/firebase";
 import { recordPwaActivity } from "@/lib/badge-activity";
 import {
-  contentTimestamp, normalizeSearch, resolveDisplayImageUrl, resolvePdfEmbedUrl,
+  contentTimestamp, normalizeSearch, resolveAudioStreamUrl, resolveDisplayImageUrl, resolvePdfEmbedUrl,
   resolvePortableAssetUrl, safeFilename, youtubeThumbnail, youtubeVideoId,
 } from "@/lib/parity-utils";
 import "./AndroidParityViews.css";
+import "./MediaParityViewV2.css";
 
 type MediaItem = { id:string; title?:string; description?:string; imageUrl?:string; thumbnailUrl?:string; coverUrl?:string; videoUrl?:string; audioUrl?:string; bookUrl?:string; mediaUrl?:string; artist?:string; author?:string; presenter?:string; preacher?:string; approved?:boolean; isApproved?:boolean; publishedAt?:number; createdAt?:number; timestamp?:number; updatedAt?:number };
 type AlbumPhoto={url?:string;caption?:string};
@@ -55,18 +56,42 @@ export function MediaParityViewV2(){
   </section>
 }
 
+function AudioReader({rawUrl,title}:{rawUrl:string;title:string}){
+  const audioRef=useRef<HTMLAudioElement|null>(null);
+  const primary=useMemo(()=>resolveAudioStreamUrl(rawUrl),[rawUrl]);
+  const fallback=useMemo(()=>resolvePortableAssetUrl(rawUrl),[rawUrl]);
+  const[src,setSrc]=useState(primary);
+  const[speed,setSpeed]=useState(1);
+  const[error,setError]=useState("");
+  const[fallbackUsed,setFallbackUsed]=useState(false);
+
+  useEffect(()=>{setSrc(primary);setSpeed(1);setError("");setFallbackUsed(false)},[primary]);
+  const changeSpeed=()=>{const next=speed>=2?.75:Math.min(2,speed+.25);setSpeed(next);if(audioRef.current)audioRef.current.playbackRate=next};
+  const handleError=()=>{
+    if(!fallbackUsed&&fallback&&fallback!==src){
+      setFallbackUsed(true);
+      setError("A conexão principal falhou. Tentando carregar o arquivo diretamente…");
+      setSrc(fallback);
+      return;
+    }
+    setError("Não foi possível carregar este áudio. O arquivo pode estar indisponível ou sem permissão de reprodução.");
+  };
+  const retry=()=>{setFallbackUsed(false);setError("");setSrc(primary);requestAnimationFrame(()=>audioRef.current?.load())};
+
+  return <div className="audio-reader-v2"><Headphones size={44}/><strong>{title}</strong><audio key={src} ref={audioRef} controls playsInline preload="metadata" src={src} onCanPlay={()=>setError("")} onError={handleError}>Seu navegador não suporta áudio.</audio><div className="audio-reader-controls"><button onClick={()=>{if(audioRef.current)audioRef.current.currentTime=Math.max(0,audioRef.current.currentTime-15)}}>-15s</button><button onClick={()=>{if(audioRef.current)audioRef.current.currentTime=Math.min(audioRef.current.duration||Infinity,audioRef.current.currentTime+15)}}>+15s</button><button onClick={changeSpeed}>{speed.toFixed(2).replace(/\.00$/,"")}x</button></div><p className="audio-reader-status">Reprodução dentro da PWA com suporte ao Safari/iPhone e retomada por streaming.</p>{error&&<div className="audio-error-card"><p>{error}</p><button onClick={retry}>Tentar novamente</button></div>}</div>;
+}
+
 function MediaReaderV2({item,onBack}:{item:ViewItem;onBack:()=>void}){
-  const audioRef=useRef<HTMLAudioElement|null>(null);const[mediaError,setMediaError]=useState(false);const[speed,setSpeed]=useState(1);
+  const[mediaError,setMediaError]=useState(false);
   const rawUrl=rawMediaUrl(item);const assetUrl=resolvePortableAssetUrl(rawUrl);const pdfUrl=resolvePdfEmbedUrl(rawUrl);const yid=item.kind==="Vídeo"?youtubeVideoId(rawUrl):"";
   const download=()=>{if(!assetUrl)return;const anchor=document.createElement("a");anchor.href=assetUrl;anchor.target="_blank";anchor.rel="noopener noreferrer";if(item.kind==="Livro")anchor.download=`${safeFilename(item.title||"livro-mic-rhema")}.pdf`;document.body.appendChild(anchor);anchor.click();anchor.remove()};
-  const changeSpeed=()=>{const next=speed>=2?.75:Math.min(2,speed+.25);setSpeed(next);if(audioRef.current)audioRef.current.playbackRate=next};
   if(item.kind==="Fotos"){
     const photos=(item.photos||[]).filter(photo=>photo.url);
     return <section className="parity-page"><button className="back-link" onClick={onBack}><ChevronLeft size={18}/> Voltar à mídia</button><div className="parity-title"><div><p>FOTOS</p><h1>{item.title||"Álbum"}</h1><span>{item.description||`${photos.length} foto(s)`}</span></div></div><div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:10}}>{photos.map((photo,index)=>{const photoUrl=resolveDisplayImageUrl(photo.url);return <figure key={`${photo.url}-${index}`} style={{margin:0}}>{photoUrl&&<img src={photoUrl} alt={photo.caption||`Foto ${index+1}`} loading="lazy" style={{width:"100%",aspectRatio:"1",objectFit:"cover",borderRadius:16}}/>}{photo.caption&&<figcaption style={{fontSize:12,marginTop:4}}>{photo.caption}</figcaption>}</figure>})}</div>{item.driveFolderUrl&&<a className="parity-primary" href={item.driveFolderUrl} target="_blank" rel="noreferrer">Abrir álbum completo</a>}</section>
   }
   return <section className="parity-page media-reader"><button className="back-link" onClick={onBack}><ChevronLeft size={18}/> Voltar à mídia</button><div className="parity-title"><div><p>{item.kind.toUpperCase()}</p><h1>{item.title||"Conteúdo"}</h1><span>{secondary(item)||"MIC Rhema"}</span></div></div>
-    {!rawUrl?<p className="parity-status">Este conteúdo ainda não possui um arquivo cadastrado.</p>:item.kind==="Vídeo"?(yid?<iframe className="parity-video" title={item.title||"Vídeo"} src={`https://www.youtube-nocookie.com/embed/${yid}?rel=0&playsinline=1`} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen/>:<video className="parity-video" controls playsInline preload="metadata" src={assetUrl} onError={()=>setMediaError(true)}/>):item.kind==="Áudio"?<div className="audio-reader"><Headphones size={42}/><strong>{item.title||"Áudio MIC Rhema"}</strong><audio ref={audioRef} controls preload="metadata" src={assetUrl} onError={()=>setMediaError(true)}>Seu navegador não suporta áudio.</audio><div className="audio-skip"><button onClick={()=>{if(audioRef.current)audioRef.current.currentTime=Math.max(0,audioRef.current.currentTime-15)}}>-15s</button><button onClick={()=>{if(audioRef.current)audioRef.current.currentTime+=15}}>+15s</button><button onClick={changeSpeed}>{speed.toFixed(2).replace(/\.00$/,"")}x</button></div><small>O áudio continua dentro da PWA; use os controles acima para pausar, avançar e alterar a velocidade.</small></div>:<div style={{display:"grid",gap:12}}><iframe className="parity-document" style={{width:"100%",minHeight:"68dvh",border:0,borderRadius:16,background:"#fff"}} title={item.title||"PDF"} src={pdfUrl}/><div style={{display:"flex",gap:8,flexWrap:"wrap"}}><button className="parity-primary" onClick={download}><Download size={18}/> Baixar PDF</button><a className="back-link" href={assetUrl} target="_blank" rel="noreferrer"><ExternalLink size={17}/> Abrir em tela cheia</a></div></div>}
-    {mediaError&&<p className="parity-status">Não foi possível reproduzir este arquivo. Verifique se o arquivo ainda existe no armazenamento ou substitua-o pelo ADM.</p>}
+    {!rawUrl?<p className="parity-status">Este conteúdo ainda não possui um arquivo cadastrado.</p>:item.kind==="Vídeo"?(yid?<iframe className="parity-video" title={item.title||"Vídeo"} src={`https://www.youtube-nocookie.com/embed/${yid}?rel=0&playsinline=1`} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen/>:<video className="parity-video" controls playsInline preload="metadata" src={assetUrl} onError={()=>setMediaError(true)}/>):item.kind==="Áudio"?<AudioReader rawUrl={rawUrl} title={item.title||"Áudio MIC Rhema"}/>:<div className="pdf-reader-shell">{pdfUrl?<div className="pdf-reader-frame-wrap"><iframe className="pdf-reader-frame" title={item.title||"Livro em PDF"} src={pdfUrl} allow="fullscreen" allowFullScreen/></div>:<p className="parity-status">Não foi possível preparar o leitor deste PDF.</p>}<div className="pdf-reader-toolbar">{pdfUrl&&<a className="pdf-primary" href={pdfUrl} target="_blank" rel="noreferrer"><ExternalLink size={18}/> Abrir leitor em tela cheia</a>}<button className="pdf-secondary" onClick={download}><Download size={18}/> Baixar PDF</button></div><p className="pdf-reader-help">O leitor acima é multipágina: role dentro dele para continuar o livro. Em tela cheia, você também pode ampliar as páginas com os gestos do iPhone.</p></div>}
+    {mediaError&&<p className="parity-status">Não foi possível reproduzir este vídeo. Verifique se o arquivo ainda existe no armazenamento.</p>}
     {item.description&&<article className="parity-reader" style={{marginTop:14}}><p>{item.description}</p></article>}
   </section>;
 }
