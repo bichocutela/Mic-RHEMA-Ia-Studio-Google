@@ -40,20 +40,43 @@ object BadgeActivityTracker {
     }
 
     fun reconcile(context: Context, member: MemberRequest) {
-        val calculated = calculateBadgeProgress(member)
-        if (calculated.unlockedIds.toSet() == member.unlockedBadgeIds.toSet()) return
-        val previousUnlockedIds = member.unlockedBadgeIds.toSet()
+        val preparedMember = ensureCurrentLevelMissionBaseline(member)
+        val calculated = calculateBadgeProgress(preparedMember)
+        val previousUnlockedIds = preparedMember.unlockedBadgeIds.toSet()
         val newlyUnlocked = calculated.unlockedIds
             .filterNot { it in previousUnlockedIds }
             .mapNotNull { id -> biblicalBadgeForId(id).takeIf { it.id == id } }
+
         if (newlyUnlocked.isNotEmpty()) {
             badgeAwardNotificationState.value = BadgeAwardNotification(newlyUnlocked)
         }
-        val updatedMember = member.copy(unlockedBadgeIds = calculated.unlockedIds)
+
+        val unlockedMember = preparedMember.copy(unlockedBadgeIds = calculated.unlockedIds)
+        val updatedMember = ensureCurrentLevelMissionBaseline(unlockedMember)
+
+        val changed =
+            updatedMember.unlockedBadgeIds.toSet() != member.unlockedBadgeIds.toSet() ||
+                updatedMember.badgeActivityIds != member.badgeActivityIds
+        if (!changed) return
+
         val index = memberRequestsState.indexOfFirst { it.id == member.id }
         if (index >= 0) memberRequestsState[index] = updatedMember
         if (loggedInMemberState.value?.id == member.id) loggedInMemberState.value = updatedMember
         syncPortableState(context, updatedMember)
+    }
+
+    fun prepareForIbrMissionAction(context: Context) {
+        val member = loggedInMemberState.value ?: return
+        val preparedMember = ensureCurrentLevelMissionBaseline(
+            member = member,
+            allowIbrDependentBaseline = true
+        )
+        if (preparedMember.badgeActivityIds == member.badgeActivityIds) return
+
+        val index = memberRequestsState.indexOfFirst { it.id == member.id }
+        if (index >= 0) memberRequestsState[index] = preparedMember
+        loggedInMemberState.value = preparedMember
+        syncPortableState(context, preparedMember)
     }
 
     fun startActiveSession() {
@@ -75,24 +98,30 @@ object BadgeActivityTracker {
     }
 
     private fun persist(context: Context, member: MemberRequest, activity: String, ids: List<String>) {
-        val updatedActivities = member.badgeActivityIds.toMutableMap()
+        val preparedMember = ensureCurrentLevelMissionBaseline(
+            member = member,
+            allowIbrDependentBaseline = true
+        )
+        val updatedActivities = preparedMember.badgeActivityIds.toMutableMap()
         updatedActivities[activity] = ids.distinct()
-        val activityMember = member.copy(badgeActivityIds = updatedActivities)
+        val activityMember = preparedMember.copy(badgeActivityIds = updatedActivities)
         val calculated = calculateBadgeProgress(activityMember)
-        val previousUnlockedIds = member.unlockedBadgeIds.toSet()
+        val previousUnlockedIds = preparedMember.unlockedBadgeIds.toSet()
         val newlyUnlocked = calculated.unlockedIds
             .filterNot { it in previousUnlockedIds }
             .mapNotNull { id -> biblicalBadgeForId(id).takeIf { it.id == id } }
+
         if (newlyUnlocked.isNotEmpty()) {
             badgeAwardNotificationState.value = BadgeAwardNotification(newlyUnlocked)
         }
-        val updatedMember = activityMember.copy(unlockedBadgeIds = calculated.unlockedIds)
+
+        val unlockedMember = activityMember.copy(unlockedBadgeIds = calculated.unlockedIds)
+        val updatedMember = ensureCurrentLevelMissionBaseline(unlockedMember)
+
         val index = memberRequestsState.indexOfFirst { it.id == member.id }
         if (index >= 0) memberRequestsState[index] = updatedMember
         if (loggedInMemberState.value?.id == member.id) loggedInMemberState.value = updatedMember
 
-        // Não depende mais do armazenamento local nem de uma atualização direta proibida
-        // pelas regras do Firestore. O backend grava apenas os campos seguros do membro.
         syncPortableState(context, updatedMember)
     }
 

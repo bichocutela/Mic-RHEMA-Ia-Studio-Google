@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -43,37 +42,41 @@ private data class AchievementMission(
     val remaining: Int get() = (target - current).coerceAtLeast(0)
 }
 
-private fun BadgeProgressSummary.count(key: String): Int = activityCounts[key] ?: 0
+private fun BadgeProgressSummary.levelCount(key: String): Int = levelActivityCounts[key] ?: 0
 
 private fun missionsForNextBadge(summary: BadgeProgressSummary): List<AchievementMission> {
     return when (summary.nextLevel?.id) {
         "semeador" -> listOf(
-            AchievementMission("Concluir devocionais", summary.count(BadgeActivityKeys.DEVOTIONALS), 3, "devocionais"),
-            AchievementMission("Explorar temas de planos", summary.count(BadgeActivityKeys.PLAN_THEMES), 1, "tema")
+            AchievementMission("Concluir devocionais", summary.levelCount(BadgeActivityKeys.DEVOTIONALS), 3, "devocionais"),
+            AchievementMission("Explorar temas de planos", summary.levelCount(BadgeActivityKeys.PLAN_THEMES), 1, "tema")
         )
         "discipulo" -> listOf(
-            AchievementMission("Concluir um plano", summary.count(BadgeActivityKeys.PLANS), 1, "plano"),
-            AchievementMission("Explorar temas de planos", summary.count(BadgeActivityKeys.PLAN_THEMES), 3, "temas"),
-            AchievementMission("Ler capítulos da Bíblia", summary.count(BadgeActivityKeys.BIBLE_CHAPTERS), 3, "capítulos")
+            AchievementMission("Concluir um plano", summary.levelCount(BadgeActivityKeys.PLANS), 1, "plano"),
+            AchievementMission("Explorar temas de planos", summary.levelCount(BadgeActivityKeys.PLAN_THEMES), 3, "temas"),
+            AchievementMission("Ler capítulos da Bíblia", summary.levelCount(BadgeActivityKeys.BIBLE_CHAPTERS), 3, "capítulos")
         )
         "perseverante" -> listOf(
-            AchievementMission("Permanecer ativo no MIC Rhema", summary.activeMinutes, 60, "minutos"),
-            AchievementMission("Registrar atividades válidas", summary.activityCounts.values.sum(), 10, "atividades")
+            AchievementMission("Permanecer ativo no MIC Rhema", summary.levelActiveMinutes, 60, "minutos"),
+            AchievementMission("Registrar atividades válidas", summary.levelActivityCounts.values.sum(), 10, "atividades")
         )
         "estudante_rhema" -> listOf(
-            AchievementMission("Ler livros", summary.count(BadgeActivityKeys.BOOKS), 3, "livros"),
-            AchievementMission("Assistir vídeos", summary.count(BadgeActivityKeys.VIDEOS), 3, "vídeos"),
-            AchievementMission("Ouvir áudios", summary.count(BadgeActivityKeys.AUDIOS), 2, "áudios")
+            AchievementMission("Ler livros", summary.levelCount(BadgeActivityKeys.BOOKS), 3, "livros"),
+            AchievementMission("Assistir vídeos", summary.levelCount(BadgeActivityKeys.VIDEOS), 3, "vídeos"),
+            AchievementMission("Ouvir áudios", summary.levelCount(BadgeActivityKeys.AUDIOS), 2, "áudios")
         )
         "mestre_da_palavra" -> listOf(
-            AchievementMission("Concluir curso IBR", summary.completedIbrCourses, 1, "curso"),
-            AchievementMission("Ler notícias bíblicas", summary.count(BadgeActivityKeys.BIBLE_NEWS), 3, "notícias"),
-            AchievementMission("Ler capítulos da Bíblia", summary.count(BadgeActivityKeys.BIBLE_CHAPTERS), 10, "capítulos")
+            AchievementMission("Concluir curso IBR", summary.levelCompletedIbrCourses, 1, "curso"),
+            AchievementMission("Ler notícias bíblicas", summary.levelCount(BadgeActivityKeys.BIBLE_NEWS), 3, "notícias"),
+            AchievementMission("Ler capítulos da Bíblia", summary.levelCount(BadgeActivityKeys.BIBLE_CHAPTERS), 10, "capítulos")
         )
         "guardiao_da_fe" -> listOf(
-            AchievementMission("Desbloquear Mestre da Palavra", if ("mestre_da_palavra" in summary.unlockedIds) 1 else 0, 1, "nível"),
-            AchievementMission("Usar todas as áreas de atividade", summary.activityCounts.values.count { it >= 1 }, summary.activityCounts.size.coerceAtLeast(1), "áreas"),
-            AchievementMission("Permanecer ativo no MIC Rhema", summary.activeMinutes, 180, "minutos")
+            AchievementMission(
+                "Usar todas as áreas de atividade",
+                summary.levelActivityCounts.values.count { it >= 1 },
+                summary.levelActivityCounts.size.coerceAtLeast(1),
+                "áreas"
+            ),
+            AchievementMission("Permanecer ativo no MIC Rhema", summary.levelActiveMinutes, 180, "minutos")
         )
         else -> emptyList()
     }
@@ -156,7 +159,7 @@ fun AchievementProgressDialog(
                     }
 
                     if (completed.isNotEmpty()) {
-                        Text("✓ O que você já fez", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text("✓ O que você já fez neste nível", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         completed.forEach { mission -> MissionProgressCard(mission) }
                     }
 
@@ -166,7 +169,7 @@ fun AchievementProgressDialog(
                     }
 
                     Text(
-                        "O progresso usa atividades reais registradas pelo aplicativo. Repetir o mesmo conteúdo não aumenta a contagem novamente.",
+                        "Cada nível começa do zero. O histórico anterior continua salvo no perfil, mas só as atividades feitas depois do desbloqueio do nível atual contam para estas missões. Repetir o mesmo conteúdo também não aumenta a contagem novamente.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
