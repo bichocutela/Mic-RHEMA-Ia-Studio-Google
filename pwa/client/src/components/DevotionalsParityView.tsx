@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { BookOpen, CalendarDays, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { listenToCollection } from "@/lib/firebase";
+import { recordPwaActivity } from "@/lib/badge-activity";
 import { appDateKey, formatAppDate, parseAppDate, todayKey } from "@/lib/parity-utils";
 import auto2027 from "@/data/android-devotionals-2027.json";
 import "./AndroidParityViews.css";
@@ -42,6 +43,7 @@ export function DevotionalsParityView() {
   const items = useMemo(() => mergeAutomatic(remote)
     .filter((item) => { const parsed = parseAppDate(item.date); return !parsed || parsed.getTime() <= new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime(); })
     .sort((a, b) => sort === "recent" ? dateValue(b) - dateValue(a) : dateValue(a) - dateValue(b)), [remote, sort, today]);
+  const openDevotional=(item:Devotional)=>{setSelected(item);void recordPwaActivity("devotionals",item.id).catch(()=>undefined);};
 
   if (selected) return <section className="parity-page devotional-reader">
     <button className="back-link" onClick={() => setSelected(null)}><ChevronLeft size={18}/> Voltar aos devocionais</button>
@@ -59,6 +61,6 @@ export function DevotionalsParityView() {
         <button className="back-link" style={{ width: "100%", padding: 10 }} onClick={() => { setSort("oldest"); setSortOpen(false); }}>Mais antigo</button>
       </div>}
     </div>
-    {!items.length ? <p className="parity-status">Nenhum devocional disponível.</p> : <div className="android-list-cards">{items.map((item) => <button key={item.id} onClick={() => setSelected(item)}><span><CalendarDays size={18}/></span><div><strong>{item.title || "Devocional"}</strong><small>{formatAppDate(item.date)}{item.verseReference ? ` · ${item.verseReference}` : ""}</small></div><ChevronRight size={19}/></button>)}</div>}
+    {!items.length ? <p className="parity-status">Nenhum devocional disponível.</p> : <div className="android-list-cards">{items.map((item) => <button key={item.id} onClick={() => openDevotional(item)}><span><CalendarDays size={18}/></span><div><strong>{item.title || "Devocional"}</strong><small>{formatAppDate(item.date)}{item.verseReference ? ` · ${item.verseReference}` : ""}</small></div><ChevronRight size={19}/></button>)}</div>}
   </section>;
 }
