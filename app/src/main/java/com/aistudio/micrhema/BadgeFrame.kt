@@ -42,25 +42,12 @@ fun BiblicalAvatarWithBadge(
                 modifier = Modifier.fillMaxSize(0.58f).clip(CircleShape),
                 contentDescription = contentDescription
             )
-
-            val emblemPainter = try {
-                painterResource(id = profileEmblemDrawable(badge.level ?: 8))
-            } catch (_: Throwable) {
-                null
-            }
-
-            if (emblemPainter != null) {
-                Image(
-                    painter = emblemPainter,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Fit
-                )
-            } else {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    drawProfileEmblemFallback(badge)
-                }
-            }
+            Image(
+                painter = painterResource(id = profileEmblemDrawable(badge.level ?: 8)),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Fit
+            )
         } else {
             Canvas(modifier = Modifier.fillMaxSize()) { drawClassicBadgeFrame(badge) }
             BiblicalAvatarImage(
@@ -89,32 +76,6 @@ private fun profileEmblemDrawable(level: Int): Int = when (level.coerceIn(8, 22)
     21 -> R.drawable.profile_emblem_level_21
     22 -> R.drawable.profile_emblem_level_22
     else -> R.drawable.profile_emblem_level_08
-}
-
-private fun DrawScope.drawProfileEmblemFallback(badge: BiblicalBadge) {
-    val accent = Color(badge.accentColorHex)
-    val center = Offset(size.width / 2f, size.height / 2f)
-    val radius = size.minDimension * 0.40f
-    val stroke = size.minDimension * 0.035f
-
-    drawCircle(
-        color = Color.Black.copy(alpha = 0.36f),
-        radius = radius * 1.05f,
-        center = center,
-        style = Stroke(stroke * 1.8f)
-    )
-    drawCircle(
-        color = accent.copy(alpha = 0.92f),
-        radius = radius,
-        center = center,
-        style = Stroke(stroke)
-    )
-    drawCircle(
-        color = Color.White.copy(alpha = 0.48f),
-        radius = radius * 0.95f,
-        center = center,
-        style = Stroke(stroke * 0.18f)
-    )
 }
 
 private fun DrawScope.drawClassicBadgeFrame(badge: BiblicalBadge) {
