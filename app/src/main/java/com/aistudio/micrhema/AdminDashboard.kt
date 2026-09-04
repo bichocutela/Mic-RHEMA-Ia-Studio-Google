@@ -31,7 +31,7 @@ import androidx.compose.ui.unit.dp
 enum class AdminSection {
     DASHBOARD,
     DEVOTIONALS, NEWS, MEDIA, PLANS, IBR, DISCIPULADO,
-    SERVICES, BANNERS, DONATIONS,
+    SERVICES, BANNERS, DONATIONS, PRAYERS,
     MEMBERS, PROFILES, TEAM,
     TABS, SETTINGS, ABOUT
 }
@@ -42,12 +42,14 @@ fun AdminDashboard(onNavigate: (AdminSection) -> Unit, paddingValues: PaddingVal
     LaunchedEffect(Unit) {
         // Sempre reabrir a leitura remota ao entrar no dashboard, sem usar estado local.
         MemberManager.syncFromFirestore(context)
+        PrayerRepository.startAdminListener()
     }
     val adminUiPrefs = remember { context.getSharedPreferences("micrhema_admin_ui", android.content.Context.MODE_PRIVATE) }
     val approvedCount = memberRequestsState.count { it.isApproved || it.status == "aprovado" }
     val pendingCount = memberRequestsState.count { !it.isApproved && it.status != "aprovado" }
     val ibrCount = memberRequestsState.count { it.isIbr }
     val mediaCount = contentBooksState.size + contentAudiosState.size + contentVideosState.size + contentAlbumsState.size
+    val pendingPrayerCount = prayerRequestsState.count { it.status != "respondida" && it.answeredAt <= 0L }
     var contentExpanded by remember { mutableStateOf(adminUiPrefs.getBoolean("category_content", false)) }
     var teachingExpanded by remember { mutableStateOf(adminUiPrefs.getBoolean("category_teaching", false)) }
     var churchExpanded by remember { mutableStateOf(adminUiPrefs.getBoolean("category_church", false)) }
@@ -69,6 +71,12 @@ fun AdminDashboard(onNavigate: (AdminSection) -> Unit, paddingValues: PaddingVal
                 pendingCount = pendingCount,
                 onMembersClick = { onNavigate(AdminSection.MEMBERS) }
             )
+        }
+
+        if (pendingPrayerCount > 0) {
+            item {
+                AdminPrayerPriorityCard(count = pendingPrayerCount, onClick = { onNavigate(AdminSection.PRAYERS) })
+            }
         }
 
         item {
@@ -178,6 +186,7 @@ fun AdminDashboard(onNavigate: (AdminSection) -> Unit, paddingValues: PaddingVal
             item { AdminMenuItem("Cultos", "Agenda e programação", Icons.Default.Event, { onNavigate(AdminSection.SERVICES) }) }
             item { AdminMenuItem("Destaques", "Banners e eventos da tela inicial", Icons.Default.ViewCarousel, { onNavigate(AdminSection.BANNERS) }) }
             item { AdminMenuItem("Dízimos e Ofertas", "Contas, PIX e informações", Icons.Default.MonetizationOn, { onNavigate(AdminSection.DONATIONS) }) }
+            item { AdminMenuItem("Pedidos de Oração", "Fila pastoral e histórico de orações", Icons.Default.VolunteerActivism, { onNavigate(AdminSection.PRAYERS) }) }
             item { AdminMenuItem("Equipe", "Líderes, pastores e ministérios", Icons.Default.Groups, { onNavigate(AdminSection.TEAM) }) }
         }
 
@@ -396,5 +405,37 @@ fun AdminStatusChip(text: String, positive: Boolean = true) {
             color = if (positive) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onErrorContainer,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
         )
+    }
+}
+
+@Composable
+fun AdminPrayerPriorityCard(count: Int, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable { onClick() },
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+    ) {
+        Row(modifier = Modifier.padding(17.dp), verticalAlignment = Alignment.CenterVertically) {
+            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.error, modifier = Modifier.size(46.dp)) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                    Icon(Icons.Default.VolunteerActivism, contentDescription = null, tint = MaterialTheme.colorScheme.onError, modifier = Modifier.size(24.dp))
+                }
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Oração Pendente", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
+                Text(
+                    if (count == 1) "1 novo pedido aguarda oração" else "$count pedidos aguardam oração",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.82f)
+                )
+            }
+            Surface(shape = RoundedCornerShape(99.dp), color = MaterialTheme.colorScheme.surface) {
+                Text(count.toString(), modifier = Modifier.padding(horizontal = 11.dp, vertical = 6.dp), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+            }
+            Spacer(Modifier.width(6.dp))
+            Icon(Icons.Default.ChevronRight, contentDescription = "Abrir pedidos de oração", tint = MaterialTheme.colorScheme.onErrorContainer)
+        }
     }
 }

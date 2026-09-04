@@ -7,6 +7,7 @@ const MAX_TEXT_LENGTH = 180;
 
 type NotificationRequest = {
   topic?: string;
+  token?: string;
   title?: string;
   body?: string;
   data?: Record<string, string | number | boolean>;
@@ -35,15 +36,9 @@ function cleanText(value: unknown, fallback: string): string {
 }
 
 async function accessToken(account: ServiceAccount): Promise<string> {
-  if (!account.client_email || !account.private_key) {
-    throw new Error("FIREBASE_SERVICE_ACCOUNT_JSON sem client_email ou private_key.");
-  }
+  if (!account.client_email || !account.private_key) throw new Error("FIREBASE_SERVICE_ACCOUNT_JSON sem client_email ou private_key.");
   const now = Math.floor(Date.now() / 1000);
-  const assertion = await new SignJWT({
-    iss: account.client_email,
-    scope: FCM_SCOPE,
-    aud: FCM_TOKEN_URL,
-  })
+  const assertion = await new SignJWT({ iss: account.client_email, scope: FCM_SCOPE, aud: FCM_TOKEN_URL })
     .setProtectedHeader({ alg: "RS256", typ: "JWT" })
     .setIssuedAt(now)
     .setExpirationTime(now + 3600)
@@ -52,10 +47,7 @@ async function accessToken(account: ServiceAccount): Promise<string> {
   const response = await fetch(FCM_TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-      assertion,
-    }),
+    body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion }),
   });
   if (!response.ok) throw new Error(`Falha ao autenticar no FCM: ${response.status}`);
   const payload = await response.json();
@@ -70,50 +62,34 @@ Deno.serve(async (request) => {
   try {
     const configuredKey = Deno.env.get("SUPABASE_ANON_KEY");
     const providedKey = request.headers.get("apikey");
-    if (configuredKey && providedKey && providedKey !== configuredKey) {
-      return json({ error: "Chave pública do Supabase inválida." }, 401);
-    }
+    if (configuredKey && providedKey && providedKey !== configuredKey) return json({ error: "Chave pública do Supabase inválida." }, 401);
 
     const input = await request.json() as NotificationRequest;
+    const directToken = String(input.token ?? "").trim().slice(0, 4096);
     const topic = cleanText(input.topic, "all_users").replace(/[^a-zA-Z0-9_.-]/g, "");
     const title = cleanText(input.title, "Nova atualização disponível");
     const body = cleanText(input.body, "Confira as novidades no MIC Rhema.");
     const account = JSON.parse(Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON") ?? "{}") as ServiceAccount;
     const projectId = account.project_id || Deno.env.get("FIREBASE_PROJECT_ID") || DEFAULT_PROJECT_ID;
     const token = await accessToken(account);
-    const data = Object.fromEntries(
-      Object.entries(input.data ?? {}).map(([key, value]) => [key, String(value)]),
-    );
+    const data = Object.fromEntries(Object.entries(input.data ?? {}).map(([key, value]) => [key, String(value)]));
 
     data.title = data.title || title;
     data.body = data.body || body;
     data.category = data.category || "content_updates";
 
-    // Data-only + prioridade alta: garante que o FCMService processe a mensagem
-    // também em segundo plano e aplique as preferências individuais do usuário.
+    const target = directToken ? { token: directToken } : { topic };
     const response = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json; UTF-8",
-      },
-      body: JSON.stringify({
-        message: {
-          topic,
-          data,
-          android: {
-            priority: "high",
-            ttl: "86400s",
-          },
-        },
-      }),
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json; UTF-8" },
+      body: JSON.stringify({ message: { ...target, data, android: { priority: "high", ttl: "86400s" } } }),
     });
     const responseBody = await response.text();
     if (!response.ok) {
       console.error("FCM rejected notification", response.status, responseBody);
       return json({ error: "FCM rejeitou a notificação.", details: responseBody.slice(0, 500) }, 502);
     }
-    return json({ ok: true, topic, message: responseBody });
+    return json({ ok: true, target: directToken ? "token" : `topic:${topic}`, message: responseBody });
   } catch (error) {
     console.error("notify-fcm failed", error);
     return json({ error: error instanceof Error ? error.message : "Erro ao enviar notificação." }, 500);
