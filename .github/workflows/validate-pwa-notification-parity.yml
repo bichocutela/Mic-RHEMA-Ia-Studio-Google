@@ -1,0 +1,49 @@
+name: Validar notificações PWA
+
+on:
+  push:
+    branches: [fix/pwa-notification-parity]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pwa/pnpm-lock.yaml
+
+      - name: Instalar dependências PWA
+        working-directory: pwa
+        run: pnpm install --frozen-lockfile
+
+      - name: Validar TypeScript
+        working-directory: pwa
+        run: pnpm check
+
+      - name: Gerar build PWA
+        working-directory: pwa
+        env:
+          BASE_PATH: /Mic-RHEMA-Ia-Studio-Google/
+          VITE_SUPABASE_URL: https://cwphbkdtorfpgmnlafqb.supabase.co
+        run: pnpm build
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Validar Edge Functions de push
+        run: |
+          deno check supabase/functions/pwa-push-subscribe/index.ts
+          deno check supabase/functions/pwa-push-send/index.ts
+          deno check supabase/functions/notify-fcm/index.ts
