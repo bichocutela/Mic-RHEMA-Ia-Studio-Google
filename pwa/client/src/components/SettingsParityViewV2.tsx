@@ -3,6 +3,7 @@ import { signOut } from "firebase/auth";
 import { ChevronDown, ChevronUp, LogOut, RefreshCcw, Settings, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { firebaseAuth } from "@/lib/firebase";
+import { syncPwaPushPreferences } from "@/lib/push";
 import type { PwaSessionLike } from "./AndroidParityViews";
 import "./SettingsParityViewV2.css";
 
@@ -99,7 +100,11 @@ export function SettingsParityViewV2({ session, onProfile, onNotifications }: { 
   const availableSections = useMemo(() => sections.filter((id) => id !== "account" || Boolean(session)), [session]);
 
   const refreshStorage = () => navigator.storage?.estimate?.().then(({ usage = 0 }) => setStorageText(`${(usage / 1024 / 1024).toFixed(1)} MB usados pela PWA`)).catch(() => setStorageText("Uso indisponível neste navegador"));
-  useEffect(() => { applySettings(settings); }, [settings]);
+  useEffect(() => {
+    applySettings(settings);
+    const timer = window.setTimeout(() => { void syncPwaPushPreferences(); }, 350);
+    return () => window.clearTimeout(timer);
+  }, [settings]);
   useEffect(() => { void refreshStorage(); }, []);
   useEffect(() => {
     const manageWakeLock = async () => {
