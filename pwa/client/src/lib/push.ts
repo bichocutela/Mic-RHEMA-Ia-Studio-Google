@@ -61,6 +61,19 @@ export async function listenToForegroundPush(onPayload: (payload: MessagePayload
   return onMessage(getMessaging(firebaseApp), onPayload);
 }
 
+export async function sendPwaSelfTest(registrationToken?: string) {
+  const token = String(registrationToken || (await registerToken(true)).token || "").trim();
+  if (!token) throw new Error("Este aparelho ainda não possui um token de notificação.");
+  const response = await fetch(`${supabaseUrl}/functions/v1/pwa-push-self-test`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ token }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload.ok !== true) throw new Error(payload.error || "Não foi possível enviar a notificação de teste.");
+  return payload as { ok: true; sent: true };
+}
+
 export async function sendPwaPush(input: { title: string; body: string; link?: string; category?: string }) {
   const idToken = await firebaseAuth?.currentUser?.getIdToken();
   if (!idToken) throw new Error("Entre novamente como administrador para enviar o aviso.");
