@@ -134,7 +134,7 @@ private fun bibleBookEditDistance(left: String, right: String): Int {
         for (j in right.indices) {
             val insertion = current[j] + 1
             val deletion = previous[j + 1] + 1
-            val substitution = previous[j + 1] + if (left[i] == right[j]) 0 else 1
+            val substitution = previous[j] + if (left[i] == right[j]) 0 else 1
             current[j + 1] = minOf(insertion, deletion, substitution)
         }
         val swap = previous
@@ -219,11 +219,6 @@ private fun adjacentBibleChapter(book: String, chapter: Int, direction: Int): Bi
     return BibleChapterReference(books[bookIndex + 1], 1)
 }
 
-/**
- * Leitor bíblico principal do MIC Rhema.
- * Livro e capítulo são escolhidos sem trocar de experiência visual; ao tocar no capítulo,
- * a leitura abre imediatamente e continua para capítulos/livros vizinhos na mesma tela.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BibleScreen(
@@ -331,11 +326,7 @@ fun BibleScreen(
                         if (isReading || onBack != null) {
                             IconButton(
                                 onClick = {
-                                    if (onBack != null) {
-                                        onBack()
-                                    } else {
-                                        activeReadingVerse = null
-                                    }
+                                    if (onBack != null) onBack() else activeReadingVerse = null
                                 }
                             ) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Voltar")
@@ -358,11 +349,7 @@ fun BibleScreen(
                         if (isReading && onOpenComparison != null && expandedChapter != null) {
                             IconButton(
                                 onClick = {
-                                    onOpenComparison(
-                                        selectedBook,
-                                        expandedChapter ?: 1,
-                                        activeReadingVerse ?: 1
-                                    )
+                                    onOpenComparison(selectedBook, expandedChapter ?: 1, activeReadingVerse ?: 1)
                                 }
                             ) {
                                 Icon(Icons.Default.CompareArrows, contentDescription = "Comparar versões")
@@ -402,9 +389,7 @@ fun BibleScreen(
                     onRetry = { reloadKey++ },
                     onChooseAnotherReference = { activeReadingVerse = null },
                     onCompareVerse = onOpenComparison,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues)
+                    modifier = Modifier.fillMaxSize().padding(paddingValues)
                 )
             }
         } else {
@@ -419,16 +404,10 @@ fun BibleScreen(
                     availableVerses = emptyList()
                     verseLoadError = null
                 },
-                onChapterClick = { book, chapter ->
-                    openChapter(BibleChapterReference(book, chapter))
-                },
-                onDeepSearchResultClick = { book, chapter, verse ->
-                    openChapter(BibleChapterReference(book, chapter), verse)
-                },
+                onChapterClick = { book, chapter -> openChapter(BibleChapterReference(book, chapter)) },
+                onDeepSearchResultClick = { book, chapter, verse -> openChapter(BibleChapterReference(book, chapter), verse) },
                 onOpenJourney = journeyMember?.let { { showBibleJourney = true } },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
+                modifier = Modifier.fillMaxSize().padding(paddingValues)
             )
         }
     }
@@ -440,9 +419,7 @@ fun BibleScreen(
             onDismissRequest = { showResumeDialog = false },
             title = { Text("Continuar a leitura?") },
             text = {
-                Text(
-                    "Você parou em ${rememberedPosition.book} ${rememberedPosition.chapter}:${rememberedPosition.verse}. Deseja continuar de onde parou?"
-                )
+                Text("Você parou em ${rememberedPosition.book} ${rememberedPosition.chapter}:${rememberedPosition.verse}. Deseja continuar de onde parou?")
             },
             confirmButton = {
                 Button(
@@ -457,9 +434,7 @@ fun BibleScreen(
                     }
                 ) { Text("Continuar") }
             },
-            dismissButton = {
-                TextButton(onClick = { showResumeDialog = false }) { Text("Escolher outro livro") }
-            }
+            dismissButton = { TextButton(onClick = { showResumeDialog = false }) { Text("Escolher outro livro") } }
         )
     }
 
@@ -484,11 +459,7 @@ fun BibleScreen(
                             Spacer(modifier = Modifier.width(10.dp))
                             Column {
                                 Text(option.code, fontWeight = FontWeight.Bold)
-                                Text(
-                                    option.name,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Text(option.name, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
@@ -499,10 +470,7 @@ fun BibleScreen(
     }
 
     if (showBibleJourney && journeyMember != null) {
-        BibleJourneyDialog(
-            member = journeyMember,
-            onDismiss = { showBibleJourney = false }
-        )
+        BibleJourneyDialog(member = journeyMember, onDismiss = { showBibleJourney = false })
     }
 }
 
@@ -537,23 +505,11 @@ private fun BibleBookAndChapterPicker(
                         color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.48f),
                         tonalElevation = 1.dp
                     ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Icons.Default.Star,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(30.dp)
-                            )
+                        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Star, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(30.dp))
                             Spacer(modifier = Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    "Jornada Bíblica",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                Text("Jornada Bíblica", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                                 Text(
                                     "Quiz com 4 alternativas, dicas, missões Fácil/Médio/Difícil, XP e Emblemas do Perfil.",
                                     style = MaterialTheme.typography.bodySmall,
@@ -574,38 +530,24 @@ private fun BibleBookAndChapterPicker(
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 4.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
                     singleLine = true,
                     label = { Text("Pesquisar livro") },
                     placeholder = { Text("Ex.: genesis, joao, apocalpse") },
-                    leadingIcon = {
-                        Icon(Icons.Default.Search, contentDescription = "Pesquisar livro")
-                    },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Pesquisar livro") },
                     trailingIcon = {
                         if (searchQuery.isNotBlank()) {
-                            IconButton(onClick = { searchQuery = "" }) {
-                                Icon(Icons.Default.Close, contentDescription = "Limpar pesquisa")
-                            }
+                            IconButton(onClick = { searchQuery = "" }) { Icon(Icons.Default.Close, contentDescription = "Limpar pesquisa") }
                         }
                     }
                 )
 
                 if (searchQuery.isNotBlank()) {
                     Text(
-                        text = if (bestMatch != null) {
-                            "Entendi: $bestMatch"
-                        } else {
-                            "Não encontrei um livro parecido. Tente outro nome."
-                        },
+                        text = if (bestMatch != null) "Entendi: $bestMatch" else "Não encontrei um livro parecido. Tente outro nome.",
                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (bestMatch != null) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.error
-                        },
+                        color = if (bestMatch != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
                         fontWeight = if (bestMatch != null) FontWeight.SemiBold else FontWeight.Normal
                     )
                 }
@@ -615,14 +557,8 @@ private fun BibleBookAndChapterPicker(
         items(visibleBooks, key = { it }) { book ->
             val isExpanded = expandedBook == book
             Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onBookClick(book) },
-                color = if (isExpanded) {
-                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.52f)
-                } else {
-                    Color.Transparent
-                }
+                modifier = Modifier.fillMaxWidth().clickable { onBookClick(book) },
+                color = if (isExpanded) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.52f) else Color.Transparent
             ) {
                 Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -655,10 +591,7 @@ private fun BibleBookAndChapterPicker(
         }
 
         item(key = "deep_search") {
-            BibleDeepSearchSection(
-                versionCode = selectedVersion,
-                onResultClick = onDeepSearchResultClick
-            )
+            BibleDeepSearchSection(versionCode = selectedVersion, onResultClick = onDeepSearchResultClick)
         }
     }
 }
@@ -674,9 +607,7 @@ private fun BibleChapterStrip(
     ) {
         items((1..totalChapters).toList(), key = { it }) { chapter ->
             Surface(
-                modifier = Modifier
-                    .size(width = 52.dp, height = 44.dp)
-                    .clickable { onChapterClick(chapter) },
+                modifier = Modifier.size(width = 52.dp, height = 44.dp).clickable { onChapterClick(chapter) },
                 shape = RoundedCornerShape(12.dp),
                 color = MaterialTheme.colorScheme.surface,
                 tonalElevation = 1.dp
@@ -689,7 +620,6 @@ private fun BibleChapterStrip(
     }
 }
 
-/** Leitura do capítulo com posição correta, ações discretas e continuidade entre capítulos. */
 @Composable
 private fun ContinuousBibleChapterReader(
     book: String,
@@ -725,18 +655,13 @@ private fun ContinuousBibleChapterReader(
     DisposableEffect(readingSettings.keepScreenOn) {
         val window = (context as? Activity)?.window
         if (window != null) {
-            if (readingSettings.keepScreenOn) {
-                window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            } else {
-                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            }
+            if (readingSettings.keepScreenOn) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
         onDispose { window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
     }
 
-    LaunchedEffect(Unit) {
-        BibleReadingPreferences.loadLocalFavoritesIntoState(context)
-    }
+    LaunchedEffect(Unit) { BibleReadingPreferences.loadLocalFavoritesIntoState(context) }
 
     LaunchedEffect(verses, focusedVerse) {
         val targetIndex = verses.indexOfFirst { it.verse == focusedVerse }
@@ -753,8 +678,7 @@ private fun ContinuousBibleChapterReader(
         while (true) {
             delay(7000)
             val currentIndex = listState.firstVisibleItemIndex
-            val lastReaderIndex = verses.size
-            val nextIndex = (currentIndex + 1).coerceAtMost(lastReaderIndex)
+            val nextIndex = (currentIndex + 1).coerceAtMost(verses.size)
             if (nextIndex == currentIndex) break
             listState.animateScrollToItem(nextIndex)
         }
@@ -792,12 +716,8 @@ private fun ContinuousBibleChapterReader(
             verticalArrangement = Arrangement.Center
         ) {
             Text(errorMessage, color = MaterialTheme.colorScheme.error)
-            Button(onClick = onRetry, modifier = Modifier.padding(top = 16.dp)) {
-                Text("Tentar novamente")
-            }
-            TextButton(onClick = onChooseAnotherReference) {
-                Text("Escolher outro livro")
-            }
+            Button(onClick = onRetry, modifier = Modifier.padding(top = 16.dp)) { Text("Tentar novamente") }
+            TextButton(onClick = onChooseAnotherReference) { Text("Escolher outro livro") }
         }
 
         verses.isEmpty() -> Box(modifier = modifier, contentAlignment = Alignment.Center) {
@@ -812,10 +732,7 @@ private fun ContinuousBibleChapterReader(
         ) {
             item(key = "reader_header") {
                 Column(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             "$book $chapter • $version",
                             style = MaterialTheme.typography.titleMedium,
@@ -823,9 +740,7 @@ private fun ContinuousBibleChapterReader(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.weight(1f)
                         )
-                        TextButton(onClick = { showVerseDialog = true }) {
-                            Text("Ir para versículo")
-                        }
+                        TextButton(onClick = { showVerseDialog = true }) { Text("Ir para versículo") }
                     }
                     Text(
                         "Toque em um versículo para mostrar marcação, favorito e marcador.",
@@ -853,9 +768,7 @@ private fun ContinuousBibleChapterReader(
                         actionsVerse = if (actionsVerse == verseItem.verse) null else verseItem.verse
                     },
                     onBookmarkChanged = { currentBookmark = it },
-                    onCompare = onCompareVerse?.let {
-                        { it(book, chapter, verseItem.verse) }
-                    },
+                    onCompare = onCompareVerse?.let { { it(book, chapter, verseItem.verse) } },
                     onNotify = { message -> Toast.makeText(context, message, Toast.LENGTH_SHORT).show() }
                 )
             }
@@ -868,20 +781,12 @@ private fun ContinuousBibleChapterReader(
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        OutlinedButton(
-                            onClick = onPrevious,
-                            enabled = previousReference != null,
-                            modifier = Modifier.weight(1f)
-                        ) {
+                        OutlinedButton(onClick = onPrevious, enabled = previousReference != null, modifier = Modifier.weight(1f)) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
                             Spacer(modifier = Modifier.width(5.dp))
                             Text(previousReference?.let { "${it.book} ${it.chapter}" } ?: "Anterior")
                         }
-                        Button(
-                            onClick = onNext,
-                            enabled = nextReference != null,
-                            modifier = Modifier.weight(1f)
-                        ) {
+                        Button(onClick = onNext, enabled = nextReference != null, modifier = Modifier.weight(1f)) {
                             Text(nextReference?.let { "${it.book} ${it.chapter}" } ?: "Próximo")
                             Spacer(modifier = Modifier.width(5.dp))
                             Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null)
@@ -890,9 +795,7 @@ private fun ContinuousBibleChapterReader(
                     TextButton(
                         onClick = onChooseAnotherReference,
                         modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 4.dp)
-                    ) {
-                        Text("Escolher outro livro ou capítulo")
-                    }
+                    ) { Text("Escolher outro livro ou capítulo") }
                 }
             }
         }
@@ -923,11 +826,7 @@ private fun ContinuousBibleChapterReader(
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text(
-                                "${verse.verse}. ${verse.text}",
-                                modifier = Modifier.fillMaxWidth(),
-                                maxLines = 2
-                            )
+                            Text("${verse.verse}. ${verse.text}", modifier = Modifier.fillMaxWidth(), maxLines = 2)
                         }
                     }
                 }
@@ -954,20 +853,14 @@ private fun ContinuousBibleVerseRow(
 ) {
     val context = LocalContext.current
     val verseKey = BibleReadingPreferences.key(book, chapter, verseItem.verse, version)
-    var isHighlighted by remember(verseKey) {
-        mutableStateOf(BibleReadingPreferences.isHighlighted(context, verseKey))
-    }
-    var isFavorite by remember(verseKey) {
-        mutableStateOf(BibleReadingPreferences.isFavorite(context, verseKey))
-    }
+    var isHighlighted by remember(verseKey) { mutableStateOf(BibleReadingPreferences.isHighlighted(context, verseKey)) }
+    var isFavorite by remember(verseKey) { mutableStateOf(BibleReadingPreferences.isFavorite(context, verseKey)) }
     val isBookmark = currentBookmark?.let {
         BibleReadingPreferences.key(it.book, it.chapter, it.verse, it.version) == verseKey
     } == true
 
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onTap),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onTap),
         color = when {
             isFocused -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.48f)
             isHighlighted -> MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.30f)
