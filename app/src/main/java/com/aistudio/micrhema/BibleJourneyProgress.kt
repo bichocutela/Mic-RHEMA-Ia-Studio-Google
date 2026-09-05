@@ -28,7 +28,16 @@ object BibleJourneyProgressTracker {
 
     private fun parseXp(entry: String): Int = entry.substringAfterLast('=', "0").toIntOrNull()?.coerceAtLeast(0) ?: 0
 
-    fun totalXp(member: MemberRequest): Int = member.ids(BadgeActivityKeys.XP_AWARDS).sumOf(::parseXp)
+    private fun localTotalXp(member: MemberRequest): Int = member.ids(BadgeActivityKeys.XP_AWARDS).sumOf(::parseXp)
+
+    fun totalXp(member: MemberRequest): Int {
+        val local = localTotalXp(member)
+        val central = xpAccountState.value
+            ?.takeIf { it.memberId == member.id }
+            ?.totalEarned
+            ?: 0
+        return maxOf(local, central)
+    }
 
     fun stats(member: MemberRequest): BibleJourneyStats = BibleJourneyStats(
         totalXp = totalXp(member),
@@ -41,8 +50,8 @@ object BibleJourneyProgressTracker {
     )
 
     /**
-     * A primeira resposta de cada pergunta é a única que altera progresso e concede XP.
-     * Depois disso a questão continua disponível para estudo, mas vale 0 XP.
+     * A primeira resposta de cada pergunta é a única que altera progresso.
+     * XP só passa a ser concedido depois que o Nível 8 estiver desbloqueado.
      */
     fun submitQuizAnswer(
         context: Context,
@@ -71,13 +80,15 @@ object BibleJourneyProgressTracker {
         }
 
         add(BadgeActivityKeys.QUIZ_ANSWERED, question.id)
+        val xpAllowed = isXpUnlocked(member)
+        val grantedXp = if (evaluated.isCorrect && xpAllowed) evaluated.awardedXp else 0
         if (evaluated.isCorrect) {
             add(BadgeActivityKeys.QUIZ_CORRECT, question.id)
             if (hintUsed != BibleQuizHintUsage.EASY) add(BadgeActivityKeys.QUIZ_CORRECT_NO_EASY_HINT, question.id)
             if (hintUsed == BibleQuizHintUsage.NONE) add(BadgeActivityKeys.QUIZ_CORRECT_NO_HINT, question.id)
             if (question.difficulty == BibleQuizDifficulty.HARD) add(BadgeActivityKeys.QUIZ_HARD_CORRECT, question.id)
-            if (evaluated.awardedXp > 0) {
-                add(BadgeActivityKeys.XP_AWARDS, "quiz:${question.id}=${evaluated.awardedXp}")
+            if (grantedXp > 0) {
+                add(BadgeActivityKeys.XP_AWARDS, "quiz:${question.id}=$grantedXp")
             }
         }
 
@@ -91,17 +102,26 @@ object BibleJourneyProgressTracker {
         return BibleQuizSubmission(
             result = evaluated,
             firstAttempt = true,
-            xpGranted = evaluated.awardedXp,
+            xpGranted = grantedXp,
             totalXp = totalXp(loggedInMemberState.value ?: rewardedMember)
         )
     }
 
     /**
-     * Concede a recompensa de cada missão concluída uma única vez. O próprio ID da
-     * missão funciona como recibo, e cada lançamento de XP também tem chave estável.
+     * Concede a recompensa de cada missão concluída uma única vez, somente após o
+     * desbloqueio do sistema de XP no Nível 8. Missões concluídas antes disso ficam
+     * preservadas para serem reconciliadas quando a Jornada XP for liberada.
      */
     fun reconcileMissionRewards(context: Context, sourceMember: MemberRequest): MemberRequest {
         val member = ensureBibleJourneyBaseline(sourceMember)
+        if (!isXpUnlocked(member)) {
+            if (member.badgeActivityIds != sourceMember.badgeActivityIds) {
+                BadgeActivityTracker.updateMemberStates(member)
+                BadgeActivityTracker.syncPortableState(context, member)
+            }
+            return member
+        }
+
         val progress = calculateBibleMissionProgress(member)
         val alreadyAwarded = member.ids(BadgeActivityKeys.JOURNEY_MISSIONS).toMutableSet()
         val xpAwards = member.ids(BadgeActivityKeys.XP_AWARDS).toMutableList()
