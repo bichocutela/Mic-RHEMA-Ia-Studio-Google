@@ -124,12 +124,13 @@ object XpEngineClient {
         return account
     }
 
-    fun refresh(context: Context, member: MemberRequest = loggedInMemberState.value ?: return, force: Boolean = false) {
+    fun refresh(context: Context, member: MemberRequest? = loggedInMemberState.value, force: Boolean = false) {
+        val activeMember = member ?: return
         val now = System.currentTimeMillis()
-        if (!force && member.id == lastRefreshMemberId && now - lastRefreshAt < 60_000L) return
+        if (!force && activeMember.id == lastRefreshMemberId && now - lastRefreshAt < 60_000L) return
         scope.launch {
             try {
-                refreshNow(member)
+                refreshNow(activeMember)
             } catch (error: Throwable) {
                 Log.w("XpEngineClient", "Falha ao atualizar saldo XP", error)
                 withContext(Dispatchers.Main) { xpSyncErrorState.value = error.message.orEmpty() }
