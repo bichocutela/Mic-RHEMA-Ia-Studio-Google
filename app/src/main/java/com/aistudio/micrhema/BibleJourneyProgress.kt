@@ -54,9 +54,9 @@ object BibleJourneyProgressTracker {
     }
 
     /**
-     * Além dos recibos já persistidos, inclui na leitura o XP que ficou faltando
-     * nas respostas corretas gravadas pela versão antiga. Assim a tela corrige o
-     * total imediatamente ao atualizar o app, mesmo antes de uma nova resposta.
+     * O histórico XP_AWARDS é mantido somente para leitura/migração do legado.
+     * Prêmios novos passam exclusivamente pelo ledger central para não serem
+     * contados uma segunda vez como XP legado.
      */
     private fun localTotalXp(member: MemberRequest): Int {
         val awards = member.ids(BadgeActivityKeys.XP_AWARDS)
@@ -88,9 +88,9 @@ object BibleJourneyProgressTracker {
     )
 
     /**
-     * Recupera de forma persistente o XP das respostas corretas registradas quando
-     * a regra antiga bloqueava o Quiz antes do Nível 8. O recibo quiz:<id> torna a
-     * migração idempotente e preserva a redução correta quando uma dica foi usada.
+     * Recupera de forma persistente apenas o XP realmente legado das respostas
+     * corretas registradas por versões antigas. O backend reconhece estes recibos
+     * e não concede o mesmo prêmio novamente no ledger central.
      */
     fun reconcileQuizXp(context: Context, sourceMember: MemberRequest): MemberRequest {
         val correctIds = sourceMember.ids(BadgeActivityKeys.QUIZ_CORRECT).toSet()
@@ -123,9 +123,8 @@ object BibleJourneyProgressTracker {
 
     /**
      * A primeira resposta de cada pergunta é a única que altera progresso.
-     * O XP do Quiz é experiência extra da Jornada e começa a ser acumulado desde
-     * o primeiro nível. O Nível 8 continua sendo o desbloqueio da Loja XP e dos
-     * demais ganhos do ecossistema.
+     * O XP do Quiz é enviado ao ledger central desde o primeiro nível. O Nível 8
+     * continua sendo o desbloqueio da Loja XP e dos demais ganhos do ecossistema.
      */
     fun submitQuizAnswer(
         context: Context,
@@ -161,9 +160,6 @@ object BibleJourneyProgressTracker {
             if (hintUsed != BibleQuizHintUsage.EASY) add(BadgeActivityKeys.QUIZ_CORRECT_NO_EASY_HINT, question.id)
             if (hintUsed == BibleQuizHintUsage.NONE) add(BadgeActivityKeys.QUIZ_CORRECT_NO_HINT, question.id)
             if (question.difficulty == BibleQuizDifficulty.HARD) add(BadgeActivityKeys.QUIZ_HARD_CORRECT, question.id)
-            if (grantedXp > 0) {
-                add(BadgeActivityKeys.XP_AWARDS, "quiz:${question.id}=$grantedXp")
-            }
         }
 
         val answeredMember = member.copy(badgeActivityIds = activities)
@@ -185,9 +181,9 @@ object BibleJourneyProgressTracker {
     }
 
     /**
-     * Concede a recompensa de cada missão concluída uma única vez, somente após o
-     * desbloqueio do sistema de XP no Nível 8. Missões concluídas antes disso ficam
-     * preservadas para serem reconciliadas quando a Jornada XP for liberada.
+     * Concede cada missão concluída uma única vez pelo ledger central, somente após
+     * o desbloqueio do sistema de XP no Nível 8. O marcador local registra apenas
+     * que a missão foi concluída; ele não duplica o valor do prêmio.
      */
     fun reconcileMissionRewards(context: Context, sourceMember: MemberRequest): MemberRequest {
         val member = ensureBibleJourneyBaseline(sourceMember)
@@ -201,7 +197,6 @@ object BibleJourneyProgressTracker {
 
         val progress = calculateBibleMissionProgress(member)
         val alreadyAwarded = member.ids(BadgeActivityKeys.JOURNEY_MISSIONS).toMutableSet()
-        val xpAwards = member.ids(BadgeActivityKeys.XP_AWARDS).toMutableList()
         val newlyCompleted = progress.filter { it.completed && it.mission.id !in alreadyAwarded }
         if (newlyCompleted.isEmpty()) {
             if (member.badgeActivityIds != sourceMember.badgeActivityIds) {
@@ -213,16 +208,11 @@ object BibleJourneyProgressTracker {
 
         newlyCompleted.forEach { item ->
             alreadyAwarded.add(item.mission.id)
-            val awardId = "mission:${item.mission.id}"
-            if (xpAwards.none { it.substringBefore('=') == awardId }) {
-                xpAwards.add("$awardId=${item.mission.xpReward}")
-                XpActivityBridge.journeyMission(context, item.mission)
-            }
+            XpActivityBridge.journeyMission(context, item.mission)
         }
 
         val activities = member.badgeActivityIds.toMutableMap()
         activities[BadgeActivityKeys.JOURNEY_MISSIONS] = alreadyAwarded.sorted()
-        activities[BadgeActivityKeys.XP_AWARDS] = xpAwards.distinct()
         val rewarded = member.copy(badgeActivityIds = activities)
         BadgeActivityTracker.updateMemberStates(rewarded)
         BadgeActivityTracker.syncPortableState(context, rewarded)
