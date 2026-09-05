@@ -312,19 +312,30 @@ Deno.serve(async (request) => {
     if (action === "redeem") {
       if (!member.xpUnlocked) return json({ error: "A Loja XP é liberada no Nível 8." }, 403);
       const itemId = clean(input.itemId, 100);
+      const expectedCost = Math.floor(Number(input.expectedCost ?? 0));
       if (!itemId) return json({ error: "Recompensa inválida." }, 400);
+      if (input.expectedCost !== undefined && (!Number.isFinite(expectedCost) || expectedCost <= 0)) {
+        return json({ error: "Preço esperado inválido." }, 400);
+      }
 
       const { data: availabilityItem, error: availabilityError } = await supabase
         .from("xp_shop_items")
-        .select("id,active,available_from,available_until")
+        .select("id,cost,active,available_from,available_until")
         .eq("id", itemId)
         .maybeSingle();
       if (availabilityError) throw availabilityError;
       if (!availabilityItem || availabilityItem.active !== true || !isAvailableNow(availabilityItem as Record<string, unknown>)) {
         return json({ error: "Recompensa indisponível neste período." }, 409);
       }
+      if (expectedCost > 0 && Number(availabilityItem.cost) !== expectedCost) {
+        return json({ error: "O preço da recompensa foi atualizado. Atualize a Loja e confirme novamente." }, 409);
+      }
 
-      const { data, error } = await supabase.rpc("xp_redeem", { p_member_id: memberId, p_item_id: itemId });
+      const rpcName = expectedCost > 0 ? "xp_redeem_checked" : "xp_redeem";
+      const rpcArgs = expectedCost > 0
+        ? { p_member_id: memberId, p_item_id: itemId, p_expected_cost: expectedCost }
+        : { p_member_id: memberId, p_item_id: itemId };
+      const { data, error } = await supabase.rpc(rpcName, rpcArgs);
       if (error) throw error;
       const row = Array.isArray(data) ? data[0] : data;
       if (!row) throw new Error("O resgate não retornou resultado.");
@@ -352,7 +363,7 @@ Deno.serve(async (request) => {
     const message = error instanceof Error ? error.message : "Falha na Loja XP.";
     const lowered = message.toLowerCase();
     const status = lowered.includes("acesso administrativo") || lowered.includes("sessão administrativa") ? 403
-      : lowered.includes("saldo xp insuficiente") || lowered.includes("esgotada") || lowered.includes("limite de resgate") || lowered.includes("indisponível") ? 409
+      : lowered.includes("saldo xp insuficiente") || lowered.includes("esgotada") || lowered.includes("limite de resgate") || lowered.includes("indisponível") || lowered.includes("preço") ? 409
       : lowered.includes("inválid") || lowered.includes("não encontrado") || lowered.includes("não pode") ? 400
       : 500;
     return json({ error: message }, status);
