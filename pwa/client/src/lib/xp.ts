@@ -74,16 +74,54 @@ export type PwaXpAwardResult = {
   account: PwaXpAccount;
 };
 
-async function request<T>(body: Record<string, unknown>, forceRefresh = false): Promise<T> {
+export type PwaQuizDifficulty = "easy" | "medium" | "hard";
+export type PwaQuizQuestion = {
+  id: string;
+  difficulty: PwaQuizDifficulty;
+  baseXp: number;
+  prompt: string;
+  options: string[];
+};
+export type PwaQuizStatus = {
+  ok: true;
+  unlocked: boolean;
+  difficulty: PwaQuizDifficulty;
+  answered: number;
+  total: number;
+  question: PwaQuizQuestion | null;
+};
+export type PwaQuizHint = {
+  ok: true;
+  questionId: string;
+  variant: "subtle_hint" | "easy_hint";
+  hint: string;
+  multiplier: number;
+};
+export type PwaQuizAnswer = {
+  ok: true;
+  unlocked: boolean;
+  questionId: string;
+  duplicate: boolean;
+  granted: number;
+  correct: boolean;
+  selectedOptionIndex: number;
+  correctOptionIndex: number;
+  variant: "" | "subtle_hint" | "easy_hint";
+  reference: string;
+  explanation: string;
+  account: PwaXpAccount;
+};
+
+async function authenticatedRequest<T>(endpoint: string, body: Record<string, unknown>, forceRefresh = false): Promise<T> {
   const user = firebaseAuth?.currentUser;
   if (!user) throw new Error("Entre novamente para acessar a Jornada XP.");
   const token = await user.getIdToken(forceRefresh);
-  const response = await fetch(`${supabaseUrl}/functions/v1/pwa-xp`, {
+  const response = await fetch(`${supabaseUrl}/functions/v1/${endpoint}`, {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
     body: JSON.stringify(body),
   });
-  if (response.status === 401 && !forceRefresh) return request<T>(body, true);
+  if (response.status === 401 && !forceRefresh) return authenticatedRequest<T>(endpoint, body, true);
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.ok !== true) {
     const error = new Error(payload.error || "Não foi possível sincronizar a Jornada XP agora.");
@@ -91,6 +129,13 @@ async function request<T>(body: Record<string, unknown>, forceRefresh = false): 
     throw error;
   }
   return payload as T;
+}
+
+function request<T>(body: Record<string, unknown>, forceRefresh = false): Promise<T> {
+  return authenticatedRequest<T>("pwa-xp", body, forceRefresh);
+}
+function quizRequest<T>(body: Record<string, unknown>, forceRefresh = false): Promise<T> {
+  return authenticatedRequest<T>("xp-quiz", body, forceRefresh);
 }
 
 export function loadPwaXpDashboard() {
@@ -117,4 +162,20 @@ export function redeemPwaXp(itemId: string, expectedCost: number) {
     itemId,
     expectedCost,
   });
+}
+
+export function loadPwaQuiz(difficulty: PwaQuizDifficulty) {
+  return quizRequest<PwaQuizStatus>({ action: "status", difficulty });
+}
+
+export function requestPwaQuizHint(questionId: string, hint: "subtle" | "easy") {
+  return quizRequest<PwaQuizHint>({ action: "hint", questionId, hint });
+}
+
+export function submitPwaQuizAnswer(questionId: string, selectedOptionIndex: number) {
+  return quizRequest<PwaQuizAnswer>({ action: "answer", questionId, selectedOptionIndex });
+}
+
+export function syncPwaQuizProfile() {
+  return authenticatedRequest<{ ok: true; answered: number; correct: number; noEasyHint: number; noHint: number; hardCorrect: number }>("pwa-quiz-sync", {});
 }

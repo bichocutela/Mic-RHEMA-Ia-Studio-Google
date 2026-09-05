@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Gift, History, RefreshCcw, ShoppingBag, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { loadPwaXpDashboard, redeemPwaXp, type PwaXpAccount, type PwaXpDashboard } from "@/lib/xp";
+import { PwaQuizPanel } from "./PwaQuizPanel";
 
 export function PwaXpPanel({ onAccount }: { onAccount?: (account: PwaXpAccount) => void }) {
   const [dashboard, setDashboard] = useState<PwaXpDashboard | null>(null);
@@ -85,12 +86,14 @@ export function PwaXpPanel({ onAccount }: { onAccount?: (account: PwaXpAccount) 
   );
 
   return <section className="parity-card" style={{marginTop:18}}>
-    <div className="parity-title" style={{marginBottom:12}}><div><p>JORNADA CENTRAL</p><h2>XP e Loja</h2><span>Mesmo saldo, histórico e resgates do Android.</span></div><Sparkles size={28}/></div>
+    <div className="parity-title" style={{marginBottom:12}}><div><p>JORNADA CENTRAL</p><h2>XP e Loja</h2><span>Mesmo saldo, histórico, Quiz e resgates do Android.</span></div><Sparkles size={28}/></div>
     <div style={{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:10}}>
       <div className="profile-v2-stat"><strong>{account.total_earned} XP</strong><small>XP Total</small></div>
       <div className="profile-v2-stat"><strong>{account.balance} XP</strong><small>Saldo XP</small></div>
       <div className="profile-v2-stat"><strong>{dashboard.streak}</strong><small>dias seguidos</small></div>
     </div>
+
+    <PwaQuizPanel onXpChange={reload}/>
 
     {shop}
 
