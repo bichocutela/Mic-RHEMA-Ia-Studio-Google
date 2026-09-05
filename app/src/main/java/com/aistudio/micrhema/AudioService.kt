@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.Player
@@ -17,6 +19,26 @@ import com.google.common.collect.ImmutableList
 class AudioService : MediaSessionService() {
     private var mediaSession: MediaSession? = null
     private var screenReceiverRegistered = false
+    private val xpHandler = Handler(Looper.getMainLooper())
+    private val xpProgressRunnable = object : Runnable {
+        override fun run() {
+            val player = mediaSession?.player
+            if (player != null && player.isPlaying) {
+                val mediaUrl = player.currentMediaItem?.localConfiguration?.uri?.toString().orEmpty()
+                if (mediaUrl.isNotBlank()) {
+                    XpMediaClient.recordAudio(
+                        context = this@AudioService,
+                        audioUrl = mediaUrl,
+                        positionMs = player.currentPosition.coerceAtLeast(0L),
+                        durationMs = player.duration.coerceAtLeast(0L),
+                        isActive = true
+                    )
+                }
+            }
+            xpHandler.postDelayed(this, 4_000L)
+        }
+    }
+
     private val screenOffReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (
@@ -53,7 +75,7 @@ class AudioService : MediaSessionService() {
             .setIconResId(R.drawable.ic_rewind_10)
             .setDisplayName("Voltar ${settings.skipTime.coerceIn(10, 30)}s")
             .build()
-            
+
         val forwardButton = CommandButton.Builder()
             .setPlayerCommand(Player.COMMAND_SEEK_FORWARD)
             .setIconResId(R.drawable.ic_forward_30)
@@ -69,7 +91,7 @@ class AudioService : MediaSessionService() {
                 ): MediaSession.ConnectionResult {
                     val sessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon().build()
                     val playerCommands = MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS.buildUpon().build()
-                    
+
                     return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                         .setAvailableSessionCommands(sessionCommands)
                         .setAvailablePlayerCommands(playerCommands)
@@ -78,6 +100,8 @@ class AudioService : MediaSessionService() {
                 }
             })
             .build()
+
+        xpHandler.post(xpProgressRunnable)
 
         val filter = IntentFilter(Intent.ACTION_SCREEN_OFF)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -100,6 +124,7 @@ class AudioService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        xpHandler.removeCallbacks(xpProgressRunnable)
         if (screenReceiverRegistered) {
             unregisterReceiver(screenOffReceiver)
             screenReceiverRegistered = false
