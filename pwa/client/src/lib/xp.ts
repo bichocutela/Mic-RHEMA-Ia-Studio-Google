@@ -112,6 +112,25 @@ export type PwaQuizAnswer = {
   account: PwaXpAccount;
 };
 
+export type PwaMediaType = "book" | "audio" | "video";
+export type PwaMediaProgressResult = {
+  ok: true;
+  unlocked: boolean;
+  qualified: boolean;
+  tenGranted: number;
+  completeGranted: number;
+  progress?: { activeMs: number; consumedMs: number; maxFraction: number };
+  account: PwaXpAccount;
+};
+export type PwaDevotionalProgressResult = {
+  ok: true;
+  unlocked: boolean;
+  qualified: boolean;
+  granted: number;
+  duplicate?: boolean;
+  account: PwaXpAccount;
+};
+
 type PwaQuizSyncResult = { ok: true; answered: number; correct: number; noEasyHint: number; noHint: number; hardCorrect: number };
 
 async function authenticatedRequest<T>(endpoint: string, body: Record<string, unknown>, forceRefresh = false): Promise<T> {
@@ -160,6 +179,23 @@ export async function tryAwardPwaXp(activity: string, contentId: string) {
     if (value.status === 409) return null;
     throw error;
   }
+}
+
+export function reportPwaDevotional(contentId: string, elapsedMs: number, fraction: number) {
+  return authenticatedRequest<PwaDevotionalProgressResult>("pwa-xp-devotional", { contentId, elapsedMs, fraction });
+}
+
+export function reportPwaMediaProgress(
+  mediaType: PwaMediaType,
+  itemId: string,
+  positionMs: number,
+  durationMs: number,
+  fraction: number,
+  isActive: boolean,
+) {
+  return authenticatedRequest<PwaMediaProgressResult>("pwa-xp-media", {
+    mediaType, itemId, positionMs, durationMs, fraction, isActive,
+  });
 }
 
 export function redeemPwaXp(itemId: string, expectedCost: number) {
