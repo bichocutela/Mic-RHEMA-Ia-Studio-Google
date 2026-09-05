@@ -139,7 +139,7 @@ private fun meetsLevelRequirements(badgeId: String, c: LevelMissionCounters): Bo
     "estudante_rhema" -> c.count(BadgeActivityKeys.BOOKS) >= 3 && c.count(BadgeActivityKeys.VIDEOS) >= 3 && c.count(BadgeActivityKeys.AUDIOS) >= 2
     "mestre_da_palavra" -> c.completedIbrCourses >= 1 && c.count(BadgeActivityKeys.BIBLE_NEWS) >= 3 && c.count(BadgeActivityKeys.BIBLE_CHAPTERS) >= 10
     "guardiao_da_fe" -> c.usedCoreAreas >= coreLevelActivityKeys.size && c.activeMinutes >= 180
-    "semente_da_fe" -> c.totalXp >= 100 && c.count(BadgeActivityKeys.BIBLE_CHAPTERS) >= 2 && c.count(BadgeActivityKeys.QUIZ_CORRECT) >= 2
+    "semente_da_fe" -> c.count(BadgeActivityKeys.BIBLE_CHAPTERS) >= 2 && c.count(BadgeActivityKeys.QUIZ_CORRECT) >= 2
     "caminho_da_promessa" -> c.totalXp >= 200 && c.count(BadgeActivityKeys.BIBLE_CHAPTERS) >= 3 && c.count(BadgeActivityKeys.QUIZ_CORRECT) >= 3
     "escudo_da_fe" -> c.totalXp >= 350 && c.count(BadgeActivityKeys.QUIZ_CORRECT_NO_EASY_HINT) >= 5 && c.activeMinutes >= 10
     "aguas_vivas" -> c.totalXp >= 500 && c.count(BadgeActivityKeys.BIBLE_CHAPTERS) >= 5 && c.count(BadgeActivityKeys.QUIZ_CORRECT) >= 5
@@ -166,7 +166,7 @@ private fun levelProgress(badgeId: String, c: LevelMissionCounters): Float = whe
     "estudante_rhema" -> minOf(ratio(c.count(BadgeActivityKeys.BOOKS), 3), ratio(c.count(BadgeActivityKeys.VIDEOS), 3), ratio(c.count(BadgeActivityKeys.AUDIOS), 2))
     "mestre_da_palavra" -> minOf(ratio(c.completedIbrCourses, 1), ratio(c.count(BadgeActivityKeys.BIBLE_NEWS), 3), ratio(c.count(BadgeActivityKeys.BIBLE_CHAPTERS), 10))
     "guardiao_da_fe" -> minOf(ratio(c.usedCoreAreas, coreLevelActivityKeys.size), ratio(c.activeMinutes, 180))
-    "semente_da_fe" -> minOf(ratio(c.totalXp, 100), ratio(c.count(BadgeActivityKeys.BIBLE_CHAPTERS), 2), ratio(c.count(BadgeActivityKeys.QUIZ_CORRECT), 2))
+    "semente_da_fe" -> minOf(ratio(c.count(BadgeActivityKeys.BIBLE_CHAPTERS), 2), ratio(c.count(BadgeActivityKeys.QUIZ_CORRECT), 2))
     "caminho_da_promessa" -> minOf(ratio(c.totalXp, 200), ratio(c.count(BadgeActivityKeys.BIBLE_CHAPTERS), 3), ratio(c.count(BadgeActivityKeys.QUIZ_CORRECT), 3))
     "escudo_da_fe" -> minOf(ratio(c.totalXp, 350), ratio(c.count(BadgeActivityKeys.QUIZ_CORRECT_NO_EASY_HINT), 5), ratio(c.activeMinutes, 10))
     "aguas_vivas" -> minOf(ratio(c.totalXp, 500), ratio(c.count(BadgeActivityKeys.BIBLE_CHAPTERS), 5), ratio(c.count(BadgeActivityKeys.QUIZ_CORRECT), 5))
