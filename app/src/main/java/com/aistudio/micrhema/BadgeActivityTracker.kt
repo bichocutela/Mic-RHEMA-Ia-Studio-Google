@@ -49,6 +49,10 @@ object BadgeActivityTracker {
     }
 
     fun reconcile(context: Context, member: MemberRequest) {
+        // A conta central é atualizada de forma assíncrona e com throttle; a ausência
+        // de rede nunca impede o progresso local das missões e emblemas.
+        XpEngineClient.refresh(context, member)
+
         val journeyPrepared = ensureBibleJourneyBaseline(member)
         val preparedMember = ensureCurrentLevelMissionBaseline(journeyPrepared)
         val calculated = calculateBadgeProgress(preparedMember)
