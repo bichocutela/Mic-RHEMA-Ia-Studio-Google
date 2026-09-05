@@ -1,0 +1,140 @@
+alter table public.xp_shop_items
+  add column if not exists available_from timestamptz null,
+  add column if not exists available_until timestamptz null;
+
+alter table public.xp_redemptions
+  add column if not exists member_name text not null default '';
+
+create or replace function public.xp_admin_update_redemption(
+  p_redemption_id uuid,
+  p_status text
+)
+returns table(
+  redemption_id uuid,
+  redemption_status text,
+  delivered_at timestamptz,
+  member_id text,
+  item_id text,
+  item_name text,
+  cost integer,
+  total_earned integer,
+  total_spent integer,
+  balance integer
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_redemption public.xp_redemptions%rowtype;
+  v_account public.xp_accounts%rowtype;
+  v_item public.xp_shop_items%rowtype;
+begin
+  if p_status not in ('pendente','entregue','cancelado') then
+    raise exception 'Status de resgate inválido';
+  end if;
+
+  select * into v_redemption
+  from public.xp_redemptions
+  where id = p_redemption_id
+  for update;
+  if not found then raise exception 'Resgate não encontrado'; end if;
+
+  select * into v_account
+  from public.xp_accounts
+  where member_id = v_redemption.member_id
+  for update;
+  if not found then raise exception 'Conta XP não encontrada'; end if;
+
+  select * into v_item
+  from public.xp_shop_items
+  where id = v_redemption.item_id
+  for update;
+  if not found then raise exception 'Recompensa não encontrada'; end if;
+
+  if v_redemption.status = p_status then
+    return query select
+      v_redemption.id,
+      v_redemption.status,
+      v_redemption.delivered_at,
+      v_redemption.member_id,
+      v_redemption.item_id,
+      v_redemption.item_name,
+      v_redemption.cost,
+      v_account.total_earned,
+      v_account.total_spent,
+      v_account.balance;
+    return;
+  end if;
+
+  if v_redemption.status = 'cancelado' then
+    raise exception 'Resgate cancelado não pode ser reaberto';
+  end if;
+
+  if v_redemption.status = 'entregue' and p_status <> 'entregue' then
+    raise exception 'Resgate já entregue não pode ser alterado';
+  end if;
+
+  if p_status = 'cancelado' then
+    update public.xp_accounts
+    set total_spent = greatest(total_spent - v_redemption.cost, 0),
+        balance = balance + v_redemption.cost,
+        updated_at = now()
+    where member_id = v_redemption.member_id
+    returning * into v_account;
+
+    if v_item.stock is not null then
+      update public.xp_shop_items
+      set stock = stock + 1,
+          updated_at = now()
+      where id = v_item.id;
+    end if;
+
+    insert into public.xp_transactions(
+      member_id, type, amount, activity, content_id, variant, receipt_id, description
+    ) values (
+      v_redemption.member_id,
+      'adjustment',
+      v_redemption.cost,
+      'shop_refund',
+      v_redemption.item_id,
+      'cancelled_redemption',
+      'shop_refund:' || v_redemption.id::text,
+      'Estorno: ' || v_redemption.item_name
+    ) on conflict (member_id, receipt_id) do nothing;
+
+    update public.xp_redemptions
+    set status = 'cancelado', delivered_at = null
+    where id = v_redemption.id
+    returning * into v_redemption;
+  elsif p_status = 'entregue' then
+    update public.xp_redemptions
+    set status = 'entregue', delivered_at = now()
+    where id = v_redemption.id
+    returning * into v_redemption;
+  else
+    update public.xp_redemptions
+    set status = 'pendente', delivered_at = null
+    where id = v_redemption.id
+    returning * into v_redemption;
+  end if;
+
+  return query select
+    v_redemption.id,
+    v_redemption.status,
+    v_redemption.delivered_at,
+    v_redemption.member_id,
+    v_redemption.item_id,
+    v_redemption.item_name,
+    v_redemption.cost,
+    v_account.total_earned,
+    v_account.total_spent,
+    v_account.balance;
+end;
+$$;
+
+revoke all on function public.xp_admin_update_redemption(uuid, text) from public, anon, authenticated;
+grant execute on function public.xp_admin_update_redemption(uuid, text) to service_role;
+
+grant select, insert, update on public.xp_shop_items to service_role;
+grant select, insert, update on public.xp_redemptions to service_role;
