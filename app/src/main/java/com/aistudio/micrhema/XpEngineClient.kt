@@ -176,7 +176,8 @@ object XpEngineClient {
         onResult: (XpAwardResult) -> Unit = {}
     ) {
         val member = loggedInMemberState.value ?: return
-        if (!isXpUnlocked(member)) {
+        val isQuizExtra = activity.startsWith("quiz_")
+        if (!isXpUnlocked(member) && !isQuizExtra) {
             refresh(context, member)
             return
         }
