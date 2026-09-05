@@ -32,8 +32,10 @@ const AWARD_RULES: Record<string, AwardRule> = {
   plan_complete: { amount: 25, description: "Plano concluído" },
   book_10: { amount: 3, description: "Progresso de leitura no livro" },
   book_complete: { amount: 25, description: "Livro concluído" },
+  audio_open: { amount: 1, description: "Iniciou um áudio" },
   audio_10min: { amount: 3, description: "10 minutos de áudio" },
   audio_90: { amount: 8, description: "Áudio concluído" },
+  video_open: { amount: 1, description: "Iniciou um vídeo" },
   video_10min: { amount: 3, description: "10 minutos de vídeo" },
   video_90: { amount: 8, description: "Vídeo concluído" },
   ibr_lesson: { amount: 10, description: "Aula IBR concluída" },
@@ -41,6 +43,9 @@ const AWARD_RULES: Record<string, AwardRule> = {
   quiz_easy: { amount: 10, description: "Pergunta fácil correta" },
   quiz_medium: { amount: 20, description: "Pergunta média correta" },
   quiz_hard: { amount: 30, description: "Pergunta difícil correta" },
+  journey_mission_easy: { amount: 15, description: "Missão fácil da Jornada concluída" },
+  journey_mission_medium: { amount: 35, description: "Missão média da Jornada concluída" },
+  journey_mission_hard: { amount: 70, description: "Missão difícil da Jornada concluída" },
   daily_mission: { amount: 10, description: "Missão diária concluída", dailyCapXp: 40 },
   streak_7: { amount: 25, description: "Sequência de 7 dias" },
   streak_30: { amount: 100, description: "Sequência de 30 dias" },
@@ -198,11 +203,14 @@ Deno.serve(async (request) => {
     }
 
     if (action === "award") {
-      if (!member.xpUnlocked) return json({ ok: true, unlocked: false, granted: 0, reason: "xp_locked", account });
       const activity = String(input.activity ?? "").trim();
       const contentId = String(input.contentId ?? "").trim().slice(0, 220);
       const variant = String(input.variant ?? "").trim().slice(0, 40);
       if (!activity || !contentId) return json({ error: "Atividade incompleta." }, 400);
+      const isQuizExtra = activity.startsWith("quiz_");
+      if (!member.xpUnlocked && !isQuizExtra) {
+        return json({ ok: true, unlocked: false, granted: 0, reason: "xp_locked", account });
+      }
       const rule = effectiveRule(activity, variant);
       if (!rule) return json({ error: "Atividade de XP não reconhecida." }, 400);
       const receiptId = `${activity}:${contentId}:${variant || "base"}`;
@@ -229,7 +237,7 @@ Deno.serve(async (request) => {
       };
       return json({
         ok: true,
-        unlocked: true,
+        unlocked: member.xpUnlocked,
         granted: Number(result.granted ?? 0),
         duplicate: Boolean(result.duplicate),
         reason: result.cap_reached ? "daily_cap" : "",
