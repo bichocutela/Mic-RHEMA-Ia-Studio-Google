@@ -52,6 +52,7 @@ object BadgeActivityTracker {
         // A conta central é atualizada de forma assíncrona e com throttle; a ausência
         // de rede nunca impede o progresso local das missões e emblemas.
         XpEngineClient.refresh(context, member)
+        XpActivityBridge.reconcileIbrCompleted(context)
 
         val journeyPrepared = ensureBibleJourneyBaseline(member)
         val preparedMember = ensureCurrentLevelMissionBaseline(journeyPrepared)
@@ -106,9 +107,11 @@ object BadgeActivityTracker {
         val sessionStartMinute = System.currentTimeMillis() / 60_000L
         repeat(minutesToRecord) { offset -> existing.add("${sessionStartMinute + offset}") }
         persist(context, member, BadgeActivityKeys.ACTIVE_MINUTES, existing.toList().sorted())
+        XpActivityBridge.activeMinutes(context, minutesToRecord)
     }
 
     private fun persist(context: Context, member: MemberRequest, activity: String, ids: List<String>) {
+        val previousIds = member.badgeActivityIds[activity].orEmpty().toSet()
         // Os dois pontos-zero são capturados ANTES da nova ação entrar no histórico.
         val journeyPrepared = ensureBibleJourneyBaseline(member)
         val preparedMember = ensureCurrentLevelMissionBaseline(
@@ -137,6 +140,10 @@ object BadgeActivityTracker {
         // Uma missão da Jornada só entrega XP uma vez, mesmo que seus requisitos
         // continuem verdadeiros em todas as reconciliações seguintes.
         BibleJourneyProgressTracker.reconcileMissionRewards(context, updatedMember)
+
+        ids.firstOrNull { it !in previousIds }?.let { newId ->
+            XpActivityBridge.recordedActivity(context, activity, newId)
+        }
     }
 
     internal fun updateMemberStates(member: MemberRequest) {
