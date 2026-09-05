@@ -8,7 +8,6 @@ import android.os.ParcelFileDescriptor
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -19,16 +18,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
-import androidx.compose.foundation.lazy.itemsIndexed
 
 @Composable
 fun PdfViewer(
@@ -58,32 +55,22 @@ fun PdfViewer(
                         val connection = URL(convertGoogleDriveUrl(bookUrl)).openConnection() as HttpURLConnection
                         connection.connect()
                         if (connection.responseCode == HttpURLConnection.HTTP_OK) {
-                            val input = connection.inputStream
-                            val output = FileOutputStream(cachedFile)
-                            input.copyTo(output)
-                            output.flush()
-                            output.close()
-                            input.close()
+                            connection.inputStream.use { input ->
+                                FileOutputStream(cachedFile).use { output -> input.copyTo(output) }
+                            }
                         } else {
                             return@withContext null
                         }
                     }
                     cachedFile
                 } else {
-                    // Local URI
                     val uri = Uri.parse(bookUrl)
                     val fileName = "book_${bookUrl.hashCode()}.pdf"
                     val cachedFile = File(context.cacheDir, fileName)
                     if (!cachedFile.exists()) {
-                        val input = context.contentResolver.openInputStream(uri)
-                        if (input != null) {
-                            val output = FileOutputStream(cachedFile)
-                            input.copyTo(output)
-                            output.flush()
-                            output.close()
-                            input.close()
-                        } else {
-                            return@withContext null
+                        val input = context.contentResolver.openInputStream(uri) ?: return@withContext null
+                        input.use { source ->
+                            FileOutputStream(cachedFile).use { output -> source.copyTo(output) }
                         }
                     }
                     cachedFile
@@ -122,7 +109,7 @@ fun PdfRendererView(file: File, bookUrl: String) {
     var pdfRenderer by remember { mutableStateOf<PdfRenderer?>(null) }
     var fileDescriptor by remember { mutableStateOf<ParcelFileDescriptor?>(null) }
     var pageCount by remember { mutableStateOf(0) }
-    
+
     DisposableEffect(file) {
         try {
             fileDescriptor = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
@@ -137,14 +124,28 @@ fun PdfRendererView(file: File, bookUrl: String) {
         }
     }
 
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val prefs = context.getSharedPreferences("book_bookmarks", android.content.Context.MODE_PRIVATE)
+    val context = LocalContext.current
+    val prefs = context.getSharedPreferences("book_bookmarks", Context.MODE_PRIVATE)
     val bookmarkKey = "bookmark_${bookUrl.hashCode()}"
     val initialPage = prefs.getInt(bookmarkKey, 0)
     val listState = androidx.compose.foundation.lazy.rememberLazyListState(initialFirstVisibleItemIndex = initialPage)
 
-    androidx.compose.runtime.LaunchedEffect(listState.firstVisibleItemIndex) {
+    LaunchedEffect(listState.firstVisibleItemIndex) {
         prefs.edit().putInt(bookmarkKey, listState.firstVisibleItemIndex).apply()
+    }
+
+    // A leitura só entra no XP enquanto o visualizador permanece realmente aberto.
+    // O servidor mede o tempo entre os pulsos e exige 10%/30s ou 95%/2min.
+    LaunchedEffect(bookUrl, pageCount) {
+        if (pageCount <= 0 || bookUrl.isBlank()) return@LaunchedEffect
+        while (true) {
+            val furthestVisible = listState.layoutInfo.visibleItemsInfo
+                .maxOfOrNull { it.index }
+                ?: listState.firstVisibleItemIndex
+            val fraction = ((furthestVisible + 1).toFloat() / pageCount.toFloat()).coerceIn(0f, 1f)
+            XpMediaClient.recordBook(context, bookUrl, fraction)
+            delay(5_000L)
+        }
     }
 
     if (pageCount > 0) {
@@ -165,26 +166,18 @@ fun PdfRendererView(file: File, bookUrl: String) {
 
 @Composable
 fun PdfPageItem(pdfRenderer: PdfRenderer, pageIndex: Int) {
-    val density = LocalDensity.current
     var bitmap by remember { mutableStateOf<Bitmap?>(null) }
-    
-    // Configuração para renderizar com qualidade razoável
-    // Pode gerar OutOfMemoryError se a resolução for muito alta ou houver muitas páginas em cache.
-    // O LazyColumn gerencia bem a quantidade de itens, mas cada Bitmap pesa bastante.
 
     LaunchedEffect(pageIndex, pdfRenderer) {
         withContext(Dispatchers.IO) {
             try {
-                // Ensure thread safety as PdfRenderer is not thread-safe.
                 synchronized(pdfRenderer) {
                     val page = pdfRenderer.openPage(pageIndex)
-                    // Render to double resolution for better reading
                     val destBitmap = Bitmap.createBitmap(
                         page.width * 2,
                         page.height * 2,
                         Bitmap.Config.ARGB_8888
                     )
-                    // Fill background white
                     destBitmap.eraseColor(android.graphics.Color.WHITE)
                     page.render(destBitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                     page.close()
