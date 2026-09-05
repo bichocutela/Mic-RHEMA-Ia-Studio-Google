@@ -32,10 +32,10 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlansScreen(initialThemeName: String? = null, onNavigateToBible: (String, Int) -> Unit = { _, _ -> }) {
-    val badgeContext = androidx.compose.ui.platform.LocalContext.current
+    val allPlans = if (biblePlansState.isEmpty()) PlansData.categories else biblePlansState
     var selectedCategory by remember { mutableStateOf<PlanCategory?>(null) }
     var selectedTheme by remember { mutableStateOf<PlanTheme?>(null) }
-    
+
     androidx.activity.compose.BackHandler(enabled = selectedTheme != null || selectedCategory != null) {
         if (selectedTheme != null) {
             selectedTheme = null
@@ -46,13 +46,15 @@ fun PlansScreen(initialThemeName: String? = null, onNavigateToBible: (String, In
 
     LaunchedEffect(initialThemeName, biblePlansState.size) {
         if (initialThemeName != null) {
-            val allPlans = if (biblePlansState.isEmpty()) PlansData.categories else biblePlansState
             val category = allPlans.find { it.name.equals(initialThemeName, ignoreCase = true) }
-            val theme = allPlans.flatMap { it.themes }.find { it.title.equals(initialThemeName, ignoreCase = true) }
+            val themeOwner = allPlans.firstOrNull { categoryItem ->
+                categoryItem.themes.any { it.title.equals(initialThemeName, ignoreCase = true) }
+            }
+            val theme = themeOwner?.themes?.find { it.title.equals(initialThemeName, ignoreCase = true) }
 
             when {
                 theme != null -> {
-                    selectedCategory = null
+                    selectedCategory = themeOwner
                     selectedTheme = theme
                 }
                 category != null -> {
@@ -64,28 +66,40 @@ fun PlansScreen(initialThemeName: String? = null, onNavigateToBible: (String, In
     }
 
     if (selectedTheme != null) {
-        ThemeDetailScreen(
-            theme = selectedTheme!!, 
-            onBack = { selectedTheme = null },
-            onGoToVerse = { verseRef -> 
-                val parts = verseRef.split(" ")
-                if (parts.size >= 2) {
-                    val book = if (parts[0].first().isDigit()) parts[0] + " " + parts[1] else parts[0]
-                    val chapStr = verseRef.substringAfter(book).trim().split(":").firstOrNull()
-                    val chap = chapStr?.toIntOrNull() ?: 1
-                    onNavigateToBible(book, chap)
+        val owner = selectedCategory ?: allPlans.firstOrNull { category ->
+            category.themes.any { it.title == selectedTheme!!.title }
+        }
+        if (owner != null) {
+            ThemeDetailScreen(
+                category = owner,
+                theme = selectedTheme!!,
+                onBack = { selectedTheme = null },
+                onGoToVerse = { verseRef ->
+                    val parts = verseRef.split(" ")
+                    if (parts.size >= 2) {
+                        val book = if (parts[0].first().isDigit()) parts[0] + " " + parts[1] else parts[0]
+                        val chapStr = verseRef.substringAfter(book).trim().split(":").firstOrNull()
+                        val chap = chapStr?.toIntOrNull() ?: 1
+                        onNavigateToBible(book, chap)
+                    }
                 }
-            }
-        )
+            )
+        } else {
+            selectedTheme = null
+        }
     } else if (selectedCategory != null) {
-        CategoryScreen(category = selectedCategory!!, onBack = { selectedCategory = null }, onThemeClick = { selectedTheme = it })
+        CategoryScreen(
+            category = selectedCategory!!,
+            onBack = { selectedCategory = null },
+            onThemeClick = { selectedTheme = it }
+        )
     } else {
         MainPlansScreen(
-            onCategoryClick = {
-                BadgeActivityTracker.record(badgeContext, BadgeActivityKeys.PLANS, it.name)
-                selectedCategory = it
-            },
-            onThemeClick = { selectedTheme = it }
+            onCategoryClick = { selectedCategory = it },
+            onThemeClick = { theme ->
+                selectedCategory = allPlans.firstOrNull { category -> category.themes.any { it.title == theme.title } }
+                selectedTheme = theme
+            }
         )
     }
 }
@@ -97,6 +111,7 @@ fun MainPlansScreen(onCategoryClick: (PlanCategory) -> Unit, onThemeClick: (Plan
     var currentBannerIndex by remember { mutableStateOf(0) }
 
     LaunchedEffect(randomThemes) {
+        if (randomThemes.isEmpty()) return@LaunchedEffect
         while (true) {
             delay(3000)
             currentBannerIndex = (currentBannerIndex + 1) % randomThemes.size
@@ -105,7 +120,7 @@ fun MainPlansScreen(onCategoryClick: (PlanCategory) -> Unit, onThemeClick: (Plan
 
     var isRefreshing by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
-    
+
     androidx.compose.material3.pulltorefresh.PullToRefreshBox(
         isRefreshing = isRefreshing,
         onRefresh = {
@@ -117,104 +132,103 @@ fun MainPlansScreen(onCategoryClick: (PlanCategory) -> Unit, onThemeClick: (Plan
         },
         modifier = Modifier.fillMaxSize()
     ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
-        Text(
-            text = "Planos",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(20.dp, 24.dp, 20.dp, 12.dp)
-        )
-
-        // Banner Carousel
-        if (randomThemes.isNotEmpty()) {
-            val theme = randomThemes[currentBannerIndex]
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp)
-                    .padding(horizontal = 20.dp)
-                    .clickable { onThemeClick(theme) },
-                shape = RoundedCornerShape(16.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-            ) {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    AsyncImage(
-                        model = theme.imageUrl,
-                        contentDescription = theme.title,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.4f))
-                    )
-                    Column(
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(16.dp)
-                    ) {
-                        Text(
-                            text = theme.title,
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.titleLarge
-                        )
-                        Text(
-                            text = "Plano em destaque",
-                            color = Color.White.copy(alpha = 0.8f),
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-        Text(
-            text = "Explorar por Emoções",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(horizontal = 20.dp)
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(3),
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.weight(1f)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
         ) {
-            items(if (biblePlansState.isEmpty()) PlansData.categories else biblePlansState) { category ->
+            Text(
+                text = "Planos",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(20.dp, 24.dp, 20.dp, 12.dp)
+            )
+
+            if (randomThemes.isNotEmpty()) {
+                val theme = randomThemes[currentBannerIndex.coerceIn(0, randomThemes.lastIndex)]
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .aspectRatio(1f)
-                        .clickable { onCategoryClick(category) },
+                        .height(200.dp)
+                        .padding(horizontal = 20.dp)
+                        .clickable { onThemeClick(theme) },
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = category.color)
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                 ) {
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                        Text(
-                            text = category.name.uppercase(),
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(8.dp),
-                            fontSize = 12.sp
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        AsyncImage(
+                            model = theme.imageUrl,
+                            contentDescription = theme.title,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
                         )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.Black.copy(alpha = 0.4f))
+                        )
+                        Column(
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(16.dp)
+                        ) {
+                            Text(
+                                text = theme.title,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.titleLarge
+                            )
+                            Text(
+                                text = "Plano em destaque",
+                                color = Color.White.copy(alpha = 0.8f),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
                     }
                 }
             }
-            item { Spacer(modifier = Modifier.height(80.dp)) }
+
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = "Explorar por Emoções",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 20.dp)
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(3),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                items(if (biblePlansState.isEmpty()) PlansData.categories else biblePlansState) { category ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(1f)
+                            .clickable { onCategoryClick(category) },
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = category.color)
+                    ) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                            Text(
+                                text = category.name.uppercase(),
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(8.dp),
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                }
+                item { Spacer(modifier = Modifier.height(80.dp)) }
+            }
         }
     }
-    } // PullToRefreshBox
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -233,7 +247,6 @@ fun CategoryScreen(category: PlanCategory, onBack: () -> Unit, onThemeClick: (Pl
             )
         }
     ) { paddingValues ->
-        val unused = paddingValues
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -284,8 +297,29 @@ fun CategoryScreen(category: PlanCategory, onBack: () -> Unit, onThemeClick: (Pl
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ThemeDetailScreen(theme: PlanTheme, onBack: () -> Unit, onGoToVerse: (String) -> Unit = {}) {
+fun ThemeDetailScreen(
+    category: PlanCategory,
+    theme: PlanTheme,
+    onBack: () -> Unit,
+    onGoToVerse: (String) -> Unit = {}
+) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val scrollState = rememberScrollState()
+    var readingReady by remember(category.name, theme.title) { mutableStateOf(false) }
+
+    // O botão de conclusão só é liberado após leitura real: 20 s + 80% do texto.
+    LaunchedEffect(category.name, theme.title, scrollState) {
+        delay(20_000L)
+        while (!readingReady) {
+            val max = scrollState.maxValue
+            if (max == 0 || scrollState.value >= (max * 0.80f).toInt()) {
+                readingReady = true
+                break
+            }
+            delay(500L)
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -298,12 +332,11 @@ fun ThemeDetailScreen(theme: PlanTheme, onBack: () -> Unit, onGoToVerse: (String
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
             )
         }
-    ) { paddingValues ->
-        val unused = paddingValues
+    ) { _ ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
         ) {
             AsyncImage(
                 model = theme.imageUrl,
@@ -325,7 +358,7 @@ fun ThemeDetailScreen(theme: PlanTheme, onBack: () -> Unit, onGoToVerse: (String
                     color = MaterialTheme.colorScheme.onBackground
                 )
                 Spacer(modifier = Modifier.height(16.dp))
-                
+
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
@@ -348,30 +381,50 @@ fun ThemeDetailScreen(theme: PlanTheme, onBack: () -> Unit, onGoToVerse: (String
                         }
                     }
                 }
-                
+
                 Spacer(modifier = Modifier.height(24.dp))
-                
+
                 Text(
                     text = theme.content,
                     style = MaterialTheme.typography.bodyLarge,
                     lineHeight = 28.sp,
                     color = MaterialTheme.colorScheme.onBackground
                 )
-                
+
                 Spacer(modifier = Modifier.height(40.dp))
-                
-                                    Button(
+
+                Button(
+                    enabled = readingReady,
                     onClick = {
-                        BadgeActivityTracker.record(context, BadgeActivityKeys.PLAN_THEMES, theme.title)
+                        val themeId = "${category.name}:${theme.title}"
+                        val member = loggedInMemberState.value
+                        val previousThemes = member?.badgeActivityIds?.get(BadgeActivityKeys.PLAN_THEMES).orEmpty().toSet()
+                        val completedThemes = previousThemes + themeId
+                        val requiredThemes = category.themes
+                            .map { "${category.name}:${it.title}" }
+                            .toSet()
+
+                        // +3 por tema e +5 pelo dia/etapa concluída. Os receipts do
+                        // ledger garantem que tocar novamente não duplica o prêmio.
+                        BadgeActivityTracker.record(context, BadgeActivityKeys.PLAN_THEMES, themeId)
+                        XpActivityBridge.planDay(context, themeId)
+
+                        if (requiredThemes.isNotEmpty() && completedThemes.containsAll(requiredThemes)) {
+                            BadgeActivityTracker.record(context, BadgeActivityKeys.PLANS, category.name)
+                            XpActivityBridge.planComplete(context, category.name)
+                        }
                         onBack()
                     },
-
                     modifier = Modifier.fillMaxWidth().height(56.dp),
                     shape = RoundedCornerShape(28.dp)
                 ) {
-                    Text("Concluir Leitura", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        if (readingReady) "Concluir Leitura" else "Continue lendo para concluir",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
-                
+
                 Spacer(modifier = Modifier.height(16.dp))
 
                 OutlinedButton(
@@ -381,7 +434,7 @@ fun ThemeDetailScreen(theme: PlanTheme, onBack: () -> Unit, onGoToVerse: (String
                 ) {
                     Text("Ir para Versículo", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
-                
+
                 Spacer(modifier = Modifier.height(80.dp))
             }
         }
