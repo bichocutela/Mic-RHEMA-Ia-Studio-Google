@@ -169,6 +169,9 @@ object BibleJourneyProgressTracker {
         val answeredMember = member.copy(badgeActivityIds = activities)
         BadgeActivityTracker.updateMemberStates(answeredMember)
         BadgeActivityTracker.syncPortableState(context, answeredMember)
+        if (evaluated.isCorrect && grantedXp > 0) {
+            XpActivityBridge.quiz(context, question, hintUsed)
+        }
 
         val rewardedMember = reconcileMissionRewards(context, answeredMember)
         BadgeActivityTracker.reconcile(context, rewardedMember)
@@ -213,6 +216,7 @@ object BibleJourneyProgressTracker {
             val awardId = "mission:${item.mission.id}"
             if (xpAwards.none { it.substringBefore('=') == awardId }) {
                 xpAwards.add("$awardId=${item.mission.xpReward}")
+                XpActivityBridge.journeyMission(context, item.mission)
             }
         }
 
