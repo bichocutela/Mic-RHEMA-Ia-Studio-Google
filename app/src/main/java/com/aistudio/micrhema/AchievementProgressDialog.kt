@@ -105,8 +105,8 @@ private fun missionsForNextBadge(s: BadgeProgressSummary): List<AchievementMissi
 @Composable
 fun AchievementProgressDialog(progress: BadgeProgressSummary, onDismiss: () -> Unit) {
     var showJourney by remember { mutableStateOf(false) }
+    val member = loggedInMemberState.value
     if (showJourney) {
-        val member = loggedInMemberState.value
         if (member != null) {
             BibleJourneyDialog(member = member, onDismiss = { showJourney = false })
             return
@@ -154,6 +154,10 @@ fun AchievementProgressDialog(progress: BadgeProgressSummary, onDismiss: () -> U
                     }
                 }
 
+                if (member != null) {
+                    XpJourneyPanel(member)
+                }
+
                 if (nextBadge == null) {
                     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)), shape = RoundedCornerShape(18.dp)) {
                         Text("Você concluiu todas as missões dos níveis principais disponíveis.", modifier = Modifier.padding(16.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
@@ -180,7 +184,7 @@ fun AchievementProgressDialog(progress: BadgeProgressSummary, onDismiss: () -> U
                     }
                     Text(
                         if (nextBadge.id == "semente_da_fe")
-                            "Ao conquistar o Nível 8, o sistema de XP e a Loja XP são liberados. Até lá, quiz e atividades continuam contando para as missões, mas não geram XP novo."
+                            "O Quiz já gera XP Extra desde o início. Ao conquistar o Nível 8, os ganhos pelas demais ferramentas do MIC Rhema e a Loja XP são liberados."
                         else
                             "Cada nível começa do zero nas novas missões. O XP total da Jornada permanece acumulado, mas leitura, quiz, tempo e demais requisitos precisam ser cumpridos novamente depois que o nível atual começa. Repetir o mesmo conteúdo ou a mesma pergunta não gera progresso duplicado.",
                         style = MaterialTheme.typography.bodySmall,
