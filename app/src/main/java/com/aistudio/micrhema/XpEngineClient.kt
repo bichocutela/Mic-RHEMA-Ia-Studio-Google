@@ -50,8 +50,13 @@ data class XpJourneyState(
     val streak: Int
 )
 
+data class XpHistorySnapshot(
+    val memberId: String,
+    val transactions: List<XpTransaction>
+)
+
 val xpAccountState = mutableStateOf<XpAccount?>(null)
-val xpHistoryState = mutableStateOf<List<XpTransaction>>(emptyList())
+val xpHistoryState = mutableStateOf<XpHistorySnapshot?>(null)
 val xpJourneyState = mutableStateOf<XpJourneyState?>(null)
 val xpSyncErrorState = mutableStateOf("")
 
@@ -247,7 +252,7 @@ object XpEngineClient {
         }
         withContext(Dispatchers.Main) {
             xpAccountState.value = account
-            xpHistoryState.value = transactions
+            xpHistoryState.value = XpHistorySnapshot(member.id, transactions)
             xpSyncErrorState.value = ""
         }
         return transactions
@@ -255,7 +260,7 @@ object XpEngineClient {
 
     fun clearSession() {
         xpAccountState.value = null
-        xpHistoryState.value = emptyList()
+        xpHistoryState.value = null
         xpJourneyState.value = null
         xpSyncErrorState.value = ""
         lastRefreshMemberId = ""

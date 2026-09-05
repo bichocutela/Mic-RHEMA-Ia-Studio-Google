@@ -59,6 +59,9 @@ fun XpJourneyPanel(member: MemberRequest) {
     val scope = rememberCoroutineScope()
     val account = xpAccountState.value?.takeIf { it.memberId == member.id }
     val history = xpHistoryState.value
+        ?.takeIf { it.memberId == member.id }
+        ?.transactions
+        .orEmpty()
     val journeyState = xpJourneyState.value?.takeIf { it.memberId == member.id }
     val xpUnlocked = isXpUnlocked(member)
     val today = LocalDate.now(xpBrazilZone).toString()
