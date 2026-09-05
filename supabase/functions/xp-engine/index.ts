@@ -7,6 +7,10 @@ const DEFAULT_PROJECT_ID = "mic-rhema";
 const CURRENT_PUBLISHABLE_KEY = "sb_publishable_Dv98hBnbJB2TzRCG6aJNwA_KMPHLZSw";
 const QUIZ_VARIANTS = new Set(["", "subtle_hint", "easy_hint"]);
 const STREAK_IGNORED = new Set(["legacy_sync", "daily_mission", "streak_7", "streak_30"]);
+const QUIZ_SOURCE_URLS = [
+  "https://raw.githubusercontent.com/bichocutela/Mic-RHEMA-Ia-Studio-Google/main/app/src/main/java/com/aistudio/micrhema/BibleQuizCatalog.kt",
+  "https://raw.githubusercontent.com/bichocutela/Mic-RHEMA-Ia-Studio-Google/main/app/src/main/java/com/aistudio/micrhema/BibleQuizExpansion.kt",
+];
 
 const LEVEL_8_PLUS = new Set([
   "semente_da_fe", "caminho_da_promessa", "escudo_da_fe", "aguas_vivas", "videira_verdadeira",
@@ -22,6 +26,9 @@ type FirestoreValue = {
 };
 type FirestoreDocument = { name?: string; fields?: Record<string, FirestoreValue> };
 type AwardRule = { amount: number; description: string; dailyCapXp?: number };
+type QuizAuthority = { activity: "quiz_easy" | "quiz_medium" | "quiz_hard"; correctOptionIndex: number };
+
+let quizAuthorityCache: Map<string, QuizAuthority> | null = null;
 
 const AWARD_RULES: Record<string, AwardRule> = {
   active_5min: { amount: 1, description: "5 minutos ativos", dailyCapXp: 20 },
@@ -136,6 +143,84 @@ function canonicalReceipt(activity: string, contentId: string): string {
   if (activity.startsWith("quiz_")) return `quiz:${contentId}`;
   if (activity.startsWith("journey_mission_")) return `mission:${contentId}`;
   return `${activity}:${contentId}`;
+}
+
+function activityForDifficulty(value: string): QuizAuthority["activity"] | null {
+  if (value === "EASY" || value === "easy") return "quiz_easy";
+  if (value === "MEDIUM" || value === "medium") return "quiz_medium";
+  if (value === "HARD" || value === "hard") return "quiz_hard";
+  return null;
+}
+
+function parseCatalogQuestionLine(line: string): [string, QuizAuthority] | null {
+  const header = line.match(/quizQuestion\("([^"]+)",\s*BibleQuizDifficulty\.(EASY|MEDIUM|HARD)/);
+  if (!header) return null;
+  const listStart = line.indexOf("listOf(", header.index ?? 0);
+  if (listStart < 0) return null;
+  let inString = false;
+  let escaped = false;
+  let depth = 1;
+  let cursor = listStart + "listOf(".length;
+  for (; cursor < line.length; cursor++) {
+    const ch = line[cursor];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\" && inString) {
+      escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (ch === "(") depth++;
+    if (ch === ")") {
+      depth--;
+      if (depth === 0) break;
+    }
+  }
+  if (depth !== 0) return null;
+  const afterOptions = line.slice(cursor + 1);
+  const correctMatch = afterOptions.match(/^\s*,\s*(\d+)\s*,/);
+  const activity = activityForDifficulty(header[2]);
+  const correctOptionIndex = Number(correctMatch?.[1]);
+  if (!activity || !Number.isInteger(correctOptionIndex) || correctOptionIndex < 0 || correctOptionIndex > 3) return null;
+  return [header[1], { activity, correctOptionIndex }];
+}
+
+function parseQuizSource(source: string, target: Map<string, QuizAuthority>) {
+  for (const rawLine of source.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    const catalog = parseCatalogQuestionLine(line);
+    if (catalog) {
+      target.set(catalog[0], catalog[1]);
+      continue;
+    }
+    const expanded = line.match(/^(easy|medium|hard)_\d+\|/);
+    if (!expanded) continue;
+    const fields = line.split("|");
+    const activity = activityForDifficulty(expanded[1]);
+    const correctOptionIndex = Number(fields[6]);
+    if (activity && fields[0] && Number.isInteger(correctOptionIndex) && correctOptionIndex >= 0 && correctOptionIndex <= 3) {
+      target.set(fields[0], { activity, correctOptionIndex });
+    }
+  }
+}
+
+async function loadQuizAuthority(): Promise<Map<string, QuizAuthority>> {
+  if (quizAuthorityCache) return quizAuthorityCache;
+  const target = new Map<string, QuizAuthority>();
+  for (const url of QUIZ_SOURCE_URLS) {
+    const response = await fetch(url, { headers: { "User-Agent": "MIC-Rhema-XP-Authority" } });
+    if (!response.ok) throw new Error(`Catálogo oficial do Quiz indisponível (${response.status}).`);
+    parseQuizSource(await response.text(), target);
+  }
+  if (target.size < 300) throw new Error(`Catálogo oficial do Quiz incompleto (${target.size}/300).`);
+  quizAuthorityCache = target;
+  return target;
 }
 
 function todayRecife(): string {
@@ -314,7 +399,7 @@ Deno.serve(async (request) => {
 
     if (action === "award") {
       const activity = String(input.activity ?? "").trim();
-      const contentId = String(input.contentId ?? "").trim().slice(0, 220);
+      const contentId = String(input.contentId ?? "").trim().slice(0, 1000);
       const variant = String(input.variant ?? "").trim().slice(0, 40);
       if (!activity || !contentId) return json({ error: "Atividade incompleta." }, 400);
       const isQuizExtra = activity.startsWith("quiz_");
@@ -330,6 +415,49 @@ Deno.serve(async (request) => {
       const legacyReceipt = legacyReceiptFor(activity, contentId);
       if (legacyReceipt && member.legacyReceipts.has(legacyReceipt)) {
         return json({ ok: true, unlocked: member.xpUnlocked, granted: 0, duplicate: true, reason: "legacy_migrated", receiptId: legacyReceipt, account });
+      }
+
+      if (isQuizExtra) {
+        const selectedOptionIndex = Number(input.selectedOptionIndex);
+        if (!Number.isInteger(selectedOptionIndex) || selectedOptionIndex < 0 || selectedOptionIndex > 3) {
+          return json({ error: "A alternativa respondida precisa ser validada pelo servidor." }, 400);
+        }
+        const authority = await loadQuizAuthority();
+        const official = authority.get(contentId);
+        if (!official) return json({ error: "Pergunta não pertence ao catálogo oficial do Quiz." }, 400);
+        if (official.activity !== activity) return json({ error: "Dificuldade da pergunta não confere com o catálogo oficial." }, 400);
+        const correct = selectedOptionIndex === official.correctOptionIndex;
+        const { data, error } = await supabase.rpc("xp_submit_quiz", {
+          p_member_id: memberId,
+          p_question_id: contentId,
+          p_selected_option: selectedOptionIndex,
+          p_activity: activity,
+          p_variant: variant,
+          p_correct: correct,
+          p_amount: correct ? rule.amount : 0,
+          p_description: rule.description,
+        });
+        if (error) throw error;
+        const result = Array.isArray(data) ? data[0] : data;
+        if (!result) throw new Error("O backend do Quiz não retornou resultado.");
+        account = {
+          member_id: memberId,
+          total_earned: Number(result.total_earned ?? account.total_earned ?? 0),
+          total_spent: Number(result.total_spent ?? account.total_spent ?? 0),
+          balance: Number(result.balance ?? account.balance ?? 0),
+          migrated_legacy_xp: Number(account.migrated_legacy_xp ?? 0),
+          updated_at: new Date().toISOString(),
+        };
+        return json({
+          ok: true,
+          unlocked: member.xpUnlocked,
+          granted: Number(result.granted ?? 0),
+          duplicate: Boolean(result.duplicate),
+          correct: Boolean(result.correct),
+          reason: result.duplicate ? "already_answered" : correct ? "" : "incorrect_answer",
+          receiptId: `quiz:${contentId}`,
+          account,
+        });
       }
 
       const receiptId = canonicalReceipt(activity, contentId);
