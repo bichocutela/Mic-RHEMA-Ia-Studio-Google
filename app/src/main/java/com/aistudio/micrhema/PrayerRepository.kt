@@ -69,6 +69,7 @@ object PrayerRepository {
         )
 
         if (userPrayerRequestsState.none { it.id == item.id }) userPrayerRequestsState.add(0, item)
+        XpActivityBridge.prayer(context, item.id)
         return item
     }
 
