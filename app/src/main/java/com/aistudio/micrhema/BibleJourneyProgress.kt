@@ -64,12 +64,12 @@ object BibleJourneyProgressTracker {
     }
 
     fun totalXp(member: MemberRequest): Int {
-        val local = localTotalXp(member)
         val central = xpAccountState.value
             ?.takeIf { it.memberId == member.id }
             ?.totalEarned
-            ?: 0
-        return maxOf(local, central)
+        // O legado é somente fallback enquanto a conta central ainda não foi carregada.
+        // Assim um valor local nunca consegue superar ou alterar a autoridade do ledger.
+        return central ?: localTotalXp(member)
     }
 
     fun stats(member: MemberRequest): BibleJourneyStats = BibleJourneyStats(
@@ -83,6 +83,10 @@ object BibleJourneyProgressTracker {
     )
 
     fun reconcileQuizXp(context: Context, sourceMember: MemberRequest): MemberRequest {
+        // Depois que o ledger central foi carregado, não reconstruímos XP a partir
+        // de contadores locais. Essa rotina permanece apenas para migração/fallback.
+        if (xpAccountState.value?.memberId == sourceMember.id) return sourceMember
+
         val correctIds = sourceMember.ids(BadgeActivityKeys.QUIZ_CORRECT).toSet()
         if (correctIds.isEmpty()) return sourceMember
 
@@ -160,6 +164,8 @@ object BibleJourneyProgressTracker {
             if (server.hintUsed == BibleQuizHintUsage.NONE) add(BadgeActivityKeys.QUIZ_CORRECT_NO_HINT, question.id)
             if (question.difficulty == BibleQuizDifficulty.HARD) add(BadgeActivityKeys.QUIZ_HARD_CORRECT, question.id)
         }
+        // Mantemos o receipt local somente como cache/fallback, sempre derivado do
+        // valor que o servidor realmente concedeu. Ele nunca supera o ledger central.
         if (server.granted > 0) {
             val receipt = "quiz:${question.id}"
             val awards = activities[BadgeActivityKeys.XP_AWARDS].orEmpty().toMutableList()
