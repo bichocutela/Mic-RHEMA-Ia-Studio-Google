@@ -49,7 +49,7 @@ export function LiveStreamAdmin() {
   };
 
   return <div className="admin-section">
-    <header className="admin-section-header"><div><p>IGREJA</p><h1>Transmissão ao vivo</h1><span>Modo automático pelo YouTube com ativação manual de reserva.</span></div><Radio size={30}/></header>
+    <header className="admin-section-header"><div><p>IGREJA</p><h1>Transmissão ao vivo</h1><span>Modo automático pelo YouTube com ativação manual de reserva. O modo manual tem prioridade enquanto estiver ligado.</span></div><Radio size={30}/></header>
     <div className="admin-form-grid">
       <label className="admin-check"><input type="checkbox" checked={autoEnabled} onChange={event=>setAutoEnabled(event.target.checked)}/><span>Detecção automática do canal</span></label>
       <label className="admin-field"><span>Canal ou @handle do YouTube</span><input value={youtubeHandle} onChange={event=>setYoutubeHandle(event.target.value)} placeholder="@micrhemaoficial"/></label>
