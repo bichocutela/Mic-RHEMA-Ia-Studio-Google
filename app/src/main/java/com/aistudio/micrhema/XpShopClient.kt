@@ -1,5 +1,6 @@
 package com.aistudio.micrhema
 
+import android.content.Context
 import androidx.compose.runtime.mutableStateOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -39,15 +40,8 @@ data class XpRedeemResult(
     val account: XpAccount
 )
 
-data class XpShopCatalogState(
-    val memberId: String,
-    val items: List<XpShopItem>
-)
-
-data class XpRedemptionsState(
-    val memberId: String,
-    val redemptions: List<XpRedemption>
-)
+data class XpShopCatalogState(val memberId: String, val items: List<XpShopItem>)
+data class XpRedemptionsState(val memberId: String, val redemptions: List<XpRedemption>)
 
 val xpShopItemsState = mutableStateOf<XpShopCatalogState?>(null)
 val xpRedemptionsState = mutableStateOf<XpRedemptionsState?>(null)
@@ -65,12 +59,7 @@ object XpShopClient {
         return if (digits.length in 12..13 && digits.startsWith("55")) digits.drop(2) else digits
     }
 
-    private suspend fun call(
-        member: MemberRequest,
-        action: String,
-        itemId: String = "",
-        expectedCost: Int? = null
-    ): JSONObject = withContext(Dispatchers.IO) {
+    private suspend fun call(member: MemberRequest, action: String, itemId: String = "", expectedCost: Int? = null): JSONObject = withContext(Dispatchers.IO) {
         val baseUrl = BuildConfig.SUPABASE_URL.trim().trimEnd('/')
         val anonKey = BuildConfig.SUPABASE_ANON_KEY.trim()
         if (baseUrl.isBlank() || anonKey.isBlank() || baseUrl.contains("your-project")) {
@@ -145,7 +134,7 @@ object XpShopClient {
         return items
     }
 
-    suspend fun loadRedemptions(member: MemberRequest): List<XpRedemption> {
+    suspend fun loadRedemptions(member: MemberRequest, context: Context? = null): List<XpRedemption> {
         val response = call(member, "my_redemptions")
         val account = parseAccount(member.id, response)
         val array = response.optJSONArray("redemptions")
@@ -166,6 +155,7 @@ object XpShopClient {
                 )
             }
         }
+        context?.let { XpRewardManager.syncOwned(it, member.id, items) }
         withContext(Dispatchers.Main) {
             xpAccountState.value = account
             xpRedemptionsState.value = XpRedemptionsState(member.id, items)
@@ -174,7 +164,7 @@ object XpShopClient {
         return items
     }
 
-    suspend fun redeem(member: MemberRequest, item: XpShopItem): XpRedeemResult {
+    suspend fun redeem(member: MemberRequest, item: XpShopItem, context: Context? = null): XpRedeemResult {
         val response = call(member, "redeem", item.id, item.cost)
         val account = parseAccount(member.id, response)
         val raw = response.optJSONObject("redemption") ?: throw IllegalStateException("O resgate não foi confirmado.")
@@ -187,16 +177,15 @@ object XpShopClient {
             code = raw.optString("redemption_code"),
             createdAt = ""
         )
+        val current = xpRedemptionsState.value
+            ?.takeIf { it.memberId == member.id }
+            ?.redemptions
+            .orEmpty()
+        val updated = listOf(redemption) + current.filterNot { it.id == redemption.id }
+        context?.let { XpRewardManager.syncOwned(it, member.id, updated) }
         withContext(Dispatchers.Main) {
-            val current = xpRedemptionsState.value
-                ?.takeIf { it.memberId == member.id }
-                ?.redemptions
-                .orEmpty()
             xpAccountState.value = account
-            xpRedemptionsState.value = XpRedemptionsState(
-                member.id,
-                listOf(redemption) + current.filterNot { it.id == redemption.id }
-            )
+            xpRedemptionsState.value = XpRedemptionsState(member.id, updated)
             xpShopErrorState.value = ""
         }
         return XpRedeemResult(redemption, account)
