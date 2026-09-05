@@ -13,10 +13,13 @@ object XpActivityBridge {
     private const val ACTIVE_PREFS = "micrhema_xp_active_time"
     private val brazilZone: ZoneId = ZoneId.of("America/Recife")
 
+    fun bibleVerse(context: Context, id: String) = award(context, "bible_verse", id)
     fun bibleChapter(context: Context, id: String) = award(context, "bible_chapter", id)
     fun devotional(context: Context, id: String) = award(context, "devotional", id)
     fun news(context: Context, id: String) = award(context, "news_read", id)
     fun planTheme(context: Context, id: String) = award(context, "plan_theme", id)
+    fun planDay(context: Context, id: String) = award(context, "plan_day", id)
+    fun planComplete(context: Context, id: String) = award(context, "plan_complete", id)
     fun bookEngagement(context: Context, id: String) = award(context, "book_10", id)
     fun bookCompleted(context: Context, id: String) = award(context, "book_complete", id)
     fun audioTenMinutes(context: Context, id: String) = award(context, "audio_10min", id)
