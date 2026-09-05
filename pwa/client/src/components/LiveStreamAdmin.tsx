@@ -17,6 +17,7 @@ export function LiveStreamAdmin() {
 
   useEffect(()=>listenToDocument<LiveStreamSettings>("settings","live_stream",value=>{
     setRemote(value);
+    if(!value)return;
     setAutoEnabled(value.autoEnabled!==false);
     setManualEnabled(value.manualEnabled===true);
     setYoutubeHandle(value.youtubeHandle?.trim()||"@micrhemaoficial");
