@@ -24,7 +24,7 @@ type FirestoreDocument = { fields?: Record<string, FirestoreValue> };
 type Difficulty = "easy" | "medium" | "hard";
 type Activity = "quiz_easy" | "quiz_medium" | "quiz_hard";
 type QuizQuestion = { id: string; difficulty: Difficulty; activity: Activity; prompt: string; options: string[]; correctOptionIndex: number; hardHint: string; easyHint: string; reference: string; explanation: string };
-type MemberAuth = { memberId: string; xpUnlocked: boolean; legacyXp: number };
+type MemberAuth = { memberId: string; xpUnlocked: boolean; legacyXp: number; legacyQuizIds: string[] };
 
 let catalogCache: Map<string, QuizQuestion> | null = null;
 const cors = {
@@ -56,6 +56,13 @@ function activityMap(value: unknown): Record<string,string[]> {
   return Object.fromEntries(Object.entries(value as Record<string,unknown>).map(([k,v]) => [k,stringList(v)]));
 }
 function parseLegacyXp(entry: string) { const n = Number(entry.slice(entry.lastIndexOf("=") + 1)); return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0; }
+function parseLegacyQuizIds(entries: string[]) {
+  return [...new Set(entries.map(entry => {
+    const cut = entry.lastIndexOf("=");
+    const receipt = (cut > 0 ? entry.slice(0, cut) : entry).trim();
+    return receipt.startsWith("quiz:") ? receipt.slice(5).trim() : "";
+  }).filter(Boolean))];
+}
 
 async function googleToken(account: ServiceAccount) {
   if (!account.client_email || !account.private_key) throw new Error("Credencial Firebase incompleta.");
@@ -63,7 +70,7 @@ async function googleToken(account: ServiceAccount) {
   const assertion = await new SignJWT({ iss: account.client_email, scope: FIRESTORE_SCOPE, aud: GOOGLE_TOKEN_URL })
     .setProtectedHeader({ alg: "RS256", typ: "JWT" }).setIssuedAt(now).setExpirationTime(now + 3600)
     .sign(await importPKCS8(account.private_key.replace(/\\n/g,"\n"), "RS256"));
-  const response = await fetch(GOOGLE_TOKEN_URL, { method:"POST", headers:{"Content-Type":"application/x-www-form-urlencoded"}, body:new URLSearchParams({grant_type:"urn:ietf:params:oauth:grant-type:jwt-bearer", assertion}) });
+  const response = await fetch(GOOGLE_TOKEN_URL, { method:"POST", headers:{"Content-Type":"application/x-www-form-urlencoded"}, body:new URLSearchParams({grant_type:"urn:ietf:params:oauth2:grant-type:jwt-bearer", assertion}) });
   const body = await response.json();
   if (!response.ok || !body.access_token) throw new Error("Falha ao autenticar no Firebase.");
   return String(body.access_token);
@@ -168,7 +175,12 @@ async function resolveMember(request: Request, input: Record<string,unknown>, pr
   const user = docData(await getDocument(projectId,fireToken,"users",memberId));
   const unlocked = new Set([...stringList(access.unlockedBadgeIds),...stringList(user.unlockedBadgeIds)]);
   const legacyEntries = [...new Set([...(activityMap(access.badgeActivityIds).journey_xp_awards ?? []),...(activityMap(user.badgeActivityIds).journey_xp_awards ?? [])])];
-  return { memberId,xpUnlocked:[...unlocked].some(id=>LEVEL_8_PLUS.has(id)),legacyXp:legacyEntries.reduce((sum,item)=>sum+parseLegacyXp(item),0) };
+  return {
+    memberId,
+    xpUnlocked:[...unlocked].some(id=>LEVEL_8_PLUS.has(id)),
+    legacyXp:legacyEntries.reduce((sum,item)=>sum+parseLegacyXp(item),0),
+    legacyQuizIds:parseLegacyQuizIds(legacyEntries),
+  };
 }
 
 Deno.serve(async (request) => {
@@ -185,15 +197,25 @@ Deno.serve(async (request) => {
     const supabase = createClient(url,role,{auth:{persistSession:false,autoRefreshToken:false}});
     const { data: ensured, error: ensureError } = await supabase.rpc("xp_ensure_account",{p_member_id:member.memberId,p_legacy_xp:member.legacyXp});
     if (ensureError) throw ensureError;
+    const ensuredAccount = Array.isArray(ensured) ? ensured[0] : ensured;
+    if (member.legacyQuizIds.length) {
+      const rows = member.legacyQuizIds.map(question_id => ({member_id:member.memberId,question_id}));
+      const { error } = await supabase.from("xp_legacy_quiz_receipts").upsert(rows,{onConflict:"member_id,question_id",ignoreDuplicates:true});
+      if (error) throw error;
+    }
     const action = clean(input.action,40);
     const questions = await catalog();
 
     if (action === "status" || action === "next_question") {
       const difficulty = difficultyFromToken(clean(input.difficulty,20)) ?? "easy";
       const ids = [...questions.values()].filter(q=>q.difficulty===difficulty).map(q=>q.id);
-      const { data: attempts, error } = await supabase.from("xp_quiz_attempts").select("question_id").eq("member_id",member.memberId).in("question_id",ids);
-      if (error) throw error;
-      const answered = new Set((attempts ?? []).map((x:any)=>String(x.question_id)));
+      const [{ data: attempts, error: attemptsError }, { data: legacy, error: legacyError }] = await Promise.all([
+        supabase.from("xp_quiz_attempts").select("question_id").eq("member_id",member.memberId).in("question_id",ids),
+        supabase.from("xp_legacy_quiz_receipts").select("question_id").eq("member_id",member.memberId).in("question_id",ids),
+      ]);
+      if (attemptsError) throw attemptsError;
+      if (legacyError) throw legacyError;
+      const answered = new Set([...(attempts ?? []),...(legacy ?? [])].map((x:any)=>String(x.question_id)));
       const next = ids.map(id=>questions.get(id)!).find(q=>!answered.has(q.id)) ?? null;
       return json({ok:true,unlocked:member.xpUnlocked,difficulty,answered:answered.size,total:ids.length,question:next ? publicQuestion(next) : null});
     }
@@ -201,8 +223,12 @@ Deno.serve(async (request) => {
     const questionId = clean(input.questionId,200);
     const question = questions.get(questionId);
     if (!question) return json({error:"Pergunta não pertence ao catálogo oficial do Quiz."},400);
+    const { data: legacyReceipt, error: legacyReceiptError } = await supabase.from("xp_legacy_quiz_receipts")
+      .select("question_id").eq("member_id",member.memberId).eq("question_id",question.id).maybeSingle();
+    if (legacyReceiptError) throw legacyReceiptError;
 
     if (action === "hint") {
+      if (legacyReceipt) return json({error:"Pergunta já concluída no progresso legado."},409);
       const requested = clean(input.hint,20);
       const rank = requested === "easy" || requested === "easy_hint" ? 2 : requested === "subtle" || requested === "subtle_hint" ? 1 : 0;
       if (!rank) return json({error:"Dica inválida."},400);
@@ -218,6 +244,14 @@ Deno.serve(async (request) => {
       const selected = Number(input.selectedOptionIndex);
       if (!Number.isInteger(selected) || selected < 0 || selected > 3) return json({error:"Alternativa inválida."},400);
       const correct = selected === question.correctOptionIndex;
+      if (legacyReceipt) {
+        return json({
+          ok:true,unlocked:member.xpUnlocked,questionId:question.id,duplicate:true,legacy:true,granted:0,
+          correct,selectedOptionIndex:selected,correctOptionIndex:question.correctOptionIndex,variant:"",
+          reference:question.reference,explanation:question.explanation,
+          account:{member_id:member.memberId,total_earned:Number(ensuredAccount?.total_earned ?? 0),total_spent:Number(ensuredAccount?.total_spent ?? 0),balance:Number(ensuredAccount?.balance ?? 0)},
+        });
+      }
       const { data, error } = await supabase.rpc("xp_submit_quiz",{
         p_member_id:member.memberId,p_question_id:question.id,p_selected_option:selected,p_activity:question.activity,
         p_variant:"",p_correct:correct,p_amount:baseXp(question.difficulty),p_description:`Pergunta ${question.difficulty === "easy" ? "fácil" : question.difficulty === "medium" ? "média" : "difícil"} correta`,
