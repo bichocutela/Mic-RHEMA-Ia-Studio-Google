@@ -1,5 +1,6 @@
 package com.aistudio.micrhema
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
@@ -55,6 +56,26 @@ fun AdminDashboard(onNavigate: (AdminSection) -> Unit, paddingValues: PaddingVal
     var churchExpanded by remember { mutableStateOf(adminUiPrefs.getBoolean("category_church", false)) }
     var membersExpanded by remember { mutableStateOf(adminUiPrefs.getBoolean("category_members", false)) }
     var systemExpanded by remember { mutableStateOf(adminUiPrefs.getBoolean("category_system", false)) }
+    var showXpShop by remember { mutableStateOf(false) }
+
+    if (showXpShop) {
+        BackHandler { showXpShop = false }
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = paddingValues.calculateTopPadding())
+        ) {
+            TextButton(onClick = { showXpShop = false }, modifier = Modifier.padding(horizontal = 8.dp)) {
+                Icon(Icons.Default.ArrowBack, contentDescription = null)
+                Spacer(Modifier.width(6.dp))
+                Text("Voltar ao Painel Administrativo")
+            }
+            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                AdminXpShopScreen()
+            }
+        }
+        return
+    }
 
     LazyColumn(
         contentPadding = PaddingValues(
@@ -162,6 +183,7 @@ fun AdminDashboard(onNavigate: (AdminSection) -> Unit, paddingValues: PaddingVal
                     AdminQuickActionCard("Atualizar culto", Icons.Default.Event, { onNavigate(AdminSection.SERVICES) }, Modifier.weight(1f))
                     AdminQuickActionCard("Curso IBR", Icons.Default.School, { onNavigate(AdminSection.IBR) }, Modifier.weight(1f))
                 }
+                AdminQuickActionCard("Loja XP", Icons.Default.CardGiftcard, { showXpShop = true }, Modifier.fillMaxWidth())
             }
         }
 
@@ -195,6 +217,7 @@ fun AdminDashboard(onNavigate: (AdminSection) -> Unit, paddingValues: PaddingVal
         if (membersExpanded) {
             item { AdminMenuItem("Membros", "Aprovações e permissões", Icons.Default.People, { onNavigate(AdminSection.MEMBERS) }) }
             item { AdminMenuItem("Perfis dos Membros", "Dados e informações dos usuários", Icons.Default.AccountBox, { onNavigate(AdminSection.PROFILES) }) }
+            item { AdminMenuItem("Loja XP", "Recompensas, estoque e resgates da Jornada", Icons.Default.CardGiftcard, { showXpShop = true }) }
         }
 
         item { AdminCategoryTitle("SISTEMA", systemExpanded) { systemExpanded = !systemExpanded; adminUiPrefs.edit().putBoolean("category_system", systemExpanded).apply() } }
