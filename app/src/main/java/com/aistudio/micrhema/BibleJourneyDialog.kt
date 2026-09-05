@@ -56,7 +56,8 @@ fun BibleJourneyDialog(
 ) {
     val context = LocalContext.current
     var difficulty by remember { mutableStateOf(BibleQuizDifficulty.EASY) }
-    var questionIndex by remember { mutableIntStateOf(0) }
+    var currentQuestionId by remember { mutableStateOf<String?>(null) }
+    var reviewMode by remember { mutableStateOf(false) }
     var hintUsed by remember { mutableStateOf(BibleQuizHintUsage.NONE) }
     var selectedOption by remember { mutableIntStateOf(-1) }
     var submission by remember { mutableStateOf<BibleQuizSubmission?>(null) }
@@ -70,12 +71,14 @@ fun BibleJourneyDialog(
     val questions = remember(difficulty) {
         BibleQuizCatalog.questions.filter { it.difficulty == difficulty }
     }
-    val question = questions.getOrNull(questionIndex.coerceIn(0, (questions.size - 1).coerceAtLeast(0)))
+    val answeredIds = liveMember.badgeActivityIds[BadgeActivityKeys.QUIZ_ANSWERED].orEmpty().toSet()
+    val answeredInDifficulty = questions.count { it.id in answeredIds }
+    val question = currentQuestionId?.let { id -> questions.firstOrNull { it.id == id } }
 
     LaunchedEffect(difficulty, liveMember.id) {
         val answered = liveMember.badgeActivityIds[BadgeActivityKeys.QUIZ_ANSWERED].orEmpty().toSet()
-        val firstPending = questions.indexOfFirst { it.id !in answered }
-        questionIndex = if (firstPending >= 0) firstPending else 0
+        currentQuestionId = questions.firstOrNull { it.id !in answered }?.id
+        reviewMode = false
         selectedOption = -1
         submission = null
         hintUsed = BibleQuizHintUsage.NONE
@@ -123,11 +126,49 @@ fun BibleJourneyDialog(
                     }
                 }
 
+                Text(
+                    "$answeredInDifficulty/${questions.size} perguntas já respondidas nesta dificuldade",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
                 if (question == null) {
-                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
-                        Text("Não há perguntas disponíveis nesta dificuldade.", modifier = Modifier.padding(16.dp))
+                    if (questions.isEmpty()) {
+                        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                            Text("Não há perguntas disponíveis nesta dificuldade.", modifier = Modifier.padding(16.dp))
+                        }
+                    } else {
+                        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.48f))) {
+                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("Todas as perguntas foram concluídas", fontWeight = FontWeight.Bold)
+                                Text(
+                                    "Seu progresso fica salvo. Você não precisa responder tudo novamente.",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                OutlinedButton(
+                                    onClick = {
+                                        reviewMode = true
+                                        currentQuestionId = questions.firstOrNull()?.id
+                                        hintUsed = BibleQuizHintUsage.NONE
+                                        selectedOption = -1
+                                        submission = null
+                                        errorMessage = ""
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("Revisar perguntas · 0 XP")
+                                }
+                            }
+                        }
                     }
                 } else {
+                    if (reviewMode) {
+                        Text(
+                            "Modo revisão: perguntas já respondidas não concedem XP novamente.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                     QuizQuestionCard(
                         question = question,
                         hintUsed = hintUsed,
@@ -159,14 +200,26 @@ fun BibleJourneyDialog(
                     if (submission != null) {
                         Button(
                             onClick = {
-                                questionIndex = if (questions.isEmpty()) 0 else (questionIndex + 1) % questions.size
+                                val latestMember = loggedInMemberState.value?.takeIf { it.id == member.id } ?: liveMember
+                                val answeredNow = latestMember.badgeActivityIds[BadgeActivityKeys.QUIZ_ANSWERED].orEmpty().toSet()
+                                val currentIndex = questions.indexOfFirst { it.id == question.id }.coerceAtLeast(0)
+                                val nextQuestion = if (reviewMode) {
+                                    if (questions.isEmpty()) null else questions[(currentIndex + 1) % questions.size]
+                                } else {
+                                    (1..questions.size)
+                                        .asSequence()
+                                        .map { offset -> questions[(currentIndex + offset) % questions.size] }
+                                        .firstOrNull { it.id !in answeredNow }
+                                }
+                                currentQuestionId = nextQuestion?.id
+                                if (nextQuestion == null) reviewMode = false
                                 hintUsed = BibleQuizHintUsage.NONE
                                 selectedOption = -1
                                 submission = null
                                 errorMessage = ""
                             },
                             modifier = Modifier.fillMaxWidth()
-                        ) { Text("Próxima pergunta") }
+                        ) { Text(if (reviewMode) "Próxima revisão" else "Próxima pergunta") }
                     }
                 }
 
@@ -201,7 +254,7 @@ fun BibleJourneyDialog(
                 }
 
                 Text(
-                    "Regra de progresso: a primeira tentativa de cada pergunta é a única que pode gerar XP. Repetições ficam liberadas para estudo, mas valem 0 XP. Cada nível novo também começa suas próprias missões do zero.",
+                    "Regra de progresso: a primeira tentativa de cada pergunta é a única que pode gerar XP. Perguntas concluídas são puladas automaticamente; a revisão é opcional e vale 0 XP. Cada nível novo também começa suas próprias missões do zero.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
