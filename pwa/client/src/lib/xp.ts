@@ -112,6 +112,8 @@ export type PwaQuizAnswer = {
   account: PwaXpAccount;
 };
 
+type PwaQuizSyncResult = { ok: true; answered: number; correct: number; noEasyHint: number; noHint: number; hardCorrect: number };
+
 async function authenticatedRequest<T>(endpoint: string, body: Record<string, unknown>, forceRefresh = false): Promise<T> {
   const user = firebaseAuth?.currentUser;
   if (!user) throw new Error("Entre novamente para acessar a Jornada XP.");
@@ -136,6 +138,10 @@ function request<T>(body: Record<string, unknown>, forceRefresh = false): Promis
 }
 function quizRequest<T>(body: Record<string, unknown>, forceRefresh = false): Promise<T> {
   return authenticatedRequest<T>("xp-quiz", body, forceRefresh);
+}
+function quizSyncKey() {
+  const uid = firebaseAuth?.currentUser?.uid || "guest";
+  return `micrhema:pwa:quiz-sync-pending:${uid}`;
 }
 
 export function loadPwaXpDashboard() {
@@ -176,6 +182,21 @@ export function submitPwaQuizAnswer(questionId: string, selectedOptionIndex: num
   return quizRequest<PwaQuizAnswer>({ action: "answer", questionId, selectedOptionIndex });
 }
 
-export function syncPwaQuizProfile() {
-  return authenticatedRequest<{ ok: true; answered: number; correct: number; noEasyHint: number; noHint: number; hardCorrect: number }>("pwa-quiz-sync", {});
+export async function syncPwaQuizProfile() {
+  const key = quizSyncKey();
+  try {
+    const result = await authenticatedRequest<PwaQuizSyncResult>("pwa-quiz-sync", {});
+    if (typeof window !== "undefined") localStorage.removeItem(key);
+    return result;
+  } catch (error) {
+    if (typeof window !== "undefined" && firebaseAuth?.currentUser) localStorage.setItem(key, "1");
+    throw error;
+  }
+}
+
+export async function retryPendingPwaQuizProfile() {
+  if (typeof window === "undefined" || !firebaseAuth?.currentUser) return null;
+  const key = quizSyncKey();
+  if (localStorage.getItem(key) !== "1") return null;
+  return syncPwaQuizProfile();
 }

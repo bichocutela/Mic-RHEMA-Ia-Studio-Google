@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import {
   loadPwaQuiz,
   requestPwaQuizHint,
+  retryPendingPwaQuizProfile,
   submitPwaQuizAnswer,
   syncPwaQuizProfile,
   type PwaQuizAnswer,
@@ -23,6 +24,7 @@ export function PwaQuizPanel({ onXpChange }: { onXpChange?: () => void | Promise
   const [selected, setSelected] = useState(-1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [syncWarning, setSyncWarning] = useState("");
 
   const load = async (target = difficulty) => {
     setBusy(true);
@@ -41,6 +43,18 @@ export function PwaQuizPanel({ onXpChange }: { onXpChange?: () => void | Promise
   };
 
   useEffect(() => { void load(difficulty); }, [difficulty]);
+  useEffect(() => {
+    const retry = () => {
+      void retryPendingPwaQuizProfile().then(result => {
+        if (!result) return;
+        setSyncWarning("");
+        window.dispatchEvent(new Event("micrhema:pwa:quiz-synced"));
+      }).catch(() => undefined);
+    };
+    retry();
+    window.addEventListener("online", retry);
+    return () => window.removeEventListener("online", retry);
+  }, []);
 
   const askHint = async (kind: "subtle" | "easy") => {
     const question = status?.question;
@@ -63,12 +77,17 @@ export function PwaQuizPanel({ onXpChange }: { onXpChange?: () => void | Promise
     setSelected(index);
     setBusy(true);
     setError("");
+    setSyncWarning("");
     try {
       const result = await submitPwaQuizAnswer(question.id, index);
       setAnswer(result);
       setSelected(result.selectedOptionIndex);
-      await syncPwaQuizProfile().catch(() => undefined);
-      window.dispatchEvent(new Event("micrhema:pwa:quiz-synced"));
+      try {
+        await syncPwaQuizProfile();
+        window.dispatchEvent(new Event("micrhema:pwa:quiz-synced"));
+      } catch {
+        setSyncWarning("Resposta e XP confirmados. A sincronização do perfil será repetida automaticamente quando a conexão voltar.");
+      }
       await onXpChange?.();
       if (result.correct && result.granted > 0) toast.success(`Resposta correta · +${result.granted} XP`);
       else if (result.correct) toast.success("Resposta correta · tentativa já registrada");
@@ -137,6 +156,7 @@ export function PwaQuizPanel({ onXpChange }: { onXpChange?: () => void | Promise
         <small>Referência: {answer.reference}</small>
         <div style={{marginTop:6,fontWeight:700}}>{answer.granted > 0 ? `+${answer.granted} XP` : "0 XP"}</div>
       </div>}
+      {syncWarning && <p className="parity-warning">{syncWarning}</p>}
       {error && <p className="parity-warning">{error}</p>}
       {answer && <button className="parity-primary" style={{width:"100%",marginTop:10}} onClick={() => void load()} disabled={busy}><RefreshCcw size={16}/> Próxima pergunta</button>}
     </article>}

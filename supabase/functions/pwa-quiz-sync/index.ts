@@ -61,7 +61,6 @@ function encode(value: any): any {
   if (typeof value === "boolean") return { booleanValue: value };
   if (typeof value === "number") return Number.isInteger(value) ? { integerValue: String(value) } : { doubleValue: value };
   if (Array.isArray(value)) return { arrayValue: { values: value.map(encode) } };
-  if (value && typeof value === "object") return { mapValue: { fields: Object.fromEntries(Object.entries(value).map(([k,v]) => [k,encode(v)])) } };
   return { stringValue: String(value ?? "") };
 }
 function fields(doc: any) { return Object.fromEntries(Object.entries(doc?.fields || {}).map(([k,v]) => [k,decode(v)])) as Record<string,any>; }
@@ -71,15 +70,22 @@ async function read(projectId: string, token: string, path: string) {
   if (!response.ok) throw new HttpError(502, "Não foi possível ler o perfil.");
   return await response.json();
 }
-async function patch(projectId: string, token: string, path: string, values: Record<string,unknown>) {
-  const mask = Object.keys(values).map(k => `updateMask.fieldPaths=${encodeURIComponent(k)}`).join("&");
-  const response = await fetch(`${base(projectId)}/${path}?${mask}`, {
+async function patchQuizFields(projectId: string, token: string, path: string, values: Record<string,string[]>) {
+  const keys = Object.keys(values);
+  const masks = [...keys.map(k => `updateMask.fieldPaths=${encodeURIComponent(`badgeActivityIds.${k}`)}`), `updateMask.fieldPaths=${encodeURIComponent("updatedAt")}`].join("&");
+  const quizFields = Object.fromEntries(Object.entries(values).map(([k,v]) => [k, encode(v)]));
+  const response = await fetch(`${base(projectId)}/${path}?${masks}`, {
     method: "PATCH",
     headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-    body: JSON.stringify({ fields: Object.fromEntries(Object.entries(values).map(([k,v]) => [k,encode(v)])) }),
+    body: JSON.stringify({ fields: {
+      badgeActivityIds: { mapValue: { fields: quizFields } },
+      updatedAt: { integerValue: String(Date.now()) },
+    } }),
   });
   if (!response.ok) throw new HttpError(502, "Não foi possível salvar o progresso do Quiz.");
 }
+function list(value: unknown): string[] { return Array.isArray(value) ? value.map(String).filter(Boolean) : []; }
+function union(...groups: string[][]) { return [...new Set(groups.flat().filter(Boolean))]; }
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -99,29 +105,34 @@ Deno.serve(async (request) => {
     const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
     if (!supabaseUrl || !serviceRole) throw new HttpError(500, "Ledger do Quiz não configurado.");
     const supabase = createClient(supabaseUrl, serviceRole, { auth: { persistSession: false, autoRefreshToken: false } });
-    const { data: attempts, error: attemptsError } = await supabase.from("xp_quiz_attempts")
-      .select("question_id,variant,correct").eq("member_id", memberId).order("created_at", { ascending: true });
+    const [{ data: attempts, error: attemptsError }, { data: hardTx, error: hardError }, { data: legacy, error: legacyError }] = await Promise.all([
+      supabase.from("xp_quiz_attempts").select("question_id,variant,correct").eq("member_id", memberId).order("created_at", { ascending: true }),
+      supabase.from("xp_transactions").select("content_id").eq("member_id", memberId).eq("type", "earn").eq("activity", "quiz_hard"),
+      supabase.from("xp_legacy_quiz_receipts").select("question_id").eq("member_id", memberId),
+    ]);
     if (attemptsError) throw attemptsError;
-    const { data: hardTx, error: hardError } = await supabase.from("xp_transactions")
-      .select("content_id").eq("member_id", memberId).eq("type", "earn").eq("activity", "quiz_hard");
     if (hardError) throw hardError;
+    if (legacyError) throw legacyError;
 
-    const answered = [...new Set((attempts || []).map((x:any) => String(x.question_id)).filter(Boolean))];
-    const correct = [...new Set((attempts || []).filter((x:any) => x.correct === true).map((x:any) => String(x.question_id)).filter(Boolean))];
-    const noEasy = [...new Set((attempts || []).filter((x:any) => x.correct === true && String(x.variant || "") !== "easy_hint").map((x:any) => String(x.question_id)).filter(Boolean))];
-    const noHint = [...new Set((attempts || []).filter((x:any) => x.correct === true && String(x.variant || "") === "").map((x:any) => String(x.question_id)).filter(Boolean))];
-    const hard = [...new Set((hardTx || []).map((x:any) => String(x.content_id)).filter(Boolean))];
+    const existing = accessData.badgeActivityIds && typeof accessData.badgeActivityIds === "object" ? accessData.badgeActivityIds as Record<string,unknown> : {};
+    const centralAnswered = (attempts || []).map((x:any) => String(x.question_id)).filter(Boolean);
+    const legacyAnswered = (legacy || []).map((x:any) => String(x.question_id)).filter(Boolean);
+    const centralCorrect = (attempts || []).filter((x:any) => x.correct === true).map((x:any) => String(x.question_id)).filter(Boolean);
+    const centralNoEasy = (attempts || []).filter((x:any) => x.correct === true && String(x.variant || "") !== "easy_hint").map((x:any) => String(x.question_id)).filter(Boolean);
+    const centralNoHint = (attempts || []).filter((x:any) => x.correct === true && String(x.variant || "") === "").map((x:any) => String(x.question_id)).filter(Boolean);
+    const centralHard = (hardTx || []).map((x:any) => String(x.content_id)).filter(Boolean);
 
-    const activities = accessData.badgeActivityIds && typeof accessData.badgeActivityIds === "object" ? { ...accessData.badgeActivityIds } : {};
-    activities.quiz_answered = answered;
-    activities.quiz_correct = correct;
-    activities.quiz_correct_no_easy_hint = noEasy;
-    activities.quiz_correct_no_hint = noHint;
-    activities.quiz_hard_correct = hard;
-    const update = { badgeActivityIds: activities, updatedAt: Date.now() };
-    await patch(projectId, token, accessPath, update);
-    await patch(projectId, token, `users/${encodeURIComponent(memberId)}`, update).catch(() => undefined);
-    return json({ ok: true, answered: answered.length, correct: correct.length, noEasyHint: noEasy.length, noHint: noHint.length, hardCorrect: hard.length });
+    const values = {
+      quiz_answered: union(list(existing.quiz_answered), centralAnswered, legacyAnswered),
+      quiz_correct: union(list(existing.quiz_correct), centralCorrect),
+      quiz_correct_no_easy_hint: union(list(existing.quiz_correct_no_easy_hint), centralNoEasy),
+      quiz_correct_no_hint: union(list(existing.quiz_correct_no_hint), centralNoHint),
+      quiz_hard_correct: union(list(existing.quiz_hard_correct), centralHard),
+    };
+
+    await patchQuizFields(projectId, token, accessPath, values);
+    await patchQuizFields(projectId, token, `users/${encodeURIComponent(memberId)}`, values).catch(() => undefined);
+    return json({ ok: true, answered: values.quiz_answered.length, correct: values.quiz_correct.length, noEasyHint: values.quiz_correct_no_easy_hint.length, noHint: values.quiz_correct_no_hint.length, hardCorrect: values.quiz_hard_correct.length });
   } catch (error) {
     if (error instanceof HttpError) return json({ error: error.message }, error.status);
     console.error("pwa-quiz-sync", error);
