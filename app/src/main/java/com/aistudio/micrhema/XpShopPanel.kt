@@ -145,12 +145,14 @@ fun XpShopPanel(member: MemberRequest, xpUnlocked: Boolean) {
         items.groupBy { it.category.ifBlank { "Recompensas" } }.forEach { (category, categoryItems) ->
             Text(category, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
             categoryItems.forEach { item ->
-                val owned = redemptions.any { it.itemId == item.id && it.status != "cancelado" }
+                val redeemedCount = redemptions.count { it.itemId == item.id && it.status != "cancelado" }
+                val limitReached = redeemedCount >= item.limitPerMember
                 val soldOut = item.stock != null && item.stock <= 0
                 val enoughBalance = (account?.balance ?: 0) >= item.cost
                 XpShopItemCard(
                     item = item,
-                    owned = owned,
+                    redeemedCount = redeemedCount,
+                    limitReached = limitReached,
                     soldOut = soldOut,
                     enoughBalance = enoughBalance,
                     onRedeem = { selectedItem = item }
@@ -239,7 +241,8 @@ fun XpShopPanel(member: MemberRequest, xpUnlocked: Boolean) {
 @Composable
 private fun XpShopItemCard(
     item: XpShopItem,
-    owned: Boolean,
+    redeemedCount: Int,
+    limitReached: Boolean,
     soldOut: Boolean,
     enoughBalance: Boolean,
     onRedeem: () -> Unit
@@ -287,8 +290,17 @@ private fun XpShopItemCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+            if (redeemedCount > 0) {
+                Text(
+                    "Resgates: ${redeemedCount.coerceAtMost(item.limitPerMember)}/${item.limitPerMember}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             when {
-                owned -> OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) { Text("Já resgatado") }
+                limitReached -> OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (item.limitPerMember == 1) "Já resgatado" else "Limite de resgates atingido")
+                }
                 soldOut -> OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) { Text("Esgotado") }
                 !enoughBalance -> OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) { Text("Saldo insuficiente") }
                 else -> Button(onClick = onRedeem, modifier = Modifier.fillMaxWidth()) { Text("Resgatar") }
