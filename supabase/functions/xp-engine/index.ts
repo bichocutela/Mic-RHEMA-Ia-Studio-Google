@@ -128,6 +128,12 @@ function parseLegacyXp(entry: string): number {
   return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
 }
 
+function legacyReceiptFor(activity: string, contentId: string): string {
+  if (activity.startsWith("quiz_")) return `quiz:${contentId}`;
+  if (activity.startsWith("journey_mission_")) return `mission:${contentId}`;
+  return "";
+}
+
 async function loadMember(projectId: string, token: string, memberId: string, phone: string) {
   const accessData = documentData(await getDocument(projectId, token, "acessos_pendentes", memberId));
   if (!Object.keys(accessData).length) throw new Error("Cadastro do membro não encontrado.");
@@ -138,9 +144,11 @@ async function loadMember(projectId: string, token: string, memberId: string, ph
     ...(activityMap(accessData.badgeActivityIds).journey_xp_awards ?? []),
     ...(activityMap(userData.badgeActivityIds).journey_xp_awards ?? []),
   ])];
+  const legacyReceipts = legacyEntries.map((entry) => entry.slice(0, entry.lastIndexOf("="))).filter(Boolean);
   return {
     xpUnlocked: [...unlocked].some((id) => LEVEL_8_PLUS.has(id)),
     legacyXp: legacyEntries.reduce((sum, item) => sum + parseLegacyXp(item), 0),
+    legacyReceipts: new Set(legacyReceipts),
   };
 }
 
@@ -213,6 +221,20 @@ Deno.serve(async (request) => {
       }
       const rule = effectiveRule(activity, variant);
       if (!rule) return json({ error: "Atividade de XP não reconhecida." }, 400);
+
+      const legacyReceipt = legacyReceiptFor(activity, contentId);
+      if (legacyReceipt && member.legacyReceipts.has(legacyReceipt)) {
+        return json({
+          ok: true,
+          unlocked: member.xpUnlocked,
+          granted: 0,
+          duplicate: true,
+          reason: "legacy_migrated",
+          receiptId: legacyReceipt,
+          account,
+        });
+      }
+
       const receiptId = `${activity}:${contentId}:${variant || "base"}`;
       const { data, error } = await supabase.rpc("xp_award", {
         p_member_id: memberId,
