@@ -93,6 +93,10 @@ object BibleReadingPreferences {
             .putInt(KEY_LAST_VERSE, position.verse)
             .putString(KEY_LAST_VERSION, position.version)
             .apply()
+
+        // O +1 XP de versículo exige permanência real na mesma posição por 5 s.
+        // Chamadas rápidas durante a rolagem cancelam a observação anterior.
+        BibleXpReadingGuard.observeVerse(context, position)
     }
 
     fun getLastReading(context: Context): ReadingPosition? {

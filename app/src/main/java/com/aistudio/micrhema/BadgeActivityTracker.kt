@@ -48,6 +48,15 @@ object BadgeActivityTracker {
         // Livro/áudio/vídeo não contam mais ao abrir. Somente XpMediaClient pode
         // confirmar essas atividades depois do progresso verificado no backend.
         if (activity in VERIFIED_MEDIA_ACTIVITIES) return
+
+        // A tela da Bíblia ainda chama record quando o capítulo termina de carregar.
+        // Isso agora apenas inicia a verificação: o progresso só é persistido depois
+        // de 30 s na leitura e avanço real até pelo menos 80% dos versículos.
+        if (activity == BadgeActivityKeys.BIBLE_CHAPTERS) {
+            BibleXpReadingGuard.scheduleChapter(context, itemId.trim())
+            return
+        }
+
         val member = loggedInMemberState.value ?: return
         val normalizedId = itemId.trim()
         if (normalizedId.isBlank()) return
@@ -64,6 +73,16 @@ object BadgeActivityTracker {
         val previous = member.badgeActivityIds[activity].orEmpty()
         if (normalizedId in previous) return
         persist(context, member, activity, previous + normalizedId)
+    }
+
+    internal fun recordVerifiedBibleChapter(context: Context, itemId: String) {
+        val member = loggedInMemberState.value ?: return
+        val normalizedId = itemId.trim()
+        if (normalizedId.isBlank()) return
+        val previous = member.badgeActivityIds[BadgeActivityKeys.BIBLE_CHAPTERS].orEmpty()
+        if (normalizedId in previous) return
+        persist(context, member, BadgeActivityKeys.BIBLE_CHAPTERS, previous + normalizedId)
+        XpActivityBridge.bibleChapter(context, normalizedId)
     }
 
     fun reconcile(context: Context, member: MemberRequest) {
