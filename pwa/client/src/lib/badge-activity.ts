@@ -8,6 +8,7 @@ export type BadgeActivityKey = "plans" | "plan_themes" | "books" | "videos" | "b
 export const PWA_BADGE_UNLOCK_EVENT = "micrhema:pwa:badge-unlocked";
 
 type BadgeActivityResult = { ok: true; unlockedBadgeIds: string[]; newlyUnlocked: string[] };
+const VERIFIED_ONLY = new Set<BadgeActivityKey>(["books", "videos", "devotionals", "audios"]);
 
 function announceBadgeUnlock(result: BadgeActivityResult) {
   if (result.newlyUnlocked.length && typeof window !== "undefined") {
@@ -31,6 +32,13 @@ async function postBadgeProgress(body: Record<string, unknown>) {
 }
 
 export async function recordPwaActivity(activity: BadgeActivityKey, itemId: string) {
+  const normalized = String(itemId || "").trim();
+  if (!normalized || VERIFIED_ONLY.has(activity)) return { ok: false, skipped: true, newlyUnlocked: [] as string[] };
+  return postBadgeProgress({ activity, itemId: normalized });
+}
+
+/** Conteúdos protegidos só entram no perfil após o ledger/servidor confirmar uso real. */
+export async function recordVerifiedPwaActivity(activity: BadgeActivityKey, itemId: string) {
   const normalized = String(itemId || "").trim();
   if (!normalized) return { ok: false, skipped: true, newlyUnlocked: [] as string[] };
   return postBadgeProgress({ activity, itemId: normalized });
