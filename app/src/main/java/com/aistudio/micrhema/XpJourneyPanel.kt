@@ -27,10 +27,10 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,13 +59,16 @@ fun XpJourneyPanel(member: MemberRequest) {
     val scope = rememberCoroutineScope()
     val account = xpAccountState.value?.takeIf { it.memberId == member.id }
     val history = xpHistoryState.value
+    val journeyState = xpJourneyState.value?.takeIf { it.memberId == member.id }
     val xpUnlocked = isXpUnlocked(member)
     val today = LocalDate.now(xpBrazilZone).toString()
+    val streak = journeyState?.streak ?: 0
     var selectedTab by remember(member.id) { mutableStateOf(0) }
 
     LaunchedEffect(member.id) {
         runCatching { XpEngineClient.refreshNow(member) }
         runCatching { XpEngineClient.loadHistoryNow(member, 100) }
+        runCatching { XpEngineClient.loadJourneyStateNow(member) }
     }
 
     val todayEarns = history.filter { it.type == "earn" && it.dateKey == today }
@@ -99,21 +102,15 @@ fun XpJourneyPanel(member: MemberRequest) {
     )
     val allDailyComplete = dailyMissions.all { it.completed }
     val dailyBonusAlreadyGranted = todayEarns.any { it.activity == "daily_mission" }
-    val streak = calculateXpStreak(history)
 
     LaunchedEffect(member.id, today, xpUnlocked, allDailyComplete, dailyBonusAlreadyGranted) {
         if (xpUnlocked && allDailyComplete && !dailyBonusAlreadyGranted) {
             XpEngineClient.award(context, "daily_mission", today) {
-                scope.launch { runCatching { XpEngineClient.loadHistoryNow(member, 100) } }
+                scope.launch {
+                    runCatching { XpEngineClient.loadHistoryNow(member, 100) }
+                    runCatching { XpEngineClient.loadJourneyStateNow(member) }
+                }
             }
-        }
-    }
-
-    LaunchedEffect(member.id, today, xpUnlocked, streak) {
-        if (!xpUnlocked) return@LaunchedEffect
-        when (streak) {
-            7 -> XpEngineClient.award(context, "streak_7", today)
-            30 -> XpEngineClient.award(context, "streak_30", today)
         }
     }
 
@@ -275,31 +272,14 @@ private fun XpNumberCard(modifier: Modifier = Modifier, value: Int, label: Strin
     }
 }
 
-private fun calculateXpStreak(history: List<XpTransaction>): Int {
-    val dates = history.asSequence()
-        .filter { it.type == "earn" && it.dateKey.isNotBlank() }
-        .mapNotNull { runCatching { LocalDate.parse(it.dateKey) }.getOrNull() }
-        .toSet()
-    if (dates.isEmpty()) return 0
-
-    val today = LocalDate.now(xpBrazilZone)
-    var cursor = if (today in dates) today else today.minusDays(1)
-    var streak = 0
-    while (cursor in dates) {
-        streak++
-        cursor = cursor.minusDays(1)
-    }
-    return streak
-}
-
 private fun xpActivityLabel(activity: String): String = when (activity) {
     "bible_chapter" -> "Capítulo bíblico concluído"
     "devotional" -> "Devocional concluído"
     "news_read" -> "Notícia lida"
     "plan_theme" -> "Plano bíblico"
     "book_10", "book_complete" -> "Leitura de livro"
-    "audio_open", "audio_10min", "audio_90" -> "Áudio"
-    "video_open", "video_10min", "video_90" -> "Vídeo"
+    "audio_10min", "audio_90" -> "Áudio"
+    "video_10min", "video_90" -> "Vídeo"
     "ibr_lesson" -> "Aula IBR"
     "prayer_sent" -> "Pedido de oração"
     "quiz_easy", "quiz_medium", "quiz_hard" -> "Quiz Bíblico"
