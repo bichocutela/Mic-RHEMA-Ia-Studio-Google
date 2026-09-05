@@ -17,8 +17,8 @@ object XpActivityBridge {
     fun bibleChapter(context: Context, id: String) = award(context, "bible_chapter", id)
     fun devotional(context: Context, id: String) = award(context, "devotional", id)
     fun news(context: Context, id: String) = award(context, "news_read", id)
-    fun planTheme(context: Context, id: String) = award(context, "plan_theme", id)
-    fun planDay(context: Context, id: String) = award(context, "plan_day", id)
+    fun planTheme(context: Context, id: String) = award(context, "plan_theme", canonicalPlanThemeId(id))
+    fun planDay(context: Context, id: String) = award(context, "plan_day", canonicalPlanThemeId(id))
     fun planComplete(context: Context, id: String) = award(context, "plan_complete", id)
     fun bookEngagement(context: Context, id: String) = award(context, "book_10", id)
     fun bookCompleted(context: Context, id: String) = award(context, "book_complete", id)
@@ -33,7 +33,7 @@ object XpActivityBridge {
         val member = loggedInMemberState.value ?: return
         if (!isXpUnlocked(member)) return
         when (activity) {
-            BadgeActivityKeys.PLAN_THEMES -> planTheme(context, canonicalPlanThemeId(itemId))
+            BadgeActivityKeys.PLAN_THEMES -> planTheme(context, itemId)
         }
     }
 
