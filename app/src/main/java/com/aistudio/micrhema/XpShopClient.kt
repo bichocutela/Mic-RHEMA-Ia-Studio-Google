@@ -65,7 +65,12 @@ object XpShopClient {
         return if (digits.length in 12..13 && digits.startsWith("55")) digits.drop(2) else digits
     }
 
-    private suspend fun call(member: MemberRequest, action: String, itemId: String = ""): JSONObject = withContext(Dispatchers.IO) {
+    private suspend fun call(
+        member: MemberRequest,
+        action: String,
+        itemId: String = "",
+        expectedCost: Int? = null
+    ): JSONObject = withContext(Dispatchers.IO) {
         val baseUrl = BuildConfig.SUPABASE_URL.trim().trimEnd('/')
         val anonKey = BuildConfig.SUPABASE_ANON_KEY.trim()
         if (baseUrl.isBlank() || anonKey.isBlank() || baseUrl.contains("your-project")) {
@@ -76,6 +81,7 @@ object XpShopClient {
             .put("memberId", member.id)
             .put("phone", normalizePhone(member.phone))
         if (itemId.isNotBlank()) payload.put("itemId", itemId)
+        if (expectedCost != null) payload.put("expectedCost", expectedCost)
 
         val request = Request.Builder()
             .url("$baseUrl/functions/v1/xp-shop")
@@ -169,7 +175,7 @@ object XpShopClient {
     }
 
     suspend fun redeem(member: MemberRequest, item: XpShopItem): XpRedeemResult {
-        val response = call(member, "redeem", item.id)
+        val response = call(member, "redeem", item.id, item.cost)
         val account = parseAccount(member.id, response)
         val raw = response.optJSONObject("redemption") ?: throw IllegalStateException("O resgate não foi confirmado.")
         val redemption = XpRedemption(
