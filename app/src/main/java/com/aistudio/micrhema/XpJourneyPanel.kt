@@ -21,11 +21,17 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -55,6 +61,7 @@ fun XpJourneyPanel(member: MemberRequest) {
     val history = xpHistoryState.value
     val xpUnlocked = isXpUnlocked(member)
     val today = LocalDate.now(xpBrazilZone).toString()
+    var selectedTab by remember(member.id) { mutableStateOf(0) }
 
     LaunchedEffect(member.id) {
         runCatching { XpEngineClient.refreshNow(member) }
@@ -168,55 +175,84 @@ fun XpJourneyPanel(member: MemberRequest) {
                 Text("Sequência: $streak ${if (streak == 1) "dia" else "dias"}", fontWeight = FontWeight.SemiBold)
             }
 
-            if (xpUnlocked) {
-                HorizontalDivider()
-                Text("Missões de hoje", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                dailyMissions.forEach { mission ->
-                    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (mission.completed) {
-                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.size(7.dp))
-                            }
-                            Column(Modifier.weight(1f)) {
-                                Text(mission.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                                Text(mission.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Text("${mission.current.coerceAtMost(mission.target)}/${mission.target}", style = MaterialTheme.typography.labelMedium)
-                        }
-                        LinearProgressIndicator(progress = { mission.progress }, modifier = Modifier.fillMaxWidth())
-                    }
-                }
-                if (allDailyComplete) {
-                    Text(
-                        if (dailyBonusAlreadyGranted) "✓ Jornada de hoje concluída · bônus entregue"
-                        else "Jornada de hoje concluída · preparando +10 XP",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary
+            ScrollableTabRow(
+                selectedTabIndex = selectedTab,
+                edgePadding = 0.dp,
+                divider = {}
+            ) {
+                listOf("Missões", "Loja XP", "Histórico").forEachIndexed { index, label ->
+                    Tab(
+                        selected = selectedTab == index,
+                        onClick = { selectedTab = index },
+                        text = { Text(label) }
                     )
-                } else {
-                    Text("Complete as 4 missões para receber +10 XP", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 
-            if (history.isNotEmpty()) {
-                HorizontalDivider()
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.History, contentDescription = null, modifier = Modifier.size(19.dp), tint = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.size(7.dp))
-                    Text("Histórico recente", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                }
-                history.take(6).forEach { transaction ->
-                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(transaction.description.ifBlank { xpActivityLabel(transaction.activity) }, style = MaterialTheme.typography.bodyMedium)
-                            Text(transaction.dateKey, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            when (selectedTab) {
+                0 -> {
+                    if (xpUnlocked) {
+                        Text("Missões de hoje", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                        dailyMissions.forEach { mission ->
+                            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (mission.completed) {
+                                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                        Spacer(Modifier.size(7.dp))
+                                    }
+                                    Column(Modifier.weight(1f)) {
+                                        Text(mission.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                                        Text(mission.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    Text("${mission.current.coerceAtMost(mission.target)}/${mission.target}", style = MaterialTheme.typography.labelMedium)
+                                }
+                                LinearProgressIndicator(progress = { mission.progress }, modifier = Modifier.fillMaxWidth())
+                            }
                         }
+                        if (allDailyComplete) {
+                            Text(
+                                if (dailyBonusAlreadyGranted) "✓ Jornada de hoje concluída · bônus entregue"
+                                else "Jornada de hoje concluída · preparando +10 XP",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        } else {
+                            Text("Complete as 4 missões para receber +10 XP", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    } else {
                         Text(
-                            text = if (transaction.type == "spend") "-${transaction.amount} XP" else "+${transaction.amount} XP",
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
+                            "As missões diárias completas serão liberadas no Nível 8. Continue avançando pela Jornada e pelo Quiz.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+                }
+
+                1 -> XpShopPanel(member = member, xpUnlocked = xpUnlocked)
+
+                2 -> {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.History, contentDescription = null, modifier = Modifier.size(19.dp), tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.size(7.dp))
+                        Text("Histórico XP", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    }
+                    if (history.isEmpty()) {
+                        Text("Ainda não há movimentações de XP registradas.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else {
+                        history.take(30).forEach { transaction ->
+                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(transaction.description.ifBlank { xpActivityLabel(transaction.activity) }, style = MaterialTheme.typography.bodyMedium)
+                                    Text(transaction.dateKey, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                Text(
+                                    text = if (transaction.type == "spend") "-${transaction.amount} XP" else "+${transaction.amount} XP",
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            HorizontalDivider()
+                        }
                     }
                 }
             }
@@ -269,5 +305,7 @@ private fun xpActivityLabel(activity: String): String = when (activity) {
     "quiz_easy", "quiz_medium", "quiz_hard" -> "Quiz Bíblico"
     "daily_mission" -> "Jornada diária"
     "streak_7", "streak_30" -> "Bônus de sequência"
+    "shop_redeem" -> "Resgate na Loja XP"
+    "shop_refund" -> "Estorno da Loja XP"
     else -> "Atividade na Jornada"
 }
