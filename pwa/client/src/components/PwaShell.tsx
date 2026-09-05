@@ -11,6 +11,7 @@ import { HomeParityView } from "./HomeParityView";
 import { DrawerBadgesParity } from "./DrawerBadgesParity";
 import { BadgeUnlockCelebration } from "./BadgeUnlockCelebration";
 import { BiblicalBadgeAvatar } from "./BiblicalBadgeAvatar";
+import { LiveStreamSurface } from "./LiveStreamSurface";
 import "./AndroidParityViews.css";
 
 const AdminParityView=lazy(()=>import("./AdminParityView").then(module=>({default:module.AdminParityView})));
@@ -152,7 +153,7 @@ export function PwaShell({active,onNavigate,drawerOpen,onCloseDrawer,onOpenDrawe
     :active==="about"?<AboutParityView/>
     :<HomeParityView session={session} onNavigate={onNavigate}/>;
   return <div className="android-app-shell">
-    <main className="android-app-content"><Suspense fallback={<RouteFallback/>}>{content}</Suspense></main>
+    <main className="android-app-content"><LiveStreamSurface visible={active==="home"}/><Suspense fallback={<RouteFallback/>}>{content}</Suspense></main>
     <nav className="android-bottom-dock" aria-label="Navegação principal">{primaryItems.map(({id,label,icon:Icon})=>{const selected=active===id;return <button className={selected?"is-active":""} key={id} onClick={()=>onNavigate(id)} aria-current={selected?"page":undefined}><Icon size={20} strokeWidth={selected?2.4:1.9}/>{selected&&<span>{label}</span>}</button>})}<button onClick={onOpenDrawer} aria-label="Abrir menu"><MenuIcon size={22}/></button></nav>
     {drawerOpen&&<AndroidDrawer active={active} onNavigate={onNavigate} onProfile={onProfile} onClose={onCloseDrawer} session={session} onNotifications={onNotifications}/>} 
     <BadgeUnlockCelebration onOpenBadges={()=>{onCloseDrawer();onNavigate("profile")}}/>
