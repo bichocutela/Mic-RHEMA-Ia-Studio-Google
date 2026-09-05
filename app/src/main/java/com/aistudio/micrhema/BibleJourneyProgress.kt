@@ -50,8 +50,64 @@ object BibleJourneyProgressTracker {
     )
 
     /**
+     * Recupera o XP das respostas corretas registradas enquanto a regra antiga
+     * bloqueava o Quiz antes do Nível 8. O recibo quiz:<id> mantém a migração
+     * idempotente e preserva a redução correta quando uma dica foi utilizada.
+     */
+    fun reconcileQuizXp(context: Context, sourceMember: MemberRequest): MemberRequest {
+        val correctIds = sourceMember.ids(BadgeActivityKeys.QUIZ_CORRECT).toSet()
+        if (correctIds.isEmpty()) return sourceMember
+
+        val noEasyHintIds = sourceMember.ids(BadgeActivityKeys.QUIZ_CORRECT_NO_EASY_HINT).toSet()
+        val noHintIds = sourceMember.ids(BadgeActivityKeys.QUIZ_CORRECT_NO_HINT).toSet()
+        val xpAwards = sourceMember.ids(BadgeActivityKeys.XP_AWARDS).toMutableList()
+        val existingReceipts = xpAwards.map { it.substringBefore('=') }.toMutableSet()
+
+        val questionsById = buildMap<String, BibleQuizQuestion> {
+            BibleQuizCatalog.questions.forEach { put(it.id, it) }
+            BibleQuizDifficulty.entries.forEach { difficulty ->
+                BibleQuizExpansion.byDifficulty(difficulty).forEach { put(it.id, it) }
+            }
+        }
+
+        var changed = false
+        correctIds.forEach { questionId ->
+            val receipt = "quiz:$questionId"
+            if (receipt in existingReceipts) return@forEach
+            val question = questionsById[questionId] ?: return@forEach
+            val inferredHint = when {
+                questionId in noHintIds -> BibleQuizHintUsage.NONE
+                questionId in noEasyHintIds -> BibleQuizHintUsage.HARD
+                else -> BibleQuizHintUsage.EASY
+            }
+            val recoveredXp = BibleQuizEngine.answer(
+                question = question,
+                selectedOptionIndex = question.correctOptionIndex,
+                hintUsed = inferredHint
+            ).awardedXp
+            if (recoveredXp > 0) {
+                xpAwards.add("$receipt=$recoveredXp")
+                existingReceipts.add(receipt)
+                changed = true
+            }
+        }
+
+        if (!changed) return sourceMember
+
+        val activities = sourceMember.badgeActivityIds.toMutableMap()
+        activities[BadgeActivityKeys.XP_AWARDS] = xpAwards.distinct()
+        val recovered = sourceMember.copy(badgeActivityIds = activities)
+        BadgeActivityTracker.updateMemberStates(recovered)
+        BadgeActivityTracker.syncPortableState(context, recovered)
+        BadgeActivityTracker.reconcile(context, recovered)
+        return loggedInMemberState.value?.takeIf { it.id == recovered.id } ?: recovered
+    }
+
+    /**
      * A primeira resposta de cada pergunta é a única que altera progresso.
-     * XP só passa a ser concedido depois que o Nível 8 estiver desbloqueado.
+     * O XP do Quiz é experiência extra da Jornada e começa a ser acumulado desde
+     * o primeiro nível. O Nível 8 continua sendo o desbloqueio da Loja XP e dos
+     * demais ganhos do ecossistema.
      */
     fun submitQuizAnswer(
         context: Context,
@@ -61,7 +117,8 @@ object BibleJourneyProgressTracker {
     ): BibleQuizSubmission {
         val rawMember = loggedInMemberState.value
             ?: throw IllegalStateException("Entre no MIC Rhema para registrar seu progresso.")
-        val member = ensureCurrentLevelMissionBaseline(ensureBibleJourneyBaseline(rawMember), allowIbrDependentBaseline = true)
+        val recoveredMember = reconcileQuizXp(context, rawMember)
+        val member = ensureCurrentLevelMissionBaseline(ensureBibleJourneyBaseline(recoveredMember), allowIbrDependentBaseline = true)
         val evaluated = BibleQuizEngine.answer(question, selectedOptionIndex, hintUsed)
         val alreadyAnswered = question.id in member.ids(BadgeActivityKeys.QUIZ_ANSWERED)
 
@@ -80,8 +137,7 @@ object BibleJourneyProgressTracker {
         }
 
         add(BadgeActivityKeys.QUIZ_ANSWERED, question.id)
-        val xpAllowed = isXpUnlocked(member)
-        val grantedXp = if (evaluated.isCorrect && xpAllowed) evaluated.awardedXp else 0
+        val grantedXp = if (evaluated.isCorrect) evaluated.awardedXp else 0
         if (evaluated.isCorrect) {
             add(BadgeActivityKeys.QUIZ_CORRECT, question.id)
             if (hintUsed != BibleQuizHintUsage.EASY) add(BadgeActivityKeys.QUIZ_CORRECT_NO_EASY_HINT, question.id)
