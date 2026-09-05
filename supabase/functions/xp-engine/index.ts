@@ -6,6 +6,7 @@ const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const DEFAULT_PROJECT_ID = "mic-rhema";
 const CURRENT_PUBLISHABLE_KEY = "sb_publishable_Dv98hBnbJB2TzRCG6aJNwA_KMPHLZSw";
 const QUIZ_VARIANTS = new Set(["", "subtle_hint", "easy_hint"]);
+const STREAK_IGNORED = new Set(["legacy_sync", "daily_mission", "streak_7", "streak_30"]);
 
 const LEVEL_8_PLUS = new Set([
   "semente_da_fe", "caminho_da_promessa", "escudo_da_fe", "aguas_vivas", "videira_verdadeira",
@@ -46,8 +47,6 @@ const AWARD_RULES: Record<string, AwardRule> = {
   journey_mission_medium: { amount: 35, description: "Missão média da Jornada concluída" },
   journey_mission_hard: { amount: 70, description: "Missão difícil da Jornada concluída" },
   daily_mission: { amount: 10, description: "Jornada diária concluída", dailyCapXp: 10 },
-  streak_7: { amount: 25, description: "Sequência de 7 dias" },
-  streak_30: { amount: 100, description: "Sequência de 30 dias" },
 };
 
 const corsHeaders = {
@@ -136,9 +135,89 @@ function legacyReceiptFor(activity: string, contentId: string): string {
 function canonicalReceipt(activity: string, contentId: string): string {
   if (activity.startsWith("quiz_")) return `quiz:${contentId}`;
   if (activity.startsWith("journey_mission_")) return `mission:${contentId}`;
-  if (activity === "streak_7") return "streak:7";
-  if (activity === "streak_30") return "streak:30";
   return `${activity}:${contentId}`;
+}
+
+function todayRecife(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Recife",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+function addDays(date: string, delta: number): string {
+  const value = new Date(`${date}T00:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + delta);
+  return value.toISOString().slice(0, 10);
+}
+
+async function loadStreak(supabase: ReturnType<typeof createClient>, memberId: string): Promise<number> {
+  const today = todayRecife();
+  const cutoff = addDays(today, -45);
+  const { data, error } = await supabase
+    .from("xp_transactions")
+    .select("activity,date_key,type")
+    .eq("member_id", memberId)
+    .eq("type", "earn")
+    .gte("date_key", cutoff)
+    .order("date_key", { ascending: false })
+    .limit(2000);
+  if (error) throw error;
+
+  const activeDates = new Set(
+    (data ?? [])
+      .filter((row) => !STREAK_IGNORED.has(String(row.activity ?? "")))
+      .map((row) => String(row.date_key ?? ""))
+      .filter(Boolean),
+  );
+  let cursor = activeDates.has(today) ? today : addDays(today, -1);
+  let streak = 0;
+  while (activeDates.has(cursor)) {
+    streak += 1;
+    cursor = addDays(cursor, -1);
+  }
+  return streak;
+}
+
+async function dailyMissionComplete(supabase: ReturnType<typeof createClient>, memberId: string): Promise<boolean> {
+  const today = todayRecife();
+  const { data, error } = await supabase
+    .from("xp_transactions")
+    .select("activity")
+    .eq("member_id", memberId)
+    .eq("type", "earn")
+    .eq("date_key", today)
+    .limit(500);
+  if (error) throw error;
+  const activities = (data ?? []).map((row) => String(row.activity ?? ""));
+  const count = (names: string[]) => activities.filter((activity) => names.includes(activity)).length;
+  return count(["bible_chapter"]) >= 1
+    && count(["devotional", "plan_theme", "book_10", "book_complete", "ibr_lesson"]) >= 1
+    && count(["quiz_easy", "quiz_medium", "quiz_hard"]) >= 3
+    && count(["active_5min"]) >= 2;
+}
+
+async function awardStreakMilestones(supabase: ReturnType<typeof createClient>, memberId: string, streak: number) {
+  const milestones = [
+    { days: 7, activity: "streak_7", amount: 25, description: "Sequência de 7 dias" },
+    { days: 30, activity: "streak_30", amount: 100, description: "Sequência de 30 dias" },
+  ];
+  for (const milestone of milestones) {
+    if (streak < milestone.days) continue;
+    const { error } = await supabase.rpc("xp_award", {
+      p_member_id: memberId,
+      p_activity: milestone.activity,
+      p_content_id: `milestone_${milestone.days}`,
+      p_variant: "",
+      p_receipt_id: `streak:${milestone.days}`,
+      p_amount: milestone.amount,
+      p_description: milestone.description,
+      p_daily_cap: 0,
+    });
+    if (error) throw error;
+  }
 }
 
 async function loadMember(projectId: string, token: string, memberId: string, phone: string) {
@@ -221,6 +300,18 @@ Deno.serve(async (request) => {
       return json({ ok: true, unlocked: member.xpUnlocked, account, transactions: data ?? [] });
     }
 
+    if (action === "journey_state") {
+      const streak = await loadStreak(supabase, memberId);
+      if (member.xpUnlocked) await awardStreakMilestones(supabase, memberId, streak);
+      const { data: refreshedAccount, error: refreshedError } = await supabase
+        .from("xp_accounts")
+        .select("member_id,total_earned,total_spent,balance,migrated_legacy_xp,updated_at")
+        .eq("member_id", memberId)
+        .single();
+      if (refreshedError) throw refreshedError;
+      return json({ ok: true, unlocked: member.xpUnlocked, account: refreshedAccount, streak });
+    }
+
     if (action === "award") {
       const activity = String(input.activity ?? "").trim();
       const contentId = String(input.contentId ?? "").trim().slice(0, 220);
@@ -232,6 +323,9 @@ Deno.serve(async (request) => {
       }
       const rule = effectiveRule(activity, variant);
       if (!rule) return json({ error: "Atividade de XP ou variação inválida." }, 400);
+      if (activity === "daily_mission" && !(await dailyMissionComplete(supabase, memberId))) {
+        return json({ ok: true, unlocked: member.xpUnlocked, granted: 0, reason: "mission_incomplete", account });
+      }
 
       const legacyReceipt = legacyReceiptFor(activity, contentId);
       if (legacyReceipt && member.legacyReceipts.has(legacyReceipt)) {
