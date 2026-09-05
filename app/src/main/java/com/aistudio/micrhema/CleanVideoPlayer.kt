@@ -53,6 +53,7 @@ import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstan
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.AbstractYouTubePlayerListener
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView
+import kotlinx.coroutines.delay
 
 /**
  * Player de vídeo reutilizável oficial do aplicativo.
@@ -83,6 +84,9 @@ fun CleanVideoPlayer(
     var errorMessage by remember(videoUrl) { mutableStateOf<String?>(null) }
     var isLoading by remember(videoUrl) { mutableStateOf(true) }
     var retryKey by remember { mutableStateOf(0) }
+    var youtubePlaying by remember(videoUrl) { mutableStateOf(false) }
+    var youtubeCurrentSecond by remember(videoUrl) { mutableStateOf(0f) }
+    var youtubeDurationSecond by remember(videoUrl) { mutableStateOf(0f) }
 
     LaunchedEffect(videoUrl, isYouTube, youtubeId) {
         errorMessage = when {
@@ -122,6 +126,16 @@ fun CleanVideoPlayer(
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     isLoading = playbackState == Player.STATE_BUFFERING || playbackState == Player.STATE_IDLE
                     if (playbackState == Player.STATE_READY) errorMessage = null
+                    if (playbackState == Player.STATE_ENDED) {
+                        val duration = exoPlayer.duration.coerceAtLeast(0L)
+                        XpMediaClient.recordVideo(
+                            context = context,
+                            videoUrl = videoUrl,
+                            positionMs = duration,
+                            durationMs = duration,
+                            isActive = true
+                        )
+                    }
                 }
 
                 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
@@ -134,6 +148,41 @@ fun CleanVideoPlayer(
                 exoPlayer.removeListener(listener)
                 exoPlayer.release()
             }
+        }
+    }
+
+    // MP4/Drive: posição real do ExoPlayer. O servidor descarta seeks artificiais.
+    LaunchedEffect(exoPlayer, videoUrl) {
+        if (exoPlayer == null || videoUrl.isBlank()) return@LaunchedEffect
+        while (true) {
+            if (exoPlayer.isPlaying) {
+                XpMediaClient.recordVideo(
+                    context = context,
+                    videoUrl = videoUrl,
+                    positionMs = exoPlayer.currentPosition.coerceAtLeast(0L),
+                    durationMs = exoPlayer.duration.coerceAtLeast(0L),
+                    isActive = true
+                )
+            }
+            delay(4_000L)
+        }
+    }
+
+    // YouTube: o listener fornece segundo atual e duração; o pulso periódico evita
+    // premiar apenas por abrir/cuear o vídeo.
+    LaunchedEffect(videoUrl, isYouTube) {
+        if (!isYouTube || videoUrl.isBlank()) return@LaunchedEffect
+        while (true) {
+            if (youtubePlaying) {
+                XpMediaClient.recordVideo(
+                    context = context,
+                    videoUrl = videoUrl,
+                    positionMs = (youtubeCurrentSecond * 1000f).toLong().coerceAtLeast(0L),
+                    durationMs = (youtubeDurationSecond * 1000f).toLong().coerceAtLeast(0L),
+                    isActive = true
+                )
+            }
+            delay(4_000L)
         }
     }
 
@@ -216,6 +265,24 @@ fun CleanVideoPlayer(
                                     state: PlayerConstants.PlayerState
                                 ) {
                                     isLoading = state == PlayerConstants.PlayerState.BUFFERING
+                                    youtubePlaying = state == PlayerConstants.PlayerState.PLAYING
+                                    if (state == PlayerConstants.PlayerState.ENDED && youtubeDurationSecond > 0f) {
+                                        XpMediaClient.recordVideo(
+                                            context = context,
+                                            videoUrl = videoUrl,
+                                            positionMs = (youtubeDurationSecond * 1000f).toLong(),
+                                            durationMs = (youtubeDurationSecond * 1000f).toLong(),
+                                            isActive = true
+                                        )
+                                    }
+                                }
+
+                                override fun onCurrentSecond(youTubePlayer: YouTubePlayer, second: Float) {
+                                    youtubeCurrentSecond = second.coerceAtLeast(0f)
+                                }
+
+                                override fun onVideoDuration(youTubePlayer: YouTubePlayer, duration: Float) {
+                                    youtubeDurationSecond = duration.coerceAtLeast(0f)
                                 }
 
                                 override fun onError(
@@ -223,6 +290,7 @@ fun CleanVideoPlayer(
                                     error: PlayerConstants.PlayerError
                                 ) {
                                     isLoading = false
+                                    youtubePlaying = false
                                     errorMessage = when (error) {
                                         PlayerConstants.PlayerError.VIDEO_NOT_PLAYABLE_IN_EMBEDDED_PLAYER ->
                                             "Este vídeo não permite reprodução incorporada. Abra no YouTube."
@@ -234,6 +302,7 @@ fun CleanVideoPlayer(
                     }
                     DisposableEffect(playerView, lifecycleOwner) {
                         onDispose {
+                            youtubePlaying = false
                             lifecycleOwner.lifecycle.removeObserver(playerView)
                             playerView.release()
                         }
