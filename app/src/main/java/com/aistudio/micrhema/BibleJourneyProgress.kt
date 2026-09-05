@@ -53,11 +53,6 @@ object BibleJourneyProgressTracker {
         ).awardedXp
     }
 
-    /**
-     * O histórico XP_AWARDS é mantido somente para leitura/migração do legado.
-     * Prêmios novos passam exclusivamente pelo ledger central para não serem
-     * contados uma segunda vez como XP legado.
-     */
     private fun localTotalXp(member: MemberRequest): Int {
         val awards = member.ids(BadgeActivityKeys.XP_AWARDS)
         val stored = awards.sumOf(::parseXp)
@@ -87,11 +82,6 @@ object BibleJourneyProgressTracker {
         completedMissionIds = member.ids(BadgeActivityKeys.JOURNEY_MISSIONS).toSet()
     )
 
-    /**
-     * Recupera de forma persistente apenas o XP realmente legado das respostas
-     * corretas registradas por versões antigas. O backend reconhece estes recibos
-     * e não concede o mesmo prêmio novamente no ledger central.
-     */
     fun reconcileQuizXp(context: Context, sourceMember: MemberRequest): MemberRequest {
         val correctIds = sourceMember.ids(BadgeActivityKeys.QUIZ_CORRECT).toSet()
         if (correctIds.isEmpty()) return sourceMember
@@ -121,11 +111,6 @@ object BibleJourneyProgressTracker {
         return recovered
     }
 
-    /**
-     * A primeira resposta de cada pergunta é a única que altera progresso.
-     * O XP do Quiz é enviado ao ledger central desde o primeiro nível. O Nível 8
-     * continua sendo o desbloqueio da Loja XP e dos demais ganhos do ecossistema.
-     */
     fun submitQuizAnswer(
         context: Context,
         question: BibleQuizQuestion,
@@ -165,9 +150,11 @@ object BibleJourneyProgressTracker {
         val answeredMember = member.copy(badgeActivityIds = activities)
         BadgeActivityTracker.updateMemberStates(answeredMember)
         BadgeActivityTracker.syncPortableState(context, answeredMember)
-        if (evaluated.isCorrect && grantedXp > 0) {
-            XpActivityBridge.quiz(context, question, hintUsed)
-        }
+
+        // Toda primeira tentativa vai ao backend. O servidor conhece a alternativa
+        // correta e grava a primeira resposta; somente uma primeira resposta correta
+        // pode gerar XP. Repetições nunca convertem um erro anterior em recompensa.
+        XpActivityBridge.quiz(context, question, selectedOptionIndex, hintUsed)
 
         val rewardedMember = reconcileMissionRewards(context, answeredMember)
         BadgeActivityTracker.reconcile(context, rewardedMember)
@@ -180,11 +167,6 @@ object BibleJourneyProgressTracker {
         )
     }
 
-    /**
-     * Concede cada missão concluída uma única vez pelo ledger central, somente após
-     * o desbloqueio do sistema de XP no Nível 8. O marcador local registra apenas
-     * que a missão foi concluída; ele não duplica o valor do prêmio.
-     */
     fun reconcileMissionRewards(context: Context, sourceMember: MemberRequest): MemberRequest {
         val member = ensureBibleJourneyBaseline(sourceMember)
         if (!isXpUnlocked(member)) {

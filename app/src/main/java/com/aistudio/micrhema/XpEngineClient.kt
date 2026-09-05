@@ -172,16 +172,16 @@ object XpEngineClient {
         member: MemberRequest,
         activity: String,
         contentId: String,
-        variant: String = ""
+        variant: String = "",
+        selectedOptionIndex: Int? = null
     ): XpAwardResult {
-        val response = call(
-            member,
-            JSONObject()
-                .put("action", "award")
-                .put("activity", activity)
-                .put("contentId", contentId)
-                .put("variant", variant)
-        )
+        val payload = JSONObject()
+            .put("action", "award")
+            .put("activity", activity)
+            .put("contentId", contentId)
+            .put("variant", variant)
+        if (selectedOptionIndex != null) payload.put("selectedOptionIndex", selectedOptionIndex)
+        val response = call(member, payload)
         val account = parseAccount(member.id, response)
         val result = XpAwardResult(
             granted = response.optInt("granted", 0).coerceAtLeast(0),
@@ -203,6 +203,7 @@ object XpEngineClient {
         activity: String,
         contentId: String,
         variant: String = "",
+        selectedOptionIndex: Int? = null,
         onResult: (XpAwardResult) -> Unit = {}
     ) {
         val member = loggedInMemberState.value ?: return
@@ -213,7 +214,7 @@ object XpEngineClient {
         }
         scope.launch {
             try {
-                val result = awardNow(member, activity, contentId, variant)
+                val result = awardNow(member, activity, contentId, variant, selectedOptionIndex)
                 withContext(Dispatchers.Main) { onResult(result) }
             } catch (error: Throwable) {
                 Log.w("XpEngineClient", "Falha ao registrar XP: $activity", error)

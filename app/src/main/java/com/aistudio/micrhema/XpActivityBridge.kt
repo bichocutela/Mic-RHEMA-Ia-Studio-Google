@@ -26,13 +26,6 @@ object XpActivityBridge {
     fun ibrLesson(context: Context, courseId: String, chapterId: String) = award(context, "ibr_lesson", "$courseId:$chapterId")
     fun prayer(context: Context, requestId: String) = award(context, "prayer_sent", requestId)
 
-    /**
-     * Somente eventos do rastreador antigo que já representam uma conclusão
-     * explícita podem alimentar o ledger. Bíblia, devocionais, notícias, livros,
-     * áudio e vídeo são excluídos porque seus registros legados acontecem antes
-     * da conclusão real do consumo. Esses módulos devem chamar os métodos acima
-     * somente no marco de conclusão validado pela própria tela.
-     */
     fun recordedActivity(context: Context, activity: String, itemId: String) {
         val member = loggedInMemberState.value ?: return
         if (!isXpUnlocked(member)) return
@@ -41,7 +34,6 @@ object XpActivityBridge {
         }
     }
 
-    /** Concede a aula IBR uma única vez a partir do progresso real já persistido. */
     fun reconcileIbrCompleted(context: Context) {
         val member = loggedInMemberState.value ?: return
         if (!isXpUnlocked(member)) return
@@ -51,7 +43,12 @@ object XpActivityBridge {
             .forEach { progress -> ibrLesson(context, progress.courseId, progress.chapterId) }
     }
 
-    fun quiz(context: Context, question: BibleQuizQuestion, hint: BibleQuizHintUsage) {
+    fun quiz(
+        context: Context,
+        question: BibleQuizQuestion,
+        selectedOptionIndex: Int,
+        hint: BibleQuizHintUsage
+    ) {
         val activity = when (question.difficulty) {
             BibleQuizDifficulty.EASY -> "quiz_easy"
             BibleQuizDifficulty.MEDIUM -> "quiz_medium"
@@ -62,7 +59,7 @@ object XpActivityBridge {
             BibleQuizHintUsage.HARD -> "subtle_hint"
             BibleQuizHintUsage.EASY -> "easy_hint"
         }
-        award(context, activity, question.id, variant)
+        award(context, activity, question.id, variant, selectedOptionIndex)
     }
 
     fun journeyMission(context: Context, mission: BibleMissionDefinition) {
@@ -76,12 +73,6 @@ object XpActivityBridge {
 
     private fun activeKey(memberId: String, suffix: String): String = "member:$memberId:$suffix"
 
-    /**
-     * Acumula minutos separadamente por membro. Cada bloco de cinco minutos vira
-     * um recibo pendente antes da chamada de rede. O recibo só sai da fila depois
-     * que o backend responde, portanto uma falha temporária de conexão não perde
-     * o bloco; ele é reenviado na próxima atividade do mesmo dia.
-     */
     fun activeMinutes(context: Context, minutes: Int) {
         if (minutes <= 0) return
         val member = loggedInMemberState.value ?: return
@@ -137,14 +128,21 @@ object XpActivityBridge {
         }
     }
 
-    private fun award(context: Context, activity: String, contentId: String, variant: String = "") {
+    private fun award(
+        context: Context,
+        activity: String,
+        contentId: String,
+        variant: String = "",
+        selectedOptionIndex: Int? = null
+    ) {
         val cleanId = contentId.trim()
         if (cleanId.isBlank()) return
         XpEngineClient.award(
             context = context,
             activity = activity,
             contentId = cleanId,
-            variant = variant
+            variant = variant,
+            selectedOptionIndex = selectedOptionIndex
         )
     }
 }
