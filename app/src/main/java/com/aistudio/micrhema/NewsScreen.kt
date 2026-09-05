@@ -59,6 +59,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private fun decoratedBibleNews(): List<BibleNews> = currentResolvedBibleNews()
@@ -388,8 +389,22 @@ fun NewsDetailScreen(
 ) {
     val news = decoratedBibleNews().find { it.id == newsId } ?: return
     val context = androidx.compose.ui.platform.LocalContext.current
-    LaunchedEffect(news.id) {
-        BadgeActivityTracker.record(context, BadgeActivityKeys.BIBLE_NEWS, news.id.toString())
+    val scrollState = rememberScrollState()
+
+    // Abrir a notícia não concede mais progresso nem XP. É preciso permanecer
+    // pelo menos 15 s e chegar a 80% do conteúdo (ou ler um texto curto inteiro).
+    LaunchedEffect(news.id, scrollState) {
+        delay(15_000L)
+        while (true) {
+            val max = scrollState.maxValue
+            if (max == 0 || scrollState.value >= (max * 0.80f).toInt()) {
+                val id = news.id.toString()
+                BadgeActivityTracker.record(context, BadgeActivityKeys.BIBLE_NEWS, id)
+                XpActivityBridge.news(context, id)
+                break
+            }
+            delay(500L)
+        }
     }
 
     Scaffold(
@@ -409,7 +424,7 @@ fun NewsDetailScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
         ) {
             BibleNewsImage(
                 news = news,
