@@ -13,7 +13,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
-import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 data class XpAccount(
@@ -111,7 +110,9 @@ object XpEngineClient {
         )
     }
 
-    suspend fun refreshNow(member: MemberRequest = loggedInMemberState.value ?: throw IllegalStateException("Entre no MIC Rhema.")): XpAccount {
+    suspend fun refreshNow(
+        member: MemberRequest = loggedInMemberState.value ?: throw IllegalStateException("Entre no MIC Rhema.")
+    ): XpAccount {
         val response = call(member, JSONObject().put("action", "get_account"))
         val account = parseAccount(member.id, response)
         withContext(Dispatchers.Main) {
@@ -127,11 +128,12 @@ object XpEngineClient {
         val now = System.currentTimeMillis()
         if (!force && member.id == lastRefreshMemberId && now - lastRefreshAt < 60_000L) return
         scope.launch {
-            runCatching { refreshNow(member) }
-                .onFailure { error ->
-                    Log.w("XpEngineClient", "Falha ao atualizar saldo XP", error)
-                    withContext(Dispatchers.Main) { xpSyncErrorState.value = error.message.orEmpty() }
-                }
+            try {
+                refreshNow(member)
+            } catch (error: Throwable) {
+                Log.w("XpEngineClient", "Falha ao atualizar saldo XP", error)
+                withContext(Dispatchers.Main) { xpSyncErrorState.value = error.message.orEmpty() }
+            }
         }
     }
 
@@ -178,12 +180,13 @@ object XpEngineClient {
             return
         }
         scope.launch {
-            runCatching { awardNow(member, activity, contentId, variant) }
-                .onSuccess { result -> withContext(Dispatchers.Main) { onResult(result) } }
-                .onFailure { error ->
-                    Log.w("XpEngineClient", "Falha ao registrar XP: $activity", error)
-                    withContext(Dispatchers.Main) { xpSyncErrorState.value = error.message.orEmpty() }
-                }
+            try {
+                val result = awardNow(member, activity, contentId, variant)
+                withContext(Dispatchers.Main) { onResult(result) }
+            } catch (error: Throwable) {
+                Log.w("XpEngineClient", "Falha ao registrar XP: $activity", error)
+                withContext(Dispatchers.Main) { xpSyncErrorState.value = error.message.orEmpty() }
+            }
         }
     }
 
