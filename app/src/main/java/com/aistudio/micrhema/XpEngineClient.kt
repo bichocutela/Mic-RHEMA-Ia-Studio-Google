@@ -45,8 +45,14 @@ data class XpAwardResult(
     val account: XpAccount
 )
 
+data class XpJourneyState(
+    val memberId: String,
+    val streak: Int
+)
+
 val xpAccountState = mutableStateOf<XpAccount?>(null)
 val xpHistoryState = mutableStateOf<List<XpTransaction>>(emptyList())
+val xpJourneyState = mutableStateOf<XpJourneyState?>(null)
 val xpSyncErrorState = mutableStateOf("")
 
 fun isXpUnlocked(member: MemberRequest): Boolean {
@@ -122,6 +128,25 @@ object XpEngineClient {
         lastRefreshMemberId = member.id
         lastRefreshAt = System.currentTimeMillis()
         return account
+    }
+
+    suspend fun loadJourneyStateNow(
+        member: MemberRequest = loggedInMemberState.value ?: throw IllegalStateException("Entre no MIC Rhema.")
+    ): XpJourneyState {
+        val response = call(member, JSONObject().put("action", "journey_state"))
+        val account = parseAccount(member.id, response)
+        val state = XpJourneyState(
+            memberId = member.id,
+            streak = response.optInt("streak", 0).coerceAtLeast(0)
+        )
+        withContext(Dispatchers.Main) {
+            xpAccountState.value = account
+            xpJourneyState.value = state
+            xpSyncErrorState.value = ""
+        }
+        lastRefreshMemberId = member.id
+        lastRefreshAt = System.currentTimeMillis()
+        return state
     }
 
     fun refresh(context: Context, member: MemberRequest? = loggedInMemberState.value, force: Boolean = false) {
@@ -231,6 +256,7 @@ object XpEngineClient {
     fun clearSession() {
         xpAccountState.value = null
         xpHistoryState.value = emptyList()
+        xpJourneyState.value = null
         xpSyncErrorState.value = ""
         lastRefreshMemberId = ""
         lastRefreshAt = 0L
