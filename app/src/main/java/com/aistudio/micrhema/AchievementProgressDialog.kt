@@ -84,7 +84,7 @@ private fun missionsForNextBadge(s: BadgeProgressSummary): List<AchievementMissi
         s.chapters(10)
     )
     "guardiao_da_fe" -> listOf(s.coreAreasMission(), s.active(180))
-    "semente_da_fe" -> listOf(s.xp(100), s.chapters(2), s.correct(2))
+    "semente_da_fe" -> listOf(s.chapters(2), s.correct(2))
     "caminho_da_promessa" -> listOf(s.xp(200), s.chapters(3), s.correct(3))
     "escudo_da_fe" -> listOf(s.xp(350), s.noEasy(5), s.active(10))
     "aguas_vivas" -> listOf(s.xp(500), s.chapters(5), s.correct(5))
@@ -150,7 +150,7 @@ fun AchievementProgressDialog(progress: BadgeProgressSummary, onDismiss: () -> U
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.34f)), shape = RoundedCornerShape(18.dp)) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("Jornada Bíblica", fontWeight = FontWeight.Bold)
-                        Text("${progress.totalXp} XP acumulados · Quiz com 120 perguntas, dicas e missões", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("${progress.totalXp} XP acumulados · Quiz com 300 perguntas, dicas e missões", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
 
@@ -179,7 +179,10 @@ fun AchievementProgressDialog(progress: BadgeProgressSummary, onDismiss: () -> U
                         pending.forEach { MissionProgressCard(it) }
                     }
                     Text(
-                        "Cada nível começa do zero nas novas missões. O XP total da Jornada permanece acumulado, mas leitura, quiz, tempo e demais requisitos precisam ser cumpridos novamente depois que o nível atual começa. Repetir o mesmo conteúdo ou a mesma pergunta não gera progresso duplicado.",
+                        if (nextBadge.id == "semente_da_fe")
+                            "Ao conquistar o Nível 8, o sistema de XP e a Loja XP são liberados. Até lá, quiz e atividades continuam contando para as missões, mas não geram XP novo."
+                        else
+                            "Cada nível começa do zero nas novas missões. O XP total da Jornada permanece acumulado, mas leitura, quiz, tempo e demais requisitos precisam ser cumpridos novamente depois que o nível atual começa. Repetir o mesmo conteúdo ou a mesma pergunta não gera progresso duplicado.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
