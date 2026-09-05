@@ -37,9 +37,27 @@ object BadgeActivityKeys {
 
 object BadgeActivityTracker {
     private const val MAX_SESSION_MINUTES = 120
+    private val VERIFIED_MEDIA_ACTIVITIES = setOf(
+        BadgeActivityKeys.BOOKS,
+        BadgeActivityKeys.AUDIOS,
+        BadgeActivityKeys.VIDEOS
+    )
     private var sessionStartedAtElapsed: Long? = null
 
     fun record(context: Context, activity: String, itemId: String) {
+        // Livro/áudio/vídeo não contam mais ao abrir. Somente XpMediaClient pode
+        // confirmar essas atividades depois do progresso verificado no backend.
+        if (activity in VERIFIED_MEDIA_ACTIVITIES) return
+        val member = loggedInMemberState.value ?: return
+        val normalizedId = itemId.trim()
+        if (normalizedId.isBlank()) return
+        val previous = member.badgeActivityIds[activity].orEmpty()
+        if (normalizedId in previous) return
+        persist(context, member, activity, previous + normalizedId)
+    }
+
+    fun recordVerifiedMedia(context: Context, activity: String, itemId: String) {
+        if (activity !in VERIFIED_MEDIA_ACTIVITIES) return
         val member = loggedInMemberState.value ?: return
         val normalizedId = itemId.trim()
         if (normalizedId.isBlank()) return
