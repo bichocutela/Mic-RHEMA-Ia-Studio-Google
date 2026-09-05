@@ -69,7 +69,8 @@ fun BibleJourneyDialog(
     val badgeProgress = calculateBadgeProgress(liveMember)
     val missionProgress = calculateBibleMissionProgress(liveMember)
     val questions = remember(difficulty) {
-        BibleQuizCatalog.questions.filter { it.difficulty == difficulty }
+        BibleQuizCatalog.questions.filter { it.difficulty == difficulty } +
+            BibleQuizExpansion.byDifficulty(difficulty)
     }
     val answeredIds = liveMember.badgeActivityIds[BadgeActivityKeys.QUIZ_ANSWERED].orEmpty().toSet()
     val answeredInDifficulty = questions.count { it.id in answeredIds }
