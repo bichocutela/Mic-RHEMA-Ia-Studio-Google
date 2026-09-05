@@ -26,8 +26,10 @@ object XpActivityBridge {
     fun prayer(context: Context, requestId: String) = award(context, "prayer_sent", requestId)
 
     /**
-     * Atividades já validadas pelo rastreador antigo passam a alimentar também o
-     * ledger central. Cada ID é único, portanto revisitar o mesmo conteúdo não farma XP.
+     * O rastreador antigo só alimenta o ledger em eventos que já representam uma
+     * conclusão válida. Livro, áudio e vídeo são excluídos daqui porque o tracker
+     * legado registra abertura; esses conteúdos só podem premiar pelos métodos de
+     * percentual/tempo/conclusão acima.
      */
     fun recordedActivity(context: Context, activity: String, itemId: String) {
         val member = loggedInMemberState.value ?: return
@@ -37,9 +39,6 @@ object XpActivityBridge {
             BadgeActivityKeys.DEVOTIONALS -> devotional(context, itemId)
             BadgeActivityKeys.BIBLE_NEWS -> news(context, itemId)
             BadgeActivityKeys.PLAN_THEMES -> planTheme(context, itemId)
-            BadgeActivityKeys.BOOKS -> bookEngagement(context, itemId)
-            BadgeActivityKeys.AUDIOS -> award(context, "audio_open", itemId)
-            BadgeActivityKeys.VIDEOS -> award(context, "video_open", itemId)
         }
     }
 
