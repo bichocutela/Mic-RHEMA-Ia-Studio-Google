@@ -5,6 +5,7 @@ const FIRESTORE_SCOPE = "https://www.googleapis.com/auth/datastore";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const DEFAULT_PROJECT_ID = "mic-rhema";
 const CURRENT_PUBLISHABLE_KEY = "sb_publishable_Dv98hBnbJB2TzRCG6aJNwA_KMPHLZSw";
+const QUIZ_VARIANTS = new Set(["", "subtle_hint", "easy_hint"]);
 
 const LEVEL_8_PLUS = new Set([
   "semente_da_fe", "caminho_da_promessa", "escudo_da_fe", "aguas_vivas", "videira_verdadeira",
@@ -32,10 +33,8 @@ const AWARD_RULES: Record<string, AwardRule> = {
   plan_complete: { amount: 25, description: "Plano concluído" },
   book_10: { amount: 3, description: "Progresso de leitura no livro" },
   book_complete: { amount: 25, description: "Livro concluído" },
-  audio_open: { amount: 1, description: "Iniciou um áudio" },
   audio_10min: { amount: 3, description: "10 minutos de áudio" },
   audio_90: { amount: 8, description: "Áudio concluído" },
-  video_open: { amount: 1, description: "Iniciou um vídeo" },
   video_10min: { amount: 3, description: "10 minutos de vídeo" },
   video_90: { amount: 8, description: "Vídeo concluído" },
   ibr_lesson: { amount: 10, description: "Aula IBR concluída" },
@@ -46,7 +45,7 @@ const AWARD_RULES: Record<string, AwardRule> = {
   journey_mission_easy: { amount: 15, description: "Missão fácil da Jornada concluída" },
   journey_mission_medium: { amount: 35, description: "Missão média da Jornada concluída" },
   journey_mission_hard: { amount: 70, description: "Missão difícil da Jornada concluída" },
-  daily_mission: { amount: 10, description: "Missão diária concluída", dailyCapXp: 40 },
+  daily_mission: { amount: 10, description: "Jornada diária concluída", dailyCapXp: 10 },
   streak_7: { amount: 25, description: "Sequência de 7 dias" },
   streak_30: { amount: 100, description: "Sequência de 30 dias" },
 };
@@ -134,6 +133,14 @@ function legacyReceiptFor(activity: string, contentId: string): string {
   return "";
 }
 
+function canonicalReceipt(activity: string, contentId: string): string {
+  if (activity.startsWith("quiz_")) return `quiz:${contentId}`;
+  if (activity.startsWith("journey_mission_")) return `mission:${contentId}`;
+  if (activity === "streak_7") return "streak:7";
+  if (activity === "streak_30") return "streak:30";
+  return `${activity}:${contentId}`;
+}
+
 async function loadMember(projectId: string, token: string, memberId: string, phone: string) {
   const accessData = documentData(await getDocument(projectId, token, "acessos_pendentes", memberId));
   if (!Object.keys(accessData).length) throw new Error("Cadastro do membro não encontrado.");
@@ -155,9 +162,13 @@ async function loadMember(projectId: string, token: string, memberId: string, ph
 function effectiveRule(activity: string, variant: string): AwardRule | null {
   const base = AWARD_RULES[activity];
   if (!base) return null;
-  if (!activity.startsWith("quiz_")) return base;
-  const multiplier = variant === "easy_hint" ? 0.7 : variant === "subtle_hint" ? 0.9 : 1;
-  return { ...base, amount: Math.round(base.amount * multiplier) };
+  if (activity.startsWith("quiz_")) {
+    if (!QUIZ_VARIANTS.has(variant)) return null;
+    const multiplier = variant === "easy_hint" ? 0.7 : variant === "subtle_hint" ? 0.9 : 1;
+    return { ...base, amount: Math.round(base.amount * multiplier) };
+  }
+  if (variant) return null;
+  return base;
 }
 
 Deno.serve(async (request) => {
@@ -220,22 +231,14 @@ Deno.serve(async (request) => {
         return json({ ok: true, unlocked: false, granted: 0, reason: "xp_locked", account });
       }
       const rule = effectiveRule(activity, variant);
-      if (!rule) return json({ error: "Atividade de XP não reconhecida." }, 400);
+      if (!rule) return json({ error: "Atividade de XP ou variação inválida." }, 400);
 
       const legacyReceipt = legacyReceiptFor(activity, contentId);
       if (legacyReceipt && member.legacyReceipts.has(legacyReceipt)) {
-        return json({
-          ok: true,
-          unlocked: member.xpUnlocked,
-          granted: 0,
-          duplicate: true,
-          reason: "legacy_migrated",
-          receiptId: legacyReceipt,
-          account,
-        });
+        return json({ ok: true, unlocked: member.xpUnlocked, granted: 0, duplicate: true, reason: "legacy_migrated", receiptId: legacyReceipt, account });
       }
 
-      const receiptId = `${activity}:${contentId}:${variant || "base"}`;
+      const receiptId = canonicalReceipt(activity, contentId);
       const { data, error } = await supabase.rpc("xp_award", {
         p_member_id: memberId,
         p_activity: activity,
