@@ -1,6 +1,7 @@
 package com.aistudio.micrhema
 
 import android.content.Context
+import android.content.SharedPreferences
 import java.time.LocalDate
 import java.time.ZoneId
 
@@ -75,9 +76,13 @@ object XpActivityBridge {
         award(context, activity, mission.id)
     }
 
+    private fun activeKey(memberId: String, suffix: String): String = "member:$memberId:$suffix"
+
     /**
-     * Acumula minutos entre sessões. A cada bloco real de 5 minutos envia um recibo
-     * único daquele dia. O backend ainda aplica teto diário de 20 XP.
+     * Acumula minutos separadamente por membro. Cada bloco de cinco minutos vira
+     * um recibo pendente antes da chamada de rede. O recibo só sai da fila depois
+     * que o backend responde, portanto uma falha temporária de conexão não perde
+     * o bloco; ele é reenviado na próxima atividade do mesmo dia.
      */
     fun activeMinutes(context: Context, minutes: Int) {
         if (minutes <= 0) return
@@ -86,22 +91,52 @@ object XpActivityBridge {
 
         val today = LocalDate.now(brazilZone).toString()
         val prefs = context.applicationContext.getSharedPreferences(ACTIVE_PREFS, Context.MODE_PRIVATE)
-        val storedDate = prefs.getString("date", "").orEmpty()
-        var remainder = if (storedDate == today) prefs.getInt("remainder", 0).coerceAtLeast(0) else 0
-        var sequence = if (storedDate == today) prefs.getInt("sequence", 0).coerceAtLeast(0) else 0
-        remainder += minutes
+        val dateKey = activeKey(member.id, "date")
+        val remainderKey = activeKey(member.id, "remainder")
+        val sequenceKey = activeKey(member.id, "sequence")
+        val pendingKey = activeKey(member.id, "pending")
+        val storedDate = prefs.getString(dateKey, "").orEmpty()
 
+        var remainder = if (storedDate == today) prefs.getInt(remainderKey, 0).coerceAtLeast(0) else 0
+        var sequence = if (storedDate == today) prefs.getInt(sequenceKey, 0).coerceAtLeast(0) else 0
+        val pending = if (storedDate == today) {
+            prefs.getStringSet(pendingKey, emptySet()).orEmpty().toMutableSet()
+        } else {
+            mutableSetOf()
+        }
+
+        remainder += minutes
         while (remainder >= 5) {
             sequence++
             remainder -= 5
-            award(context, "active_5min", "$today:$sequence")
+            pending.add("$today:$sequence")
         }
 
         prefs.edit()
-            .putString("date", today)
-            .putInt("remainder", remainder)
-            .putInt("sequence", sequence)
+            .putString(dateKey, today)
+            .putInt(remainderKey, remainder)
+            .putInt(sequenceKey, sequence)
+            .putStringSet(pendingKey, pending.toSet())
             .apply()
+
+        pending.forEach { contentId ->
+            XpEngineClient.award(
+                context = context,
+                activity = "active_5min",
+                contentId = contentId
+            ) {
+                removePendingActiveReceipt(prefs, pendingKey, contentId)
+            }
+        }
+    }
+
+    private fun removePendingActiveReceipt(prefs: SharedPreferences, pendingKey: String, contentId: String) {
+        synchronized(prefs) {
+            val current = prefs.getStringSet(pendingKey, emptySet()).orEmpty().toMutableSet()
+            if (current.remove(contentId)) {
+                prefs.edit().putStringSet(pendingKey, current.toSet()).apply()
+            }
+        }
     }
 
     private fun award(context: Context, activity: String, contentId: String, variant: String = "") {
