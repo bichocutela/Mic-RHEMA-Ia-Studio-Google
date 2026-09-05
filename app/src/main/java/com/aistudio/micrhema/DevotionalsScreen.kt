@@ -20,6 +20,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -78,7 +81,6 @@ fun DevotionalsScreen(initialDevotionalId: String? = null) {
                 modifier = Modifier
                     .fillMaxSize()
             ) {
-                // Header
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -152,7 +154,7 @@ fun DevotionalsScreen(initialDevotionalId: String? = null) {
                     }
                 }
             }
-            } // end PullToRefreshBox
+            }
         }
     }
 }
@@ -221,8 +223,15 @@ fun DevotionalCard(devotional: Devotional, onClick: () -> Unit) {
 @Composable
 fun DevotionalDetailScreen(devotional: Devotional, onBack: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    LaunchedEffect(devotional.id) {
+    val scrollState = rememberScrollState()
+    LaunchedEffect(devotional.id, scrollState) {
+        delay(20_000)
+        snapshotFlow {
+            val max = scrollState.maxValue
+            max == 0 || scrollState.value >= (max * 0.8f).toInt()
+        }.filter { it }.first()
         BadgeActivityTracker.record(context, BadgeActivityKeys.DEVOTIONALS, devotional.id)
+        XpActivityBridge.devotional(context, devotional.id)
     }
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background
@@ -231,9 +240,8 @@ fun DevotionalDetailScreen(devotional: Devotional, onBack: () -> Unit) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
         ) {
-            // Header
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -282,7 +290,6 @@ fun DevotionalDetailScreen(devotional: Devotional, onBack: () -> Unit) {
                     .padding(horizontal = 24.dp)
             ) {
                 if (devotional.mediaUrl.isNotBlank()) {
-                    val context = androidx.compose.ui.platform.LocalContext.current
                     val isYt = isYoutubeUrl(devotional.mediaUrl)
                     val thumb = if (isYt) getYoutubeThumbnailUrl(devotional.mediaUrl) else devotional.mediaUrl
                     if (thumb != null) {
