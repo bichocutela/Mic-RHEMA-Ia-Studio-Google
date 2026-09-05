@@ -1,3 +1,4 @@
+import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { importPKCS8, SignJWT } from "npm:jose@5.10.0";
 
 const FIRESTORE_SCOPE = "https://www.googleapis.com/auth/datastore";
@@ -18,12 +19,7 @@ type FirestoreValue = {
   mapValue?: { fields?: Record<string, FirestoreValue> }; nullValue?: null;
 };
 type FirestoreDocument = { name?: string; fields?: Record<string, FirestoreValue> };
-
-type AwardRule = {
-  amount: number;
-  description: string;
-  dailyCapXp?: number;
-};
+type AwardRule = { amount: number; description: string; dailyCapXp?: number };
 
 const AWARD_RULES: Record<string, AwardRule> = {
   active_5min: { amount: 1, description: "5 minutos ativos", dailyCapXp: 20 },
@@ -83,20 +79,6 @@ function documentData(document?: FirestoreDocument | null): Record<string, unkno
   return Object.fromEntries(Object.entries(document.fields ?? {}).map(([k, v]) => [k, fromValue(v)]));
 }
 
-function toValue(value: unknown): FirestoreValue {
-  if (value === null || value === undefined) return { nullValue: null };
-  if (typeof value === "boolean") return { booleanValue: value };
-  if (typeof value === "number") return Number.isInteger(value) ? { integerValue: String(value) } : { doubleValue: value };
-  if (typeof value === "string") return { stringValue: value };
-  if (Array.isArray(value)) return { arrayValue: { values: value.map(toValue) } };
-  if (typeof value === "object") return { mapValue: { fields: Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, toValue(v)])) } };
-  return { stringValue: String(value) };
-}
-
-function fields(data: Record<string, unknown>): Record<string, FirestoreValue> {
-  return Object.fromEntries(Object.entries(data).map(([k, v]) => [k, toValue(v)]));
-}
-
 function baseUrl(projectId: string): string {
   return `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
 }
@@ -127,30 +109,6 @@ async function getDocument(projectId: string, token: string, collection: string,
   return await response.json() as FirestoreDocument;
 }
 
-async function putDocument(projectId: string, token: string, collection: string, id: string, data: Record<string, unknown>): Promise<void> {
-  const response = await fetch(`${baseUrl(projectId)}/${collection}/${encodeURIComponent(id)}`, {
-    method: "PATCH",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ fields: fields(data) }),
-  });
-  if (!response.ok) throw new Error(`Falha ao salvar ${collection}: ${response.status} ${(await response.text()).slice(0, 160)}`);
-}
-
-async function runQuery(projectId: string, token: string, collection: string, field: string, value: string, limit = 250): Promise<FirestoreDocument[]> {
-  const response = await fetch(`${baseUrl(projectId)}:runQuery`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ structuredQuery: {
-      from: [{ collectionId: collection }],
-      where: { fieldFilter: { field: { fieldPath: field }, op: "EQUAL", value: { stringValue: value } } },
-      limit,
-    } }),
-  });
-  if (!response.ok) throw new Error(`Falha ao consultar ${collection}: ${response.status}`);
-  const rows = await response.json() as Array<{ document?: FirestoreDocument }>;
-  return rows.map((row) => row.document).filter((doc): doc is FirestoreDocument => Boolean(doc));
-}
-
 function stringList(value: unknown): string[] {
   return Array.isArray(value) ? value.map(String).filter(Boolean) : [];
 }
@@ -160,58 +118,25 @@ function activityMap(value: unknown): Record<string, string[]> {
   return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, stringList(item)]));
 }
 
-function legacyXpFrom(data: Record<string, unknown>): string[] {
-  return activityMap(data.badgeActivityIds).journey_xp_awards ?? [];
-}
-
 function parseLegacyXp(entry: string): number {
   const value = Number(entry.slice(entry.lastIndexOf("=") + 1));
   return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
 }
 
-async function sha256(value: string): Promise<string> {
-  const bytes = new TextEncoder().encode(value);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-function dateKey(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Recife", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-}
-
 async function loadMember(projectId: string, token: string, memberId: string, phone: string) {
-  const access = await getDocument(projectId, token, "acessos_pendentes", memberId);
-  if (!access) throw new Error("Cadastro do membro não encontrado.");
-  const accessData = documentData(access);
+  const accessData = documentData(await getDocument(projectId, token, "acessos_pendentes", memberId));
+  if (!Object.keys(accessData).length) throw new Error("Cadastro do membro não encontrado.");
   if (normalizePhone(accessData.phone) !== phone) throw new Error("Identidade do membro não confere.");
   const userData = documentData(await getDocument(projectId, token, "users", memberId));
   const unlocked = new Set([...stringList(accessData.unlockedBadgeIds), ...stringList(userData.unlockedBadgeIds)]);
-  const xpUnlocked = [...unlocked].some((id) => LEVEL_8_PLUS.has(id));
-  const legacyEntries = [...new Set([...legacyXpFrom(accessData), ...legacyXpFrom(userData)])];
-  return { accessData, userData, xpUnlocked, legacyXp: legacyEntries.sum?.() ?? legacyEntries.reduce((sum, item) => sum + parseLegacyXp(item), 0) };
-}
-
-async function ensureAccount(projectId: string, token: string, memberId: string, legacyXp: number) {
-  const existing = documentData(await getDocument(projectId, token, "xp_accounts", memberId));
-  if (Object.keys(existing).length > 0) {
-    return {
-      memberId,
-      totalEarned: Number(existing.totalEarned ?? 0),
-      totalSpent: Number(existing.totalSpent ?? 0),
-      balance: Number(existing.balance ?? 0),
-      migratedLegacyXp: Number(existing.migratedLegacyXp ?? 0),
-      updatedAt: Number(existing.updatedAt ?? 0),
-    };
-  }
-  const totalEarned = Math.max(0, Math.floor(legacyXp));
-  const account = { memberId, totalEarned, totalSpent: 0, balance: totalEarned, migratedLegacyXp: totalEarned, updatedAt: Date.now() };
-  await putDocument(projectId, token, "xp_accounts", memberId, account);
-  return account;
-}
-
-async function transactionsFor(projectId: string, token: string, memberId: string) {
-  const docs = await runQuery(projectId, token, "xp_transactions", "memberId", memberId, 300);
-  return docs.map((doc) => documentData(doc)).sort((a, b) => Number(b.createdAt ?? 0) - Number(a.createdAt ?? 0));
+  const legacyEntries = [...new Set([
+    ...(activityMap(accessData.badgeActivityIds).journey_xp_awards ?? []),
+    ...(activityMap(userData.badgeActivityIds).journey_xp_awards ?? []),
+  ])];
+  return {
+    xpUnlocked: [...unlocked].some((id) => LEVEL_8_PLUS.has(id)),
+    legacyXp: legacyEntries.reduce((sum, item) => sum + parseLegacyXp(item), 0),
+  };
 }
 
 function effectiveRule(activity: string, variant: string): AwardRule | null {
@@ -240,20 +165,36 @@ Deno.serve(async (request) => {
     const phone = normalizePhone(input.phone);
     if (!memberId || phone.length < 10 || phone.length > 11) return json({ error: "Membro inválido." }, 400);
 
-    const accountSecret = JSON.parse(Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON") ?? "{}") as ServiceAccount;
-    const projectId = accountSecret.project_id || Deno.env.get("FIREBASE_PROJECT_ID") || DEFAULT_PROJECT_ID;
-    const token = await googleAccessToken(accountSecret);
-    const member = await loadMember(projectId, token, memberId, phone);
-    let account = await ensureAccount(projectId, token, memberId, member.legacyXp);
+    const serviceAccount = JSON.parse(Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON") ?? "{}") as ServiceAccount;
+    const projectId = serviceAccount.project_id || Deno.env.get("FIREBASE_PROJECT_ID") || DEFAULT_PROJECT_ID;
+    const googleToken = await googleAccessToken(serviceAccount);
+    const member = await loadMember(projectId, googleToken, memberId, phone);
 
-    if (action === "get_account") {
-      return json({ ok: true, unlocked: member.xpUnlocked, account });
-    }
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    if (!supabaseUrl || !serviceRole) throw new Error("Backend do XP não configurado.");
+    const supabase = createClient(supabaseUrl, serviceRole, { auth: { persistSession: false, autoRefreshToken: false } });
+
+    const { data: accountRows, error: accountError } = await supabase.rpc("xp_ensure_account", {
+      p_member_id: memberId,
+      p_legacy_xp: member.legacyXp,
+    });
+    if (accountError) throw accountError;
+    let account = Array.isArray(accountRows) ? accountRows[0] : accountRows;
+    if (!account) throw new Error("Conta XP não pôde ser inicializada.");
+
+    if (action === "get_account") return json({ ok: true, unlocked: member.xpUnlocked, account });
 
     if (action === "history") {
       const limit = Math.min(100, Math.max(1, Number(input.limit ?? 50)));
-      const transactions = (await transactionsFor(projectId, token, memberId)).slice(0, limit);
-      return json({ ok: true, unlocked: member.xpUnlocked, account, transactions });
+      const { data, error } = await supabase
+        .from("xp_transactions")
+        .select("id,type,amount,activity,content_id,variant,receipt_id,description,date_key,created_at")
+        .eq("member_id", memberId)
+        .order("created_at", { ascending: false })
+        .limit(limit);
+      if (error) throw error;
+      return json({ ok: true, unlocked: member.xpUnlocked, account, transactions: data ?? [] });
     }
 
     if (action === "award") {
@@ -264,46 +205,37 @@ Deno.serve(async (request) => {
       if (!activity || !contentId) return json({ error: "Atividade incompleta." }, 400);
       const rule = effectiveRule(activity, variant);
       if (!rule) return json({ error: "Atividade de XP não reconhecida." }, 400);
-
       const receiptId = `${activity}:${contentId}:${variant || "base"}`;
-      const txId = await sha256(`${memberId}|${receiptId}`);
-      const existingTx = documentData(await getDocument(projectId, token, "xp_transactions", txId));
-      if (Object.keys(existingTx).length > 0) {
-        return json({ ok: true, unlocked: true, granted: 0, duplicate: true, receiptId, account });
-      }
-
-      const today = dateKey();
-      if (rule.dailyCapXp) {
-        const earnedToday = (await transactionsFor(projectId, token, memberId))
-          .filter((tx) => tx.type === "earn" && tx.activity === activity && tx.dateKey === today)
-          .reduce((sum, tx) => sum + Number(tx.amount ?? 0), 0);
-        if (earnedToday + rule.amount > rule.dailyCapXp) {
-          return json({ ok: true, unlocked: true, granted: 0, reason: "daily_cap", receiptId, account });
-        }
-      }
-
-      const now = Date.now();
-      const transaction = {
-        memberId,
-        type: "earn",
-        amount: rule.amount,
-        activity,
-        contentId,
-        variant,
-        receiptId,
-        description: rule.description,
-        dateKey: today,
-        createdAt: now,
-      };
-      await putDocument(projectId, token, "xp_transactions", txId, transaction);
+      const { data, error } = await supabase.rpc("xp_award", {
+        p_member_id: memberId,
+        p_activity: activity,
+        p_content_id: contentId,
+        p_variant: variant,
+        p_receipt_id: receiptId,
+        p_amount: rule.amount,
+        p_description: rule.description,
+        p_daily_cap: rule.dailyCapXp ?? 0,
+      });
+      if (error) throw error;
+      const result = Array.isArray(data) ? data[0] : data;
+      if (!result) throw new Error("O ledger não retornou o resultado do XP.");
       account = {
-        ...account,
-        totalEarned: account.totalEarned + rule.amount,
-        balance: account.balance + rule.amount,
-        updatedAt: now,
+        member_id: memberId,
+        total_earned: Number(result.total_earned ?? account.total_earned ?? 0),
+        total_spent: Number(result.total_spent ?? account.total_spent ?? 0),
+        balance: Number(result.balance ?? account.balance ?? 0),
+        migrated_legacy_xp: Number(account.migrated_legacy_xp ?? 0),
+        updated_at: new Date().toISOString(),
       };
-      await putDocument(projectId, token, "xp_accounts", memberId, account);
-      return json({ ok: true, unlocked: true, granted: rule.amount, receiptId, account, transaction });
+      return json({
+        ok: true,
+        unlocked: true,
+        granted: Number(result.granted ?? 0),
+        duplicate: Boolean(result.duplicate),
+        reason: result.cap_reached ? "daily_cap" : "",
+        receiptId,
+        account,
+      });
     }
 
     return json({ error: "Ação inválida." }, 400);
