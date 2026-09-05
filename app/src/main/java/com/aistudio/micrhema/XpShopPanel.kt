@@ -47,7 +47,13 @@ fun XpShopPanel(member: MemberRequest, xpUnlocked: Boolean) {
     val scope = rememberCoroutineScope()
     val account = xpAccountState.value?.takeIf { it.memberId == member.id }
     val items = xpShopItemsState.value
+        ?.takeIf { it.memberId == member.id }
+        ?.items
+        .orEmpty()
     val redemptions = xpRedemptionsState.value
+        ?.takeIf { it.memberId == member.id }
+        ?.redemptions
+        .orEmpty()
     var loading by remember(member.id) { mutableStateOf(false) }
     var error by remember(member.id) { mutableStateOf("") }
     var redeeming by remember { mutableStateOf(false) }

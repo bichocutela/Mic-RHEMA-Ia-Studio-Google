@@ -39,8 +39,18 @@ data class XpRedeemResult(
     val account: XpAccount
 )
 
-val xpShopItemsState = mutableStateOf<List<XpShopItem>>(emptyList())
-val xpRedemptionsState = mutableStateOf<List<XpRedemption>>(emptyList())
+data class XpShopCatalogState(
+    val memberId: String,
+    val items: List<XpShopItem>
+)
+
+data class XpRedemptionsState(
+    val memberId: String,
+    val redemptions: List<XpRedemption>
+)
+
+val xpShopItemsState = mutableStateOf<XpShopCatalogState?>(null)
+val xpRedemptionsState = mutableStateOf<XpRedemptionsState?>(null)
 val xpShopErrorState = mutableStateOf("")
 
 object XpShopClient {
@@ -123,7 +133,7 @@ object XpShopClient {
         }
         withContext(Dispatchers.Main) {
             xpAccountState.value = account
-            xpShopItemsState.value = items
+            xpShopItemsState.value = XpShopCatalogState(member.id, items)
             xpShopErrorState.value = ""
         }
         return items
@@ -152,7 +162,7 @@ object XpShopClient {
         }
         withContext(Dispatchers.Main) {
             xpAccountState.value = account
-            xpRedemptionsState.value = items
+            xpRedemptionsState.value = XpRedemptionsState(member.id, items)
             xpShopErrorState.value = ""
         }
         return items
@@ -172,10 +182,23 @@ object XpShopClient {
             createdAt = ""
         )
         withContext(Dispatchers.Main) {
+            val current = xpRedemptionsState.value
+                ?.takeIf { it.memberId == member.id }
+                ?.redemptions
+                .orEmpty()
             xpAccountState.value = account
-            xpRedemptionsState.value = listOf(redemption) + xpRedemptionsState.value.filterNot { it.id == redemption.id }
+            xpRedemptionsState.value = XpRedemptionsState(
+                member.id,
+                listOf(redemption) + current.filterNot { it.id == redemption.id }
+            )
             xpShopErrorState.value = ""
         }
         return XpRedeemResult(redemption, account)
+    }
+
+    fun clearSession() {
+        xpShopItemsState.value = null
+        xpRedemptionsState.value = null
+        xpShopErrorState.value = ""
     }
 }
