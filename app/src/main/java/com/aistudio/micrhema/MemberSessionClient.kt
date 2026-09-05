@@ -5,6 +5,7 @@ import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
@@ -28,12 +29,58 @@ object MemberSessionClient {
         val duplicateCount: Int = 0
     )
 
+    private data class SyncRequest(
+        val member: MemberRequest,
+        val identityPhone: String,
+        val onSuccess: () -> Unit,
+        val onFailure: (Exception) -> Unit
+    )
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(25, TimeUnit.SECONDS)
         .writeTimeout(20, TimeUnit.SECONDS)
         .build()
+
+    /**
+     * Uma única fila preserva a ordem exata das gravações. Antes, respostas rápidas
+     * podiam disparar vários sync_state em paralelo e uma requisição antiga terminar
+     * por último, sobrescrevendo XP e perguntas já respondidas.
+     */
+    private val syncQueue = Channel<SyncRequest>(Channel.UNLIMITED)
+
+    init {
+        scope.launch {
+            for (request in syncQueue) {
+                runCatching {
+                    val member = request.member
+                    val payload = JSONObject()
+                        .put("action", "sync_state")
+                        .put("memberId", member.id)
+                        .put("identityPhone", normalizePhone(request.identityPhone))
+                        .put("phone", normalizePhone(member.phone))
+                        .put("name", member.name)
+                        .put("email", member.email)
+                        .put("address", member.address)
+                        .put("birthDate", member.birthDate)
+                        .put("avatarId", member.avatarId.ifBlank { DEFAULT_BIBLICAL_AVATAR_ID })
+                        .put("equippedBadgeId", member.equippedBadgeId.ifBlank { DEFAULT_BIBLICAL_BADGE_ID })
+                        .put("unlockedBadgeIds", JSONArray(member.unlockedBadgeIds))
+                        .put("badgeActivityIds", activitiesToJson(member.badgeActivityIds))
+                        .put("profilePhotoUrl", member.profilePhotoUrl)
+                        .put("supabaseStoragePath", member.supabaseStoragePath)
+                    call(payload)
+                }.onSuccess {
+                    launch(Dispatchers.Main) { request.onSuccess() }
+                }.onFailure { error ->
+                    launch(Dispatchers.Main) {
+                        request.onFailure(error as? Exception ?: IllegalStateException(error.message))
+                    }
+                }
+            }
+        }
+    }
 
     private fun normalizePhone(value: String): String {
         val digits = value.filter(Char::isDigit)
@@ -93,28 +140,21 @@ object MemberSessionClient {
         onSuccess: () -> Unit = {},
         onFailure: (Exception) -> Unit = {}
     ) {
-        scope.launch {
-            runCatching {
-                val payload = JSONObject()
-                    .put("action", "sync_state")
-                    .put("memberId", member.id)
-                    .put("identityPhone", normalizePhone(identityPhone))
-                    .put("phone", normalizePhone(member.phone))
-                    .put("name", member.name)
-                    .put("email", member.email)
-                    .put("address", member.address)
-                    .put("birthDate", member.birthDate)
-                    .put("avatarId", member.avatarId.ifBlank { DEFAULT_BIBLICAL_AVATAR_ID })
-                    .put("equippedBadgeId", member.equippedBadgeId.ifBlank { DEFAULT_BIBLICAL_BADGE_ID })
-                    .put("unlockedBadgeIds", JSONArray(member.unlockedBadgeIds))
-                    .put("badgeActivityIds", activitiesToJson(member.badgeActivityIds))
-                    .put("profilePhotoUrl", member.profilePhotoUrl)
-                    .put("supabaseStoragePath", member.supabaseStoragePath)
-                call(payload)
-            }.onSuccess {
-                launch(Dispatchers.Main) { onSuccess() }
-            }.onFailure { error ->
-                launch(Dispatchers.Main) { onFailure(error as? Exception ?: IllegalStateException(error.message)) }
+        val frozenMember = member.copy(
+            unlockedBadgeIds = member.unlockedBadgeIds.toList(),
+            badgeActivityIds = member.badgeActivityIds.mapValues { (_, ids) -> ids.toList() }
+        )
+        val queued = syncQueue.trySend(
+            SyncRequest(
+                member = frozenMember,
+                identityPhone = identityPhone,
+                onSuccess = onSuccess,
+                onFailure = onFailure
+            )
+        )
+        if (queued.isFailure) {
+            scope.launch(Dispatchers.Main) {
+                onFailure(IllegalStateException("Não foi possível enfileirar a sincronização do progresso."))
             }
         }
     }
