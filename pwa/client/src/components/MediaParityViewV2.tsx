@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BookOpen, Check, ChevronLeft, Download, ExternalLink, Headphones, Image as ImageIcon, Play, Search, SortAsc, Video, X } from "lucide-react";
 import { listenToCollection } from "@/lib/firebase";
-import { recordPwaActivity } from "@/lib/badge-activity";
+import { recordVerifiedPwaActivity } from "@/lib/badge-activity";
+import { reportPwaMediaProgress, type PwaMediaType } from "@/lib/xp";
 import {
   contentTimestamp, normalizeSearch, resolveAudioStreamUrl, resolveDisplayImageUrl, resolvePdfEmbedUrl,
   resolvePortableAssetUrl, safeFilename, youtubeThumbnail, youtubeVideoId,
@@ -28,6 +29,11 @@ function image(item:ViewItem){
 function relevance(query:string,item:ViewItem){const q=normalizeSearch(query);if(!q)return 0;const title=normalizeSearch(item.title||"");const sub=normalizeSearch(secondary(item));if(title===q)return 100;if(title.startsWith(q))return 85;if(title.includes(q))return 70;if(sub===q)return 60;if(sub.startsWith(q))return 50;if(sub.includes(q))return 40;return 0}
 function itemTime(item:ViewItem){return contentTimestamp(item as unknown as Record<string,unknown>)}
 
+async function markVerifiedMedia(kind:Exclude<Kind,"Fotos">,itemId:string){
+  const activity=kind==="Livro"?"books":kind==="Áudio"?"audios":"videos";
+  await recordVerifiedPwaActivity(activity,itemId);
+}
+
 export function MediaParityViewV2(){
   const[videos,setVideos]=useState<MediaItem[]>([]);const[audios,setAudios]=useState<MediaItem[]>([]);const[books,setBooks]=useState<MediaItem[]>([]);const[albums,setAlbums]=useState<Album[]>([]);
   const[tab,setTab]=useState<Kind>("Livro");const[query,setQuery]=useState("");const[sort,setSort]=useState<SortMode>("recent");const[sortOpen,setSortOpen]=useState(false);const[selected,setSelected]=useState<ViewItem|null>(null);
@@ -42,12 +48,7 @@ export function MediaParityViewV2(){
     ...albums.filter(approved).map(i=>({...i,kind:"Fotos" as const})),
   ],[books,audios,videos,albums]);
   const visible=useMemo(()=>{const match=all.filter(item=>item.kind===tab).filter(item=>!query.trim()||normalizeSearch(item.title||"").includes(normalizeSearch(query))||normalizeSearch(secondary(item)).includes(normalizeSearch(query)));return match.sort((a,b)=>{if(sort==="name")return String(a.title||"").localeCompare(String(b.title||""),"pt-BR");if(sort==="presenter")return secondary(a).localeCompare(secondary(b),"pt-BR");if(sort==="oldest")return itemTime(a)-itemTime(b);if(sort==="relevant"&&query.trim())return relevance(query,b)-relevance(query,a)||itemTime(b)-itemTime(a);return itemTime(b)-itemTime(a)})},[all,tab,query,sort]);
-  const openItem=(item:ViewItem)=>{
-    setSelected(item);
-    if(item.kind==="Livro")void recordPwaActivity("books",item.id).catch(()=>undefined);
-    if(item.kind==="Áudio")void recordPwaActivity("audios",item.id).catch(()=>undefined);
-    if(item.kind==="Vídeo")void recordPwaActivity("videos",item.id).catch(()=>undefined);
-  };
+  const openItem=(item:ViewItem)=>setSelected(item);
   if(selected)return <MediaReaderV2 item={selected} onBack={()=>setSelected(null)}/>;
   return <section className="parity-page media-parity"><div className="parity-title"><div><p>MÍDIA</p><h1>Conteúdo da igreja</h1><span>Livros, áudios, vídeos e fotos sincronizados em tempo real com o Android.</span></div><Play size={30}/></div>
     <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12}}><label style={{flex:1,display:"flex",alignItems:"center",gap:8,border:"1px solid #9ca3af",borderRadius:22,padding:"0 14px",minHeight:48}}><Search size={19}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar por título ou descrição..." style={{flex:1,border:0,outline:0,background:"transparent",color:"inherit"}}/>{query&&<button onClick={()=>setQuery("")} aria-label="Limpar" style={{border:0,background:"transparent",color:"inherit"}}><X size={18}/></button>}</label><div style={{position:"relative"}}><button onClick={()=>setSortOpen(v=>!v)} aria-label={`Ordenar: ${sortLabels[sort]}`} style={{width:48,height:48,borderRadius:24,border:0,display:"grid",placeItems:"center"}}><SortAsc size={20}/></button>{sortOpen&&<div style={{position:"absolute",right:0,top:54,zIndex:30,minWidth:190,background:"var(--card,#fffdf7)",borderRadius:14,padding:8,boxShadow:"0 14px 36px rgba(0,0,0,.2)"}}>{(Object.keys(sortLabels) as SortMode[]).map(option=><button key={option} onClick={()=>{setSort(option);setSortOpen(false)}} style={{width:"100%",display:"flex",gap:8,alignItems:"center",padding:10,border:0,background:"transparent",color:"inherit",fontWeight:700,textAlign:"left"}}>{sort===option?<Check size={16}/>:<span style={{width:16}}/>}{sortLabels[option]}</button>)}</div>}</div></div>
@@ -56,7 +57,29 @@ export function MediaParityViewV2(){
   </section>
 }
 
-function AudioReader({rawUrl,title}:{rawUrl:string;title:string}){
+function useMediaReporter(mediaType:PwaMediaType,itemId:string,snapshot:()=>{positionMs:number;durationMs:number;fraction:number;isActive:boolean},kind:Exclude<Kind,"Fotos">){
+  const qualified=useRef(false);
+  const snapshotRef=useRef(snapshot);
+  snapshotRef.current=snapshot;
+  useEffect(()=>{
+    qualified.current=false;
+    let sending=false;
+    const report=()=>{
+      if(sending||document.visibilityState!=="visible")return;
+      const state=snapshotRef.current();
+      sending=true;
+      void reportPwaMediaProgress(mediaType,itemId,state.positionMs,state.durationMs,state.fraction,state.isActive)
+        .then(result=>{if(result.qualified&&!qualified.current){qualified.current=true;void markVerifiedMedia(kind,itemId)}})
+        .catch(()=>undefined)
+        .finally(()=>{sending=false});
+    };
+    report();
+    const timer=window.setInterval(report,5000);
+    return()=>window.clearInterval(timer);
+  },[mediaType,itemId,kind]);
+}
+
+function AudioReader({rawUrl,title,itemId}:{rawUrl:string;title:string;itemId:string}){
   const audioRef=useRef<HTMLAudioElement|null>(null);
   const primary=useMemo(()=>resolveAudioStreamUrl(rawUrl),[rawUrl]);
   const fallback=useMemo(()=>resolvePortableAssetUrl(rawUrl),[rawUrl]);
@@ -66,6 +89,7 @@ function AudioReader({rawUrl,title}:{rawUrl:string;title:string}){
   const[fallbackUsed,setFallbackUsed]=useState(false);
 
   useEffect(()=>{setSrc(primary);setSpeed(1);setError("");setFallbackUsed(false)},[primary]);
+  useMediaReporter("audio",itemId,()=>{const el=audioRef.current;const duration=Number.isFinite(el?.duration)?Number(el?.duration):0;const position=el?.currentTime||0;return{positionMs:Math.floor(position*1000),durationMs:Math.floor(duration*1000),fraction:duration>0?position/duration:0,isActive:Boolean(el&&!el.paused&&!el.ended)}},"Áudio");
   const changeSpeed=()=>{const next=speed>=2?.75:Math.min(2,speed+.25);setSpeed(next);if(audioRef.current)audioRef.current.playbackRate=next};
   const handleError=()=>{
     if(!fallbackUsed&&fallback&&fallback!==src){
@@ -81,6 +105,17 @@ function AudioReader({rawUrl,title}:{rawUrl:string;title:string}){
   return <div className="audio-reader-v2"><Headphones size={44}/><strong>{title}</strong><audio key={src} ref={audioRef} controls playsInline preload="metadata" src={src} onCanPlay={()=>setError("")} onError={handleError}>Seu navegador não suporta áudio.</audio><div className="audio-reader-controls"><button onClick={()=>{if(audioRef.current)audioRef.current.currentTime=Math.max(0,audioRef.current.currentTime-15)}}>-15s</button><button onClick={()=>{if(audioRef.current)audioRef.current.currentTime=Math.min(audioRef.current.duration||Infinity,audioRef.current.currentTime+15)}}>+15s</button><button onClick={changeSpeed}>{speed.toFixed(2).replace(/\.00$/,"")}x</button></div><p className="audio-reader-status">Reprodução dentro da PWA com suporte ao Safari/iPhone e retomada por streaming.</p>{error&&<div className="audio-error-card"><p>{error}</p><button onClick={retry}>Tentar novamente</button></div>}</div>;
 }
 
+function NativeVideoReader({src,title,itemId,onError}:{src:string;title:string;itemId:string;onError:()=>void}){
+  const ref=useRef<HTMLVideoElement|null>(null);
+  useMediaReporter("video",itemId,()=>{const el=ref.current;const duration=Number.isFinite(el?.duration)?Number(el?.duration):0;const position=el?.currentTime||0;return{positionMs:Math.floor(position*1000),durationMs:Math.floor(duration*1000),fraction:duration>0?position/duration:0,isActive:Boolean(el&&!el.paused&&!el.ended)}},"Vídeo");
+  return <video ref={ref} className="parity-video" title={title} controls playsInline preload="metadata" src={src} onError={onError}/>;
+}
+
+function BookReader({pdfUrl,assetUrl,title,itemId,onDownload}:{pdfUrl:string;assetUrl:string;title:string;itemId:string;onDownload:()=>void}){
+  useMediaReporter("book",itemId,()=>({positionMs:0,durationMs:0,fraction:0,isActive:document.visibilityState==="visible"}),"Livro");
+  return <div className="pdf-reader-shell">{pdfUrl?<div className="pdf-reader-frame-wrap"><iframe className="pdf-reader-frame" title={title} src={pdfUrl} allow="fullscreen" allowFullScreen/></div>:<p className="parity-status">Não foi possível preparar o leitor deste PDF.</p>}<div className="pdf-reader-toolbar">{pdfUrl&&<a className="pdf-primary" href={pdfUrl} target="_blank" rel="noreferrer"><ExternalLink size={18}/> Abrir leitor em tela cheia</a>}<button className="pdf-secondary" onClick={onDownload}><Download size={18}/> Baixar PDF</button></div><p className="pdf-reader-help">O leitor acima é multipágina: role dentro dele para continuar o livro. O progresso de XP considera tempo real de leitura na PWA; apenas abrir o livro não conta.</p></div>;
+}
+
 function MediaReaderV2({item,onBack}:{item:ViewItem;onBack:()=>void}){
   const[mediaError,setMediaError]=useState(false);
   const rawUrl=rawMediaUrl(item);const assetUrl=resolvePortableAssetUrl(rawUrl);const pdfUrl=resolvePdfEmbedUrl(rawUrl);const yid=item.kind==="Vídeo"?youtubeVideoId(rawUrl):"";
@@ -90,7 +125,7 @@ function MediaReaderV2({item,onBack}:{item:ViewItem;onBack:()=>void}){
     return <section className="parity-page"><button className="back-link" onClick={onBack}><ChevronLeft size={18}/> Voltar à mídia</button><div className="parity-title"><div><p>FOTOS</p><h1>{item.title||"Álbum"}</h1><span>{item.description||`${photos.length} foto(s)`}</span></div></div><div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:10}}>{photos.map((photo,index)=>{const photoUrl=resolveDisplayImageUrl(photo.url);return <figure key={`${photo.url}-${index}`} style={{margin:0}}>{photoUrl&&<img src={photoUrl} alt={photo.caption||`Foto ${index+1}`} loading="lazy" style={{width:"100%",aspectRatio:"1",objectFit:"cover",borderRadius:16}}/>}{photo.caption&&<figcaption style={{fontSize:12,marginTop:4}}>{photo.caption}</figcaption>}</figure>})}</div>{item.driveFolderUrl&&<a className="parity-primary" href={item.driveFolderUrl} target="_blank" rel="noreferrer">Abrir álbum completo</a>}</section>
   }
   return <section className="parity-page media-reader"><button className="back-link" onClick={onBack}><ChevronLeft size={18}/> Voltar à mídia</button><div className="parity-title"><div><p>{item.kind.toUpperCase()}</p><h1>{item.title||"Conteúdo"}</h1><span>{secondary(item)||"MIC Rhema"}</span></div></div>
-    {!rawUrl?<p className="parity-status">Este conteúdo ainda não possui um arquivo cadastrado.</p>:item.kind==="Vídeo"?(yid?<iframe className="parity-video" title={item.title||"Vídeo"} src={`https://www.youtube-nocookie.com/embed/${yid}?rel=0&playsinline=1`} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen/>:<video className="parity-video" controls playsInline preload="metadata" src={assetUrl} onError={()=>setMediaError(true)}/>):item.kind==="Áudio"?<AudioReader rawUrl={rawUrl} title={item.title||"Áudio MIC Rhema"}/>:<div className="pdf-reader-shell">{pdfUrl?<div className="pdf-reader-frame-wrap"><iframe className="pdf-reader-frame" title={item.title||"Livro em PDF"} src={pdfUrl} allow="fullscreen" allowFullScreen/></div>:<p className="parity-status">Não foi possível preparar o leitor deste PDF.</p>}<div className="pdf-reader-toolbar">{pdfUrl&&<a className="pdf-primary" href={pdfUrl} target="_blank" rel="noreferrer"><ExternalLink size={18}/> Abrir leitor em tela cheia</a>}<button className="pdf-secondary" onClick={download}><Download size={18}/> Baixar PDF</button></div><p className="pdf-reader-help">O leitor acima é multipágina: role dentro dele para continuar o livro. Em tela cheia, você também pode ampliar as páginas com os gestos do iPhone.</p></div>}
+    {!rawUrl?<p className="parity-status">Este conteúdo ainda não possui um arquivo cadastrado.</p>:item.kind==="Vídeo"?(yid?<><iframe className="parity-video" title={item.title||"Vídeo"} src={`https://www.youtube-nocookie.com/embed/${yid}?rel=0&playsinline=1`} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen/><p className="parity-status">Vídeos do YouTube continuam reproduzindo normalmente; o XP só é contado quando a PWA consegue verificar o tempo real de reprodução.</p></>:<NativeVideoReader src={assetUrl} title={item.title||"Vídeo"} itemId={item.id} onError={()=>setMediaError(true)}/>):item.kind==="Áudio"?<AudioReader rawUrl={rawUrl} title={item.title||"Áudio MIC Rhema"} itemId={item.id}/>:<BookReader pdfUrl={pdfUrl} assetUrl={assetUrl} title={item.title||"Livro em PDF"} itemId={item.id} onDownload={download}/>} 
     {mediaError&&<p className="parity-status">Não foi possível reproduzir este vídeo. Verifique se o arquivo ainda existe no armazenamento.</p>}
     {item.description&&<article className="parity-reader" style={{marginTop:14}}><p>{item.description}</p></article>}
   </section>;
