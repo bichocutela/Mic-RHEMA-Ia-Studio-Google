@@ -27,18 +27,16 @@ object XpActivityBridge {
     fun prayer(context: Context, requestId: String) = award(context, "prayer_sent", requestId)
 
     /**
-     * O rastreador antigo só alimenta o ledger em eventos que já representam uma
-     * conclusão válida. Livro, áudio e vídeo são excluídos daqui porque o tracker
-     * legado registra abertura; esses conteúdos só podem premiar pelos métodos de
-     * percentual/tempo/conclusão acima.
+     * Somente eventos do rastreador antigo que já representam uma conclusão
+     * explícita podem alimentar o ledger. Bíblia, devocionais, notícias, livros,
+     * áudio e vídeo são excluídos porque seus registros legados acontecem antes
+     * da conclusão real do consumo. Esses módulos devem chamar os métodos acima
+     * somente no marco de conclusão validado pela própria tela.
      */
     fun recordedActivity(context: Context, activity: String, itemId: String) {
         val member = loggedInMemberState.value ?: return
         if (!isXpUnlocked(member)) return
         when (activity) {
-            BadgeActivityKeys.BIBLE_CHAPTERS -> bibleChapter(context, itemId)
-            BadgeActivityKeys.DEVOTIONALS -> devotional(context, itemId)
-            BadgeActivityKeys.BIBLE_NEWS -> news(context, itemId)
             BadgeActivityKeys.PLAN_THEMES -> planTheme(context, itemId)
         }
     }
