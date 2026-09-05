@@ -26,9 +26,47 @@ data class BibleJourneyStats(
 object BibleJourneyProgressTracker {
     private fun MemberRequest.ids(key: String): List<String> = badgeActivityIds[key].orEmpty().distinct()
 
+    private val quizQuestionsById: Map<String, BibleQuizQuestion> by lazy(LazyThreadSafetyMode.NONE) {
+        buildMap {
+            BibleQuizCatalog.questions.forEach { put(it.id, it) }
+            BibleQuizDifficulty.entries.forEach { difficulty ->
+                BibleQuizExpansion.byDifficulty(difficulty).forEach { put(it.id, it) }
+            }
+        }
+    }
+
     private fun parseXp(entry: String): Int = entry.substringAfterLast('=', "0").toIntOrNull()?.coerceAtLeast(0) ?: 0
 
-    private fun localTotalXp(member: MemberRequest): Int = member.ids(BadgeActivityKeys.XP_AWARDS).sumOf(::parseXp)
+    private fun inferredHint(member: MemberRequest, questionId: String): BibleQuizHintUsage {
+        val noHint = questionId in member.ids(BadgeActivityKeys.QUIZ_CORRECT_NO_HINT)
+        if (noHint) return BibleQuizHintUsage.NONE
+        val noEasyHint = questionId in member.ids(BadgeActivityKeys.QUIZ_CORRECT_NO_EASY_HINT)
+        return if (noEasyHint) BibleQuizHintUsage.HARD else BibleQuizHintUsage.EASY
+    }
+
+    private fun recoverableQuizXp(member: MemberRequest, questionId: String): Int {
+        val question = quizQuestionsById[questionId] ?: return 0
+        return BibleQuizEngine.answer(
+            question = question,
+            selectedOptionIndex = question.correctOptionIndex,
+            hintUsed = inferredHint(member, questionId)
+        ).awardedXp
+    }
+
+    /**
+     * Além dos recibos já persistidos, inclui na leitura o XP que ficou faltando
+     * nas respostas corretas gravadas pela versão antiga. Assim a tela corrige o
+     * total imediatamente ao atualizar o app, mesmo antes de uma nova resposta.
+     */
+    private fun localTotalXp(member: MemberRequest): Int {
+        val awards = member.ids(BadgeActivityKeys.XP_AWARDS)
+        val stored = awards.sumOf(::parseXp)
+        val receipts = awards.map { it.substringBefore('=') }.toSet()
+        val missingQuizXp = member.ids(BadgeActivityKeys.QUIZ_CORRECT).sumOf { questionId ->
+            if ("quiz:$questionId" in receipts) 0 else recoverableQuizXp(member, questionId)
+        }
+        return stored + missingQuizXp
+    }
 
     fun totalXp(member: MemberRequest): Int {
         val local = localTotalXp(member)
@@ -50,41 +88,22 @@ object BibleJourneyProgressTracker {
     )
 
     /**
-     * Recupera o XP das respostas corretas registradas enquanto a regra antiga
-     * bloqueava o Quiz antes do Nível 8. O recibo quiz:<id> mantém a migração
-     * idempotente e preserva a redução correta quando uma dica foi utilizada.
+     * Recupera de forma persistente o XP das respostas corretas registradas quando
+     * a regra antiga bloqueava o Quiz antes do Nível 8. O recibo quiz:<id> torna a
+     * migração idempotente e preserva a redução correta quando uma dica foi usada.
      */
     fun reconcileQuizXp(context: Context, sourceMember: MemberRequest): MemberRequest {
         val correctIds = sourceMember.ids(BadgeActivityKeys.QUIZ_CORRECT).toSet()
         if (correctIds.isEmpty()) return sourceMember
 
-        val noEasyHintIds = sourceMember.ids(BadgeActivityKeys.QUIZ_CORRECT_NO_EASY_HINT).toSet()
-        val noHintIds = sourceMember.ids(BadgeActivityKeys.QUIZ_CORRECT_NO_HINT).toSet()
         val xpAwards = sourceMember.ids(BadgeActivityKeys.XP_AWARDS).toMutableList()
         val existingReceipts = xpAwards.map { it.substringBefore('=') }.toMutableSet()
-
-        val questionsById = buildMap<String, BibleQuizQuestion> {
-            BibleQuizCatalog.questions.forEach { put(it.id, it) }
-            BibleQuizDifficulty.entries.forEach { difficulty ->
-                BibleQuizExpansion.byDifficulty(difficulty).forEach { put(it.id, it) }
-            }
-        }
-
         var changed = false
+
         correctIds.forEach { questionId ->
             val receipt = "quiz:$questionId"
             if (receipt in existingReceipts) return@forEach
-            val question = questionsById[questionId] ?: return@forEach
-            val inferredHint = when {
-                questionId in noHintIds -> BibleQuizHintUsage.NONE
-                questionId in noEasyHintIds -> BibleQuizHintUsage.HARD
-                else -> BibleQuizHintUsage.EASY
-            }
-            val recoveredXp = BibleQuizEngine.answer(
-                question = question,
-                selectedOptionIndex = question.correctOptionIndex,
-                hintUsed = inferredHint
-            ).awardedXp
+            val recoveredXp = recoverableQuizXp(sourceMember, questionId)
             if (recoveredXp > 0) {
                 xpAwards.add("$receipt=$recoveredXp")
                 existingReceipts.add(receipt)
@@ -99,8 +118,7 @@ object BibleJourneyProgressTracker {
         val recovered = sourceMember.copy(badgeActivityIds = activities)
         BadgeActivityTracker.updateMemberStates(recovered)
         BadgeActivityTracker.syncPortableState(context, recovered)
-        BadgeActivityTracker.reconcile(context, recovered)
-        return loggedInMemberState.value?.takeIf { it.id == recovered.id } ?: recovered
+        return recovered
     }
 
     /**
