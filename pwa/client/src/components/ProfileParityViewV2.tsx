@@ -9,6 +9,7 @@ import {
 import type { PwaSessionLike } from "./AndroidParityViews";
 import { BiblicalBadgeAvatar } from "./BiblicalBadgeAvatar";
 import { badgeForId, biblicalBadges, levelBadges, type PwaBiblicalBadge } from "./BiblicalBadgeCatalog";
+import { PwaXpPanel } from "./PwaXpPanel";
 import "./ProfileParityViewV2.css";
 
 type Avatar = { id: string; name: string };
@@ -32,7 +33,7 @@ const allMissionKeys = [...coreActivityKeys,"quiz_correct","quiz_correct_no_easy
 const ratio=(current:number,target:number)=>target<=0?1:current/target;
 
 function parseXp(profile:PwaMemberProfile){
-  return [...new Set(profile.badgeActivityIds?.xp_awards || [])].reduce((total,entry)=>{
+  return [...new Set(profile.badgeActivityIds?.journey_xp_awards || [])].reduce((total,entry)=>{
     const value=Number(entry.slice(entry.lastIndexOf("=")+1));
     return total+(Number.isFinite(value)&&value>0?value:0);
   },0);
@@ -45,7 +46,7 @@ function readLevelBaseline(profile:PwaMemberProfile,badgeId:string){
   return result;
 }
 
-function computeProgress(profile: PwaMemberProfile, courses: IbrCourse[], progress: IbrProgress[]) {
+function computeProgress(profile: PwaMemberProfile, courses: IbrCourse[], progress: IbrProgress[], centralXp: number | null) {
   const counts = {
     plans: count(profile,"plans"), plan_themes: count(profile,"plan_themes"), books: count(profile,"books"),
     videos: count(profile,"videos"), bible_chapters: count(profile,"bible_chapters"), bible_news: count(profile,"bible_news"),
@@ -54,7 +55,7 @@ function computeProgress(profile: PwaMemberProfile, courses: IbrCourse[], progre
     quiz_correct_no_hint: count(profile,"quiz_correct_no_hint"), quiz_hard_correct: count(profile,"quiz_hard_correct"),
   };
   const activeMinutes=count(profile,"active_minutes");
-  const totalXp=parseXp(profile);
+  const totalXp=centralXp ?? parseXp(profile);
   const completedLessons=progress.filter((item)=>item.isCompleted).length;
   const completedCourses=courses.filter((course)=>(course.chapters?.length||0)>0&&course.chapters!.every((chapter)=>progress.some((item)=>item.courseId===course.id&&item.chapterId===chapter.id&&item.isCompleted))).length;
   const calculated=new Set(profile.unlockedBadgeIds?.length?profile.unlockedBadgeIds:["caminhante"]);
@@ -112,6 +113,7 @@ function computeProgress(profile: PwaMemberProfile, courses: IbrCourse[], progre
 export function ProfileParityViewV2({ session, onNavigateHome }: { session: PwaSessionLike; onNavigateHome: () => void }) {
   const [profile,setProfile]=useState<PwaMemberProfile|null>(null); const [draft,setDraft]=useState<PwaMemberProfile|null>(null);
   const [courses,setCourses]=useState<IbrCourse[]>([]); const [ibrProgress,setIbrProgress]=useState<IbrProgress[]>([]);
+  const [centralXp,setCentralXp]=useState<number|null>(null);
   const [loading,setLoading]=useState(true); const [loadError,setLoadError]=useState(""); const [saving,setSaving]=useState(false); const [avatarsOpen,setAvatarsOpen]=useState(false); const [badgesOpen,setBadgesOpen]=useState(false); const [missionsOpen,setMissionsOpen]=useState(true); const [focusedBadgeId,setFocusedBadgeId]=useState<string|null>(null); const [previewBadgeId,setPreviewBadgeId]=useState<string|null>(null);
   const reload=async()=>{setLoading(true);setLoadError("");try{const value=await loadPwaMemberProfile();setProfile(value);setDraft(value);}catch(error){const message=error instanceof Error?error.message:"Não foi possível carregar o perfil.";setLoadError(message);toast.error(message);}finally{setLoading(false)}};
   useEffect(()=>{if(session)void reload()},[session?.uid]);
@@ -125,14 +127,14 @@ export function ProfileParityViewV2({ session, onNavigateHome }: { session: PwaS
     localStorage.removeItem("micrhema:pwa:open-badge");
     window.setTimeout(()=>document.getElementById(`profile-badge-${pending}`)?.scrollIntoView({behavior:"smooth",block:"center"}),180);
   },[profile?.id]);
-  const summary=useMemo(()=>profile?computeProgress(profile,courses,ibrProgress):null,[profile,courses,ibrProgress]);
-  const logout=async()=>{if(firebaseAuth)await signOut(firebaseAuth).catch(()=>undefined);localStorage.removeItem("mic-rhema-pwa-session");onNavigateHome();window.location.reload();};
+  const summary=useMemo(()=>profile?computeProgress(profile,courses,ibrProgress,centralXp):null,[profile,courses,ibrProgress,centralXp]);
+  const logout=async()=>{if(firebaseAuth)await signOut(firebaseAuth).catch(()=>undefined);localStorage.removeItem("micrhema-pwa-session");onNavigateHome();window.location.reload();};
   if(!session)return <section className="parity-page"><div className="parity-empty"><UserRound size={46}/><h1>Meu Perfil</h1><p>Entre para acessar seus dados e conquistas.</p></div></section>;
   if(loading)return <section className="parity-page"><p className="parity-status">Sincronizando seu perfil com o Android…</p></section>;
   if(loadError||!profile||!draft||!summary)return <section className="parity-page"><div className="parity-empty"><UserRound size={46}/><h1>Não foi possível sincronizar o perfil</h1><p>{session.isAdmin?"Sua sessão de administrador pode ser anterior à unificação com o perfil Android. Atualize ou saia e entre novamente uma vez para vincular o mesmo cadastro.":loadError}</p><button className="parity-primary" onClick={()=>void reload()}><RefreshCcw size={17}/> Tentar novamente</button>{session.isAdmin&&<button className="parity-danger" onClick={()=>void logout()}><LogOut size={18}/> Sair e renovar sessão</button>}</div></section>;
   const avatar=avatars.find((item)=>item.id===draft.avatarId)||avatars[0];
   const equipped=badgeForId(draft.equippedBadgeId);
-  const persist=async(next:PwaMemberProfile,success:string)=>{setSaving(true);try{const updated=await savePwaMemberProfile({name:next.name,phone:next.phone,address:next.address,birthDate:next.birthDate,email:next.email,avatarId:next.avatarId,equippedBadgeId:next.equippedBadgeId});setProfile(updated);setDraft(updated);const stored=localStorage.getItem("mic-rhema-pwa-session");if(stored){const parsed=JSON.parse(stored);parsed.name=updated.name;localStorage.setItem("mic-rhema-pwa-session",JSON.stringify(parsed));}toast.success(success);}catch(error){toast.error(error instanceof Error?error.message:"Não foi possível salvar.");setDraft(profile);}finally{setSaving(false)}};
+  const persist=async(next:PwaMemberProfile,success:string)=>{setSaving(true);try{const updated=await savePwaMemberProfile({name:next.name,phone:next.phone,address:next.address,birthDate:next.birthDate,email:next.email,avatarId:next.avatarId,equippedBadgeId:next.equippedBadgeId});setProfile(updated);setDraft(updated);const stored=localStorage.getItem("micrhema-pwa-session");if(stored){const parsed=JSON.parse(stored);parsed.name=updated.name;localStorage.setItem("micrhema-pwa-session",JSON.stringify(parsed));}toast.success(success);}catch(error){toast.error(error instanceof Error?error.message:"Não foi possível salvar.");setDraft(profile);}finally{setSaving(false)}};
   const save=()=>persist(draft,"Perfil atualizado também para o Android.");
   const chooseAvatar=(id:string)=>{const next={...draft,avatarId:id};setDraft(next);setAvatarsOpen(false);void persist(next,"Avatar sincronizado com o Android.")};
   const chooseBadge=(badge:PwaBiblicalBadge)=>{if(!summary.calculated.has(badge.id)||saving)return;const next={...draft,equippedBadgeId:badge.id};setDraft(next);setFocusedBadgeId(null);setPreviewBadgeId(null);void persist(next,"Emblema equipado na sua conta.")};
@@ -142,6 +144,8 @@ export function ProfileParityViewV2({ session, onNavigateHome }: { session: PwaS
     <header className="profile-v2-hero"><BiblicalBadgeAvatar avatarId={avatar.id} badgeId={equipped.id} size={96} title={`${avatar.name} · ${equipped.name}`}/><div><p>{session.isAdmin?"ADMINISTRADOR · ":""}SEU AVATAR BÍBLICO</p><h1>{draft.name}</h1><span>{avatar.name} · Nível {equipped.level||1}: {equipped.name}</span></div></header>
     <article className="profile-v2-level"><Trophy size={25}/><div><strong>Progresso das conquistas</strong><span>{summary.completedLessons} aulas IBR concluídas · {summary.completedCourses} cursos concluídos · {summary.totalXp} XP</span>{summary.next?<><small>Próximo: {summary.next.name} — {summary.next.requirement}</small><div className="profile-v2-progress"><i style={{width:`${Math.round(summary.fraction*100)}%`}}/></div><b>{Math.round(summary.fraction*100)}%</b></>:<small>Todos os níveis principais foram alcançados.</small>}</div></article>
     <div className="profile-v2-stats"><div><strong>{summary.calculated.size}</strong><span>Conquistas</span></div><div><strong>{summary.totalXp}</strong><span>XP acumulado</span></div><div><strong>{summary.activeMinutes}</strong><span>Minutos ativos</span></div><div><strong>{summary.counts.bible_chapters}</strong><span>Capítulos</span></div></div>
+
+    <PwaXpPanel onAccount={(account)=>setCentralXp(account.total_earned)}/>
 
     <div className="profile-fields"><label>Nome completo<input value={draft.name} onChange={(e)=>setDraft({...draft,name:e.target.value})}/></label><label>Telefone<input inputMode="tel" value={draft.phone} onChange={(e)=>setDraft({...draft,phone:e.target.value.replace(/\D/g,"").slice(0,15)})}/></label><label>Endereço<input value={draft.address} onChange={(e)=>setDraft({...draft,address:e.target.value})}/></label><label>Data de nascimento<input inputMode="numeric" placeholder="dd/mm/aaaa" value={draft.birthDate} onChange={(e)=>setDraft({...draft,birthDate:e.target.value.replace(/[^0-9/]/g,"").slice(0,10)})}/></label><label>E-mail para certificado IBR<input type="email" value={draft.email} onChange={(e)=>setDraft({...draft,email:e.target.value})}/></label></div>
     <button className="parity-primary" disabled={saving} onClick={()=>void save()}><Save size={18}/>{saving?"Sincronizando…":"Salvar dados pessoais"}</button>
