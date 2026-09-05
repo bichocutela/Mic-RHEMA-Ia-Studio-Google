@@ -220,6 +220,14 @@ function unionActivities(a: unknown, b: unknown): Record<string, string[]> {
   return Object.fromEntries([...keys].map((key) => [key, [...new Set([...(first[key] ?? []), ...(second[key] ?? [])])]]));
 }
 
+function unionActivitySources(...sources: unknown[]): Record<string, string[]> {
+  return sources.reduce<Record<string, string[]>>((merged, source) => unionActivities(merged, source), {});
+}
+
+function unionStringLists(...sources: unknown[]): string[] {
+  return [...new Set(sources.flatMap((source) => stringList(source)))];
+}
+
 function mergeMember(accessData: Record<string, unknown>, userData: Record<string, unknown>): Record<string, unknown> {
   const badgeActivityIds = unionActivities(accessData.badgeActivityIds, userData.badgeActivityIds);
   const unlockedBadgeIds = [...new Set([
@@ -272,13 +280,20 @@ Deno.serve(async (request) => {
       const accessData = documentData(selected);
       const userDocument = await getDocument(projectId, token, "users", memberId);
       const merged = mergeMember(accessData, documentData(userDocument));
+      const canonicalProgress = {
+        unlockedBadgeIds: stringList(merged.unlockedBadgeIds),
+        badgeActivityIds: activityMap(merged.badgeActivityIds),
+        updatedAt: Date.now(),
+      };
+      await patchDocument(projectId, token, "acessos_pendentes", memberId, canonicalProgress);
+      await patchDocument(projectId, token, "users", memberId, canonicalProgress);
       const customToken = await firebaseCustomToken(account, memberId);
       return json({
         ok: true,
         found: true,
         memberId,
         customToken,
-        member: { ...merged, id: memberId, phone: normalizePhone(merged.phone) },
+        member: { ...merged, ...canonicalProgress, id: memberId, phone: normalizePhone(merged.phone) },
         duplicateCount: Math.max(0, matches.length - 1),
       });
     }
@@ -291,6 +306,8 @@ Deno.serve(async (request) => {
       if (!current) return json({ error: "Cadastro não encontrado." }, 404);
       const currentData = documentData(current);
       if (normalizePhone(currentData.phone) !== identityPhone) return json({ error: "Identidade do membro não confere." }, 403);
+      const userDocument = await getDocument(projectId, token, "users", memberId);
+      const userData = documentData(userDocument);
 
       const newPhone = normalizePhone(input.phone ?? identityPhone);
       if (newPhone !== identityPhone) {
@@ -300,18 +317,31 @@ Deno.serve(async (request) => {
         }
       }
 
+      // Progresso é append-only. Nunca substituímos XP/perguntas por um snapshot
+      // menor: unimos a cópia de acesso, a cópia users e o estado recebido do app.
+      const mergedActivities = unionActivitySources(
+        currentData.badgeActivityIds,
+        userData.badgeActivityIds,
+        input.badgeActivityIds,
+      );
+      const mergedUnlockedBadges = unionStringLists(
+        currentData.unlockedBadgeIds,
+        userData.unlockedBadgeIds,
+        input.unlockedBadgeIds,
+      );
+
       const safe = {
         phone: newPhone,
-        name: String(input.name ?? currentData.name ?? "").trim(),
-        email: String(input.email ?? currentData.email ?? "").trim(),
-        address: String(input.address ?? currentData.address ?? "").trim(),
-        birthDate: String(input.birthDate ?? currentData.birthDate ?? "").trim(),
-        avatarId: String(input.avatarId ?? currentData.avatarId ?? "").trim(),
-        equippedBadgeId: String(input.equippedBadgeId ?? currentData.equippedBadgeId ?? "").trim(),
-        unlockedBadgeIds: stringList(input.unlockedBadgeIds ?? currentData.unlockedBadgeIds),
-        badgeActivityIds: activityMap(input.badgeActivityIds ?? currentData.badgeActivityIds),
-        profilePhotoUrl: String(input.profilePhotoUrl ?? currentData.profilePhotoUrl ?? "").trim(),
-        supabaseStoragePath: String(input.supabaseStoragePath ?? currentData.supabaseStoragePath ?? "").trim(),
+        name: String(input.name ?? currentData.name ?? userData.name ?? "").trim(),
+        email: String(input.email ?? currentData.email ?? userData.email ?? "").trim(),
+        address: String(input.address ?? currentData.address ?? userData.address ?? "").trim(),
+        birthDate: String(input.birthDate ?? currentData.birthDate ?? userData.birthDate ?? "").trim(),
+        avatarId: String(input.avatarId ?? currentData.avatarId ?? userData.avatarId ?? "").trim(),
+        equippedBadgeId: String(input.equippedBadgeId ?? currentData.equippedBadgeId ?? userData.equippedBadgeId ?? "").trim(),
+        unlockedBadgeIds: mergedUnlockedBadges,
+        badgeActivityIds: mergedActivities,
+        profilePhotoUrl: String(input.profilePhotoUrl ?? currentData.profilePhotoUrl ?? userData.profilePhotoUrl ?? "").trim(),
+        supabaseStoragePath: String(input.supabaseStoragePath ?? currentData.supabaseStoragePath ?? userData.supabaseStoragePath ?? "").trim(),
         updatedAt: Date.now(),
       };
       await patchDocument(projectId, token, "acessos_pendentes", memberId, safe);
