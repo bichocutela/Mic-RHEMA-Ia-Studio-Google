@@ -2,10 +2,12 @@ package com.aistudio.micrhema
 
 import android.content.Context
 import android.util.Log
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -43,23 +45,25 @@ object QuizAuthorityClient {
         .build()
     private val missionInFlight = Collections.synchronizedSet(mutableSetOf<String>())
 
-    private fun normalizePhone(value: String): String {
-        val digits = value.filter(Char::isDigit)
-        return if (digits.length in 12..13 && digits.startsWith("55")) digits.drop(2) else digits
+    private suspend fun firebaseToken(member: MemberRequest): String {
+        val user = FirebaseAuth.getInstance().currentUser
+            ?: throw IllegalStateException("Sua sessão de membro expirou. Entre novamente no MIC Rhema.")
+        if (user.uid != member.id) {
+            throw IllegalStateException("A sessão Firebase não pertence ao membro ativo. Entre novamente.")
+        }
+        return user.getIdToken(false).await().token
+            ?: throw IllegalStateException("O Firebase não retornou um token válido para o Quiz.")
     }
 
     private suspend fun call(member: MemberRequest, payload: JSONObject, allowConflict: Boolean = false): Pair<Int, JSONObject> = withContext(Dispatchers.IO) {
         val baseUrl = BuildConfig.SUPABASE_URL.trim().trimEnd('/')
-        val anonKey = BuildConfig.SUPABASE_ANON_KEY.trim()
-        if (baseUrl.isBlank() || anonKey.isBlank() || baseUrl.contains("your-project")) {
+        if (baseUrl.isBlank() || baseUrl.contains("your-project")) {
             throw IllegalStateException("O Quiz central não está configurado nesta versão.")
         }
-        payload.put("memberId", member.id)
-        payload.put("phone", normalizePhone(member.phone))
+        val token = firebaseToken(member)
         val request = Request.Builder()
             .url("$baseUrl/functions/v1/xp-quiz")
-            .header("apikey", anonKey)
-            .header("Authorization", "Bearer $anonKey")
+            .header("Authorization", "Bearer $token")
             .header("Content-Type", "application/json")
             .post(payload.toString().toRequestBody("application/json".toMediaType()))
             .build()
