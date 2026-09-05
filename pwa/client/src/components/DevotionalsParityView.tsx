@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { BookOpen, CalendarDays, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { listenToCollection } from "@/lib/firebase";
-import { recordPwaActivity } from "@/lib/badge-activity";
+import { recordVerifiedPwaActivity } from "@/lib/badge-activity";
+import { reportPwaDevotional } from "@/lib/xp";
 import { appDateKey, formatAppDate, parseAppDate, todayKey } from "@/lib/parity-utils";
 import auto2027 from "@/data/android-devotionals-2027.json";
 import "./AndroidParityViews.css";
@@ -43,7 +44,29 @@ export function DevotionalsParityView() {
   const items = useMemo(() => mergeAutomatic(remote)
     .filter((item) => { const parsed = parseAppDate(item.date); return !parsed || parsed.getTime() <= new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime(); })
     .sort((a, b) => sort === "recent" ? dateValue(b) - dateValue(a) : dateValue(a) - dateValue(b)), [remote, sort, today]);
-  const openDevotional=(item:Devotional)=>{setSelected(item);void recordPwaActivity("devotionals",item.id).catch(()=>undefined);};
+  const openDevotional=(item:Devotional)=>setSelected(item);
+
+  useEffect(() => {
+    if (!selected) return;
+    const startedAt = Date.now();
+    let completed = false;
+    const check = () => {
+      if (completed || document.visibilityState !== "visible") return;
+      const root = document.documentElement;
+      const short = root.scrollHeight <= window.innerHeight + 80;
+      const fraction = short ? 1 : Math.min(1, (window.scrollY + window.innerHeight) / Math.max(1, root.scrollHeight));
+      const elapsed = Date.now() - startedAt;
+      if (elapsed < 15_000 || fraction < .8) return;
+      completed = true;
+      void reportPwaDevotional(selected.id, elapsed, fraction)
+        .then(result => result.qualified ? recordVerifiedPwaActivity("devotionals", selected.id) : undefined)
+        .catch(() => undefined);
+      window.removeEventListener("scroll", check);
+    };
+    const timer = window.setInterval(check, 1_000);
+    window.addEventListener("scroll", check, { passive: true });
+    return () => { window.clearInterval(timer); window.removeEventListener("scroll", check); };
+  }, [selected?.id]);
 
   if (selected) return <section className="parity-page devotional-reader">
     <button className="back-link" onClick={() => setSelected(null)}><ChevronLeft size={18}/> Voltar aos devocionais</button>
