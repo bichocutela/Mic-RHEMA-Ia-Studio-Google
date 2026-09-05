@@ -31,7 +31,7 @@ import androidx.compose.ui.unit.dp
 enum class AdminSection {
     DASHBOARD,
     DEVOTIONALS, NEWS, MEDIA, PLANS, IBR, DISCIPULADO,
-    SERVICES, BANNERS, DONATIONS, PRAYERS,
+    SERVICES, BANNERS, LIVE, DONATIONS, PRAYERS,
     MEMBERS, PROFILES, TEAM,
     TABS, SETTINGS, ABOUT
 }
@@ -185,6 +185,7 @@ fun AdminDashboard(onNavigate: (AdminSection) -> Unit, paddingValues: PaddingVal
         if (churchExpanded) {
             item { AdminMenuItem("Cultos", "Agenda e programação", Icons.Default.Event, { onNavigate(AdminSection.SERVICES) }) }
             item { AdminMenuItem("Destaques", "Banners e eventos da tela inicial", Icons.Default.ViewCarousel, { onNavigate(AdminSection.BANNERS) }) }
+            item { AdminMenuItem("Transmissão ao vivo", "Automático pelo YouTube e modo manual", Icons.Default.LiveTv, { onNavigate(AdminSection.LIVE) }) }
             item { AdminMenuItem("Dízimos e Ofertas", "Contas, PIX e informações", Icons.Default.MonetizationOn, { onNavigate(AdminSection.DONATIONS) }) }
             item { AdminMenuItem("Pedidos de Oração", "Fila pastoral e histórico de orações", Icons.Default.VolunteerActivism, { onNavigate(AdminSection.PRAYERS) }) }
             item { AdminMenuItem("Equipe", "Líderes, pastores e ministérios", Icons.Default.Groups, { onNavigate(AdminSection.TEAM) }) }

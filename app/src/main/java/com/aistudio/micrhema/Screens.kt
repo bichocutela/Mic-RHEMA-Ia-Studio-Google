@@ -448,6 +448,7 @@ fun AdminScreen() {
                     AdminSection.DISCIPULADO -> "Discipulado"
                     AdminSection.SERVICES -> "Cultos"
                     AdminSection.BANNERS -> "Destaques"
+                    AdminSection.LIVE -> "Transmissão ao vivo"
                     AdminSection.DONATIONS -> "Dízimos e Ofertas"
                     AdminSection.PRAYERS -> "Pedidos de Oração"
                     AdminSection.TEAM -> "Equipe"
@@ -509,6 +510,7 @@ fun AdminScreen() {
                             AdminSection.MEMBERS -> EditMembersSection()
                             AdminSection.ABOUT -> EditAboutSection()
                             AdminSection.BANNERS -> EditBannersSection()
+                            AdminSection.LIVE -> EditLiveStreamSection()
                             AdminSection.SETTINGS -> EditSettingsSection()
                             AdminSection.DONATIONS -> EditDonationsSection()
                             AdminSection.PROFILES -> EditProfilesSection()

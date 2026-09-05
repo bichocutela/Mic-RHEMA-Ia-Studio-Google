@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -177,6 +178,27 @@ object LiveStreamRepository {
             ).await()
         refresh(force = true)
     }
+}
+
+@Composable
+fun HomeScreenWithLive(onNavigate: (String) -> Unit = {}) {
+    val live = liveStreamState.value
+    var playerOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        LiveStreamRepository.start()
+        runCatching { LiveStreamRepository.refresh(false) }
+    }
+    Column(modifier = Modifier.fillMaxSize()) {
+        if (live.isLive && (live.videoId.isNotBlank() || live.url.isNotBlank())) {
+            Spacer(Modifier.height(8.dp))
+            LiveStreamHomeBanner { playerOpen = true }
+            Spacer(Modifier.height(8.dp))
+        }
+        Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+            HomeScreen(onNavigate = onNavigate)
+        }
+    }
+    if (playerOpen) LiveStreamPlayerDialog { playerOpen = false }
 }
 
 private fun extractYoutubeVideoId(value: String): String {

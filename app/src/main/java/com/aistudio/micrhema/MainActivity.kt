@@ -674,7 +674,7 @@ fun MainScreen() {
                     slideOutOfContainer(androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Right, animationSpec = spring(stiffness = Spring.StiffnessLow)) + fadeOut(animationSpec = tween(300))
                 }
             ) {
-                composable(Screen.Home.route) { HomeScreen(onNavigate = { route -> navController.navigate(route) { launchSingleTop = true } }) }
+                composable(Screen.Home.route) { HomeScreenWithLive(onNavigate = { route -> navController.navigate(route) { launchSingleTop = true } }) }
                 composable(
                     route = "${Screen.Devotionals.route}?id={id}",
                     arguments = listOf(navArgument("id") { type = androidx.navigation.NavType.StringType; nullable = true; defaultValue = null })

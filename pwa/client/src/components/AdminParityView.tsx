@@ -11,11 +11,12 @@ import {
   saveAdminDocument, saveAdminSetting,
 } from "@/lib/admin-firestore";
 import { deleteAdminStoredAssetsFromDocument, uploadAdminMedia } from "@/lib/admin-storage";
+import { LiveStreamAdmin } from "./LiveStreamAdmin";
 import "./AdminParityView.css";
 
 type Session = { uid: string; name: string; isAdmin: boolean; isIbr?: boolean } | null;
 type AnyDoc = { id: string; [key: string]: any };
-type Section = "dashboard" | "devotionals" | "news" | "media" | "plans" | "ibr" | "discipulado" | "services" | "banners" | "donations" | "prayers" | "members" | "profiles" | "team" | "tabs" | "settings" | "about";
+type Section = "dashboard" | "devotionals" | "news" | "media" | "plans" | "ibr" | "discipulado" | "services" | "banners" | "live" | "donations" | "prayers" | "members" | "profiles" | "team" | "tabs" | "settings" | "about";
 
 type Chapter = { id: string; title: string; description: string; durationMinutes: number; type: "VIDEO" | "AUDIO" | "TEXT"; videoUrl: string; audioUrl: string; textContent: string; studyPdfUrl?: string; isYoutube?: boolean; youtubeId?: string };
 type PlanTheme = { title: string; content: string; verses: string[]; imageUrl: string };
@@ -59,6 +60,7 @@ const modules: Array<{ group: string; items: Array<{ id: Section; title: string;
   { group: "IGREJA", items: [
     { id: "services", title: "Cultos", subtitle: "Agenda e programação", icon: Heart },
     { id: "banners", title: "Destaques", subtitle: "Banners e eventos da Home", icon: Image },
+    { id: "live", title: "Transmissão ao vivo", subtitle: "Automático pelo YouTube e modo manual", icon: Video },
     { id: "donations", title: "Dízimos e Ofertas", subtitle: "PIX e QR Code", icon: Heart },
     { id: "prayers", title: "Pedidos de Oração", subtitle: "Fila pastoral e histórico", icon: HandHeart },
     { id: "team", title: "Equipe", subtitle: "Líderes e ministérios", icon: Users },
@@ -109,6 +111,7 @@ function AdminSectionView({ section }: { section: Exclude<Section, "dashboard"> 
   if (section === "ibr") return <IbrAdmin/>;
   if (section === "discipulado") return <DiscipuladoAdmin/>;
   if (section === "services") return <ServicesAdmin/>;
+  if (section === "live") return <LiveStreamAdmin/>;
   if (section === "banners") return <BannersAdmin/>;
   if (section === "donations") return <DonationsAdmin/>;
   if (section === "prayers") return <PrayerAdmin/>;
