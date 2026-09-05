@@ -102,7 +102,6 @@ object BibleJourneyProgressTracker {
         }
 
         if (!changed) return sourceMember
-
         val activities = sourceMember.badgeActivityIds.toMutableMap()
         activities[BadgeActivityKeys.XP_AWARDS] = xpAwards.distinct()
         val recovered = sourceMember.copy(badgeActivityIds = activities)
@@ -111,7 +110,7 @@ object BibleJourneyProgressTracker {
         return recovered
     }
 
-    fun submitQuizAnswer(
+    suspend fun submitQuizAnswer(
         context: Context,
         question: BibleQuizQuestion,
         selectedOptionIndex: Int,
@@ -120,11 +119,13 @@ object BibleJourneyProgressTracker {
         val rawMember = loggedInMemberState.value
             ?: throw IllegalStateException("Entre no MIC Rhema para registrar seu progresso.")
         val recoveredMember = reconcileQuizXp(context, rawMember)
-        val member = ensureCurrentLevelMissionBaseline(ensureBibleJourneyBaseline(recoveredMember), allowIbrDependentBaseline = true)
-        val evaluated = BibleQuizEngine.answer(question, selectedOptionIndex, hintUsed)
+        val member = ensureCurrentLevelMissionBaseline(
+            ensureBibleJourneyBaseline(recoveredMember),
+            allowIbrDependentBaseline = true
+        )
         val alreadyAnswered = question.id in member.ids(BadgeActivityKeys.QUIZ_ANSWERED)
-
         if (alreadyAnswered) {
+            val evaluated = BibleQuizEngine.answer(question, selectedOptionIndex, hintUsed)
             return BibleQuizSubmission(
                 result = evaluated,
                 firstAttempt = false,
@@ -133,71 +134,83 @@ object BibleJourneyProgressTracker {
             )
         }
 
+        // A resposta só entra no progresso local DEPOIS da confirmação central.
+        // Isso elimina a pergunta fantasma quando a rede cai durante a tentativa.
+        val server = QuizAuthorityClient.submitAnswerNow(member, question, selectedOptionIndex)
+        val authoritative = BibleQuizEngine.answer(
+            question = question,
+            selectedOptionIndex = server.selectedOptionIndex,
+            hintUsed = server.hintUsed
+        ).copy(
+            correctOptionIndex = server.correctOptionIndex,
+            isCorrect = server.correct,
+            awardedXp = server.granted,
+            bibleReference = server.reference,
+            explanation = server.explanation
+        )
+
         val activities = member.badgeActivityIds.toMutableMap()
         fun add(key: String, value: String) {
             activities[key] = (activities[key].orEmpty() + value).distinct()
         }
-
         add(BadgeActivityKeys.QUIZ_ANSWERED, question.id)
-        val grantedXp = if (evaluated.isCorrect) evaluated.awardedXp else 0
-        if (evaluated.isCorrect) {
+        if (server.correct) {
             add(BadgeActivityKeys.QUIZ_CORRECT, question.id)
-            if (hintUsed != BibleQuizHintUsage.EASY) add(BadgeActivityKeys.QUIZ_CORRECT_NO_EASY_HINT, question.id)
-            if (hintUsed == BibleQuizHintUsage.NONE) add(BadgeActivityKeys.QUIZ_CORRECT_NO_HINT, question.id)
+            if (server.hintUsed != BibleQuizHintUsage.EASY) add(BadgeActivityKeys.QUIZ_CORRECT_NO_EASY_HINT, question.id)
+            if (server.hintUsed == BibleQuizHintUsage.NONE) add(BadgeActivityKeys.QUIZ_CORRECT_NO_HINT, question.id)
             if (question.difficulty == BibleQuizDifficulty.HARD) add(BadgeActivityKeys.QUIZ_HARD_CORRECT, question.id)
+        }
+        if (server.granted > 0) {
+            val receipt = "quiz:${question.id}"
+            val awards = activities[BadgeActivityKeys.XP_AWARDS].orEmpty().toMutableList()
+            if (awards.none { it.substringBefore('=') == receipt }) awards.add("$receipt=${server.granted}")
+            activities[BadgeActivityKeys.XP_AWARDS] = awards.distinct()
         }
 
         val answeredMember = member.copy(badgeActivityIds = activities)
         BadgeActivityTracker.updateMemberStates(answeredMember)
         BadgeActivityTracker.syncPortableState(context, answeredMember)
-
-        // Toda primeira tentativa vai ao backend. O servidor conhece a alternativa
-        // correta e grava a primeira resposta; somente uma primeira resposta correta
-        // pode gerar XP. Repetições nunca convertem um erro anterior em recompensa.
-        XpActivityBridge.quiz(context, question, selectedOptionIndex, hintUsed)
-
-        val rewardedMember = reconcileMissionRewards(context, answeredMember)
-        BadgeActivityTracker.reconcile(context, rewardedMember)
+        val reconciledMember = reconcileQuizXp(context, answeredMember)
+        reconcileMissionRewards(context, reconciledMember)
+        BadgeActivityTracker.reconcile(context, reconciledMember)
 
         return BibleQuizSubmission(
-            result = evaluated,
-            firstAttempt = true,
-            xpGranted = grantedXp,
-            totalXp = totalXp(loggedInMemberState.value ?: rewardedMember)
+            result = authoritative,
+            firstAttempt = !server.duplicate,
+            xpGranted = server.granted,
+            totalXp = server.account.totalEarned
         )
     }
 
     fun reconcileMissionRewards(context: Context, sourceMember: MemberRequest): MemberRequest {
         val member = ensureBibleJourneyBaseline(sourceMember)
-        if (!isXpUnlocked(member)) {
-            if (member.badgeActivityIds != sourceMember.badgeActivityIds) {
-                BadgeActivityTracker.updateMemberStates(member)
-                BadgeActivityTracker.syncPortableState(context, member)
-            }
-            return member
+        if (member.badgeActivityIds != sourceMember.badgeActivityIds) {
+            BadgeActivityTracker.updateMemberStates(member)
+            BadgeActivityTracker.syncPortableState(context, member)
         }
+        if (!isXpUnlocked(member)) return member
 
         val progress = calculateBibleMissionProgress(member)
-        val alreadyAwarded = member.ids(BadgeActivityKeys.JOURNEY_MISSIONS).toMutableSet()
-        val newlyCompleted = progress.filter { it.completed && it.mission.id !in alreadyAwarded }
-        if (newlyCompleted.isEmpty()) {
-            if (member.badgeActivityIds != sourceMember.badgeActivityIds) {
-                BadgeActivityTracker.updateMemberStates(member)
-                BadgeActivityTracker.syncPortableState(context, member)
+        val alreadyAwarded = member.ids(BadgeActivityKeys.JOURNEY_MISSIONS).toSet()
+        progress
+            .filter { it.completed && it.mission.id !in alreadyAwarded }
+            .forEach { item ->
+                QuizAuthorityClient.claimMission(context, member, item.mission) { result ->
+                    if (result.confirmed) markMissionConfirmed(context, item.mission.id)
+                }
             }
-            return member
-        }
+        return member
+    }
 
-        newlyCompleted.forEach { item ->
-            alreadyAwarded.add(item.mission.id)
-            XpActivityBridge.journeyMission(context, item.mission)
-        }
-
-        val activities = member.badgeActivityIds.toMutableMap()
-        activities[BadgeActivityKeys.JOURNEY_MISSIONS] = alreadyAwarded.sorted()
-        val rewarded = member.copy(badgeActivityIds = activities)
-        BadgeActivityTracker.updateMemberStates(rewarded)
-        BadgeActivityTracker.syncPortableState(context, rewarded)
-        return rewarded
+    private fun markMissionConfirmed(context: Context, missionId: String) {
+        val latest = loggedInMemberState.value ?: return
+        val current = latest.ids(BadgeActivityKeys.JOURNEY_MISSIONS).toMutableSet()
+        if (!current.add(missionId)) return
+        val activities = latest.badgeActivityIds.toMutableMap()
+        activities[BadgeActivityKeys.JOURNEY_MISSIONS] = current.sorted()
+        val updated = latest.copy(badgeActivityIds = activities)
+        BadgeActivityTracker.updateMemberStates(updated)
+        BadgeActivityTracker.syncPortableState(context, updated)
+        XpEngineClient.refresh(context, updated, force = true)
     }
 }

@@ -1,13 +1,10 @@
 package com.aistudio.micrhema
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -40,14 +37,24 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import kotlinx.coroutines.launch
+
+private fun strongerHint(current: BibleQuizHintUsage, incoming: BibleQuizHintUsage): BibleQuizHintUsage {
+    fun rank(value: BibleQuizHintUsage) = when (value) {
+        BibleQuizHintUsage.NONE -> 0
+        BibleQuizHintUsage.HARD -> 1
+        BibleQuizHintUsage.EASY -> 2
+    }
+    return if (rank(incoming) >= rank(current)) incoming else current
+}
 
 @Composable
 fun BibleJourneyDialog(
@@ -55,6 +62,7 @@ fun BibleJourneyDialog(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var difficulty by remember { mutableStateOf(BibleQuizDifficulty.EASY) }
     var currentQuestionId by remember { mutableStateOf<String?>(null) }
     var reviewMode by remember { mutableStateOf(false) }
@@ -63,6 +71,8 @@ fun BibleJourneyDialog(
     var submission by remember { mutableStateOf<BibleQuizSubmission?>(null) }
     var errorMessage by remember { mutableStateOf("") }
     var showMissions by remember { mutableStateOf(true) }
+    var hintLoading by remember { mutableStateOf(false) }
+    var answerLoading by remember { mutableStateOf(false) }
 
     val liveMember = loggedInMemberState.value?.takeIf { it.id == member.id } ?: member
     val stats = BibleJourneyProgressTracker.stats(liveMember)
@@ -83,6 +93,8 @@ fun BibleJourneyDialog(
         selectedOption = -1
         submission = null
         hintUsed = BibleQuizHintUsage.NONE
+        hintLoading = false
+        answerLoading = false
         errorMessage = ""
     }
 
@@ -94,9 +106,7 @@ fun BibleJourneyDialog(
             tonalElevation = 12.dp
         ) {
             Column(
-                modifier = Modifier
-                    .verticalScroll(rememberScrollState())
-                    .padding(20.dp),
+                modifier = Modifier.verticalScroll(rememberScrollState()).padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -116,11 +126,11 @@ fun BibleJourneyDialog(
                     BibleQuizDifficulty.entries.forEach { item ->
                         val selected = item == difficulty
                         if (selected) {
-                            Button(onClick = { difficulty = item }, contentPadding = ButtonDefaults.ContentPadding) {
+                            Button(onClick = { if (!answerLoading && !hintLoading) difficulty = item }, contentPadding = ButtonDefaults.ContentPadding) {
                                 Text("${item.label} · ${item.baseXp} XP")
                             }
                         } else {
-                            OutlinedButton(onClick = { difficulty = item }, contentPadding = ButtonDefaults.ContentPadding) {
+                            OutlinedButton(onClick = { if (!answerLoading && !hintLoading) difficulty = item }, contentPadding = ButtonDefaults.ContentPadding) {
                                 Text(item.label)
                             }
                         }
@@ -142,10 +152,7 @@ fun BibleJourneyDialog(
                         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.48f))) {
                             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text("Todas as perguntas foram concluídas", fontWeight = FontWeight.Bold)
-                                Text(
-                                    "Seu progresso fica salvo. Você não precisa responder tudo novamente.",
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
+                                Text("Seu progresso fica salvo. Você não precisa responder tudo novamente.", style = MaterialTheme.typography.bodyMedium)
                                 OutlinedButton(
                                     onClick = {
                                         reviewMode = true
@@ -156,9 +163,7 @@ fun BibleJourneyDialog(
                                         errorMessage = ""
                                     },
                                     modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text("Revisar perguntas · 0 XP")
-                                }
+                                ) { Text("Revisar perguntas · 0 XP") }
                             }
                         }
                     }
@@ -175,25 +180,75 @@ fun BibleJourneyDialog(
                         hintUsed = hintUsed,
                         selectedOption = selectedOption,
                         submission = submission,
+                        busy = hintLoading || answerLoading,
                         onHardHint = {
-                            if (submission == null) hintUsed = BibleQuizHintUsage.HARD
+                            if (submission != null || hintLoading || answerLoading) return@QuizQuestionCard
+                            if (reviewMode) {
+                                hintUsed = strongerHint(hintUsed, BibleQuizHintUsage.HARD)
+                            } else {
+                                val expectedQuestionId = question.id
+                                hintLoading = true
+                                errorMessage = ""
+                                scope.launch {
+                                    runCatching {
+                                        QuizAuthorityClient.recordHintNow(liveMember, expectedQuestionId, BibleQuizHintUsage.HARD)
+                                    }.onSuccess { effective ->
+                                        if (currentQuestionId == expectedQuestionId) hintUsed = strongerHint(hintUsed, effective)
+                                    }.onFailure {
+                                        errorMessage = it.message ?: "Não foi possível carregar a dica agora."
+                                    }
+                                    hintLoading = false
+                                }
+                            }
                         },
                         onEasyHint = {
-                            if (submission == null) hintUsed = BibleQuizHintUsage.EASY
+                            if (submission != null || hintLoading || answerLoading) return@QuizQuestionCard
+                            if (reviewMode) {
+                                hintUsed = BibleQuizHintUsage.EASY
+                            } else {
+                                val expectedQuestionId = question.id
+                                hintLoading = true
+                                errorMessage = ""
+                                scope.launch {
+                                    runCatching {
+                                        QuizAuthorityClient.recordHintNow(liveMember, expectedQuestionId, BibleQuizHintUsage.EASY)
+                                    }.onSuccess { effective ->
+                                        if (currentQuestionId == expectedQuestionId) hintUsed = strongerHint(hintUsed, effective)
+                                    }.onFailure {
+                                        errorMessage = it.message ?: "Não foi possível carregar a dica agora."
+                                    }
+                                    hintLoading = false
+                                }
+                            }
                         },
                         onAnswer = { index ->
-                            if (submission != null) return@QuizQuestionCard
+                            if (submission != null || hintLoading || answerLoading) return@QuizQuestionCard
+                            val expectedQuestionId = question.id
                             selectedOption = index
                             errorMessage = ""
-                            submission = runCatching {
-                                BibleJourneyProgressTracker.submitQuizAnswer(context, question, index, hintUsed)
-                            }.getOrElse {
-                                errorMessage = it.message ?: "Não foi possível registrar esta resposta."
-                                null
+                            answerLoading = true
+                            scope.launch {
+                                runCatching {
+                                    BibleJourneyProgressTracker.submitQuizAnswer(context, question, index, hintUsed)
+                                }.onSuccess { value ->
+                                    if (currentQuestionId == expectedQuestionId) {
+                                        selectedOption = value.result.selectedOptionIndex
+                                        hintUsed = value.result.hintUsed
+                                        submission = value
+                                    }
+                                }.onFailure {
+                                    errorMessage = it.message ?: "Não foi possível registrar esta resposta."
+                                }
+                                answerLoading = false
                             }
                         }
                     )
 
+                    if (hintLoading) {
+                        Text("Registrando a dica…", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
+                    } else if (answerLoading) {
+                        Text("Validando resposta no servidor…", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
+                    }
                     if (errorMessage.isNotBlank()) {
                         Text(errorMessage, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     }
@@ -217,6 +272,8 @@ fun BibleJourneyDialog(
                                 hintUsed = BibleQuizHintUsage.NONE
                                 selectedOption = -1
                                 submission = null
+                                hintLoading = false
+                                answerLoading = false
                                 errorMessage = ""
                             },
                             modifier = Modifier.fillMaxWidth()
@@ -234,7 +291,7 @@ fun BibleJourneyDialog(
                     Column(Modifier.weight(1f)) {
                         Text("Missões da Jornada", fontWeight = FontWeight.Bold)
                         Text(
-                            "${stats.completedMissionIds.size} concluídas · XP entregue uma única vez",
+                            "${stats.completedMissionIds.size} concluídas · XP confirmado pelo servidor",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -255,7 +312,7 @@ fun BibleJourneyDialog(
                 }
 
                 Text(
-                    "Regra de progresso: a primeira tentativa de cada pergunta é a única que pode gerar XP. Perguntas concluídas são puladas automaticamente; a revisão é opcional e vale 0 XP. Cada nível novo também começa suas próprias missões do zero.",
+                    "Regra de progresso: a primeira tentativa é confirmada no servidor antes de entrar no perfil. Dicas só podem aumentar de nível (nenhuma → sutil → direta), nunca voltar para um desconto menor. A revisão continua opcional e vale 0 XP.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -300,6 +357,7 @@ private fun QuizQuestionCard(
     hintUsed: BibleQuizHintUsage,
     selectedOption: Int,
     submission: BibleQuizSubmission?,
+    busy: Boolean,
     onHardHint: () -> Unit,
     onEasyHint: () -> Unit,
     onAnswer: (Int) -> Unit
@@ -315,12 +373,12 @@ private fun QuizQuestionCard(
 
             if (submission == null) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = onHardHint, modifier = Modifier.weight(1f)) {
+                    OutlinedButton(onClick = onHardHint, enabled = !busy, modifier = Modifier.weight(1f)) {
                         Icon(Icons.Default.Lightbulb, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.size(6.dp))
                         Text("Dica sutil")
                     }
-                    OutlinedButton(onClick = onEasyHint, modifier = Modifier.weight(1f)) {
+                    OutlinedButton(onClick = onEasyHint, enabled = !busy, modifier = Modifier.weight(1f)) {
                         Icon(Icons.Default.Lightbulb, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.size(6.dp))
                         Text("Dica direta")
@@ -352,7 +410,7 @@ private fun QuizQuestionCard(
                     else -> MaterialTheme.colorScheme.surface
                 }
                 Surface(
-                    modifier = Modifier.fillMaxWidth().clickable(enabled = !answered) { onAnswer(index) },
+                    modifier = Modifier.fillMaxWidth().clickable(enabled = !answered && !busy) { onAnswer(index) },
                     color = container,
                     shape = RoundedCornerShape(14.dp),
                     tonalElevation = 1.dp
@@ -384,7 +442,7 @@ private fun QuizQuestionCard(
                         if (value.firstAttempt) {
                             Text(if (value.xpGranted > 0) "+${value.xpGranted} XP · Total ${value.totalXp} XP" else "Primeira tentativa registrada · 0 XP")
                         } else {
-                            Text("Questão repetida para estudo · 0 XP", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Questão já registrada/revisada · 0 XP", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -395,15 +453,24 @@ private fun QuizQuestionCard(
 
 @Composable
 private fun MissionJourneyCard(progress: BibleMissionProgress) {
-    val color = if (progress.completed) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.38f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+    val color = if (progress.completed) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.38f)
+    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
     Card(colors = CardDefaults.cardColors(containerColor = color), shape = RoundedCornerShape(16.dp)) {
         Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(if (progress.completed) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Icon(
+                    if (progress.completed) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
                 Spacer(Modifier.size(8.dp))
                 Column(Modifier.weight(1f)) {
                     Text(progress.mission.title, fontWeight = FontWeight.SemiBold)
-                    Text("${progress.mission.difficulty.label} · ${progress.mission.xpReward} XP", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        "${progress.mission.difficulty.label} · ${progress.mission.xpReward} XP",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
             Text(progress.mission.description, style = MaterialTheme.typography.bodySmall)
