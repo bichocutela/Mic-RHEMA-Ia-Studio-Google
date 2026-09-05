@@ -33,8 +33,21 @@ object XpActivityBridge {
         val member = loggedInMemberState.value ?: return
         if (!isXpUnlocked(member)) return
         when (activity) {
-            BadgeActivityKeys.PLAN_THEMES -> planTheme(context, itemId)
+            BadgeActivityKeys.PLAN_THEMES -> planTheme(context, canonicalPlanThemeId(itemId))
         }
+    }
+
+    /**
+     * O progresso local preserva `categoria:tema` por compatibilidade com emblemas.
+     * O ledger usa `categoria::tema` em Android e PWA para o mesmo receipt impedir
+     * prêmio duplicado quando a pessoa alterna de plataforma.
+     */
+    fun canonicalPlanThemeId(value: String): String {
+        val clean = value.trim()
+        if (clean.contains("::")) return clean
+        val separator = clean.indexOf(':')
+        if (separator <= 0 || separator >= clean.lastIndex) return clean
+        return clean.substring(0, separator) + "::" + clean.substring(separator + 1)
     }
 
     fun reconcileIbrCompleted(context: Context) {
