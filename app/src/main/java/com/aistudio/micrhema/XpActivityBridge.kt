@@ -25,6 +25,34 @@ object XpActivityBridge {
     fun ibrLesson(context: Context, courseId: String, chapterId: String) = award(context, "ibr_lesson", "$courseId:$chapterId")
     fun prayer(context: Context, requestId: String) = award(context, "prayer_sent", requestId)
 
+    /**
+     * Atividades já validadas pelo rastreador antigo passam a alimentar também o
+     * ledger central. Cada ID é único, portanto revisitar o mesmo conteúdo não farma XP.
+     */
+    fun recordedActivity(context: Context, activity: String, itemId: String) {
+        val member = loggedInMemberState.value ?: return
+        if (!isXpUnlocked(member)) return
+        when (activity) {
+            BadgeActivityKeys.BIBLE_CHAPTERS -> bibleChapter(context, itemId)
+            BadgeActivityKeys.DEVOTIONALS -> devotional(context, itemId)
+            BadgeActivityKeys.BIBLE_NEWS -> news(context, itemId)
+            BadgeActivityKeys.PLAN_THEMES -> planTheme(context, itemId)
+            BadgeActivityKeys.BOOKS -> bookEngagement(context, itemId)
+            BadgeActivityKeys.AUDIOS -> award(context, "audio_open", itemId)
+            BadgeActivityKeys.VIDEOS -> award(context, "video_open", itemId)
+        }
+    }
+
+    /** Concede a aula IBR uma única vez a partir do progresso real já persistido. */
+    fun reconcileIbrCompleted(context: Context) {
+        val member = loggedInMemberState.value ?: return
+        if (!isXpUnlocked(member)) return
+        ibrProgressState
+            .asSequence()
+            .filter { it.isCompleted }
+            .forEach { progress -> ibrLesson(context, progress.courseId, progress.chapterId) }
+    }
+
     fun quiz(context: Context, question: BibleQuizQuestion, hint: BibleQuizHintUsage) {
         val activity = when (question.difficulty) {
             BibleQuizDifficulty.EASY -> "quiz_easy"
