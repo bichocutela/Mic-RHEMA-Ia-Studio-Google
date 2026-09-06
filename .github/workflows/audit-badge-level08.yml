@@ -1,0 +1,38 @@
+name: Audit Badge Level 08
+
+on:
+  push:
+    branches:
+      - fix/badge-level08-only
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Instalar ferramentas
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq webp imagemagick
+      - name: Auditar nível 8
+        run: |
+          set -euo pipefail
+          f='app/src/main/res/drawable-nodpi/profile_emblem_level_08.webp'
+          echo '=== WEBP ==='
+          stat -c 'bytes=%s' "$f"
+          webpinfo "$f" | grep -E 'Canvas size|Width|Height|Alpha' || true
+          dwebp "$f" -o /tmp/level08.png
+          echo '=== PNG DECODIFICADO ==='
+          identify -format 'size=%wx%h channels=%[channels] depth=%z\n' /tmp/level08.png
+          echo '=== ALPHA ==='
+          convert /tmp/level08.png -alpha extract -format 'min=%[fx:minima] max=%[fx:maxima] mean=%[fx:mean]\n' info:
+          echo '=== CONTEUDO VISIVEL ==='
+          convert /tmp/level08.png -alpha extract -threshold 1 -trim -format 'bbox=%wx%h%O\n' info:
+          convert /tmp/level08.png -background '#20242b' -alpha background -thumbnail '900x900>' -gravity center -extent 1024x1024 /tmp/level08_preview.png
+      - uses: actions/upload-artifact@v4
+        with:
+          name: badge-level08-audit
+          path: /tmp/level08_preview.png
