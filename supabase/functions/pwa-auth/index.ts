@@ -68,6 +68,10 @@ function memberFromDocument(document?: FirestoreDocument | null): Member | null 
   };
 }
 
+function documentPhone(document?: FirestoreDocument | null) {
+  return normalizePhone(firebaseValue(document?.fields?.phone));
+}
+
 function baseUrl(projectId: string) {
   return `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
 }
@@ -114,7 +118,9 @@ async function findMember(projectId: string, accessToken: string, phone: string)
   const unique = new Map<string, FirestoreDocument>();
   candidates.forEach((document) => {
     const id = String(document.name || "").split("/").pop() || "";
-    if (id) unique.set(id, document);
+    // Um ID legado phone_XXXXXXXX não vale como identidade se o campo phone
+    // já foi transferido pelo administrador para outro número.
+    if (id && documentPhone(document) === phone) unique.set(id, document);
   });
   const selected = [...unique.values()].sort((left, right) => rankMember(right) - rankMember(left))[0];
   return memberFromDocument(selected);
@@ -133,7 +139,9 @@ function field(value: unknown): FirestoreField {
 }
 
 async function createPendingMember(projectId: string, accessToken: string, fullName: string, phone: string): Promise<Member> {
-  const id = `phone_${phone}`;
+  // O ID interno deixa de carregar o telefone. Isso permite que o ADM troque o
+  // número da conta sem precisar mover XP, favoritos, IBR ou subcoleções.
+  const id = crypto.randomUUID();
   const now = Date.now();
   const data = {
     name: shortMemberName(fullName),
