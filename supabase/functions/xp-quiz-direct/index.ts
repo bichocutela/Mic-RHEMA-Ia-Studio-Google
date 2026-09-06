@@ -37,7 +37,9 @@ const cors = {
 };
 const json = (body: Record<string, unknown>, status = 200) => new Response(JSON.stringify(body), { status, headers: cors });
 const clean = (value: unknown, max = 1000) => String(value ?? "").trim().slice(0, max);
-const list = (value: unknown): string[] => Array.isArray(value) ? [...new Set(value.map((item) => clean(item, 200)).filter(Boolean))].slice(0, 500) : [];
+const stringList = (value: unknown): string[] => Array.isArray(value)
+  ? [...new Set(value.map((item) => clean(item, 200)).filter(Boolean))].slice(0, 500)
+  : [];
 
 async function memberIdFromFirebase(request: Request): Promise<string> {
   const authorization = request.headers.get("authorization") ?? "";
@@ -109,10 +111,18 @@ function parseCatalog(source: string, target: Map<string, QuizQuestion>) {
     const difficulty = difficultyFromToken(args[1]);
     const options = parseOptions(args[3]);
     const correctOptionIndex = Number(args[4]);
-    if (!id || !difficulty || options.length !== 4 || !Number.isInteger(correctOptionIndex) || correctOptionIndex !in [0,1,2,3]) continue;
+    if (!id || !difficulty || options.length !== 4 || !Number.isInteger(correctOptionIndex) || correctOptionIndex < 0 || correctOptionIndex > 3) continue;
     target.set(id, {
-      id, difficulty, activity: activityFor(difficulty), prompt: unquote(args[2]), options, correctOptionIndex,
-      hardHint: unquote(args[5]), easyHint: unquote(args[6]), reference: unquote(args[7]), explanation: unquote(args[8]),
+      id,
+      difficulty,
+      activity: activityFor(difficulty),
+      prompt: unquote(args[2]),
+      options,
+      correctOptionIndex,
+      hardHint: unquote(args[5]),
+      easyHint: unquote(args[6]),
+      reference: unquote(args[7]),
+      explanation: unquote(args[8]),
     });
   }
 }
@@ -128,9 +138,16 @@ function parseExpansion(source: string, target: Map<string, QuizQuestion>) {
     const reference = fields[7];
     if (!Number.isInteger(correctOptionIndex) || correctOptionIndex < 0 || correctOptionIndex > 3) continue;
     target.set(fields[0], {
-      id: fields[0], difficulty, activity: activityFor(difficulty), prompt: fields[1], options, correctOptionIndex,
-      hardHint: `Procure o detalhe no contexto de ${reference}.`, easyHint: `A resposta direta é: ${options[correctOptionIndex]}.`,
-      reference, explanation: `${options[correctOptionIndex]} é a resposta indicada em ${reference}.`,
+      id: fields[0],
+      difficulty,
+      activity: activityFor(difficulty),
+      prompt: fields[1],
+      options,
+      correctOptionIndex,
+      hardHint: `Procure o detalhe no contexto de ${reference}.`,
+      easyHint: `A resposta direta é: ${options[correctOptionIndex]}.`,
+      reference,
+      explanation: `${options[correctOptionIndex]} é a resposta indicada em ${reference}.`,
     });
   }
 }
@@ -182,7 +199,7 @@ Deno.serve(async (request) => {
     if (action === "status" || action === "next_question") {
       const difficulty = difficultyFromToken(clean(input.difficulty, 20)) ?? "easy";
       const ids = [...questions.values()].filter((question) => question.difficulty === difficulty).map((question) => question.id);
-      const localAnswered = new Set(list(input.answeredIds).filter((id) => ids.includes(id)));
+      const localAnswered = new Set(stringList(input.answeredIds).filter((id) => ids.includes(id)));
       const [attempts, legacy] = await Promise.all([
         sb.from("xp_quiz_attempts").select("question_id").eq("member_id", memberId).in("question_id", ids),
         sb.from("xp_legacy_quiz_receipts").select("question_id").eq("member_id", memberId).in("question_id", ids),
@@ -234,7 +251,20 @@ Deno.serve(async (request) => {
       if (!Number.isInteger(selected) || selected < 0 || selected > 3) return json({ error: "Alternativa inválida." }, 400);
       const correct = selected === question.correctOptionIndex;
       if (legacyReceipt) {
-        return json({ ok: true, questionId: question.id, duplicate: true, legacy: true, granted: 0, correct, selectedOptionIndex: selected, correctOptionIndex: question.correctOptionIndex, variant: "", reference: question.reference, explanation: question.explanation, account });
+        return json({
+          ok: true,
+          questionId: question.id,
+          duplicate: true,
+          legacy: true,
+          granted: 0,
+          correct,
+          selectedOptionIndex: selected,
+          correctOptionIndex: question.correctOptionIndex,
+          variant: "",
+          reference: question.reference,
+          explanation: question.explanation,
+          account,
+        });
       }
       const { data, error } = await sb.rpc("xp_submit_quiz", {
         p_member_id: memberId,
