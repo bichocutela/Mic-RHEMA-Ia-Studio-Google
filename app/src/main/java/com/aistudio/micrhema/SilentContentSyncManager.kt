@@ -84,8 +84,7 @@ object SilentContentSyncManager {
         // atualização completa já existente. Assim a funcionalidade entra em produção
         // sem depender de uma alteração simultânea no servidor.
         if (!snapshot.exists()) {
-            forceRefreshData()
-            LocalDataManager.saveAll(appContext)
+            warmFirestoreCache()
             return true
         }
 
@@ -96,10 +95,10 @@ object SilentContentSyncManager {
         notifyIfApkIsRequired(appContext, manifest)
         if (!force && manifest.contentVersion <= appliedVersion) return true
 
-        // As rotinas atuais continuam sendo a autoridade de leitura. Só confirmamos a
-        // versão após a atualização terminar; falhas preservam a versão/cache anterior.
-        forceRefreshData()
-        LocalDataManager.saveAll(appContext)
+        // O Worker nunca altera estados Compose: isso evita uma corrida com a abertura
+        // da MainActivity. As consultas aquecem o cache persistente do Firestore e os
+        // listeners atuais publicam os dados na interface quando ela estiver ativa.
+        warmFirestoreCache()
         prefs.edit()
             .putLong(KEY_APPLIED_VERSION, manifest.contentVersion)
             .putLong("last_success_at", System.currentTimeMillis())
@@ -107,6 +106,20 @@ object SilentContentSyncManager {
             .apply()
         Log.i(TAG, "Conteúdo ${manifest.contentVersion} sincronizado")
         return true
+    }
+
+    private suspend fun warmFirestoreCache() {
+        val db = FirebaseFirestore.getInstance()
+        val collections = listOf(
+            "conteudos_books", "conteudos_audios", "conteudos_videos", "conteudos_albums",
+            "devocionais", "events", "cultos_agenda", "carousel_items", "ibr_courses",
+            "bible_news", "app_tabs"
+        )
+        collections.forEach { collection ->
+            // Uma falha isolada não invalida dados que já estão armazenados no aparelho.
+            runCatching { db.collection(collection).limit(100).get(Source.SERVER).await() }
+                .onFailure { Log.w(TAG, "Não foi possível atualizar $collection", it) }
+        }
     }
 
     private fun notifyIfApkIsRequired(context: Context, manifest: ContentSyncManifest) {
