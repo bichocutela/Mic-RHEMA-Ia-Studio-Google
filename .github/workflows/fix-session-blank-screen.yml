@@ -59,10 +59,10 @@ jobs:
 
           old_logout = '''                        MemberManager.setLoggedInMember(context, null)
                           onNavigateBack()
-          '''
+          '''.replace('                          onNavigateBack()', '                        onNavigateBack()')
           new_logout = '''                        MemberManager.setLoggedInMember(context, null)
                           onLoggedOut()
-          '''
+          '''.replace('                          onLoggedOut()', '                        onLoggedOut()')
           if old_logout not in text:
               raise SystemExit('Trecho de logout do perfil não encontrado')
           text = text.replace(old_logout, new_logout, 1)
