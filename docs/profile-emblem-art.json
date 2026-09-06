@@ -1,0 +1,17 @@
+{
+  "size": 1024,
+  "format": "WebP lossless RGBA",
+  "revision": "hd-20260906",
+  "frames": [
+    {
+      "level": 8,
+      "id": "semente_da_fe",
+      "name": "Semente da Fé",
+      "avatarFraction": 0.5947,
+      "sha256": "5b0f71e5004f50182372962c9aebeb1371b5bfc03fe902a784c89da1587f2a3e",
+      "bytes": 644224,
+      "portraitLeakPixels": 0,
+      "motif": "Folhas verdes e broto em aro dourado"
+    }
+  ]
+}
