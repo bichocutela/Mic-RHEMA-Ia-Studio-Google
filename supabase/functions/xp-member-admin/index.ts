@@ -1,9 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
-import { createRemoteJWKSet, importPKCS8, jwtVerify, SignJWT } from "npm:jose@5.10.0";
+import { createRemoteJWKSet, jwtVerify } from "npm:jose@5.10.0";
 
-const FIRESTORE_SCOPE = "https://www.googleapis.com/auth/datastore";
-const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const FIREBASE_PROJECT_ID = "mic-rhema";
 const FIREBASE_ISSUER = `https://securetoken.google.com/${FIREBASE_PROJECT_ID}`;
 const FIREBASE_JWKS = createRemoteJWKSet(
@@ -23,11 +21,6 @@ const json = (body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: cors });
 const clean = (value: unknown, max = 500) => String(value ?? "").trim().slice(0, max);
 
-type ServiceAccount = {
-  project_id?: string;
-  client_email?: string;
-  private_key?: string;
-};
 type FirestoreValue = {
   stringValue?: string;
   booleanValue?: boolean;
@@ -58,36 +51,10 @@ function documentData(document?: FirestoreDocument | null): Record<string, unkno
   return Object.fromEntries(Object.entries(document.fields ?? {}).map(([key, value]) => [key, fromValue(value)]));
 }
 
-async function googleAccessToken(account: ServiceAccount): Promise<string> {
-  if (!account.client_email || !account.private_key) throw new Error("Conta de serviço Firebase incompleta.");
-  const now = Math.floor(Date.now() / 1000);
-  const assertion = await new SignJWT({
-    iss: account.client_email,
-    scope: FIRESTORE_SCOPE,
-    aud: TOKEN_URL,
-  })
-    .setProtectedHeader({ alg: "RS256", typ: "JWT" })
-    .setIssuedAt(now)
-    .setExpirationTime(now + 3600)
-    .sign(await importPKCS8(account.private_key.replace(/\\n/g, "\n"), "RS256"));
-
-  const response = await fetch(TOKEN_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "urn:ietf:params:oauth2:grant-type:jwt-bearer",
-      assertion,
-    }),
-  });
-  const body = await response.json();
-  if (!response.ok || !body.access_token) throw new Error("Falha ao autenticar no Firebase.");
-  return String(body.access_token);
-}
-
-async function getDocument(projectId: string, token: string, collection: string, id: string) {
-  const encodedId = encodeURIComponent(id);
-  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${collection}/${encodedId}`;
-  const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+async function getOwnUserDocument(idToken: string, uid: string) {
+  const encodedId = encodeURIComponent(uid);
+  const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/users/${encodedId}`;
+  const response = await fetch(url, { headers: { Authorization: `Bearer ${idToken}` } });
   if (response.status === 404) return null;
   if (!response.ok) throw new Error("Não foi possível validar a conta administrativa.");
   return await response.json() as FirestoreDocument;
@@ -95,22 +62,27 @@ async function getDocument(projectId: string, token: string, collection: string,
 
 async function requireAdmin(request: Request): Promise<void> {
   const auth = request.headers.get("authorization") ?? "";
-  const bearer = auth.match(/^Bearer\s+(.+)$/i)?.[1] ?? "";
+  const bearer = auth.match(/^Bearer\s+(.+)$/i)?.[1]?.trim() ?? "";
   if (!bearer) throw new Error("Sessão administrativa ausente.");
 
-  const verified = await jwtVerify(bearer, FIREBASE_JWKS, {
-    issuer: FIREBASE_ISSUER,
-    audience: FIREBASE_PROJECT_ID,
-    algorithms: ["RS256"],
-  });
+  let verified;
+  try {
+    verified = await jwtVerify(bearer, FIREBASE_JWKS, {
+      issuer: FIREBASE_ISSUER,
+      audience: FIREBASE_PROJECT_ID,
+      algorithms: ["RS256"],
+    });
+  } catch {
+    throw new Error("Sessão administrativa inválida.");
+  }
+
   const uid = clean(verified.payload.sub, 200);
   if (!uid) throw new Error("Sessão administrativa inválida.");
 
-  const serviceAccount = JSON.parse(Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON") ?? "{}") as ServiceAccount;
-  const projectId = serviceAccount.project_id || FIREBASE_PROJECT_ID;
-  const token = await googleAccessToken(serviceAccount);
-  const access = documentData(await getDocument(projectId, token, "acessos_pendentes", uid));
-  if (access.isAdmin !== true) throw new Error("Acesso administrativo obrigatório.");
+  if (verified.payload.isAdmin === true) return;
+
+  const user = documentData(await getOwnUserDocument(bearer, uid));
+  if (user.isAdmin !== true) throw new Error("Acesso administrativo obrigatório.");
 }
 
 Deno.serve(async (request) => {
@@ -208,7 +180,10 @@ Deno.serve(async (request) => {
     console.error("xp-member-admin failed", error);
     const message = error instanceof Error ? error.message : "Falha na administração do XP do membro.";
     const lowered = message.toLowerCase();
-    const status = lowered.includes("sessão") ? 401 : lowered.includes("administrativ") ? 403 : lowered.includes("inválid") ? 400 : 500;
+    const status = lowered.includes("sessão") ? 401
+      : lowered.includes("administrativ") ? 403
+      : lowered.includes("inválid") ? 400
+      : 500;
     return json({ error: message }, status);
   }
 });
