@@ -1,14 +1,16 @@
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
-import { importPKCS8, SignJWT } from "npm:jose@5.10.0";
 
-const FIRESTORE_SCOPE = "https://www.googleapis.com/auth/datastore";
-const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const DEFAULT_PROJECT_ID = "mic-rhema";
+const DEFAULT_FIREBASE_WEB_API_KEY = "AIzaSyD-GPqTLRFmOiNATJwzKUHGqJeTPQcf0E8";
+const LEVEL_8_PLUS = new Set([
+  "semente_da_fe", "caminho_da_promessa", "escudo_da_fe", "aguas_vivas", "videira_verdadeira",
+  "luz_do_mundo", "armadura_de_deus", "leao_de_juda", "chama_do_espirito", "coroa_da_vida",
+  "asas_da_promessa", "tabernaculo", "arca_da_alianca", "nova_jerusalem", "gloria_eterna",
+]);
 const ADMIN_ACTIONS = new Set(["admin_catalog", "admin_upsert_item", "admin_redemptions", "admin_set_redemption_status"]);
 const ITEM_KINDS = new Set(["digital", "profile", "physical"]);
 const REDEMPTION_STATUSES = new Set(["pendente", "entregue", "cancelado"]);
 
-type ServiceAccount = { project_id?: string; client_email?: string; private_key?: string };
 type FirestoreValue = {
   stringValue?: string;
   booleanValue?: boolean;
@@ -21,10 +23,12 @@ type FirestoreValue = {
 };
 type FirestoreDocument = { fields?: Record<string, FirestoreValue> };
 type FirebaseIdentity = { uid: string; claims: Record<string, unknown> };
-type XpContext = {
+type MemberContext = {
   memberId: string;
+  name: string;
   unlocked: boolean;
-  account: Record<string, unknown>;
+  legacyXp: number;
+  account: Record<string, any>;
 };
 
 class ShopHttpError extends Error {
@@ -43,7 +47,6 @@ const corsHeaders = {
 
 const json = (body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: corsHeaders });
-
 const clean = (value: unknown, max = 500) => String(value ?? "").trim().slice(0, max);
 
 function fromValue(value?: FirestoreValue): unknown {
@@ -60,64 +63,49 @@ function fromValue(value?: FirestoreValue): unknown {
   return null;
 }
 
-function documentData(document?: FirestoreDocument | null): Record<string, unknown> {
+function documentData(document?: FirestoreDocument | null): Record<string, any> {
   return document
     ? Object.fromEntries(Object.entries(document.fields ?? {}).map(([key, value]) => [key, fromValue(value)]))
     : {};
+}
+
+const stringList = (value: unknown): string[] => Array.isArray(value)
+  ? value.map(String).filter(Boolean)
+  : [];
+
+function activityMap(value: unknown): Record<string, string[]> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, stringList(item)]),
+  );
+}
+
+function parseLegacyXp(entry: string) {
+  const value = Number(entry.slice(entry.lastIndexOf("=") + 1));
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
 }
 
 function firestoreBase(projectId: string) {
   return `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
 }
 
-async function googleAccessToken(account: ServiceAccount) {
-  if (!account.client_email || !account.private_key) {
-    throw new Error("Conta de serviço Firebase incompleta.");
-  }
-  const now = Math.floor(Date.now() / 1000);
-  const assertion = await new SignJWT({
-    iss: account.client_email,
-    scope: FIRESTORE_SCOPE,
-    aud: TOKEN_URL,
-  })
-    .setProtectedHeader({ alg: "RS256", typ: "JWT" })
-    .setIssuedAt(now)
-    .setExpirationTime(now + 3600)
-    .sign(await importPKCS8(account.private_key.replace(/\\n/g, "\n"), "RS256"));
-
-  const response = await fetch(TOKEN_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "urn:ietf:params:oauth2:grant-type:jwt-bearer",
-      assertion,
-    }),
-  });
-  const payload = await response.json();
-  if (!response.ok || !payload.access_token) {
-    throw new Error("Falha ao autenticar o serviço administrativo no Firebase.");
-  }
-  return String(payload.access_token);
-}
-
 async function getDocument(
   projectId: string,
-  token: string,
+  idToken: string,
   collection: string,
   id: string,
 ): Promise<FirestoreDocument | null> {
   const response = await fetch(
     `${firestoreBase(projectId)}/${collection}/${encodeURIComponent(id)}`,
-    { headers: { Authorization: `Bearer ${token}` } },
+    { headers: { Authorization: `Bearer ${idToken}` } },
   );
   if (response.status === 404) return null;
-  if (!response.ok) throw new Error(`Falha ao ler ${collection}: ${response.status}`);
+  if (!response.ok) throw new ShopHttpError(response.status, `Falha ao ler ${collection}: ${response.status}`);
   return await response.json() as FirestoreDocument;
 }
 
 async function firebaseIdentity(idToken: string): Promise<FirebaseIdentity> {
-  const apiKey = Deno.env.get("FIREBASE_WEB_API_KEY") ?? "";
-  if (!apiKey) throw new Error("Firebase Web API Key não configurada.");
+  const apiKey = Deno.env.get("FIREBASE_WEB_API_KEY") || DEFAULT_FIREBASE_WEB_API_KEY;
   const response = await fetch(
     `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(apiKey)}`,
     {
@@ -130,7 +118,7 @@ async function firebaseIdentity(idToken: string): Promise<FirebaseIdentity> {
     users?: Array<{ localId?: string; customAttributes?: string }>;
   };
   const user = payload.users?.[0];
-  if (!response.ok || !user?.localId) throw new Error("Sessão Firebase inválida.");
+  if (!response.ok || !user?.localId) throw new ShopHttpError(401, "Sessão Firebase inválida.");
   let claims: Record<string, unknown> = {};
   try {
     claims = JSON.parse(user.customAttributes || "{}");
@@ -138,63 +126,6 @@ async function firebaseIdentity(idToken: string): Promise<FirebaseIdentity> {
     claims = {};
   }
   return { uid: user.localId, claims };
-}
-
-async function assertAdmin(projectId: string, googleToken: string, authorization: string) {
-  const idToken = authorization.replace(/^Bearer\s+/i, "").trim();
-  if (!idToken) throw new Error("Acesso administrativo obrigatório.");
-  const identity = await firebaseIdentity(idToken);
-  if (identity.claims.isAdmin === true) return identity;
-  for (const collection of ["acessos_pendentes", "users"]) {
-    const data = documentData(await getDocument(projectId, googleToken, collection, identity.uid));
-    if (data.isAdmin === true) return identity;
-  }
-  throw new Error("Acesso administrativo obrigatório.");
-}
-
-async function loadXpContext(
-  request: Request,
-  input: Record<string, unknown>,
-  supabaseUrl: string,
-): Promise<XpContext> {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  const authorization = request.headers.get("authorization") ?? "";
-  const apiKey = request.headers.get("apikey") ?? "";
-  if (authorization) headers.Authorization = authorization;
-  if (apiKey) headers.apikey = apiKey;
-
-  const response = await fetch(`${supabaseUrl.replace(/\/$/, "")}/functions/v1/xp-engine`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      action: "get_account",
-      memberId: input.memberId,
-      phone: input.phone,
-    }),
-  });
-  const raw = await response.text();
-  let payload: Record<string, any> = {};
-  try {
-    payload = raw ? JSON.parse(raw) : {};
-  } catch {
-    payload = {};
-  }
-  if (!response.ok) {
-    throw new ShopHttpError(
-      response.status,
-      clean(payload.error, 500) || `Falha ao sincronizar a conta XP (${response.status}).`,
-    );
-  }
-  const account = payload.account && typeof payload.account === "object"
-    ? payload.account as Record<string, unknown>
-    : {};
-  const memberId = clean(account.member_id || input.memberId, 180);
-  if (!memberId) throw new ShopHttpError(401, "A conta XP não informou o membro autenticado.");
-  return {
-    memberId,
-    unlocked: payload.unlocked === true,
-    account,
-  };
 }
 
 function firebaseBearer(request: Request): string {
@@ -205,15 +136,65 @@ function firebaseBearer(request: Request): string {
   return bearer;
 }
 
-async function tryLoadMemberName(projectId: string, idToken: string, memberId: string) {
-  if (!idToken) return "Membro MIC Rhema";
-  try {
-    const user = documentData(await getDocument(projectId, idToken, "users", memberId));
-    return clean(user.name || user.ibrCertificateName || "Membro MIC Rhema", 120) || "Membro MIC Rhema";
-  } catch (error) {
-    console.warn("xp-shop: nome do membro indisponível; resgate seguirá sem bloquear", error);
-    return "Membro MIC Rhema";
+async function assertAdmin(request: Request, projectId: string) {
+  const idToken = firebaseBearer(request);
+  if (!idToken) throw new ShopHttpError(403, "Acesso administrativo obrigatório.");
+  const identity = await firebaseIdentity(idToken);
+  if (identity.claims.isAdmin === true) return identity;
+
+  for (const collection of ["users", "acessos_pendentes"]) {
+    try {
+      const data = documentData(await getDocument(projectId, idToken, collection, identity.uid));
+      if (data.isAdmin === true) return identity;
+    } catch (error) {
+      if (error instanceof ShopHttpError && error.status === 403) continue;
+      throw error;
+    }
   }
+  throw new ShopHttpError(403, "Acesso administrativo obrigatório.");
+}
+
+async function loadMemberContext(
+  request: Request,
+  input: Record<string, unknown>,
+  projectId: string,
+  supabase: any,
+): Promise<MemberContext> {
+  const idToken = firebaseBearer(request);
+  if (!idToken) throw new ShopHttpError(401, "Sua sessão de membro expirou. Entre novamente no MIC Rhema.");
+
+  const identity = await firebaseIdentity(idToken);
+  const requestedMemberId = clean(input.memberId, 180);
+  if (requestedMemberId && requestedMemberId !== identity.uid) {
+    throw new ShopHttpError(401, "A sessão Firebase não pertence ao membro ativo. Entre novamente.");
+  }
+
+  const user = documentData(await getDocument(projectId, idToken, "users", identity.uid));
+  if (!Object.keys(user).length) throw new ShopHttpError(404, "Cadastro do membro não encontrado.");
+  if (user.isApproved !== true && user.isAdmin !== true && user.isIbr !== true) {
+    throw new ShopHttpError(403, "Acesso do membro ainda não aprovado.");
+  }
+
+  const unlockedIds = stringList(user.unlockedBadgeIds);
+  const unlocked = unlockedIds.some((id) => LEVEL_8_PLUS.has(id));
+  const legacyEntries = activityMap(user.badgeActivityIds).journey_xp_awards ?? [];
+  const legacyXp = [...new Set(legacyEntries)].reduce((sum, entry) => sum + parseLegacyXp(entry), 0);
+
+  const { data: ensured, error } = await supabase.rpc("xp_ensure_account", {
+    p_member_id: identity.uid,
+    p_legacy_xp: legacyXp,
+  });
+  if (error) throw error;
+  const account = Array.isArray(ensured) ? ensured[0] : ensured;
+  if (!account) throw new Error("Conta XP não pôde ser inicializada.");
+
+  return {
+    memberId: identity.uid,
+    name: clean(user.name || user.ibrCertificateName || "Membro MIC Rhema", 120) || "Membro MIC Rhema",
+    unlocked,
+    legacyXp,
+    account,
+  };
 }
 
 function parseNullableDate(value: unknown): string | null {
@@ -246,6 +227,7 @@ Deno.serve(async (request) => {
   try {
     const input = await request.json() as Record<string, unknown>;
     const action = clean(input.action || "catalog", 60);
+    const projectId = Deno.env.get("FIREBASE_PROJECT_ID") || DEFAULT_PROJECT_ID;
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     if (!supabaseUrl || !serviceRole) throw new Error("Backend da Loja XP não configurado.");
@@ -255,11 +237,7 @@ Deno.serve(async (request) => {
     });
 
     if (ADMIN_ACTIONS.has(action)) {
-      const authorization = request.headers.get("authorization") ?? "";
-      const serviceAccount = JSON.parse(Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON") ?? "{}") as ServiceAccount;
-      const projectId = serviceAccount.project_id || Deno.env.get("FIREBASE_PROJECT_ID") || DEFAULT_PROJECT_ID;
-      const googleToken = await googleAccessToken(serviceAccount);
-      await assertAdmin(projectId, googleToken, authorization);
+      await assertAdmin(request, projectId);
 
       if (action === "admin_catalog") {
         const { data, error } = await supabase.from("xp_shop_items")
@@ -353,12 +331,8 @@ Deno.serve(async (request) => {
       }
     }
 
-    // O fluxo do membro não cria mais um segundo token OAuth do Google.
-    // A identidade, o desbloqueio da Jornada e a conta já são validados pelo xp-engine,
-    // que é a autoridade central usada pelo restante do aplicativo.
-    const context = await loadXpContext(request, input, supabaseUrl);
-    let account = context.account;
-    const memberId = context.memberId;
+    const member = await loadMemberContext(request, input, projectId, supabase);
+    let account = member.account;
 
     if (action === "catalog") {
       const { data, error } = await supabase.from("xp_shop_items")
@@ -367,22 +341,22 @@ Deno.serve(async (request) => {
         .order("cost", { ascending: true });
       if (error) throw error;
       const items = (data ?? []).filter((item) => isAvailableNow(item as Record<string, unknown>));
-      return json({ ok: true, unlocked: context.unlocked, account, items });
+      return json({ ok: true, unlocked: member.unlocked, account, items });
     }
 
     if (action === "my_redemptions") {
       const [{ data, error }, entitlements] = await Promise.all([
         supabase.from("xp_redemptions")
           .select("id,item_id,item_name,cost,status,redemption_code,created_at,delivered_at")
-          .eq("member_id", memberId)
+          .eq("member_id", member.memberId)
           .order("created_at", { ascending: false })
           .limit(100),
-        memberEntitlements(supabase, memberId),
+        memberEntitlements(supabase, member.memberId),
       ]);
       if (error) throw error;
       return json({
         ok: true,
-        unlocked: context.unlocked,
+        unlocked: member.unlocked,
         account,
         redemptions: data ?? [],
         entitlements,
@@ -390,12 +364,7 @@ Deno.serve(async (request) => {
     }
 
     if (action === "redeem") {
-      const idToken = firebaseBearer(request);
-      if (!idToken) {
-        return json({ error: "Atualize o MIC Rhema e entre novamente para resgatar recompensas." }, 401);
-      }
-      if (!context.unlocked) return json({ error: "A Loja XP é liberada no Nível 8." }, 403);
-
+      if (!member.unlocked) return json({ error: "A Loja XP é liberada no Nível 8." }, 403);
       const itemId = clean(input.itemId, 100);
       const expectedCost = Math.floor(Number(input.expectedCost ?? 0));
       if (!itemId || !Number.isFinite(expectedCost) || expectedCost <= 0) {
@@ -415,7 +384,7 @@ Deno.serve(async (request) => {
       }
 
       const { data, error } = await supabase.rpc("xp_redeem_checked", {
-        p_member_id: memberId,
+        p_member_id: member.memberId,
         p_item_id: itemId,
         p_expected_cost: expectedCost,
       });
@@ -424,10 +393,8 @@ Deno.serve(async (request) => {
       if (!row) throw new Error("O resgate não retornou resultado.");
 
       if (row.redemption_id) {
-        const projectId = Deno.env.get("FIREBASE_PROJECT_ID") || DEFAULT_PROJECT_ID;
-        const memberName = await tryLoadMemberName(projectId, idToken, memberId);
         const { error: nameError } = await supabase.from("xp_redemptions")
-          .update({ member_name: memberName })
+          .update({ member_name: member.name })
           .eq("id", row.redemption_id);
         if (nameError) {
           console.warn("Não foi possível registrar o nome do membro no resgate", nameError.message);
@@ -435,14 +402,14 @@ Deno.serve(async (request) => {
       }
 
       account = {
-        member_id: memberId,
+        member_id: member.memberId,
         total_earned: Number(row.total_earned ?? account.total_earned ?? 0),
         total_spent: Number(row.total_spent ?? account.total_spent ?? 0),
         balance: Number(row.balance ?? account.balance ?? 0),
         migrated_legacy_xp: Number(account.migrated_legacy_xp ?? 0),
         updated_at: new Date().toISOString(),
       };
-      const entitlements = await memberEntitlements(supabase, memberId);
+      const entitlements = await memberEntitlements(supabase, member.memberId);
       return json({ ok: true, unlocked: true, account, redemption: row, entitlements });
     }
 
@@ -453,7 +420,7 @@ Deno.serve(async (request) => {
     if (error instanceof ShopHttpError) return json({ error: message }, error.status);
     const lowered = message.toLowerCase();
     const status = lowered.includes("sessão") || lowered.includes("identidade") ? 401
-      : lowered.includes("acesso administrativo") ? 403
+      : lowered.includes("acesso administrativo") || lowered.includes("ainda não aprovado") ? 403
       : lowered.includes("saldo xp insuficiente") || lowered.includes("esgotada") || lowered.includes("limite de resgate") || lowered.includes("indisponível") || lowered.includes("preço") ? 409
       : lowered.includes("inválid") || lowered.includes("não encontrado") || lowered.includes("não pode") ? 400
       : 500;
