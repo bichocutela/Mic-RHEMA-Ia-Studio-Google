@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+<defs>
+ <linearGradient id="silver" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#343b44"/><stop offset=".16" stop-color="#f8fbff"/><stop offset=".36" stop-color="#aeb8c5"/><stop offset=".58" stop-color="#ffffff"/><stop offset=".78" stop-color="#66717e"/><stop offset="1" stop-color="#252b34"/></linearGradient>
+ <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#021b59"/><stop offset=".25" stop-color="#0758be"/><stop offset=".5" stop-color="#24a4ff"/><stop offset=".72" stop-color="#083b9e"/><stop offset="1" stop-color="#010d35"/></linearGradient>
+ <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#6b3100"/><stop offset=".2" stop-color="#ffd958"/><stop offset=".42" stop-color="#fff2a7"/><stop offset=".68" stop-color="#d88a00"/><stop offset="1" stop-color="#552000"/></linearGradient>
+ <filter id="shadow"><feGaussianBlur in="SourceAlpha" stdDeviation="7"/><feOffset dy="7"/><feComponentTransfer><feFuncA type="linear" slope=".4"/></feComponentTransfer><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<g filter="url(#shadow)">
+ <circle cx="512" cy="485" r="340" fill="none" stroke="#141b27" stroke-width="84"/>
+ <circle cx="512" cy="485" r="340" fill="none" stroke="url(#blue)" stroke-width="68"/>
+ <circle cx="512" cy="485" r="340" fill="none" stroke="url(#silver)" stroke-width="31"/>
+ <circle cx="512" cy="485" r="295" fill="none" stroke="url(#silver)" stroke-width="13"/>
+ <!-- armored leaves -->
+ <g fill="url(#silver)" stroke="#333b48" stroke-width="5">
+  <path d="M177 381c13-65 48-110 105-144-18 52-13 91 14 128-48-8-82-3-119 16z"/>
+  <path d="M847 381c-13-65-48-110-105-144 18 52 13 91-14 128 48-8 82-3 119 16z"/>
+  <path d="M153 531c17-57 48-94 93-119-8 49 1 85 27 113-46-11-78-8-120 6z"/>
+  <path d="M871 531c-17-57-48-94-93-119 8 49-1 85-27 113 46-11 78-8 120 6z"/>
+  <path d="M181 690c30-48 66-74 112-89-17 43-15 77 5 108-43-13-76-17-117-19z"/>
+  <path d="M843 690c-30-48-66-74-112-89 17 43 15 77-5 108 43-13 76-17 117-19z"/>
+ </g>
+ <!-- top diamond -->
+ <path d="M512 73l72 85-72 85-72-85z" fill="url(#silver)" stroke="#252b35" stroke-width="7"/>
+ <path d="M512 105l43 53-43 54-43-54z" fill="url(#blue)" stroke="#9ee2ff" stroke-width="6"/>
+ <!-- lower shield -->
+ <path d="M512 741c-66 39-115 39-151 25v102c0 82 61 130 151 167 90-37 151-85 151-167V766c-36 14-85 14-151-25z" fill="url(#silver)" stroke="#252b35" stroke-width="8"/>
+ <path d="M512 772c-49 28-86 30-115 22v72c0 58 42 94 115 128 73-34 115-70 115-128v-72c-29 8-66 6-115-22z" fill="url(#blue)" stroke="#091b45" stroke-width="6"/>
+ <!-- cross -->
+ <path d="M487 817h50v55h56v49h-56v92h-50v-92h-56v-49h56z" fill="url(#gold)" stroke="#754000" stroke-width="6"/>
+ <!-- blue facets -->
+ <g fill="#0d82e7" stroke="#8bdcff" stroke-width="4" opacity=".9">
+  <path d="M264 307l35-31 35 31-35 34z"/><path d="M690 307l35-31 35 31-35 34z"/>
+  <path d="M218 603l30-28 30 28-30 30z"/><path d="M746 603l30-28 30 28-30 30z"/>
+ </g>
+</g>
+</svg>
