@@ -300,7 +300,7 @@ object XpEngineClient {
         return state
     }
 
-    suspend fun flushPendingNow(context: Context, member: MemberRequest = loggedInMemberState.value ?: return 0): Int {
+    suspend fun flushPendingNow(context: Context, member: MemberRequest): Int {
         var processed = 0
         for (pending in pendingSnapshot(context, member.id)) {
             try {
