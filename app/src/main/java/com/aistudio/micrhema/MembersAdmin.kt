@@ -20,6 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -386,35 +387,21 @@ fun EditProfilesSection() {
         coroutineScope.launch {
             try {
                 val upload = StorageManager.uploadProfilePhoto(context, uri, target.id)
-                val updated = target.copy(
-                    profilePhotoUrl = upload.signedUrl,
-                    supabaseStoragePath = upload.storagePath,
-                    updatedAt = System.currentTimeMillis()
+                val updated = MemberAdminClient.updateMemberPhoto(
+                    original = target,
+                    signedUrl = upload.signedUrl,
+                    storagePath = upload.storagePath
                 )
-                val index = memberRequestsState.indexOfFirst { it.id == target.id }
-                if (index >= 0) memberRequestsState[index] = updated
                 selectedMember = updated
-                MemberManager.saveToFirestore(
-                    context = context,
-                    member = updated,
-                    onSuccess = {
-                        isUploadingPhoto = false
-                        Toast.makeText(context, "Foto do usuário atualizada", Toast.LENGTH_SHORT).show()
-                    },
-                    onFailure = { error ->
-                        val rollbackIndex = memberRequestsState.indexOfFirst { it.id == target.id }
-                        if (rollbackIndex >= 0) memberRequestsState[rollbackIndex] = target
-                        selectedMember = target
-                        coroutineScope.launch {
-                            runCatching { StorageManager.deleteProfilePhoto(target.id, context) }
-                            isUploadingPhoto = false
-                            Toast.makeText(context, "Não foi possível sincronizar a foto no perfil: ${error.message ?: "verifique sua conexão com o Supabase"}", Toast.LENGTH_LONG).show()
-                        }
-                    }
-                )
+                isUploadingPhoto = false
+                Toast.makeText(context, "Foto do usuário atualizada", Toast.LENGTH_SHORT).show()
             } catch (error: Exception) {
                 isUploadingPhoto = false
-                Toast.makeText(context, "Não foi possível alterar a foto: ${error.message ?: "erro de leitura"}", Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                    context,
+                    "Não foi possível alterar a foto: ${error.message ?: "verifique a conexão"}",
+                    Toast.LENGTH_LONG
+                ).show()
             }
         }
     }
@@ -461,38 +448,28 @@ fun EditProfilesSection() {
             onChangePhoto = { photoLauncher.launch(arrayOf("image/*")) },
             onRemovePhoto = {
                 if (isUploadingPhoto) return@MemberAdminDetailsDialog
-                val previousPhotoUrl = member.profilePhotoUrl
-                val previousStoragePath = member.supabaseStoragePath
                 isUploadingPhoto = true
-                val updated = member.copy(profilePhotoUrl = "", supabaseStoragePath = "", updatedAt = System.currentTimeMillis())
-                val index = memberRequestsState.indexOfFirst { it.id == member.id }
-                if (index >= 0) memberRequestsState[index] = updated
-                selectedMember = updated
-                MemberManager.saveToFirestore(
-                    context = context,
-                    member = updated,
-                    onSuccess = {
-                        coroutineScope.launch {
-                            try {
-                                if (previousStoragePath.isNotBlank() || previousPhotoUrl.startsWith("http://") || previousPhotoUrl.startsWith("https://")) {
-                                    StorageManager.deleteProfilePhoto(member.id, context)
-                                }
-                                StorageManager.deleteLocalProfilePhoto(context, member.id)
-                                Toast.makeText(context, "Foto removida do perfil sincronizado", Toast.LENGTH_SHORT).show()
-                            } catch (_: Exception) {
-                                Toast.makeText(context, "Perfil atualizado, mas o arquivo remoto precisa ser removido no Supabase", Toast.LENGTH_LONG).show()
-                            } finally {
-                                isUploadingPhoto = false
-                            }
-                        }
-                    },
-                    onFailure = { error ->
-                        if (index >= 0) memberRequestsState[index] = member
-                        selectedMember = member
+                coroutineScope.launch {
+                    try {
+                        val updated = MemberAdminClient.updateMemberPhoto(
+                            original = member,
+                            signedUrl = "",
+                            storagePath = ""
+                        )
+                        selectedMember = updated
+                        runCatching { StorageManager.deleteProfilePhoto(member.id, context) }
+                        runCatching { StorageManager.deleteLocalProfilePhoto(context, member.id) }
+                        Toast.makeText(context, "Foto removida", Toast.LENGTH_SHORT).show()
+                    } catch (error: Exception) {
+                        Toast.makeText(
+                            context,
+                            "Não foi possível remover a foto: ${error.message ?: "verifique a conexão"}",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    } finally {
                         isUploadingPhoto = false
-                        Toast.makeText(context, "Não foi possível remover a foto do perfil: ${error.message ?: "verifique sua conexão com o Supabase"}", Toast.LENGTH_LONG).show()
                     }
-                )
+                }
             },
             onDismiss = { selectedMember = null }
         )
@@ -501,12 +478,28 @@ fun EditProfilesSection() {
 
 @Composable
 private fun MemberAvatar(member: MemberRequest, size: androidx.compose.ui.unit.Dp) {
-    val avatar = biblicalAvatarForId(member.avatarId)
-    BiblicalAvatarImage(
-        avatar = avatar,
-        contentDescription = "Avatar bíblico de ${member.name}",
-        modifier = Modifier.size(size).clip(CircleShape)
-    )
+    val context = LocalContext.current
+    val localPhoto = remember(member.id, member.supabaseStoragePath, member.profilePhotoUrl) {
+        StorageManager.getLocalProfilePhotoUri(context, member.id)
+    }
+    val photoModel = member.profilePhotoUrl.ifBlank { localPhoto }
+    val modifier = Modifier.size(size).clip(CircleShape)
+
+    if (photoModel.isNotBlank()) {
+        coil.compose.AsyncImage(
+            model = photoModel,
+            contentDescription = "Foto de ${member.name}",
+            contentScale = ContentScale.Crop,
+            modifier = modifier
+        )
+    } else {
+        val avatar = biblicalAvatarForId(member.avatarId)
+        BiblicalAvatarImage(
+            avatar = avatar,
+            contentDescription = "Avatar bíblico de ${member.name}",
+            modifier = modifier
+        )
+    }
 }
 
 @Composable
@@ -518,6 +511,8 @@ private fun MemberAdminDetailsDialog(
     onDismiss: () -> Unit
 ) {
     val dateFormat = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale("pt", "BR"))
+    val hasCustomPhoto = member.profilePhotoUrl.isNotBlank() || member.supabaseStoragePath.isNotBlank()
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Perfil do usuário") },
@@ -530,7 +525,7 @@ private fun MemberAdminDetailsDialog(
                 MemberAvatar(member = member, size = 112.dp)
                 Text(member.name.ifBlank { "Sem nome" }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text(
-                    "Avatar bíblico: ${biblicalAvatarForId(member.avatarId).displayName}",
+                    if (hasCustomPhoto) "Foto personalizada do perfil" else "Avatar bíblico: ${biblicalAvatarForId(member.avatarId).displayName}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -543,8 +538,10 @@ private fun MemberAdminDetailsDialog(
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("Alterar foto")
                     }
-                    if (member.profilePhotoUrl.isNotBlank()) {
-                        TextButton(onClick = onRemovePhoto) { Text("Remover foto", color = MaterialTheme.colorScheme.error) }
+                    if (hasCustomPhoto) {
+                        TextButton(onClick = onRemovePhoto) {
+                            Text("Remover foto", color = MaterialTheme.colorScheme.error)
+                        }
                     }
                 }
                 HorizontalDivider(modifier = Modifier.fillMaxWidth())
