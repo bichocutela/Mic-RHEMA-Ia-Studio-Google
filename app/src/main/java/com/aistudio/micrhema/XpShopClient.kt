@@ -2,7 +2,9 @@ package com.aistudio.micrhema
 
 import android.content.Context
 import androidx.compose.runtime.mutableStateOf
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -35,6 +37,14 @@ data class XpRedemption(
     val deliveredAt: String = ""
 )
 
+data class XpEntitlement(
+    val id: String,
+    val itemId: String,
+    val itemName: String,
+    val kind: String,
+    val unlockedAt: String
+)
+
 data class XpRedeemResult(
     val redemption: XpRedemption,
     val account: XpAccount
@@ -42,10 +52,14 @@ data class XpRedeemResult(
 
 data class XpShopCatalogState(val memberId: String, val items: List<XpShopItem>)
 data class XpRedemptionsState(val memberId: String, val redemptions: List<XpRedemption>)
+data class XpEntitlementsState(val memberId: String, val entitlements: List<XpEntitlement>)
 
 val xpShopItemsState = mutableStateOf<XpShopCatalogState?>(null)
 val xpRedemptionsState = mutableStateOf<XpRedemptionsState?>(null)
+val xpEntitlementsState = mutableStateOf<XpEntitlementsState?>(null)
 val xpShopErrorState = mutableStateOf("")
+
+private class XpShopHttpException(val status: Int, message: String) : IllegalStateException(message)
 
 object XpShopClient {
     private val client = OkHttpClient.Builder()
@@ -54,40 +68,61 @@ object XpShopClient {
         .writeTimeout(20, TimeUnit.SECONDS)
         .build()
 
-    private fun normalizePhone(value: String): String {
-        val digits = value.filter(Char::isDigit)
-        return if (digits.length in 12..13 && digits.startsWith("55")) digits.drop(2) else digits
+    private suspend fun firebaseToken(member: MemberRequest, forceRefresh: Boolean): String {
+        val user = FirebaseAuth.getInstance().currentUser
+            ?: throw XpShopHttpException(401, "Sua sessão de membro expirou. Entre novamente no MIC Rhema.")
+        if (user.uid != member.id) {
+            throw XpShopHttpException(401, "A sessão Firebase não pertence ao membro ativo. Entre novamente.")
+        }
+        return user.getIdToken(forceRefresh).await().token
+            ?: throw XpShopHttpException(401, "O Firebase não retornou um token válido para a Loja XP.")
     }
 
-    private suspend fun call(member: MemberRequest, action: String, itemId: String = "", expectedCost: Int? = null): JSONObject = withContext(Dispatchers.IO) {
+    private suspend fun executeCall(
+        member: MemberRequest,
+        action: String,
+        itemId: String,
+        expectedCost: Int?,
+        forceRefresh: Boolean
+    ): Pair<Int, JSONObject> = withContext(Dispatchers.IO) {
         val baseUrl = BuildConfig.SUPABASE_URL.trim().trimEnd('/')
         val anonKey = BuildConfig.SUPABASE_ANON_KEY.trim()
-        if (baseUrl.isBlank() || anonKey.isBlank() || baseUrl.contains("your-project")) {
+        if (baseUrl.isBlank() || baseUrl.contains("your-project")) {
             throw IllegalStateException("A Loja XP não está configurada nesta versão.")
         }
+        val token = firebaseToken(member, forceRefresh)
         val payload = JSONObject()
             .put("action", action)
             .put("memberId", member.id)
-            .put("phone", normalizePhone(member.phone))
         if (itemId.isNotBlank()) payload.put("itemId", itemId)
         if (expectedCost != null) payload.put("expectedCost", expectedCost)
 
-        val request = Request.Builder()
+        val builder = Request.Builder()
             .url("$baseUrl/functions/v1/xp-shop")
-            .header("apikey", anonKey)
-            .header("Authorization", "Bearer $anonKey")
+            .header("Authorization", "Bearer $token")
             .header("Content-Type", "application/json")
+        if (anonKey.isNotBlank()) builder.header("apikey", anonKey)
+        val request = builder
             .post(payload.toString().toRequestBody("application/json".toMediaType()))
             .build()
 
         client.newCall(request).execute().use { response ->
             val raw = response.body?.string().orEmpty()
-            val json = runCatching { JSONObject(raw) }.getOrElse { JSONObject() }
-            if (!response.isSuccessful) {
-                throw IllegalStateException(json.optString("error").ifBlank { "Falha na Loja XP (${response.code})." })
-            }
-            json
+            response.code to runCatching { JSONObject(raw) }.getOrElse { JSONObject() }
         }
+    }
+
+    private suspend fun call(member: MemberRequest, action: String, itemId: String = "", expectedCost: Int? = null): JSONObject {
+        var (status, body) = executeCall(member, action, itemId, expectedCost, false)
+        if (status == 401) {
+            val retry = executeCall(member, action, itemId, expectedCost, true)
+            status = retry.first
+            body = retry.second
+        }
+        if (status !in 200..299) {
+            throw XpShopHttpException(status, body.optString("error").ifBlank { "Falha na Loja XP ($status)." })
+        }
+        return body
     }
 
     private fun parseAccount(memberId: String, root: JSONObject): XpAccount {
@@ -101,6 +136,29 @@ object XpShopClient {
             migratedLegacyXp = account.optInt("migrated_legacy_xp", 0).coerceAtLeast(0),
             updatedAt = account.optString("updated_at")
         )
+    }
+
+    private fun parseEntitlements(root: JSONObject): List<XpEntitlement> {
+        val array = root.optJSONArray("entitlements") ?: return emptyList()
+        return buildList {
+            for (index in 0 until array.length()) {
+                val item = array.optJSONObject(index) ?: continue
+                add(
+                    XpEntitlement(
+                        id = item.optString("id"),
+                        itemId = item.optString("item_id"),
+                        itemName = item.optString("item_name"),
+                        kind = item.optString("kind"),
+                        unlockedAt = item.optString("unlocked_at")
+                    )
+                )
+            }
+        }
+    }
+
+    private fun syncEntitlements(context: Context?, memberId: String, entitlements: List<XpEntitlement>) {
+        context?.let { XpRewardManager.syncOwned(it, memberId, entitlements.map { entitlement -> entitlement.itemId }) }
+        xpEntitlementsState.value = XpEntitlementsState(memberId, entitlements)
     }
 
     suspend fun loadCatalog(member: MemberRequest): List<XpShopItem> {
@@ -138,7 +196,7 @@ object XpShopClient {
         val response = call(member, "my_redemptions")
         val account = parseAccount(member.id, response)
         val array = response.optJSONArray("redemptions")
-        val items = buildList {
+        val redemptions = buildList {
             if (array != null) for (index in 0 until array.length()) {
                 val item = array.optJSONObject(index) ?: continue
                 add(
@@ -155,13 +213,14 @@ object XpShopClient {
                 )
             }
         }
-        context?.let { XpRewardManager.syncOwned(it, member.id, items) }
+        val entitlements = parseEntitlements(response)
         withContext(Dispatchers.Main) {
             xpAccountState.value = account
-            xpRedemptionsState.value = XpRedemptionsState(member.id, items)
+            xpRedemptionsState.value = XpRedemptionsState(member.id, redemptions)
+            syncEntitlements(context, member.id, entitlements)
             xpShopErrorState.value = ""
         }
-        return items
+        return redemptions
     }
 
     suspend fun redeem(member: MemberRequest, item: XpShopItem, context: Context? = null): XpRedeemResult {
@@ -182,10 +241,11 @@ object XpShopClient {
             ?.redemptions
             .orEmpty()
         val updated = listOf(redemption) + current.filterNot { it.id == redemption.id }
-        context?.let { XpRewardManager.syncOwned(it, member.id, updated) }
+        val entitlements = parseEntitlements(response)
         withContext(Dispatchers.Main) {
             xpAccountState.value = account
             xpRedemptionsState.value = XpRedemptionsState(member.id, updated)
+            if (response.has("entitlements")) syncEntitlements(context, member.id, entitlements)
             xpShopErrorState.value = ""
         }
         return XpRedeemResult(redemption, account)
@@ -194,6 +254,7 @@ object XpShopClient {
     fun clearSession() {
         xpShopItemsState.value = null
         xpRedemptionsState.value = null
+        xpEntitlementsState.value = null
         xpShopErrorState.value = ""
     }
 }
