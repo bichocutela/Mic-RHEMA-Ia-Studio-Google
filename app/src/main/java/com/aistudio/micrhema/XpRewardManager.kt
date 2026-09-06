@@ -2,7 +2,7 @@ package com.aistudio.micrhema
 
 import android.content.Context
 
-/** Aplica recompensas que já foram realmente resgatadas na Loja XP. */
+/** Aplica somente recompensas que o ledger da Loja XP confirma como entitlement ativo. */
 object XpRewardManager {
     const val GOLD_THEME = "tema_dourado_rhema"
     const val PROMISE_FRAME = "moldura_luz_promessa"
@@ -12,12 +12,11 @@ object XpRewardManager {
 
     private fun ownedKey(memberId: String) = "owned:$memberId"
 
-    fun syncOwned(context: Context, memberId: String, redemptions: List<XpRedemption>) {
-        val owned = redemptions
+    fun syncOwned(context: Context, memberId: String, itemIds: Collection<String>) {
+        val owned = itemIds
             .asSequence()
-            .filter { it.status != "cancelado" }
-            .map { it.itemId }
-            .filter { it.isNotBlank() }
+            .map(String::trim)
+            .filter(String::isNotBlank)
             .toSet()
         context.applicationContext
             .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
