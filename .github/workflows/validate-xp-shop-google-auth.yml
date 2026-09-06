@@ -14,10 +14,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Testar sessão Firebase e leitura do perfil
+      - name: Testar Loja XP com sessão Firebase real
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           TEST_MEMBER_ID: b34a4ded-4115-45b7-87fa-e9adb0be0e93
         run: |
           set -euo pipefail
@@ -28,40 +30,44 @@ jobs:
           client_email="$(jq -r '.client_email' "$tmpdir/sa.json")"
           jq -r '.private_key' "$tmpdir/sa.json" > "$tmpdir/key.pem"
           api_key="$(jq -r '.client[0].api_key[0].current_key' "$tmpdir/google-services.json")"
-          project_id="$(jq -r '.project_info.project_id' "$tmpdir/google-services.json")"
 
           b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
           now="$(date +%s)"
           exp="$((now + 3600))"
           header="$(printf '%s' '{"alg":"RS256","typ":"JWT"}' | b64url)"
-          custom_payload="$(jq -cn \
-            --arg iss "$client_email" \
-            --arg uid "$TEST_MEMBER_ID" \
-            --argjson iat "$now" \
-            --argjson exp "$exp" \
-            '{iss:$iss,sub:$iss,aud:"https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit",iat:$iat,exp:$exp,uid:$uid}' | b64url)"
-          custom_unsigned="${header}.${custom_payload}"
-          custom_signature="$(printf '%s' "$custom_unsigned" | openssl dgst -sha256 -sign "$tmpdir/key.pem" | b64url)"
-          custom_token="${custom_unsigned}.${custom_signature}"
+          payload="$(jq -cn --arg iss "$client_email" --arg uid "$TEST_MEMBER_ID" --argjson iat "$now" --argjson exp "$exp" '{iss:$iss,sub:$iss,aud:"https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit",iat:$iat,exp:$exp,uid:$uid}' | b64url)"
+          unsigned="${header}.${payload}"
+          signature="$(printf '%s' "$unsigned" | openssl dgst -sha256 -sign "$tmpdir/key.pem" | b64url)"
+          custom_token="${unsigned}.${signature}"
 
-          signin="$(curl -fsSL -X POST "https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${api_key}" \
-            -H 'Content-Type: application/json' \
-            -d "$(jq -cn --arg token "$custom_token" '{token:$token,returnSecureToken:true}')")"
+          signin="$(curl -fsSL -X POST "https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${api_key}" -H 'Content-Type: application/json' -d "$(jq -cn --arg token "$custom_token" '{token:$token,returnSecureToken:true}')")"
           id_token="$(printf '%s' "$signin" | jq -r '.idToken // empty')"
           test -n "$id_token"
 
-          lookup_status="$(curl -sS -o "$tmpdir/lookup.json" -w '%{http_code}' -X POST "https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${api_key}" \
-            -H 'Content-Type: application/json' \
-            -d "$(jq -cn --arg idToken "$id_token" '{idToken:$idToken}')")"
-          echo "Identity lookup status: ${lookup_status}; uid: $(jq -r '.users[0].localId // ""' "$tmpdir/lookup.json")"
+          call_shop() {
+            local action="$1"
+            local output="$2"
+            local body
+            body="$(jq -cn --arg memberId "$TEST_MEMBER_ID" --arg action "$action" '{action:$action,memberId:$memberId}')"
+            curl -sS -o "$output" -w '%{http_code}' -X POST "${SUPABASE_URL%/}/functions/v1/xp-shop" \
+              -H "apikey: ${SUPABASE_ANON_KEY}" \
+              -H "Authorization: Bearer ${id_token}" \
+              -H 'Content-Type: application/json' \
+              -d "$body"
+          }
 
-          user_status="$(curl -sS -o "$tmpdir/user.json" -w '%{http_code}' \
-            -H "Authorization: Bearer ${id_token}" \
-            "https://firestore.googleapis.com/v1/projects/${project_id}/databases/(default)/documents/users/${TEST_MEMBER_ID}")"
-          echo "Firestore users status: ${user_status}; perfil: $(jq -c '{name:.fields.name.stringValue,isApproved:.fields.isApproved.booleanValue,isAdmin:.fields.isAdmin.booleanValue,unlockedBadges:(.fields.unlockedBadgeIds.arrayValue.values|length?)}' "$tmpdir/user.json")"
+          catalog_status="$(call_shop catalog "$tmpdir/catalog.json")"
+          echo "catalog: ${catalog_status} $(jq -c '{ok,error,unlocked,balance:.account.balance,items:(.items|length?)}' "$tmpdir/catalog.json")"
+          test "$catalog_status" = "200"
+          jq -e '.ok == true and .unlocked == true' "$tmpdir/catalog.json" >/dev/null
+          jq -e '.account.member_id == env.TEST_MEMBER_ID' "$tmpdir/catalog.json" >/dev/null
+          jq -e '.account.balance == 9510' "$tmpdir/catalog.json" >/dev/null
+          test -z "$(jq -r '.error // ""' "$tmpdir/catalog.json")"
 
-          test "$lookup_status" = "200"
-          test "$user_status" = "200"
-          jq -e '.users[0].localId == env.TEST_MEMBER_ID' "$tmpdir/lookup.json" >/dev/null
-          jq -e '.fields.unlockedBadgeIds.arrayValue.values | length > 0' "$tmpdir/user.json" >/dev/null
-          echo 'Sessão Firebase e leitura do perfil funcionam sem conta de serviço OAuth.'
+          history_status="$(call_shop my_redemptions "$tmpdir/history.json")"
+          echo "my_redemptions: ${history_status} $(jq -c '{ok,error,unlocked,balance:.account.balance,redemptions:(.redemptions|length?),entitlements:(.entitlements|length?)}' "$tmpdir/history.json")"
+          test "$history_status" = "200"
+          jq -e '.ok == true and .unlocked == true' "$tmpdir/history.json" >/dev/null
+          jq -e '.account.balance == 9510' "$tmpdir/history.json" >/dev/null
+
+          echo 'Loja XP validada sem dependência do OAuth Google.'
