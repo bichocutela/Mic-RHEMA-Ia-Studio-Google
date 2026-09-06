@@ -1,8 +1,6 @@
 package com.aistudio.micrhema
 
-import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -40,18 +38,13 @@ data class AdminXpRedemption(
 )
 
 object XpShopAdminClient {
+    private const val SIMPLE_ADMIN_PASSWORD = "igreja10"
+
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(25, TimeUnit.SECONDS)
         .build()
-
-    private suspend fun adminToken(): String {
-        val user = FirebaseAuth.getInstance().currentUser
-            ?: throw IllegalStateException("Sessão administrativa do Firebase não encontrada.")
-        return user.getIdToken(false).await().token
-            ?: throw IllegalStateException("O Firebase não retornou o token do administrador.")
-    }
 
     private suspend fun call(action: String, configure: (JSONObject.() -> Unit)? = null): JSONObject = withContext(Dispatchers.IO) {
         val baseUrl = BuildConfig.SUPABASE_URL.trim().trimEnd('/')
@@ -59,21 +52,28 @@ object XpShopAdminClient {
         if (baseUrl.isBlank() || apiKey.isBlank() || baseUrl.contains("your-project")) {
             throw IllegalStateException("A Loja XP não está configurada nesta versão.")
         }
+        if (!adminAuthenticatedState.value) {
+            throw IllegalStateException("Abra a Área Administrativa antes de editar a Loja XP.")
+        }
+
         val payload = JSONObject().put("action", action)
         configure?.invoke(payload)
-        val token = adminToken()
         val request = Request.Builder()
-            .url("$baseUrl/functions/v1/xp-shop")
+            .url("$baseUrl/functions/v1/xp-shop-admin-simple")
             .header("apikey", apiKey)
-            .header("Authorization", "Bearer $token")
+            .header("Authorization", "Bearer $apiKey")
+            .header("X-Rhema-Admin-Password", SIMPLE_ADMIN_PASSWORD)
             .header("Content-Type", "application/json")
             .post(payload.toString().toRequestBody("application/json".toMediaType()))
             .build()
+
         client.newCall(request).execute().use { response ->
             val raw = response.body?.string().orEmpty()
             val json = runCatching { JSONObject(raw) }.getOrElse { JSONObject() }
             if (!response.isSuccessful) {
-                throw IllegalStateException(json.optString("error").ifBlank { "Falha na administração da Loja XP (${response.code})." })
+                throw IllegalStateException(
+                    json.optString("error").ifBlank { "Falha na administração da Loja XP (${response.code})." }
+                )
             }
             json
         }
