@@ -71,12 +71,10 @@ jobs:
           main = Path('app/src/main/java/com/aistudio/micrhema/MainActivity.kt')
           text = main.read_text()
 
-          old_listener = '''    navController.addOnDestinationChangedListener { _, destination, _ ->
-              currentRoute = destination.route ?: Screen.Home.route
-              val foundTab = appTabsState.find { (if (it.id == "bible_tab") "bible" else (it.systemRoute ?: "custom_tab/${it.id}")) == currentRoute }
-              topBarTitle = foundTab?.title ?: "MIC Rhema"
-          }
-          '''
+          start = text.find('    navController.addOnDestinationChangedListener')
+          end = text.find('\n\n    ModalNavigationDrawer(', start)
+          if start < 0 or end < 0:
+              raise SystemExit('Bloco do listener de navegação não encontrado')
           new_listener = '''    DisposableEffect(navController) {
               val listener = androidx.navigation.NavController.OnDestinationChangedListener { _, destination, _ ->
                   currentRoute = destination.route ?: Screen.Home.route
@@ -98,15 +96,14 @@ jobs:
                       }
                   }
               }
-          }
-          '''
-          if old_listener not in text:
-              raise SystemExit('Listener de navegação não encontrado')
-          text = text.replace(old_listener, new_listener, 1)
+          }'''
+          text = text[:start] + new_listener + text[end:]
 
-          old_profile_route = '''                composable(Screen.Profile.route) { ProfileScreen(onNavigateBack = { navController.popBackStack() }) }
-          '''
-          new_profile_route = '''                composable(Screen.Profile.route) {
+          pattern = re.compile(
+              r'\s*composable\(Screen\.Profile\.route\)\s*\{\s*ProfileScreen\(onNavigateBack\s*=\s*\{\s*navController\.popBackStack\(\)\s*\}\)\s*\}'
+          )
+          new_profile_route = '''
+                  composable(Screen.Profile.route) {
                       ProfileScreen(
                           onNavigateBack = { navController.popBackStack() },
                           onLoggedOut = {
@@ -118,11 +115,10 @@ jobs:
                               }
                           }
                       )
-                  }
-          '''
-          if old_profile_route not in text:
+                  }'''
+          text, count = pattern.subn(new_profile_route, text, count=1)
+          if count != 1:
               raise SystemExit('Rota do perfil não encontrada')
-          text = text.replace(old_profile_route, new_profile_route, 1)
           main.write_text(text)
           PY
 
