@@ -19,8 +19,8 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Sessão portátil do membro.
- * O telefone localiza a conta no backend e o Firebase recebe um UID estável igual ao ID do membro,
- * permitindo recuperar IBR/favoritos em qualquer aparelho sem criar uma nova solicitação.
+ * O telefone localiza a conta no backend e é a identidade fixa da conta.
+ * Nome e demais dados pessoais podem ser sincronizados sem criar outro cadastro.
  */
 object MemberSessionClient {
     data class RecoveryResult(
@@ -43,11 +43,6 @@ object MemberSessionClient {
         .writeTimeout(20, TimeUnit.SECONDS)
         .build()
 
-    /**
-     * Uma única fila preserva a ordem exata das gravações. Antes, respostas rápidas
-     * podiam disparar vários sync_state em paralelo e uma requisição antiga terminar
-     * por último, sobrescrevendo XP e perguntas já respondidas.
-     */
     private val syncQueue = Channel<SyncRequest>(Channel.UNLIMITED)
 
     init {
@@ -55,11 +50,13 @@ object MemberSessionClient {
             for (request in syncQueue) {
                 runCatching {
                     val member = request.member
+                    val identityPhone = normalizePhone(request.identityPhone)
                     val payload = JSONObject()
                         .put("action", "sync_state")
                         .put("memberId", member.id)
-                        .put("identityPhone", normalizePhone(request.identityPhone))
-                        .put("phone", normalizePhone(member.phone))
+                        .put("identityPhone", identityPhone)
+                        // O telefone é a identidade da conta: nunca aceitamos um valor diferente do original.
+                        .put("phone", identityPhone)
                         .put("name", member.name)
                         .put("email", member.email)
                         .put("address", member.address)
@@ -71,8 +68,18 @@ object MemberSessionClient {
                         .put("profilePhotoUrl", member.profilePhotoUrl)
                         .put("supabaseStoragePath", member.supabaseStoragePath)
                     call(payload)
-                }.onSuccess {
-                    launch(Dispatchers.Main) { request.onSuccess() }
+                    identityPhone
+                }.onSuccess { identityPhone ->
+                    launch(Dispatchers.Main) {
+                        val current = loggedInMemberState.value
+                        if (current?.id == request.member.id && normalizePhone(current.phone) != identityPhone) {
+                            val corrected = current.copy(phone = identityPhone)
+                            loggedInMemberState.value = corrected
+                            val index = memberRequestsState.indexOfFirst { it.id == corrected.id }
+                            if (index >= 0) memberRequestsState[index] = corrected
+                        }
+                        request.onSuccess()
+                    }
                 }.onFailure { error ->
                     launch(Dispatchers.Main) {
                         request.onFailure(error as? Exception ?: IllegalStateException(error.message))
