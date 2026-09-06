@@ -55,11 +55,10 @@ object QuizAuthorityClient {
     private val missionInFlight = Collections.synchronizedSet(mutableSetOf<String>())
 
     /**
-     * Depois de uma consolidação de cadastros o perfil local pode já apontar para
-     * o memberId correto enquanto o FirebaseAuth do aparelho ainda mantém o UID
-     * antigo. Em vez de obrigar o membro a sair e entrar, recuperamos silenciosamente
-     * a conta pelo telefone já vinculado ao perfil ativo, que por sua vez emite o
-     * custom token do memberId canônico.
+     * O cadastro salvo no aparelho pode ter sido consolidado ou migrado enquanto
+     * o FirebaseAuth ainda mantém um UID antigo. O Quiz nunca deve exigir logout
+     * manual por causa disso: recuperamos silenciosamente a conta pelo telefone,
+     * aceitamos o memberId canônico devolvido pelo servidor e substituímos a sessão.
      */
     private suspend fun firebaseToken(member: MemberRequest, forceRefresh: Boolean): String {
         val auth = FirebaseAuth.getInstance()
@@ -68,26 +67,51 @@ object QuizAuthorityClient {
         if (user?.uid != member.id) {
             val phone = member.phone.filter(Char::isDigit)
             if (phone.length !in 10..13) {
-                throw IllegalStateException("Não foi possível restaurar sua sessão do Quiz porque o telefone do perfil está inválido.")
+                throw IllegalStateException("Não foi possível restaurar a sessão do Quiz porque o telefone do perfil está inválido.")
             }
 
             val appContext = FirebaseApp.getInstance().applicationContext
             val recovery = MemberSessionClient.recover(appContext, phone)
             val recoveredMember = recovery.member
-                ?: throw IllegalStateException("Não foi possível restaurar automaticamente sua sessão do Quiz.")
-
-            if (!recovery.found || recoveredMember.id != member.id) {
-                throw IllegalStateException("O cadastro ativo mudou. Atualize o perfil e tente novamente.")
+                ?: throw IllegalStateException("Não foi possível localizar novamente este cadastro.")
+            if (!recovery.found) {
+                throw IllegalStateException("Este cadastro não foi encontrado para o telefone atual.")
             }
+
+            // O backend é a autoridade para decidir qual é o memberId canônico.
+            // Se o aparelho ainda guardava o ID de uma conta duplicada antiga,
+            // atualizamos o próprio objeto usado nesta chamada para a nova identidade.
+            member.id = recoveredMember.id
+            member.firebaseUid = recoveredMember.firebaseUid
+            member.phone = recoveredMember.phone
+            member.name = recoveredMember.name
+            member.email = recoveredMember.email
+            member.address = recoveredMember.address
+            member.birthDate = recoveredMember.birthDate
+            member.avatarId = recoveredMember.avatarId
+            member.equippedBadgeId = recoveredMember.equippedBadgeId
+            member.unlockedBadgeIds = recoveredMember.unlockedBadgeIds
+            member.badgeActivityIds = recoveredMember.badgeActivityIds
+            member.profilePhotoUrl = recoveredMember.profilePhotoUrl
+            member.supabaseStoragePath = recoveredMember.supabaseStoragePath
+            member.isApproved = recoveredMember.isApproved
+            member.isIbr = recoveredMember.isIbr
+            member.isAdmin = recoveredMember.isAdmin
 
             withContext(Dispatchers.Main.immediate) {
                 MemberManager.setLoggedInMember(appContext, recoveredMember)
+                xpSyncErrorState.value = ""
             }
+
+            // O mesmo desencontro de UID também poderia deixar o cabeçalho da
+            // Jornada mostrando 0 XP. Como a sessão acabou de ser corrigida,
+            // pedimos uma atualização do ledger sem bloquear a abertura do Quiz.
+            XpEngineClient.refresh(appContext, recoveredMember, force = true)
             user = auth.currentUser
         }
 
         if (user == null || user.uid != member.id) {
-            throw IllegalStateException("Não foi possível alinhar a sessão do Quiz com o cadastro ativo. Tente novamente.")
+            throw IllegalStateException("Não foi possível restaurar a sessão automaticamente. Toque em tentar novamente.")
         }
 
         return user.getIdToken(forceRefresh).await().token
