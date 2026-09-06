@@ -28,9 +28,6 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Headphones
-import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Notifications
@@ -43,6 +40,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
@@ -95,7 +93,9 @@ fun SettingsScreen(onNavigateProfile: () -> Unit = {}) {
     val settings by currentSettingsState
     val loggedInMember = loggedInMemberState.value
     var occupiedBytes by remember { mutableLongStateOf(0L) }
-    val sectionIds = listOf("appearance", "reading", "audio", "downloads", "notifications", "internet", "favorites", "maintenance") +
+    var pendingConfirmation by remember { mutableStateOf<String?>(null) }
+    val hasSdCard = remember { context.getExternalFilesDirs(null).filterNotNull().size > 1 }
+    val sectionIds = listOf("appearance", "reading", "downloads", "notifications", "favorites") +
         if (loggedInMember != null) listOf("account") else emptyList()
     val sectionPreferences = remember(context) {
         context.getSharedPreferences("micrhema_settings_ui", Context.MODE_PRIVATE)
@@ -147,7 +147,7 @@ fun SettingsScreen(onNavigateProfile: () -> Unit = {}) {
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             SettingsHero(
-                isSynced = loggedInMember != null,
+                syncStatus = settingsSyncStatusState.value,
                 accountName = loggedInMember?.name
             )
         }
@@ -160,30 +160,13 @@ fun SettingsScreen(onNavigateProfile: () -> Unit = {}) {
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                SettingsExpandControls(
-                    canExpandAll = sectionIds.any { it !in expandedSections },
-                    canCollapseAll = sectionIds.any { it in expandedSections },
-                    onExpandAll = { updateExpandedSections(sectionIds.toSet()) },
-                    onCollapseAll = { updateExpandedSections(emptySet()) }
-                )
-            }
-            item {
                 SettingsSection(
-                    title = "Aparência",
-                    summary = "Tema, legibilidade e modo de leitura.",
+                    title = "Geral",
+                    summary = "Tema, cor e tamanho dos textos.",
                     icon = Icons.Default.Palette,
                     expanded = "appearance" in expandedSections,
                     onToggle = { toggleSection("appearance") }
                 ) {
-                    SettingsSwitch("Notificações", "Permite os avisos escolhidos abaixo.", settings.notificationsEnabled) {
-                        updateSettings(settings.copy(notificationsEnabled = it))
-                    }
-                    SettingsSwitch("Vibração ao tocar nas abas", "Retorno tátil em navegações.", settings.vibrationEnabled) {
-                        updateSettings(settings.copy(vibrationEnabled = it))
-                    }
-                    SettingsSwitch("Animações", "Transições visuais do aplicativo.", settings.animationsEnabled) {
-                        updateSettings(settings.copy(animationsEnabled = it))
-                    }
                     SettingsSwitch("Modo leitura", "Oculta ações dos versículos para uma leitura mais limpa.", settings.readingModeEnabled) {
                         updateSettings(settings.copy(readingModeEnabled = it))
                     }
@@ -212,8 +195,8 @@ fun SettingsScreen(onNavigateProfile: () -> Unit = {}) {
 
             item {
                 SettingsSection(
-                    "Leitura bíblica",
-                    "Preferências aplicadas diretamente ao leitor.",
+                    "Leitura e áudio",
+                    "Opções essenciais para ler e ouvir.",
                     Icons.Default.MenuBook,
                     expanded = "reading" in expandedSections,
                     onToggle = { toggleSection("reading") }
@@ -227,17 +210,6 @@ fun SettingsScreen(onNavigateProfile: () -> Unit = {}) {
                     SettingsSwitch("Rolagem automática", "Avança suavemente pelos versículos durante a leitura.", settings.autoScroll) {
                         updateSettings(settings.copy(autoScroll = it))
                     }
-                }
-            }
-
-            item {
-                SettingsSection(
-                    "Áudio",
-                    "Retomada, velocidade e controles da reprodução.",
-                    Icons.Default.Headphones,
-                    expanded = "audio" in expandedSections,
-                    onToggle = { toggleSection("audio") }
-                ) {
                     SettingsDropdown("Velocidade", "Ajusta a velocidade do player aberto.", "${settings.playbackSpeed}x", listOf("0.75x", "1.0x", "1.25x", "1.5x", "2.0x")) {
                         updateSettings(settings.copy(playbackSpeed = it.removeSuffix("x").toFloatOrNull() ?: 1.0f))
                     }
@@ -258,8 +230,8 @@ fun SettingsScreen(onNavigateProfile: () -> Unit = {}) {
 
             item {
                 SettingsSection(
-                    "Downloads",
-                    "Rede, pasta de destino e limpeza de arquivos.",
+                    "Downloads e dados",
+                    "Rede, armazenamento e arquivos baixados.",
                     Icons.Default.Download,
                     expanded = "downloads" in expandedSections,
                     onToggle = { toggleSection("downloads") }
@@ -267,17 +239,22 @@ fun SettingsScreen(onNavigateProfile: () -> Unit = {}) {
                     SettingsSwitch("Apenas no Wi-Fi", "Evita downloads usando dados móveis.", settings.wifiOnlyDownloads) {
                         updateSettings(settings.copy(wifiOnlyDownloads = it))
                     }
-                    SettingsDropdown("Pasta de armazenamento", "Destino: ${if (settings.storageFolder == "SD Card") "Cartão SD" else "Pasta do app"}.", if (settings.storageFolder == "SD Card") "Cartão SD" else "Pasta do app", listOf("Pasta do app", "Cartão SD")) {
-                        updateSettings(settings.copy(storageFolder = if (it == "Cartão SD") "SD Card" else "Interno"))
+                    if (hasSdCard) {
+                        SettingsDropdown("Pasta de armazenamento", "Escolha onde guardar os downloads.", if (settings.storageFolder == "SD Card") "Cartão SD" else "Pasta do app", listOf("Pasta do app", "Cartão SD")) {
+                            updateSettings(settings.copy(storageFolder = if (it == "Cartão SD") "SD Card" else "Interno"))
+                        }
                     }
                     SettingsSwitch("Limpar downloads antigos", "Remove automaticamente arquivos antigos do app.", settings.autoCleanOldDownloads) {
                         updateSettings(settings.copy(autoCleanOldDownloads = it))
                     }
+                    SettingsSwitch("Economizar dados móveis", "Reduz carregamentos em redes móveis.", settings.saveMobileData) { updateSettings(settings.copy(saveMobileData = it)) }
                     SettingsAction("Espaço ocupado", formatStorageSize(occupiedBytes), icon = Icons.Default.Storage) { refreshStorageSize() }
+                    SettingsAction("Limpar cache", "Remove arquivos temporários, sem apagar downloads.", icon = Icons.Default.DeleteSweep) {
+                        context.cacheDir.deleteRecursively()
+                        android.widget.Toast.makeText(context, "Cache seguro limpo.", android.widget.Toast.LENGTH_SHORT).show()
+                    }
                     SettingsAction("Limpar downloads", "Remove somente os arquivos baixados pelo MIC Rhema.", icon = Icons.Default.DeleteSweep, color = MaterialTheme.colorScheme.error) {
-                        DownloadHelper.clearDownloads(context)
-                        refreshStorageSize()
-                        android.widget.Toast.makeText(context, "Downloads do MIC Rhema removidos.", android.widget.Toast.LENGTH_SHORT).show()
+                        pendingConfirmation = "downloads"
                     }
                 }
             }
@@ -290,14 +267,19 @@ fun SettingsScreen(onNavigateProfile: () -> Unit = {}) {
                     expanded = "notifications" in expandedSections,
                     onToggle = { toggleSection("notifications") }
                 ) {
-                    SettingsSwitch("Novos cursos", "Avisos de cursos disponíveis.", settings.notifNewCourses) { updateSettings(settings.copy(notifNewCourses = it)) }
-                    SettingsSwitch("Devocional diário às 8h", "Lembrete diário do devocional.", settings.notifDailyDevotional) { updateSettings(settings.copy(notifDailyDevotional = it)) }
-                    SettingsSwitch("Avisos de eventos e cultos", "Comunicações da agenda da igreja.", settings.notifEvents) { updateSettings(settings.copy(notifEvents = it)) }
-                    SettingsSwitch("Próximo culto", "Lembrete antes da programação.", settings.notifNextService) { updateSettings(settings.copy(notifNextService = it)) }
-                    SettingsSwitch("Notícia do meio-dia", "Destaque bíblico diário ao meio-dia.", settings.notifDailyNews) { updateSettings(settings.copy(notifDailyNews = it)) }
-                    SettingsSwitch("Novas mídias", "Livros, vídeos e áudios adicionados.", settings.notifNewMedia) { updateSettings(settings.copy(notifNewMedia = it)) }
-                    SettingsSwitch("Novas aulas e módulos IBR", "Conteúdo direcionado aos alunos IBR.", settings.notifIbrContent) { updateSettings(settings.copy(notifIbrContent = it)) }
-                    SettingsSwitch("Novas pregações", "Avisos de mensagens publicadas.", settings.notifNewSermons) { updateSettings(settings.copy(notifNewSermons = it)) }
+                    SettingsSwitch("Receber notificações", "Ativa ou pausa todos os avisos.", settings.notificationsEnabled) {
+                        updateSettings(settings.copy(notificationsEnabled = it))
+                    }
+                    SettingsSwitch("Novos cursos", "Avisos de cursos disponíveis.", settings.notifNewCourses, enabled = settings.notificationsEnabled) { updateSettings(settings.copy(notifNewCourses = it)) }
+                    SettingsSwitch("Devocional diário às 8h", "Lembrete diário do devocional.", settings.notifDailyDevotional, enabled = settings.notificationsEnabled) { updateSettings(settings.copy(notifDailyDevotional = it)) }
+                    SettingsSwitch("Avisos de eventos e cultos", "Comunicações da agenda da igreja.", settings.notifEvents, enabled = settings.notificationsEnabled) { updateSettings(settings.copy(notifEvents = it)) }
+                    SettingsSwitch("Próximo culto", "Lembrete antes da programação.", settings.notifNextService, enabled = settings.notificationsEnabled) { updateSettings(settings.copy(notifNextService = it)) }
+                    SettingsSwitch("Notícia do meio-dia", "Destaque bíblico diário ao meio-dia.", settings.notifDailyNews, enabled = settings.notificationsEnabled) { updateSettings(settings.copy(notifDailyNews = it)) }
+                    SettingsSwitch("Novas mídias", "Livros, vídeos e áudios adicionados.", settings.notifNewMedia, enabled = settings.notificationsEnabled) { updateSettings(settings.copy(notifNewMedia = it)) }
+                    if (loggedInMember?.isIbr == true) {
+                        SettingsSwitch("Novas aulas e módulos IBR", "Conteúdo direcionado aos alunos IBR.", settings.notifIbrContent, enabled = settings.notificationsEnabled) { updateSettings(settings.copy(notifIbrContent = it)) }
+                    }
+                    SettingsSwitch("Novas pregações", "Avisos de mensagens publicadas.", settings.notifNewSermons, enabled = settings.notificationsEnabled) { updateSettings(settings.copy(notifNewSermons = it)) }
                     SettingsAction(
                         "Testar notificações",
                         if (NotificationHelper.hasNotificationPermission(context))
@@ -326,56 +308,20 @@ fun SettingsScreen(onNavigateProfile: () -> Unit = {}) {
 
             item {
                 SettingsSection(
-                    "Internet e dados",
-                    "Controle o que é atualizado e pré-carregado.",
-                    Icons.Default.Language,
-                    expanded = "internet" in expandedSections,
-                    onToggle = { toggleSection("internet") }
-                ) {
-                    SettingsSwitch("Pré-carregar imagens", "Antecipa capas para abrir listas mais rápido.", settings.preloadImages) { updateSettings(settings.copy(preloadImages = it)) }
-                    SettingsSwitch("Economizar dados móveis", "Impede pré-carregamento em redes tarifadas.", settings.saveMobileData) { updateSettings(settings.copy(saveMobileData = it)) }
-                    SettingsSwitch("Atualizar automaticamente", "Mantém o conteúdo em tempo real; desligue para usar apenas o cache até atualizar manualmente.", settings.autoUpdateContent) { updateSettings(settings.copy(autoUpdateContent = it)) }
-                    SettingsAction("Limpar cache", "Remove imagens e arquivos temporários, sem apagar seus downloads.", icon = Icons.Default.DeleteSweep) {
-                        context.cacheDir.deleteRecursively()
-                        android.widget.Toast.makeText(context, "Cache seguro limpo.", android.widget.Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-
-            item {
-                SettingsSection(
-                    "Favoritos e histórico",
-                    "Acompanhe conteúdos e preserve seus dados.",
-                    Icons.Default.Favorite,
+                    "Mais opções",
+                    "Preferências avançadas e recuperação.",
+                    Icons.Default.Tune,
                     expanded = "favorites" in expandedSections,
                     onToggle = { toggleSection("favorites") }
                 ) {
-                    SettingsSwitch("Sincronizar favoritos", "Mantém favoritos iguais entre aparelhos conectados.", settings.syncFavorites) { updateSettings(settings.copy(syncFavorites = it)) }
-                    SettingsSwitch("Backup automático", "Salva uma cópia local das listas e do histórico.", settings.autoBackup) { updateSettings(settings.copy(autoBackup = it)) }
+                    SettingsSwitch("Pré-carregar imagens", "Carrega capas antecipadamente.", settings.preloadImages) { updateSettings(settings.copy(preloadImages = it)) }
+                    SettingsSwitch("Atualizar conteúdo automaticamente", "Busca novidades quando houver internet.", settings.autoUpdateContent) { updateSettings(settings.copy(autoUpdateContent = it)) }
                     SettingsSwitch("Histórico de reprodução", "Mostra livros, vídeos e áudios acessados recentemente.", settings.trackPlaybackHistory) { updateSettings(settings.copy(trackPlaybackHistory = it)) }
                     SettingsAction("Limpar histórico", "Remove a lista de conteúdos vistos recentemente.", icon = Icons.Default.DeleteSweep, color = MaterialTheme.colorScheme.error) {
-                        recentlyViewedState.clear()
-                        LocalDataManager.saveAll(context)
-                        android.widget.Toast.makeText(context, "Histórico limpo.", android.widget.Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-
-            item {
-                SettingsSection(
-                    "Manutenção",
-                    "Ações de recuperação e redefinição do aplicativo.",
-                    Icons.Default.Tune,
-                    expanded = "maintenance" in expandedSections,
-                    onToggle = { toggleSection("maintenance") }
-                ) {
-                    SettingsAction("Recarregar dados locais", "Atualiza o estado com os dados salvos neste aparelho.", icon = Icons.Default.RestartAlt) {
-                        LocalDataManager.loadAll(context)
-                        refreshStorageSize()
-                        android.widget.Toast.makeText(context, "Dados locais recarregados.", android.widget.Toast.LENGTH_SHORT).show()
+                        pendingConfirmation = "history"
                     }
                     SettingsAction("Restaurar configurações", "Volta todas as preferências aos valores recomendados.", icon = Icons.Default.RestartAlt, color = MaterialTheme.colorScheme.error) {
-                        updateSettings(UserSettings())
+                        pendingConfirmation = "settings"
                     }
                 }
             }
@@ -405,7 +351,7 @@ fun SettingsScreen(onNavigateProfile: () -> Unit = {}) {
                                 Text(loggedInMember.phone, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
-                        SettingsAction("Alterar número de contato", "Abra o perfil para atualizar seus dados.", icon = Icons.Default.Person) { onNavigateProfile() }
+                        SettingsAction("Abrir meu perfil", "Veja e atualize seus dados pessoais.", icon = Icons.Default.Person) { onNavigateProfile() }
                         SettingsAction("Sair da conta", "Encerra esta sessão no aparelho.", icon = Icons.Default.Logout, color = MaterialTheme.colorScheme.error) {
                             MemberManager.setLoggedInMember(context, null)
                         }
@@ -415,10 +361,36 @@ fun SettingsScreen(onNavigateProfile: () -> Unit = {}) {
             item { Spacer(Modifier.height(16.dp)) }
         }
     }
+
+    pendingConfirmation?.let { action ->
+        val (title, message) = when (action) {
+            "downloads" -> "Limpar downloads?" to "Os arquivos baixados pelo MIC Rhema serão removidos deste aparelho."
+            "history" -> "Limpar histórico?" to "A lista de conteúdos vistos recentemente será apagada."
+            else -> "Restaurar configurações?" to "Todas as preferências voltarão aos valores recomendados."
+        }
+        AlertDialog(
+            onDismissRequest = { pendingConfirmation = null },
+            title = { Text(title) },
+            text = { Text(message) },
+            confirmButton = {
+                TextButton(onClick = {
+                    when (action) {
+                        "downloads" -> { DownloadHelper.clearDownloads(context); refreshStorageSize() }
+                        "history" -> { recentlyViewedState.clear(); LocalDataManager.saveAll(context) }
+                        else -> updateSettings(UserSettings())
+                    }
+                    pendingConfirmation = null
+                }) { Text("Confirmar") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingConfirmation = null }) { Text("Cancelar") }
+            }
+        )
+    }
 }
 
 @Composable
-private fun SettingsHero(isSynced: Boolean, accountName: String?) {
+private fun SettingsHero(syncStatus: SettingsSyncStatus, accountName: String?) {
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 18.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
@@ -438,11 +410,23 @@ private fun SettingsHero(isSynced: Boolean, accountName: String?) {
             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.secondaryContainer).padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(if (isSynced) Icons.Default.CloudDone else Icons.Default.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
+            Icon(if (syncStatus == SettingsSyncStatus.SYNCED) Icons.Default.CloudDone else Icons.Default.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.secondary)
             Spacer(Modifier.width(10.dp))
             Column {
-                Text(if (isSynced) "Preferências sincronizadas" else "Preferências neste aparelho", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                Text(if (isSynced) "As escolhas de ${accountName ?: "sua conta"} são mantidas na nuvem." else "Entre na sua conta para também sincronizar suas escolhas.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                val title = when (syncStatus) {
+                    SettingsSyncStatus.SAVING -> "Salvando preferências…"
+                    SettingsSyncStatus.SYNCED -> "Preferências sincronizadas"
+                    SettingsSyncStatus.FAILED -> "Falha ao sincronizar"
+                    SettingsSyncStatus.LOCAL -> "Preferências neste aparelho"
+                }
+                val detail = when (syncStatus) {
+                    SettingsSyncStatus.SAVING -> "Aguarde um instante."
+                    SettingsSyncStatus.SYNCED -> "As escolhas de ${accountName ?: "sua conta"} estão salvas."
+                    SettingsSyncStatus.FAILED -> "Confira a internet; suas escolhas continuam salvas neste aparelho."
+                    SettingsSyncStatus.LOCAL -> "Entre na sua conta para sincronizar suas escolhas."
+                }
+                Text(title, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
             }
         }
     }
@@ -498,48 +482,34 @@ private fun SettingsSection(
 }
 
 @Composable
-private fun SettingsExpandControls(
-    canExpandAll: Boolean,
-    canCollapseAll: Boolean,
-    onExpandAll: () -> Unit,
-    onCollapseAll: () -> Unit
-) {
+private fun SettingsSwitch(title: String, summary: String, checked: Boolean, enabled: Boolean = true, onCheckedChange: (Boolean) -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-        horizontalArrangement = Arrangement.End,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        TextButton(onClick = onExpandAll, enabled = canExpandAll) {
-            Text("Expandir tudo")
-        }
-        TextButton(onClick = onCollapseAll, enabled = canCollapseAll) {
-            Text("Minimizar tudo")
-        }
-    }
-}
-
-@Composable
-private fun SettingsSwitch(title: String, summary: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().clickable { onCheckedChange(!checked) }.padding(horizontal = 16.dp, vertical = 11.dp),
+        modifier = Modifier.fillMaxWidth().clickable(enabled = enabled) { onCheckedChange(!checked) }.padding(horizontal = 16.dp, vertical = 11.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(title, style = MaterialTheme.typography.bodyLarge, color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f))
             Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Spacer(Modifier.width(14.dp))
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
     }
 }
 
 @Composable
 private fun SettingsSlider(title: String, summary: String, value: Float, min: Float, max: Float, steps: Int, onValueChange: (Float) -> Unit) {
+    var pendingValue by remember(value) { mutableStateOf(value) }
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 11.dp)) {
         Text(title, style = MaterialTheme.typography.bodyLarge)
         Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Slider(value = value, onValueChange = onValueChange, valueRange = min..max, steps = steps)
+        Slider(
+            value = pendingValue,
+            onValueChange = { pendingValue = it },
+            onValueChangeFinished = { onValueChange(pendingValue) },
+            valueRange = min..max,
+            steps = steps
+        )
     }
 }
 
