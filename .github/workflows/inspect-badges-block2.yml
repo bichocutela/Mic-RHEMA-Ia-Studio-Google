@@ -10,6 +10,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Instalar ferramentas de imagem
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq imagemagick webp
       - name: Inspecionar assets 13 a 17
         run: |
           set -e
@@ -17,11 +21,11 @@ jobs:
           for n in 13 14 15 16 17; do
             f="app/src/main/res/drawable-nodpi/profile_emblem_level_${n}.webp"
             echo "=== NIVEL $n ==="
-            file "$f"
-            ffprobe -v error -select_streams v:0 -show_entries stream=width,height,pix_fmt -of default=nw=1 "$f"
-            ffmpeg -v error -y -i "$f" -vf "scale=180:180:force_original_aspect_ratio=decrease,pad=190:190:(ow-iw)/2:(oh-ih)/2:white" -frames:v 1 "/tmp/b2/$n.png"
+            webpinfo "$f" | grep -E 'Canvas size|Width|Height|Alpha' || true
+            dwebp "$f" -o "/tmp/b2/$n.png" >/dev/null
+            convert "/tmp/b2/$n.png" -thumbnail '180x180>' -background white -gravity center -extent 190x190 "/tmp/b2/${n}_thumb.png"
           done
       - uses: actions/upload-artifact@v4
         with:
           name: block2-contact
-          path: /tmp/b2
+          path: /tmp/b2/*_thumb.png
