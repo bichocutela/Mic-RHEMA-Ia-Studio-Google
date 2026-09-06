@@ -24,7 +24,16 @@ const badgeVisuals: Record<string, BadgeVisual> = {
 
 const rawBase = "https://raw.githubusercontent.com/bichocutela/Mic-RHEMA-Ia-Studio-Google/main/app/src/main/res/drawable-nodpi";
 const avatarUrl = (id: string) => `${rawBase}/avatar_${id}.png`;
-const profileEmblemUrl = (level: number) => `${rawBase}/profile_emblem_level_${String(level).padStart(2,"0")}.webp`;
+const profileEmblemUrl = (level: number) => `${rawBase}/profile_emblem_level_${String(level).padStart(2,"0")}.webp?v=hd-20260906`;
+// Keep these openings aligned with BadgeFrame.kt and the reviewed art manifest.
+const profileEmblemAvatarFractions: Record<number, number> = {
+  8: 0.5947,
+  9: 0.493,
+  10: 0.4902,
+  11: 0.5184,
+  12: 0.5546,
+  13: 0.4715,
+};
 
 function TopSymbol({ visual }: { visual: BadgeVisual }) {
   const { accent, style } = visual;
@@ -60,8 +69,10 @@ export function BiblicalBadgeAvatar({ avatarId, badgeId, size = 64, locked = fal
   const opacity = locked && dimWhenLocked ? .34 : 1;
 
   if (profileLevel) {
+    const portraitPercent = (profileEmblemAvatarFractions[profileLevel] ?? .58) * 100;
+    const portraitInset = (100 - portraitPercent) / 2;
     return <div className={`biblical-badge-avatar ${className}`} title={title} aria-label={title} style={{ width:size,height:size,position:"relative",flex:"0 0 auto",opacity,transition:"opacity .2s ease, transform .2s ease" }}>
-      <img src={avatarUrl(avatarId)} alt="" draggable={false} style={{ position:"absolute",left:"21%",top:"21%",width:"58%",height:"58%",borderRadius:"50%",objectFit:"cover",background:"#f4ecd8" }}/>
+      <img src={avatarUrl(avatarId)} alt="" draggable={false} style={{ position:"absolute",left:`${portraitInset}%`,top:`${portraitInset}%`,width:`${portraitPercent}%`,height:`${portraitPercent}%`,borderRadius:"50%",objectFit:"cover",background:"#f4ecd8" }}/>
       <img src={profileEmblemUrl(profileLevel)} alt="" draggable={false} style={{ position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"contain",pointerEvents:"none" }}/>
       {locked && <span aria-hidden="true" style={{ position:"absolute",inset:0,display:"grid",placeItems:"center",color:"var(--muted-foreground,#666)",opacity:1 }}><Lock size={Math.max(16,Math.round(size*.28))} strokeWidth={2.4}/></span>}
     </div>;

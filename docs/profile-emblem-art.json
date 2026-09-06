@@ -1,0 +1,62 @@
+{
+  "size": 1024,
+  "format": "WebP lossless RGBA",
+  "revision": "hd-20260906",
+  "frames": [
+    {
+      "level": 8,
+      "id": "semente_da_fe",
+      "name": "Semente da Fé",
+      "avatarFraction": 0.5947,
+      "sha256": "5b0f71e5004f50182372962c9aebeb1371b5bfc03fe902a784c89da1587f2a3e",
+      "bytes": 644224,
+      "portraitLeakPixels": 0,
+      "motif": "Folhas verdes e broto em aro dourado"
+    },
+    {
+      "level": 9,
+      "id": "caminho_da_promessa",
+      "name": "Caminho da Promessa",
+      "avatarFraction": 0.493,
+      "sha256": "49191d3d46df99a77954f825d299cd8921a5405dfac93222f16715ab3b93254a",
+      "bytes": 718844,
+      "portraitLeakPixels": 0
+    },
+    {
+      "level": 10,
+      "id": "escudo_da_fe",
+      "name": "Escudo da Fé",
+      "avatarFraction": 0.4902,
+      "sha256": "e24a7225ef70ede234904e6dd9ae5a28c59ede8dc82b809572545abf7cb5c5ff",
+      "bytes": 519736,
+      "portraitLeakPixels": 0
+    },
+    {
+      "level": 11,
+      "id": "aguas_vivas",
+      "name": "Águas Vivas",
+      "avatarFraction": 0.5184,
+      "sha256": "6f4726e3fffe200acd8a9a1bbae28f2ced162846d7ca871c7b9a33799e876120",
+      "bytes": 699712,
+      "portraitLeakPixels": 0
+    },
+    {
+      "level": 12,
+      "id": "videira_verdadeira",
+      "name": "Videira Verdadeira",
+      "avatarFraction": 0.5546,
+      "sha256": "8256b3f3c0eea0124b2c90e5a79d474c01f62add1640389e8065269da0b98507",
+      "bytes": 861548,
+      "portraitLeakPixels": 0
+    },
+    {
+      "level": 13,
+      "id": "luz_do_mundo",
+      "name": "Luz do Mundo",
+      "avatarFraction": 0.4715,
+      "sha256": "3557ac2571de8e9055ce1eff610d24a5ed14de6e4a83b6cf07c861e10307a02c",
+      "bytes": 759590,
+      "portraitLeakPixels": 0
+    }
+  ]
+}

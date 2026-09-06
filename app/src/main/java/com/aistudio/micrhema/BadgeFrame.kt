@@ -36,6 +36,7 @@ fun BiblicalAvatarWithBadge(
     val hasReaderBadge = XpRewardManager.isOwned(context, XpRewardManager.READER_BADGE)
     val clickableModifier = if (onClick != null) modifier.clickable(onClick = onClick) else modifier
     val isProfileEmblem = badge.frameStyle == BadgeFrameStyle.PROFILE_EMBLEM
+    val emblemScale = if (hasPromiseFrame) 0.92f else 1f
 
     Box(modifier = clickableModifier, contentAlignment = Alignment.Center) {
         if (hasPromiseFrame) {
@@ -49,15 +50,16 @@ fun BiblicalAvatarWithBadge(
         }
 
         if (isProfileEmblem) {
+            val level = badge.level ?: 8
             BiblicalAvatarImage(
                 avatar = avatar,
-                modifier = Modifier.fillMaxSize(0.58f).clip(CircleShape),
+                modifier = Modifier.fillMaxSize(profileEmblemAvatarFraction(level) * emblemScale).clip(CircleShape),
                 contentDescription = contentDescription
             )
             coil.compose.AsyncImage(
-                model = profileEmblemDrawable(badge.level ?: 8),
+                model = profileEmblemDrawable(level),
                 contentDescription = null,
-                modifier = Modifier.fillMaxSize(if (hasPromiseFrame) 0.92f else 1f),
+                modifier = Modifier.fillMaxSize(emblemScale),
                 contentScale = ContentScale.Fit
             )
         } else {
@@ -78,6 +80,18 @@ fun BiblicalAvatarWithBadge(
             }
         }
     }
+}
+
+// Each restored frame has its own opening. Scale the portrait and frame
+// together when an XP reward surrounds them, so their alignment is retained.
+private fun profileEmblemAvatarFraction(level: Int): Float = when (level) {
+    8 -> 0.5947f
+    9 -> 0.493f
+    10 -> 0.4902f
+    11 -> 0.5184f
+    12 -> 0.5546f
+    13 -> 0.4715f
+    else -> 0.58f
 }
 
 private fun profileEmblemDrawable(level: Int): Int = when (level.coerceIn(8, 22)) {
