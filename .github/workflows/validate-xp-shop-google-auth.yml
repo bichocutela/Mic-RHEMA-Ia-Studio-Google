@@ -51,17 +51,29 @@ jobs:
           id_token="$(printf '%s' "$signin" | jq -r '.idToken // empty')"
           test -n "$id_token"
 
-          response="$(curl -fsSL -X POST "${SUPABASE_URL%/}/functions/v1/xp-shop" \
+          body="$(jq -cn --arg memberId "$TEST_MEMBER_ID" '{action:"get_account",memberId:$memberId}')"
+          engine_status="$(curl -sS -o "$tmpdir/engine.json" -w '%{http_code}' -X POST "${SUPABASE_URL%/}/functions/v1/xp-engine" \
             -H "apikey: ${SUPABASE_ANON_KEY}" \
             -H "Authorization: Bearer ${id_token}" \
             -H 'Content-Type: application/json' \
-            -d "$(jq -cn --arg memberId "$TEST_MEMBER_ID" '{action:"catalog",memberId:$memberId}')")"
+            -d "$body")"
+          echo "xp-engine status: ${engine_status}; resposta: $(jq -c '{ok,error,unlocked,account:{member_id:.account.member_id,balance:.account.balance}}' "$tmpdir/engine.json")"
+          test "$engine_status" = "200"
+          jq -e '.ok == true' "$tmpdir/engine.json" >/dev/null
 
-          printf '%s' "$response" | jq -e '.ok == true' >/dev/null
-          printf '%s' "$response" | jq -e '.account.member_id == env.TEST_MEMBER_ID' >/dev/null
-          printf '%s' "$response" | jq -e '.account.balance >= 0' >/dev/null
-          if printf '%s' "$response" | jq -r '.error // ""' | grep -qi 'autenticar no Google'; then
+          shop_body="$(jq -cn --arg memberId "$TEST_MEMBER_ID" '{action:"catalog",memberId:$memberId}')"
+          shop_status="$(curl -sS -o "$tmpdir/shop.json" -w '%{http_code}' -X POST "${SUPABASE_URL%/}/functions/v1/xp-shop" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${id_token}" \
+            -H 'Content-Type: application/json' \
+            -d "$shop_body")"
+          echo "xp-shop status: ${shop_status}; resposta: $(jq -c '{ok,error,unlocked,account:{member_id:.account.member_id,balance:.account.balance},items:(.items|length?)}' "$tmpdir/shop.json")"
+          test "$shop_status" = "200"
+          jq -e '.ok == true' "$tmpdir/shop.json" >/dev/null
+          jq -e '.account.member_id == env.TEST_MEMBER_ID' "$tmpdir/shop.json" >/dev/null
+          jq -e '.account.balance >= 0' "$tmpdir/shop.json" >/dev/null
+          if jq -r '.error // ""' "$tmpdir/shop.json" | grep -qi 'autenticar no Google'; then
             echo 'A falha antiga ainda apareceu.' >&2
             exit 1
           fi
-          echo "Loja XP respondeu corretamente. Saldo retornado: $(printf '%s' "$response" | jq -r '.account.balance') XP"
+          echo "Loja XP respondeu corretamente. Saldo retornado: $(jq -r '.account.balance' "$tmpdir/shop.json") XP"
