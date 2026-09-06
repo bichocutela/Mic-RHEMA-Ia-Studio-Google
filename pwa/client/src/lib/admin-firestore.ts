@@ -41,24 +41,19 @@ async function saveAdminMember(documentId: string, data: Record<string, unknown>
   if (!name) throw new Error("Informe o nome do membro.");
   if (phone.length < 10 || phone.length > 11) throw new Error("Informe um telefone válido com DDD.");
 
-  // A troca administrativa de telefone é uma transferência da identidade de
-  // entrada, não uma troca do memberId. O novo número precisa estar livre.
   for (const variant of [phone, `55${phone}`]) {
     const snapshot = await getDocs(query(collection(db(), "acessos_pendentes"), where("phone", "==", variant)));
     const collision = snapshot.docs.find((item) => item.id !== documentId && normalizeMemberPhone(item.data().phone) === phone);
     if (collision) throw new Error("Este telefone já pertence a outro cadastro.");
   }
 
-  const accessRef = doc(db(), "acessos_pendentes", documentId);
-  const profileRef = doc(db(), "users", documentId);
   const now = Date.now();
-  const accessPatch = {
+  const accessPatch: Record<string, unknown> = {
     name,
     phone,
     email: String(data.email ?? "").trim(),
     address: String(data.address ?? "").trim(),
     birthDate: String(data.birthDate ?? "").trim(),
-    ibrCertificateName: String(data.ibrCertificateName ?? name).trim() || name,
     isApproved: data.isApproved === true,
     isIbr: data.isIbr === true,
     isAdmin: data.isAdmin === true,
@@ -67,21 +62,25 @@ async function saveAdminMember(documentId: string, data: Record<string, unknown>
     updatedAtServer: serverTimestamp(),
     source: "pwa",
   };
-  const profilePatch = {
-    name: accessPatch.name,
-    phone: accessPatch.phone,
-    email: accessPatch.email,
-    address: accessPatch.address,
-    birthDate: accessPatch.birthDate,
-    ibrCertificateName: accessPatch.ibrCertificateName,
+  const profilePatch: Record<string, unknown> = {
+    name,
+    phone,
+    email: String(data.email ?? "").trim(),
+    address: String(data.address ?? "").trim(),
+    birthDate: String(data.birthDate ?? "").trim(),
     updatedAt: now,
     updatedAtServer: serverTimestamp(),
     source: "pwa-admin",
   };
 
+  if (typeof data.ibrCertificateName === "string" && data.ibrCertificateName.trim()) {
+    accessPatch.ibrCertificateName = data.ibrCertificateName.trim();
+    profilePatch.ibrCertificateName = data.ibrCertificateName.trim();
+  }
+
   const batch = writeBatch(db());
-  batch.set(accessRef, accessPatch, { merge: true });
-  batch.set(profileRef, profilePatch, { merge: true });
+  batch.set(doc(db(), "acessos_pendentes", documentId), accessPatch, { merge: true });
+  batch.set(doc(db(), "users", documentId), profilePatch, { merge: true });
   await batch.commit();
   return documentId;
 }
