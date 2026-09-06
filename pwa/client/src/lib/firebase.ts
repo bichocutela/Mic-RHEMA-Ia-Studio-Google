@@ -179,8 +179,11 @@ export async function loadPwaMemberProfile(): Promise<PwaMemberProfile> {
   return profileRequest({ action: "get" });
 }
 
-/** Telefone é identidade fixa; o perfil pode alterar nome e demais dados não-identitários. */
-export async function savePwaMemberProfile(data: Partial<Pick<PwaMemberProfile, "name" | "address" | "birthDate" | "email" | "avatarId" | "equippedBadgeId">>): Promise<PwaMemberProfile> {
+/**
+ * Telefone permanece no tipo por compatibilidade com telas existentes, mas é identidade fixa.
+ * O pwa-profile rejeita qualquer tentativa de alterá-lo e nunca o grava como patch.
+ */
+export async function savePwaMemberProfile(data: Partial<Pick<PwaMemberProfile, "name" | "phone" | "address" | "birthDate" | "email" | "avatarId" | "equippedBadgeId">>): Promise<PwaMemberProfile> {
   return profileRequest({ action: "save", data });
 }
 
