@@ -1,0 +1,37 @@
+name: Inspect Badges Block 2
+on:
+  push:
+    branches: [fix/badges-hd-block2]
+    paths: ['.github/workflows/inspect-badges-block2.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: |
+          python -m pip install --quiet pillow
+          python <<'PY'
+          from PIL import Image,ImageDraw
+          from pathlib import Path
+          root=Path('app/src/main/res/drawable-nodpi')
+          sheet=Image.new('RGBA',(1000,220),(255,255,255,255))
+          draw=ImageDraw.Draw(sheet)
+          for i,level in enumerate(range(13,18)):
+              p=root/f'profile_emblem_level_{level:02d}.webp'
+              im=Image.open(p).convert('RGBA')
+              thumb=im.copy(); thumb.thumbnail((180,180),Image.Resampling.LANCZOS)
+              x=i*200+(200-thumb.width)//2
+              sheet.alpha_composite(thumb,(x,5))
+              draw.text((i*200+65,190),f'Nível {level}',fill=(0,0,0,255))
+              print(level, im.size, im.getchannel('A').getbbox(), p.stat().st_size)
+          sheet.convert('RGB').save('block2-contact.jpg',quality=95)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: block2-contact
+          path: block2-contact.jpg
