@@ -48,6 +48,8 @@ data class UserSettings(
 )
 
 val currentSettingsState = mutableStateOf(UserSettings())
+enum class SettingsSyncStatus { LOCAL, SAVING, SYNCED, FAILED }
+val settingsSyncStatusState = mutableStateOf(SettingsSyncStatus.LOCAL)
 
 object UserSettingsManager {
     private const val PREFS_NAME = "micrhema_user_settings"
@@ -93,7 +95,12 @@ object UserSettingsManager {
 
         val member = loggedInMemberState.value
         if (member != null && BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
+            settingsSyncStatusState.value = SettingsSyncStatus.SAVING
             FirebaseFirestore.getInstance().collection("user_settings").document(member.id).set(settings)
+                .addOnSuccessListener { settingsSyncStatusState.value = SettingsSyncStatus.SYNCED }
+                .addOnFailureListener { settingsSyncStatusState.value = SettingsSyncStatus.FAILED }
+        } else {
+            settingsSyncStatusState.value = SettingsSyncStatus.LOCAL
         }
     }
 
@@ -103,6 +110,7 @@ object UserSettingsManager {
             firestoreListener?.remove()
             firestoreListener = null
             syncedMemberId = null
+            settingsSyncStatusState.value = SettingsSyncStatus.LOCAL
             return
         }
         if (syncedMemberId == member.id && firestoreListener != null) return
@@ -113,10 +121,15 @@ object UserSettingsManager {
             .collection("user_settings")
             .document(member.id)
             .addSnapshotListener { doc, e ->
-                if (e != null || doc == null) return@addSnapshotListener
+                if (e != null || doc == null) {
+                    settingsSyncStatusState.value = SettingsSyncStatus.FAILED
+                    return@addSnapshotListener
+                }
                 if (!doc.exists()) {
                     FirebaseFirestore.getInstance().collection("user_settings")
                         .document(member.id).set(currentSettingsState.value)
+                        .addOnSuccessListener { settingsSyncStatusState.value = SettingsSyncStatus.SYNCED }
+                        .addOnFailureListener { settingsSyncStatusState.value = SettingsSyncStatus.FAILED }
                     return@addSnapshotListener
                 }
                 val settings = doc.toObject(UserSettings::class.java) ?: return@addSnapshotListener
@@ -133,6 +146,7 @@ object UserSettingsManager {
                 }
                 SettingsManager.setThemeMode(context, mode)
                 currentThemeMode.value = mode
+                settingsSyncStatusState.value = SettingsSyncStatus.SYNCED
             }
     }
 }
