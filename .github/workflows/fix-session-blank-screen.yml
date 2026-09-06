@@ -1,0 +1,145 @@
+name: Corrigir tela branca de sessão
+
+on:
+  push:
+    branches: [ fix/session-blank-screen ]
+    paths:
+      - '.github/workflows/fix-session-blank-screen.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix-session-blank-screen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Corrigir navegação de sessão
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          profile = Path('app/src/main/java/com/aistudio/micrhema/ProfileScreen.kt')
+          text = profile.read_text()
+
+          old = '''fun ProfileScreen(
+              onNavigateBack: () -> Unit
+          ) {
+              val loggedInMember = loggedInMemberState.value
+              if (loggedInMember == null) {
+                  onNavigateBack()
+                  return
+              }
+          '''
+          new = '''fun ProfileScreen(
+              onNavigateBack: () -> Unit,
+              onLoggedOut: () -> Unit = onNavigateBack
+          ) {
+              val loggedInMember = loggedInMemberState.value
+              if (loggedInMember == null) {
+                  LaunchedEffect(Unit) { onLoggedOut() }
+                  Box(
+                      modifier = Modifier.fillMaxSize(),
+                      contentAlignment = Alignment.Center
+                  ) {
+                      RhemaLoadingIndicator(message = "Atualizando sessão…")
+                  }
+                  return
+              }
+          '''
+          if old not in text:
+              raise SystemExit('Trecho inicial de ProfileScreen não encontrado')
+          text = text.replace(old, new, 1)
+
+          old_logout = '''                        MemberManager.setLoggedInMember(context, null)
+                          onNavigateBack()
+          '''
+          new_logout = '''                        MemberManager.setLoggedInMember(context, null)
+                          onLoggedOut()
+          '''
+          if old_logout not in text:
+              raise SystemExit('Trecho de logout do perfil não encontrado')
+          text = text.replace(old_logout, new_logout, 1)
+          profile.write_text(text)
+
+          main = Path('app/src/main/java/com/aistudio/micrhema/MainActivity.kt')
+          text = main.read_text()
+
+          old_listener = '''    navController.addOnDestinationChangedListener { _, destination, _ ->
+              currentRoute = destination.route ?: Screen.Home.route
+              val foundTab = appTabsState.find { (if (it.id == "bible_tab") "bible" else (it.systemRoute ?: "custom_tab/${it.id}")) == currentRoute }
+              topBarTitle = foundTab?.title ?: "MIC Rhema"
+          }
+          '''
+          new_listener = '''    DisposableEffect(navController) {
+              val listener = androidx.navigation.NavController.OnDestinationChangedListener { _, destination, _ ->
+                  currentRoute = destination.route ?: Screen.Home.route
+                  val foundTab = appTabsState.find {
+                      (if (it.id == "bible_tab") "bible" else (it.systemRoute ?: "custom_tab/${it.id}")) == currentRoute
+                  }
+                  topBarTitle = foundTab?.title ?: "MIC Rhema"
+              }
+              navController.addOnDestinationChangedListener(listener)
+              onDispose { navController.removeOnDestinationChangedListener(listener) }
+          }
+
+          LaunchedEffect(loggedInMemberState.value?.id, currentRoute) {
+              if (loggedInMemberState.value == null && currentRoute == Screen.Profile.route) {
+                  if (!navController.popBackStack(Screen.Home.route, inclusive = false)) {
+                      navController.navigate(Screen.Home.route) {
+                          popUpTo(navController.graph.startDestinationId) { inclusive = false }
+                          launchSingleTop = true
+                      }
+                  }
+              }
+          }
+          '''
+          if old_listener not in text:
+              raise SystemExit('Listener de navegação não encontrado')
+          text = text.replace(old_listener, new_listener, 1)
+
+          old_profile_route = '''                composable(Screen.Profile.route) { ProfileScreen(onNavigateBack = { navController.popBackStack() }) }
+          '''
+          new_profile_route = '''                composable(Screen.Profile.route) {
+                      ProfileScreen(
+                          onNavigateBack = { navController.popBackStack() },
+                          onLoggedOut = {
+                              if (!navController.popBackStack(Screen.Home.route, inclusive = false)) {
+                                  navController.navigate(Screen.Home.route) {
+                                      popUpTo(navController.graph.startDestinationId) { inclusive = false }
+                                      launchSingleTop = true
+                                  }
+                              }
+                          }
+                      )
+                  }
+          '''
+          if old_profile_route not in text:
+              raise SystemExit('Rota do perfil não encontrada')
+          text = text.replace(old_profile_route, new_profile_route, 1)
+          main.write_text(text)
+          PY
+
+      - name: Validar compilação
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew :app:compileDebugKotlin --stacktrace
+
+      - name: Commitar correção no main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/com/aistudio/micrhema/ProfileScreen.kt app/src/main/java/com/aistudio/micrhema/MainActivity.kt
+          test "$(git diff --cached --name-only | wc -l)" -eq 2
+          git commit -m "fix(session): impedir tela branca ao abrir e sair da conta"
+          git push origin HEAD:main
