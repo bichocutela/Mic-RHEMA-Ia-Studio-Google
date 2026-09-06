@@ -28,6 +28,11 @@ const profileEmblemUrl = (level: number) => `${rawBase}/profile_emblem_level_${S
 // Keep these openings aligned with BadgeFrame.kt and the reviewed art manifest.
 const profileEmblemAvatarFractions: Record<number, number> = {
   8: 0.5947,
+  9: 0.493,
+  10: 0.4902,
+  11: 0.5184,
+  12: 0.5546,
+  13: 0.4715,
 };
 
 function TopSymbol({ visual }: { visual: BadgeVisual }) {

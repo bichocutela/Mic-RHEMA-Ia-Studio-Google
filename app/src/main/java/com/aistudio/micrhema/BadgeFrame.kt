@@ -86,6 +86,11 @@ fun BiblicalAvatarWithBadge(
 // together when an XP reward surrounds them, so their alignment is retained.
 private fun profileEmblemAvatarFraction(level: Int): Float = when (level) {
     8 -> 0.5947f
+    9 -> 0.493f
+    10 -> 0.4902f
+    11 -> 0.5184f
+    12 -> 0.5546f
+    13 -> 0.4715f
     else -> 0.58f
 }
 
@@ -100,11 +105,11 @@ private fun profileEmblemDrawable(level: Int): Int = when (level.coerceIn(8, 22)
     15 -> R.drawable.profile_emblem_level_15
     16 -> R.drawable.profile_emblem_level_16
     17 -> R.drawable.profile_emblem_level_17
-    18 -> R.drawable.profile_emblem_level_18
-    19 -> R.drawable.profile_emblem_level_19
-    20 -> R.drawable.profile_emblem_level_20
-    21 -> R.drawable.profile_emblem_level_21
-    22 -> R.drawable.profile_emblem_level_22
+    18 -> R.drawable.profile_emblem_level_18_hd
+    19 -> R.drawable.profile_emblem_level_19_hd
+    20 -> R.drawable.profile_emblem_level_20_hd
+    21 -> R.drawable.profile_emblem_level_21_hd
+    22 -> R.drawable.profile_emblem_level_22_hd
     else -> R.drawable.profile_emblem_level_08
 }
 
