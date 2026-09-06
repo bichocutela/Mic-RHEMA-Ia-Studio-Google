@@ -29,6 +29,13 @@ data class QuizAuthorityAnswer(
     val account: XpAccount
 )
 
+data class QuizNextQuestionState(
+    val questionId: String?,
+    val answered: Int,
+    val total: Int,
+    val remaining: Int
+)
+
 data class QuizMissionClaimResult(
     val confirmed: Boolean,
     val granted: Int,
@@ -45,36 +52,48 @@ object QuizAuthorityClient {
         .build()
     private val missionInFlight = Collections.synchronizedSet(mutableSetOf<String>())
 
-    private suspend fun firebaseToken(member: MemberRequest): String {
+    private suspend fun firebaseToken(member: MemberRequest, forceRefresh: Boolean): String {
         val user = FirebaseAuth.getInstance().currentUser
             ?: throw IllegalStateException("Sua sessão de membro expirou. Entre novamente no MIC Rhema.")
         if (user.uid != member.id) {
             throw IllegalStateException("A sessão Firebase não pertence ao membro ativo. Entre novamente.")
         }
-        return user.getIdToken(false).await().token
+        return user.getIdToken(forceRefresh).await().token
             ?: throw IllegalStateException("O Firebase não retornou um token válido para o Quiz.")
     }
 
-    private suspend fun call(member: MemberRequest, payload: JSONObject, allowConflict: Boolean = false): Pair<Int, JSONObject> = withContext(Dispatchers.IO) {
+    private suspend fun executeCall(member: MemberRequest, payload: JSONObject, forceRefresh: Boolean): Pair<Int, JSONObject> = withContext(Dispatchers.IO) {
         val baseUrl = BuildConfig.SUPABASE_URL.trim().trimEnd('/')
+        val anonKey = BuildConfig.SUPABASE_ANON_KEY.trim()
         if (baseUrl.isBlank() || baseUrl.contains("your-project")) {
             throw IllegalStateException("O Quiz central não está configurado nesta versão.")
         }
-        val token = firebaseToken(member)
-        val request = Request.Builder()
+        val token = firebaseToken(member, forceRefresh)
+        val builder = Request.Builder()
             .url("$baseUrl/functions/v1/xp-quiz")
             .header("Authorization", "Bearer $token")
             .header("Content-Type", "application/json")
+        if (anonKey.isNotBlank()) builder.header("apikey", anonKey)
+        val request = builder
             .post(payload.toString().toRequestBody("application/json".toMediaType()))
             .build()
         client.newCall(request).execute().use { response ->
             val raw = response.body?.string().orEmpty()
-            val json = runCatching { JSONObject(raw) }.getOrElse { JSONObject() }
-            if (!response.isSuccessful && !(allowConflict && response.code == 409)) {
-                throw IllegalStateException(json.optString("error").ifBlank { "Falha no Quiz central (${response.code})." })
-            }
-            response.code to json
+            response.code to runCatching { JSONObject(raw) }.getOrElse { JSONObject() }
         }
+    }
+
+    private suspend fun call(member: MemberRequest, payload: JSONObject, allowConflict: Boolean = false): Pair<Int, JSONObject> {
+        var (status, body) = executeCall(member, payload, false)
+        if (status == 401) {
+            val retry = executeCall(member, payload, true)
+            status = retry.first
+            body = retry.second
+        }
+        if (status !in 200..299 && !(allowConflict && status == 409)) {
+            throw IllegalStateException(body.optString("error").ifBlank { "Falha no Quiz central ($status)." })
+        }
+        return status to body
     }
 
     private fun parseAccount(memberId: String, root: JSONObject): XpAccount {
@@ -94,6 +113,25 @@ object QuizAuthorityClient {
         "easy_hint" -> BibleQuizHintUsage.EASY
         "subtle_hint" -> BibleQuizHintUsage.HARD
         else -> BibleQuizHintUsage.NONE
+    }
+
+    suspend fun nextQuestionNow(member: MemberRequest, difficulty: BibleQuizDifficulty): QuizNextQuestionState {
+        val (_, response) = call(
+            member,
+            JSONObject()
+                .put("action", "status")
+                .put("difficulty", difficulty.name.lowercase())
+        )
+        val questionId = response.optJSONObject("question")
+            ?.optString("id")
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+        return QuizNextQuestionState(
+            questionId = questionId,
+            answered = response.optInt("answered", 0).coerceAtLeast(0),
+            total = response.optInt("total", 0).coerceAtLeast(0),
+            remaining = response.optInt("remaining", 0).coerceAtLeast(0)
+        )
     }
 
     suspend fun recordHintNow(
