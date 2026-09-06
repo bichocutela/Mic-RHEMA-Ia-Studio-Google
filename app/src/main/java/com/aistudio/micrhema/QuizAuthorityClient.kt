@@ -2,6 +2,7 @@ package com.aistudio.micrhema
 
 import android.content.Context
 import android.util.Log
+import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -53,12 +54,42 @@ object QuizAuthorityClient {
         .build()
     private val missionInFlight = Collections.synchronizedSet(mutableSetOf<String>())
 
+    /**
+     * Depois de uma consolidação de cadastros o perfil local pode já apontar para
+     * o memberId correto enquanto o FirebaseAuth do aparelho ainda mantém o UID
+     * antigo. Em vez de obrigar o membro a sair e entrar, recuperamos silenciosamente
+     * a conta pelo telefone já vinculado ao perfil ativo, que por sua vez emite o
+     * custom token do memberId canônico.
+     */
     private suspend fun firebaseToken(member: MemberRequest, forceRefresh: Boolean): String {
-        val user = FirebaseAuth.getInstance().currentUser
-            ?: throw IllegalStateException("Sua sessão de membro expirou. Entre novamente no MIC Rhema.")
-        if (user.uid != member.id) {
-            throw IllegalStateException("A sessão Firebase não pertence ao membro ativo. Entre novamente.")
+        val auth = FirebaseAuth.getInstance()
+        var user = auth.currentUser
+
+        if (user?.uid != member.id) {
+            val phone = member.phone.filter(Char::isDigit)
+            if (phone.length !in 10..13) {
+                throw IllegalStateException("Não foi possível restaurar sua sessão do Quiz porque o telefone do perfil está inválido.")
+            }
+
+            val appContext = FirebaseApp.getInstance().applicationContext
+            val recovery = MemberSessionClient.recover(appContext, phone)
+            val recoveredMember = recovery.member
+                ?: throw IllegalStateException("Não foi possível restaurar automaticamente sua sessão do Quiz.")
+
+            if (!recovery.found || recoveredMember.id != member.id) {
+                throw IllegalStateException("O cadastro ativo mudou. Atualize o perfil e tente novamente.")
+            }
+
+            withContext(Dispatchers.Main.immediate) {
+                MemberManager.setLoggedInMember(appContext, recoveredMember)
+            }
+            user = auth.currentUser
         }
+
+        if (user == null || user.uid != member.id) {
+            throw IllegalStateException("Não foi possível alinhar a sessão do Quiz com o cadastro ativo. Tente novamente.")
+        }
+
         return user.getIdToken(forceRefresh).await().token
             ?: throw IllegalStateException("O Firebase não retornou um token válido para o Quiz.")
     }
