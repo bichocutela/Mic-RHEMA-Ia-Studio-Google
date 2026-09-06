@@ -37,8 +37,6 @@ private fun normalizeMemberPhone(value: String): String {
     return if (digits.length in 12..13 && digits.startsWith("55")) digits.drop(2) else digits
 }
 
-private fun memberPhoneDocumentId(phone: String): String = "phone_${normalizeMemberPhone(phone)}"
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(onLoginSuccess: () -> Unit) {
@@ -95,10 +93,11 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                 return@launch
             }
 
-            // Só cria uma solicitação depois que o backend confirmou que esse telefone
-            // não pertence a nenhum cadastro existente. Se a verificação falhar, não cria nada.
+            // O ID interno é estável e independente do telefone. Assim o ADM pode
+            // transferir a identidade de acesso para outro número sem mover XP,
+            // favoritos, IBR ou qualquer subcoleção da conta.
             val newRequest = MemberRequest(
-                id = memberPhoneDocumentId(cleanPhone),
+                id = java.util.UUID.randomUUID().toString(),
                 name = shortMemberName(completeName),
                 ibrCertificateName = completeName,
                 phone = cleanPhone,
