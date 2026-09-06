@@ -27,19 +27,15 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.launch
-import java.time.LocalDate
-import java.time.ZoneId
 
 private data class XpDailyMission(
     val title: String,
@@ -51,12 +47,9 @@ private data class XpDailyMission(
     val progress: Float get() = if (target <= 0) 1f else (current.toFloat() / target).coerceIn(0f, 1f)
 }
 
-private val xpBrazilZone: ZoneId = ZoneId.of("America/Recife")
-
 @Composable
 fun XpJourneyPanel(member: MemberRequest) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val account = xpAccountState.value?.takeIf { it.memberId == member.id }
     val history = xpHistoryState.value
         ?.takeIf { it.memberId == member.id }
@@ -64,58 +57,43 @@ fun XpJourneyPanel(member: MemberRequest) {
         .orEmpty()
     val journeyState = xpJourneyState.value?.takeIf { it.memberId == member.id }
     val xpUnlocked = isXpUnlocked(member)
-    val today = LocalDate.now(xpBrazilZone).toString()
     val streak = journeyState?.streak ?: 0
+    val daily = journeyState?.dailyMission ?: XpDailyMissionState()
     var selectedTab by remember(member.id) { mutableStateOf(0) }
 
     LaunchedEffect(member.id) {
+        runCatching { XpEngineClient.flushPendingNow(context, member) }
         runCatching { XpEngineClient.refreshNow(member) }
         runCatching { XpEngineClient.loadHistoryNow(member, 100) }
         runCatching { XpEngineClient.loadJourneyStateNow(member) }
     }
 
-    val todayEarns = history.filter { it.type == "earn" && it.dateKey == today }
-    fun count(vararg activities: String): Int = todayEarns.count { it.activity in activities }
-
     val dailyMissions = listOf(
         XpDailyMission(
             title = "Palavra do dia",
             description = "Conclua um capítulo da Bíblia",
-            current = count("bible_chapter"),
-            target = 1
+            current = daily.chapter,
+            target = daily.chapterTarget
         ),
         XpDailyMission(
             title = "Crescer e refletir",
             description = "Conclua um devocional, plano, livro ou aula IBR",
-            current = count("devotional", "plan_theme", "book_10", "book_complete", "ibr_lesson"),
-            target = 1
+            current = daily.growth,
+            target = daily.growthTarget
         ),
         XpDailyMission(
             title = "Conhecimento bíblico",
             description = "Acerte 3 perguntas diferentes do Quiz",
-            current = count("quiz_easy", "quiz_medium", "quiz_hard"),
-            target = 3
+            current = daily.quiz,
+            target = daily.quizTarget
         ),
         XpDailyMission(
             title = "Constância",
             description = "Complete 10 minutos realmente ativos",
-            current = count("active_5min"),
-            target = 2
+            current = daily.activeBlocks,
+            target = daily.activeBlocksTarget
         )
     )
-    val allDailyComplete = dailyMissions.all { it.completed }
-    val dailyBonusAlreadyGranted = todayEarns.any { it.activity == "daily_mission" }
-
-    LaunchedEffect(member.id, today, xpUnlocked, allDailyComplete, dailyBonusAlreadyGranted) {
-        if (xpUnlocked && allDailyComplete && !dailyBonusAlreadyGranted) {
-            XpEngineClient.award(context, "daily_mission", today) {
-                scope.launch {
-                    runCatching { XpEngineClient.loadHistoryNow(member, 100) }
-                    runCatching { XpEngineClient.loadJourneyStateNow(member) }
-                }
-            }
-        }
-    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -209,10 +187,10 @@ fun XpJourneyPanel(member: MemberRequest) {
                                 LinearProgressIndicator(progress = { mission.progress }, modifier = Modifier.fillMaxWidth())
                             }
                         }
-                        if (allDailyComplete) {
+                        if (daily.complete) {
                             Text(
-                                if (dailyBonusAlreadyGranted) "✓ Jornada de hoje concluída · bônus entregue"
-                                else "Jornada de hoje concluída · preparando +10 XP",
+                                if (daily.bonusGranted) "✓ Jornada de hoje concluída · bônus entregue"
+                                else "Jornada de hoje concluída · sincronizando +10 XP",
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -279,7 +257,7 @@ private fun xpActivityLabel(activity: String): String = when (activity) {
     "bible_chapter" -> "Capítulo bíblico concluído"
     "devotional" -> "Devocional concluído"
     "news_read" -> "Notícia lida"
-    "plan_theme" -> "Plano bíblico"
+    "plan_theme", "plan_day", "plan_complete" -> "Plano bíblico"
     "book_10", "book_complete" -> "Leitura de livro"
     "audio_10min", "audio_90" -> "Áudio"
     "video_10min", "video_90" -> "Vídeo"
