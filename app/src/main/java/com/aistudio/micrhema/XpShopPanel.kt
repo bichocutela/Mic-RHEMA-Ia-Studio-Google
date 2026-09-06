@@ -91,13 +91,13 @@ fun XpShopPanel(member: MemberRequest, xpUnlocked: Boolean) {
                 val soldOut = item.stock != null && item.stock <= 0
                 val enoughBalance = (account?.balance ?: 0) >= item.cost
                 val ownedLabel = when (item.id) {
-                    XpRewardManager.GOLD_THEME -> if (currentSettingsState.value.accentColor == AccentColor.GOLD) "Tema dourado ativo" else "Ativar tema dourado"
+                    XpRewardManager.GOLD_PLUS_THEME -> if (currentSettingsState.value.accentColor == AccentColor.GOLD) "Dourado Plus ativo" else "Ativar Dourado Plus"
                     XpRewardManager.PROMISE_FRAME -> "Moldura ativa no avatar"
                     XpRewardManager.READER_BADGE -> "Distintivo ativo no avatar"
                     else -> if (item.kind == "digital" && item.imageUrl.isNotBlank()) "Abrir recompensa" else "Já resgatado"
                 }
                 val onOwnedAction: (() -> Unit)? = when {
-                    item.id == XpRewardManager.GOLD_THEME && currentSettingsState.value.accentColor != AccentColor.GOLD -> ({ XpRewardManager.activateGoldenTheme(context, member.id) })
+                    item.id == XpRewardManager.GOLD_PLUS_THEME && currentSettingsState.value.accentColor != AccentColor.GOLD -> ({ XpRewardManager.activateGoldenPlusTheme(context, member.id) })
                     item.kind == "digital" && item.imageUrl.isNotBlank() -> ({ runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(item.imageUrl))) } })
                     else -> null
                 }
