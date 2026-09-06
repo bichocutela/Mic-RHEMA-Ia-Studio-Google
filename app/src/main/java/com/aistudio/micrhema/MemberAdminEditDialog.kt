@@ -3,7 +3,6 @@ package com.aistudio.micrhema
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.spacedBy
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -152,7 +151,7 @@ fun MemberAdminEditDialog(
                     )
                 }
             ) {
-                if (isSaving) CircularProgressIndicator(modifier = Modifier.fillMaxWidth(0.12f))
+                if (isSaving) CircularProgressIndicator()
                 else Text(if (phoneChanged) "Salvar e transferir" else "Salvar alterações")
             }
         },
