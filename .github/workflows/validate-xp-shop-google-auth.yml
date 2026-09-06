@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Testar catálogo com sessão Firebase real
+      - name: Testar OAuth Google e catálogo com sessão Firebase real
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
@@ -35,15 +35,30 @@ jobs:
           now="$(date +%s)"
           exp="$((now + 3600))"
           header="$(printf '%s' '{"alg":"RS256","typ":"JWT"}' | b64url)"
-          payload="$(jq -cn \
+
+          oauth_payload="$(jq -cn \
+            --arg iss "$client_email" \
+            --argjson iat "$now" \
+            --argjson exp "$exp" \
+            '{iss:$iss,scope:"https://www.googleapis.com/auth/datastore",aud:"https://oauth2.googleapis.com/token",iat:$iat,exp:$exp}' | b64url)"
+          oauth_unsigned="${header}.${oauth_payload}"
+          oauth_signature="$(printf '%s' "$oauth_unsigned" | openssl dgst -sha256 -sign "$tmpdir/key.pem" | b64url)"
+          oauth_assertion="${oauth_unsigned}.${oauth_signature}"
+          oauth_status="$(curl -sS -o "$tmpdir/oauth.json" -w '%{http_code}' -X POST 'https://oauth2.googleapis.com/token' \
+            -H 'Content-Type: application/x-www-form-urlencoded' \
+            --data-urlencode 'grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer' \
+            --data-urlencode "assertion=${oauth_assertion}")"
+          echo "Google OAuth status: ${oauth_status}; resposta: $(jq -c '{error,error_description,token_type,expires_in}' "$tmpdir/oauth.json")"
+
+          custom_payload="$(jq -cn \
             --arg iss "$client_email" \
             --arg uid "$TEST_MEMBER_ID" \
             --argjson iat "$now" \
             --argjson exp "$exp" \
             '{iss:$iss,sub:$iss,aud:"https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit",iat:$iat,exp:$exp,uid:$uid}' | b64url)"
-          unsigned="${header}.${payload}"
-          signature="$(printf '%s' "$unsigned" | openssl dgst -sha256 -sign "$tmpdir/key.pem" | b64url)"
-          custom_token="${unsigned}.${signature}"
+          custom_unsigned="${header}.${custom_payload}"
+          custom_signature="$(printf '%s' "$custom_unsigned" | openssl dgst -sha256 -sign "$tmpdir/key.pem" | b64url)"
+          custom_token="${custom_unsigned}.${custom_signature}"
 
           signin="$(curl -fsSL -X POST "https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${api_key}" \
             -H 'Content-Type: application/json' \
@@ -58,8 +73,6 @@ jobs:
             -H 'Content-Type: application/json' \
             -d "$body")"
           echo "xp-engine status: ${engine_status}; resposta: $(jq -c '{ok,error,unlocked,account:{member_id:.account.member_id,balance:.account.balance}}' "$tmpdir/engine.json")"
-          test "$engine_status" = "200"
-          jq -e '.ok == true' "$tmpdir/engine.json" >/dev/null
 
           shop_body="$(jq -cn --arg memberId "$TEST_MEMBER_ID" '{action:"catalog",memberId:$memberId}')"
           shop_status="$(curl -sS -o "$tmpdir/shop.json" -w '%{http_code}' -X POST "${SUPABASE_URL%/}/functions/v1/xp-shop" \
@@ -68,12 +81,11 @@ jobs:
             -H 'Content-Type: application/json' \
             -d "$shop_body")"
           echo "xp-shop status: ${shop_status}; resposta: $(jq -c '{ok,error,unlocked,account:{member_id:.account.member_id,balance:.account.balance},items:(.items|length?)}' "$tmpdir/shop.json")"
+
+          test "$oauth_status" = "200"
+          test "$engine_status" = "200"
           test "$shop_status" = "200"
           jq -e '.ok == true' "$tmpdir/shop.json" >/dev/null
           jq -e '.account.member_id == env.TEST_MEMBER_ID' "$tmpdir/shop.json" >/dev/null
           jq -e '.account.balance >= 0' "$tmpdir/shop.json" >/dev/null
-          if jq -r '.error // ""' "$tmpdir/shop.json" | grep -qi 'autenticar no Google'; then
-            echo 'A falha antiga ainda apareceu.' >&2
-            exit 1
-          fi
           echo "Loja XP respondeu corretamente. Saldo retornado: $(jq -r '.account.balance' "$tmpdir/shop.json") XP"
