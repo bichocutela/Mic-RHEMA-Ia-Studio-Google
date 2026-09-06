@@ -13,6 +13,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Collections
 import java.util.concurrent.TimeUnit
@@ -70,7 +71,7 @@ object QuizAuthorityClient {
         }
         val token = firebaseToken(member, forceRefresh)
         val builder = Request.Builder()
-            .url("$baseUrl/functions/v1/xp-quiz")
+            .url("$baseUrl/functions/v1/xp-quiz-direct")
             .header("Authorization", "Bearer $token")
             .header("Content-Type", "application/json")
         if (anonKey.isNotBlank()) builder.header("apikey", anonKey)
@@ -116,11 +117,13 @@ object QuizAuthorityClient {
     }
 
     suspend fun nextQuestionNow(member: MemberRequest, difficulty: BibleQuizDifficulty): QuizNextQuestionState {
+        val answeredIds = member.badgeActivityIds[BadgeActivityKeys.QUIZ_ANSWERED].orEmpty()
         val (_, response) = call(
             member,
             JSONObject()
                 .put("action", "status")
                 .put("difficulty", difficulty.name.lowercase())
+                .put("answeredIds", JSONArray(answeredIds))
         )
         val questionId = response.optJSONObject("question")
             ?.optString("id")
