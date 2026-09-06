@@ -15,8 +15,8 @@ object XpRewardManager {
     fun syncOwned(context: Context, memberId: String, itemIds: Collection<String>) {
         val owned = itemIds
             .asSequence()
-            .map(String::trim)
-            .filter(String::isNotBlank)
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
             .toSet()
         context.applicationContext
             .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
