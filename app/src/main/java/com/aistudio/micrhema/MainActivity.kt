@@ -180,7 +180,7 @@ class MainActivity : ComponentActivity() {
                         androidx.compose.foundation.layout.Column(androidx.compose.ui.Modifier.fillMaxSize().verticalScroll(androidx.compose.foundation.rememberScrollState())) {
                             androidx.compose.material3.Text("Ocorreu um erro inesperado. O problema foi registrado para análise.", color = androidx.compose.ui.graphics.Color.Red)
                             if (com.aistudio.micrhema.BuildConfig.DEBUG) {
-                                androidx.compose.material3.Text(lastCrash)
+                                androidx.compose.material3.Text(lastCrash.orEmpty())
                             }
                             androidx.compose.material3.Button(onClick = {
                                 CrashHandler.clearLastCrash(this@MainActivity)
