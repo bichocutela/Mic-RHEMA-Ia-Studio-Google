@@ -9,7 +9,7 @@ import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 
 /**
- * Alterações administrativas de identidade do membro.
+ * Alterações administrativas de identidade e perfil do membro.
  *
  * O memberId nunca muda ao trocar o telefone. Com isso XP, quiz, Jornada,
  * Loja XP, favoritos, IBR e subcoleções continuam ligados à mesma conta.
@@ -19,6 +19,35 @@ object MemberAdminClient {
     private fun normalizePhone(value: String): String {
         val digits = value.filter(Char::isDigit)
         return if (digits.length in 12..13 && digits.startsWith("55")) digits.drop(2) else digits
+    }
+
+    private suspend fun applyMemberPatch(
+        original: MemberRequest,
+        patch: Map<String, Any>,
+        updated: MemberRequest
+    ): MemberRequest {
+        val db = Firebase.firestore
+        db.runBatch { batch ->
+            batch.set(
+                db.collection("acessos_pendentes").document(original.id),
+                patch,
+                SetOptions.merge()
+            )
+            batch.set(
+                db.collection("users").document(original.id),
+                patch,
+                SetOptions.merge()
+            )
+        }.await()
+
+        withContext(Dispatchers.Main.immediate) {
+            val index = memberRequestsState.indexOfFirst { it.id == original.id }
+            if (index >= 0) memberRequestsState[index] = updated
+            if (loggedInMemberState.value?.id == original.id) {
+                loggedInMemberState.value = updated.copy()
+            }
+        }
+        return updated
     }
 
     suspend fun updateMemberData(
@@ -46,9 +75,6 @@ object MemberAdminClient {
         }
 
         val db = Firebase.firestore
-
-        // O novo telefone precisa ser exclusivo. Consultamos tanto o formato nacional
-        // quanto o legado com 55 para não deixar uma duplicidade antiga passar.
         val matches = linkedMapOf<String, MemberRequest>()
         for (variant in linkedSetOf(cleanPhone, "55$cleanPhone")) {
             val snapshot = db.collection("acessos_pendentes")
@@ -93,28 +119,31 @@ object MemberAdminClient {
             patch["phoneChangedByAdminAt"] = now
         }
 
-        // Espelha os dados nas duas cópias do perfil sem tocar em progresso/XP.
-        db.runBatch { batch ->
-            batch.set(
-                db.collection("acessos_pendentes").document(original.id),
-                patch,
-                SetOptions.merge()
-            )
-            batch.set(
-                db.collection("users").document(original.id),
-                patch,
-                SetOptions.merge()
-            )
-        }.await()
+        applyMemberPatch(original, patch, updated)
+    }
 
-        withContext(Dispatchers.Main.immediate) {
-            val index = memberRequestsState.indexOfFirst { it.id == original.id }
-            if (index >= 0) memberRequestsState[index] = updated
-            if (loggedInMemberState.value?.id == original.id) {
-                loggedInMemberState.value = updated.copy()
-            }
-        }
-
-        updated
+    /**
+     * Atualiza somente o vínculo da foto. Não regrava permissões, badges, XP ou
+     * outros dados do membro, reduzindo o risco de uma falha de sincronização.
+     */
+    suspend fun updateMemberPhoto(
+        original: MemberRequest,
+        signedUrl: String,
+        storagePath: String
+    ): MemberRequest = withContext(Dispatchers.IO) {
+        val now = System.currentTimeMillis()
+        val updated = original.copy(
+            profilePhotoUrl = signedUrl.trim(),
+            supabaseStoragePath = storagePath.trim(),
+            updatedAt = now
+        )
+        val patch = mapOf<String, Any>(
+            // O caminho é a referência persistente. A URL assinada é mantida no
+            // estado local para aparecer imediatamente e é renovada nos próximos syncs.
+            "profilePhotoUrl" to "",
+            "supabaseStoragePath" to updated.supabaseStoragePath,
+            "updatedAt" to now
+        )
+        applyMemberPatch(original, patch, updated)
     }
 }
