@@ -545,6 +545,8 @@ private fun MemberAdminDetailsDialog(
                     }
                 }
                 HorizontalDivider(modifier = Modifier.fillMaxWidth())
+                MemberXpAdminSection(member)
+                HorizontalDivider(modifier = Modifier.fillMaxWidth())
                 MemberInfoRow("Telefone", member.phone)
                 MemberInfoRow("Nome completo do certificado IBR", member.ibrCertificateName)
                 MemberInfoRow("E-mail para certificado IBR", member.email)
