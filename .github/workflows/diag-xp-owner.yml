@@ -1,0 +1,37 @@
+name: Diagnostic XP Owner
+
+on:
+  push:
+    branches:
+      - diag/xp-owner-110
+
+permissions:
+  contents: read
+
+jobs:
+  lookup:
+    name: Cruzar member_id com Firebase
+    runs-on: ubuntu-latest
+    steps:
+      - name: Autenticar no Google
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}'
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/datastore
+
+      - name: Ler perfil sanitizado
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          MEMBER_ID: 97a0913b-88e5-4d5e-b112-e036b276a794
+        run: |
+          set -euo pipefail
+          url="https://firestore.googleapis.com/v1/projects/mic-rhema/databases/(default)/documents/acessos_pendentes/${MEMBER_ID}"
+          response="$(curl -fsSL -H "Authorization: Bearer ${ACCESS_TOKEN}" "$url")"
+          name="$(printf '%s' "$response" | jq -r '.fields.name.stringValue // ""')"
+          phone="$(printf '%s' "$response" | jq -r '.fields.phone.stringValue // ""' | tr -cd '0-9')"
+          last4="${phone: -4}"
+          printf 'MEMBER_ID=%s\n' "$MEMBER_ID"
+          printf 'NAME=%s\n' "$name"
+          printf 'PHONE_LAST4=%s\n' "$last4"
