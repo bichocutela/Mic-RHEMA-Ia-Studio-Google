@@ -1,0 +1,102 @@
+name: Process Badges Block 1
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/badges-hd-block1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Padronizar níveis 8 a 12 em 1024x1024
+        run: |
+          python -m pip install --quiet pillow
+          python <<'PY'
+          from pathlib import Path
+          from PIL import Image, ImageFilter
+
+          root = Path('app/src/main/res/drawable-nodpi')
+          for level in range(8, 13):
+              path = root / f'profile_emblem_level_{level:02d}.webp'
+              image = Image.open(path).convert('RGBA')
+              alpha = image.getchannel('A')
+              bbox = alpha.getbbox()
+              if not bbox:
+                  raise SystemExit(f'Emblema {level} sem conteúdo visível')
+
+              content = image.crop(bbox)
+              # Mantém o design original inteiro e reserva 52 px de margem em cada lado.
+              max_content = 920
+              scale = min(max_content / content.width, max_content / content.height)
+              target = (
+                  max(1, round(content.width * scale)),
+                  max(1, round(content.height * scale)),
+              )
+              content = content.resize(target, Image.Resampling.LANCZOS)
+              # Nitidez leve para compensar os assets antigos de baixa resolução sem redesenhar.
+              rgb = content.convert('RGB').filter(ImageFilter.UnsharpMask(radius=1.4, percent=125, threshold=3))
+              rgb.putalpha(content.getchannel('A'))
+              content = rgb
+
+              canvas = Image.new('RGBA', (1024, 1024), (0, 0, 0, 0))
+              x = (1024 - content.width) // 2
+              y = (1024 - content.height) // 2
+              canvas.alpha_composite(content, (x, y))
+              canvas.save(path, 'WEBP', lossless=True, quality=100, method=6)
+
+              check = Image.open(path).convert('RGBA')
+              if check.size != (1024, 1024):
+                  raise SystemExit(f'Emblema {level}: resolução incorreta {check.size}')
+              if check.getchannel('A').getextrema()[0] != 0:
+                  raise SystemExit(f'Emblema {level}: fundo não é transparente')
+              cb = check.getchannel('A').getbbox()
+              if cb is None or min(cb[0], cb[1], 1024-cb[2], 1024-cb[3]) < 45:
+                  raise SystemExit(f'Emblema {level}: margem segura insuficiente {cb}')
+              print(f'Nível {level}: 1024x1024, RGBA, bbox={cb}, bytes={path.stat().st_size}')
+          PY
+
+      - name: Validar ordem do catálogo 8 a 12
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          text = Path('app/src/main/java/com/aistudio/micrhema/BadgeCatalog.kt').read_text()
+          expected = [
+              ('semente_da_fe', 'Semente da Fé', 8),
+              ('caminho_da_promessa', 'Caminho da Promessa', 9),
+              ('escudo_da_fe', 'Escudo da Fé', 10),
+              ('aguas_vivas', 'Águas Vivas', 11),
+              ('videira_verdadeira', 'Videira Verdadeira', 12),
+          ]
+          positions=[]
+          for badge_id, name, level in expected:
+              needle=f'BiblicalBadge("{badge_id}", "{name}"'
+              pos=text.find(needle)
+              if pos < 0:
+                  raise SystemExit(f'Catálogo não contém nível {level}: {name}')
+              positions.append(pos)
+          if positions != sorted(positions):
+              raise SystemExit('Ordem dos níveis 8–12 está incorreta')
+          print('Ordem 8–12 validada:', ' -> '.join(x[1] for x in expected))
+          PY
+
+      - name: Commitar bloco 1 processado
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/src/main/res/drawable-nodpi/profile_emblem_level_{08,09,10,11,12}.webp
+          if git diff --cached --quiet; then
+            echo 'Nenhuma alteração de asset.'
+          else
+            git commit -m 'fix(badges): padronizar níveis 8 a 12 em 1024'
+            git push origin HEAD:fix/badges-hd-block1
+          fi
