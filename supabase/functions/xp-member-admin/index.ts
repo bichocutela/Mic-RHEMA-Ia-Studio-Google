@@ -93,6 +93,39 @@ async function getDocument(projectId: string, token: string, collection: string,
   return await response.json() as FirestoreDocument;
 }
 
+async function findDocumentByField(
+  projectId: string,
+  token: string,
+  collection: string,
+  fieldPath: string,
+  value: string,
+): Promise<FirestoreDocument | null> {
+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents:runQuery`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId: collection }],
+        where: {
+          fieldFilter: {
+            field: { fieldPath },
+            op: "EQUAL",
+            value: { stringValue: value },
+          },
+        },
+        limit: 1,
+      },
+    }),
+  });
+  if (!response.ok) throw new Error("Não foi possível validar a conta administrativa.");
+  const rows = await response.json() as Array<{ document?: FirestoreDocument }>;
+  return rows.find((row) => row.document)?.document ?? null;
+}
+
 async function requireAdmin(request: Request): Promise<void> {
   const auth = request.headers.get("authorization") ?? "";
   const bearer = auth.match(/^Bearer\s+(.+)$/i)?.[1] ?? "";
@@ -106,11 +139,24 @@ async function requireAdmin(request: Request): Promise<void> {
   const uid = clean(verified.payload.sub, 200);
   if (!uid) throw new Error("Sessão administrativa inválida.");
 
+  if (verified.payload.isAdmin === true) return;
+
   const serviceAccount = JSON.parse(Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON") ?? "{}") as ServiceAccount;
   const projectId = serviceAccount.project_id || FIREBASE_PROJECT_ID;
   const token = await googleAccessToken(serviceAccount);
-  const access = documentData(await getDocument(projectId, token, "acessos_pendentes", uid));
-  if (access.isAdmin !== true) throw new Error("Acesso administrativo obrigatório.");
+
+  const accessById = documentData(await getDocument(projectId, token, "acessos_pendentes", uid));
+  if (accessById.isAdmin === true) return;
+
+  const accessByFirebaseUid = documentData(
+    await findDocumentByField(projectId, token, "acessos_pendentes", "firebaseUid", uid),
+  );
+  if (accessByFirebaseUid.isAdmin === true) return;
+
+  const userById = documentData(await getDocument(projectId, token, "users", uid));
+  if (userById.isAdmin === true) return;
+
+  throw new Error("Acesso administrativo obrigatório.");
 }
 
 Deno.serve(async (request) => {
