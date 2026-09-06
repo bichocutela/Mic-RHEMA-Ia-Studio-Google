@@ -62,10 +62,13 @@ fun XpJourneyPanel(member: MemberRequest) {
     var selectedTab by remember(member.id) { mutableStateOf(0) }
 
     LaunchedEffect(member.id) {
-        runCatching { XpEngineClient.flushPendingNow(context, member) }
-        runCatching { XpEngineClient.refreshNow(member) }
-        runCatching { XpEngineClient.loadHistoryNow(member, 100) }
-        runCatching { XpEngineClient.loadJourneyStateNow(member) }
+        // Antes de renderizar o saldo, corrige silenciosamente uma eventual sessão
+        // Firebase antiga e consulta o ledger canônico. Assim o membro não precisa
+        // responder uma pergunta para o XP aparecer.
+        val syncedMember = runCatching { XpSessionSynchronizer.synchronize(context, member) }
+            .getOrDefault(member)
+        runCatching { XpEngineClient.loadHistoryNow(syncedMember, 100) }
+        runCatching { XpEngineClient.loadJourneyStateNow(syncedMember) }
     }
 
     val dailyMissions = listOf(
