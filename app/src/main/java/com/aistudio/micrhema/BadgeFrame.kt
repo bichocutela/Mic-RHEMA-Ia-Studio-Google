@@ -91,6 +91,7 @@ private fun profileEmblemAvatarFraction(level: Int): Float = when (level) {
     11 -> 0.5184f
     12 -> 0.5546f
     13 -> 0.4715f
+    14 -> 0.4375f
     else -> 0.58f
 }
 
