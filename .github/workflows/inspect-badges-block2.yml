@@ -18,11 +18,10 @@ jobs:
             f="app/src/main/res/drawable-nodpi/profile_emblem_level_${n}.webp"
             echo "=== NIVEL $n ==="
             file "$f"
-            identify "$f" || true
-            convert "$f[0]" -thumbnail '180x180>' -background white -gravity center -extent 190x190 "/tmp/b2/$n.png"
+            ffprobe -v error -select_streams v:0 -show_entries stream=width,height,pix_fmt -of default=nw=1 "$f"
+            ffmpeg -v error -y -i "$f" -vf "scale=180:180:force_original_aspect_ratio=decrease,pad=190:190:(ow-iw)/2:(oh-ih)/2:white" -frames:v 1 "/tmp/b2/$n.png"
           done
-          convert /tmp/b2/13.png /tmp/b2/14.png /tmp/b2/15.png /tmp/b2/16.png /tmp/b2/17.png +append block2-contact.jpg
       - uses: actions/upload-artifact@v4
         with:
           name: block2-contact
-          path: block2-contact.jpg
+          path: /tmp/b2
