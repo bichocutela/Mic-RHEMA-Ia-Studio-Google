@@ -3,10 +3,13 @@ package com.aistudio.micrhema
 import androidx.compose.material.icons.filled.*
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -22,6 +25,7 @@ fun DonationsScreen() {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp, vertical = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -84,11 +88,11 @@ fun DonationsScreen() {
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
-
             val pixKey = pixKeyState.value
+            val qrCodeUrl = pixQrCodeUrlState.value
 
-            if (pixKey.isEmpty()) {
+            if (pixKey.isEmpty() && qrCodeUrl.isEmpty()) {
+                Spacer(modifier = Modifier.height(18.dp))
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -96,14 +100,17 @@ fun DonationsScreen() {
                     )
                 ) {
                     Text(
-                        text = "A chave PIX da igreja ainda não foi configurada.",
+                        text = "As informações para contribuição ainda não foram configuradas.",
                         modifier = Modifier.fillMaxWidth().padding(20.dp),
                         style = MaterialTheme.typography.bodyMedium,
                         textAlign = TextAlign.Center,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-            } else {
+            }
+
+            if (pixKey.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(18.dp))
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -147,7 +154,53 @@ fun DonationsScreen() {
                 }
             }
 
-            Spacer(modifier = Modifier.weight(1f))
+            if (qrCodeUrl.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(18.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.46f)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "QR Code PIX",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Text(
+                            text = "Escaneie para contribuir.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.78f)
+                        )
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Surface(
+                            shape = MaterialTheme.shapes.large,
+                            color = Color.White,
+                            tonalElevation = 1.dp
+                        ) {
+                            coil.compose.AsyncImage(
+                                model = qrCodeUrl,
+                                contentDescription = "QR Code PIX",
+                                modifier = Modifier.padding(12.dp).size(220.dp),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(28.dp))
         }
     }
 }
