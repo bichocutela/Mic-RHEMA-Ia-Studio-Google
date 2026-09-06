@@ -63,7 +63,12 @@ fun BibleJourneyDialog(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var difficulty by remember { mutableStateOf(BibleQuizDifficulty.EASY) }
+    val savedAtOpen = remember(member.id, member.phone) {
+        BibleJourneySessionStore.load(context, member)
+    }
+    var difficulty by remember(member.id, member.phone) {
+        mutableStateOf(savedAtOpen?.difficulty ?: BibleQuizDifficulty.EASY)
+    }
     var currentQuestionId by remember { mutableStateOf<String?>(null) }
     var reviewMode by remember { mutableStateOf(false) }
     var hintUsed by remember { mutableStateOf(BibleQuizHintUsage.NONE) }
@@ -80,11 +85,13 @@ fun BibleJourneyDialog(
     var serverTotalCount by remember { mutableIntStateOf(-1) }
     var serverRemainingCount by remember { mutableIntStateOf(-1) }
 
-    val liveMember = loggedInMemberState.value?.takeIf { it.id == member.id } ?: member
+    val liveMember = loggedInMemberState.value?.takeIf { current ->
+        current.id == member.id || current.phone.filter(Char::isDigit) == member.phone.filter(Char::isDigit)
+    } ?: member
     val stats = BibleJourneyProgressTracker.stats(liveMember)
     val badgeProgress = calculateBadgeProgress(liveMember)
     val missionProgress = calculateBibleMissionProgress(liveMember)
-    val questions = remember(difficulty, member.id) {
+    val questions = remember(difficulty, liveMember.id) {
         (BibleQuizCatalog.questions.filter { it.difficulty == difficulty } +
             BibleQuizExpansion.byDifficulty(difficulty)).shuffled()
     }
@@ -94,7 +101,7 @@ fun BibleJourneyDialog(
     val totalDisplay = if (serverTotalCount > 0) serverTotalCount else questions.size
     val question = currentQuestionId?.let { id -> questions.firstOrNull { it.id == id } }
 
-    LaunchedEffect(difficulty, liveMember.id, questions, questionReloadKey) {
+    LaunchedEffect(difficulty, liveMember.id, liveMember.phone, questions, questionReloadKey) {
         questionLoading = true
         questionLoadFailed = false
         errorMessage = ""
@@ -106,23 +113,52 @@ fun BibleJourneyDialog(
         answerLoading = false
         currentQuestionId = null
 
+        val saved = BibleJourneySessionStore.load(context, liveMember)
+            ?.takeIf { it.difficulty == difficulty }
+        val savedQuestion = saved?.let { state -> questions.firstOrNull { it.id == state.questionId } }
+        val savedSubmission = if (saved != null && savedQuestion != null) {
+            runCatching { saved.toSubmission(savedQuestion) }.getOrNull()
+        } else null
+        if (saved != null && (savedQuestion == null || savedSubmission == null)) {
+            BibleJourneySessionStore.clear(context, liveMember)
+        }
+
         runCatching { QuizAuthorityClient.nextQuestionNow(liveMember, difficulty) }
             .onSuccess { state ->
                 serverAnsweredCount = state.answered
                 serverTotalCount = state.total
                 serverRemainingCount = state.remaining
-                val nextId = state.questionId?.takeIf { id -> questions.any { it.id == id } }
-                if (state.remaining > 0 && nextId == null) {
-                    questionLoadFailed = true
-                    errorMessage = "O servidor retornou uma pergunta que não existe neste catálogo. Atualize o aplicativo e tente novamente."
+
+                // Se existe uma resposta final que o membro ainda não decidiu
+                // continuar, ela tem prioridade sobre o próximo sorteio do servidor.
+                if (savedQuestion != null && savedSubmission != null) {
+                    currentQuestionId = savedQuestion.id
+                    selectedOption = savedSubmission.result.selectedOptionIndex
+                    hintUsed = savedSubmission.result.hintUsed
+                    submission = savedSubmission
                 } else {
-                    currentQuestionId = nextId
+                    val nextId = state.questionId?.takeIf { id -> questions.any { it.id == id } }
+                    if (state.remaining > 0 && nextId == null) {
+                        questionLoadFailed = true
+                        errorMessage = "O servidor retornou uma pergunta que não existe neste catálogo. Atualize o aplicativo e tente novamente."
+                    } else {
+                        currentQuestionId = nextId
+                    }
                 }
             }
             .onFailure {
-                questionLoadFailed = true
-                serverRemainingCount = -1
-                errorMessage = it.message ?: "Não foi possível consultar as perguntas já respondidas."
+                // A última tela confirmada continua disponível até offline. Só
+                // precisamos do servidor novamente quando o membro decidir avançar.
+                if (savedQuestion != null && savedSubmission != null) {
+                    currentQuestionId = savedQuestion.id
+                    selectedOption = savedSubmission.result.selectedOptionIndex
+                    hintUsed = savedSubmission.result.hintUsed
+                    submission = savedSubmission
+                } else {
+                    questionLoadFailed = true
+                    serverRemainingCount = -1
+                    errorMessage = it.message ?: "Não foi possível consultar as perguntas já respondidas."
+                }
             }
         questionLoading = false
     }
@@ -154,16 +190,32 @@ fun BibleJourneyDialog(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     BibleQuizDifficulty.entries.forEach { item ->
                         val selected = item == difficulty
+                        val canChangeDifficulty = submission == null && !answerLoading && !hintLoading && !questionLoading
                         if (selected) {
-                            Button(onClick = { if (!answerLoading && !hintLoading && !questionLoading) difficulty = item }, contentPadding = ButtonDefaults.ContentPadding) {
+                            Button(
+                                onClick = { if (canChangeDifficulty) difficulty = item },
+                                enabled = canChangeDifficulty,
+                                contentPadding = ButtonDefaults.ContentPadding
+                            ) {
                                 Text("${item.label} · ${item.baseXp} XP")
                             }
                         } else {
-                            OutlinedButton(onClick = { if (!answerLoading && !hintLoading && !questionLoading) difficulty = item }, contentPadding = ButtonDefaults.ContentPadding) {
+                            OutlinedButton(
+                                onClick = { if (canChangeDifficulty) difficulty = item },
+                                enabled = canChangeDifficulty,
+                                contentPadding = ButtonDefaults.ContentPadding
+                            ) {
                                 Text(item.label)
                             }
                         }
                     }
+                }
+                if (submission != null && !reviewMode) {
+                    Text(
+                        "Esta é sua última resposta. Ela ficará aqui até você decidir sortear a próxima pergunta.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
 
                 Text(
@@ -296,6 +348,8 @@ fun BibleJourneyDialog(
                                         selectedOption = value.result.selectedOptionIndex
                                         hintUsed = value.result.hintUsed
                                         submission = value
+                                        val latestMember = loggedInMemberState.value ?: liveMember
+                                        BibleJourneySessionStore.save(context, latestMember, difficulty, value)
                                     }
                                 }.onFailure {
                                     errorMessage = it.message ?: "Não foi possível registrar esta resposta."
@@ -329,7 +383,7 @@ fun BibleJourneyDialog(
                                     answerLoading = true
                                     errorMessage = ""
                                     scope.launch {
-                                        val latestMember = loggedInMemberState.value?.takeIf { it.id == member.id } ?: liveMember
+                                        val latestMember = loggedInMemberState.value ?: liveMember
                                         runCatching { QuizAuthorityClient.nextQuestionNow(latestMember, difficulty) }
                                             .onSuccess { state ->
                                                 serverAnsweredCount = state.answered
@@ -339,6 +393,9 @@ fun BibleJourneyDialog(
                                                 if (state.remaining > 0 && nextId == null) {
                                                     errorMessage = "O servidor retornou uma pergunta que não existe neste catálogo. Atualize o aplicativo e tente novamente."
                                                 } else {
+                                                    // Só aqui a tela final deixa de ser a tela de retomada.
+                                                    // Se a rede falhar, ela continua salva para a próxima abertura.
+                                                    BibleJourneySessionStore.clear(context, latestMember)
                                                     currentQuestionId = nextId
                                                     hintUsed = BibleQuizHintUsage.NONE
                                                     selectedOption = -1
@@ -389,7 +446,7 @@ fun BibleJourneyDialog(
                 }
 
                 Text(
-                    "Regra de progresso: a próxima pergunta é sorteada no servidor apenas entre as ainda não respondidas. Se o servidor estiver indisponível, o Quiz normal espera a sincronização em vez de repetir uma pergunta local. Dicas só podem aumentar de nível (nenhuma → sutil → direta), nunca voltar para um desconto menor. A revisão continua opcional e vale 0 XP.",
+                    "Regra de progresso: a próxima pergunta é sorteada no servidor apenas entre as ainda não respondidas. A última resposta confirmada permanece na tela até você decidir avançar. Se o servidor estiver indisponível, o Quiz normal espera a sincronização em vez de repetir uma pergunta local. Dicas só podem aumentar de nível (nenhuma → sutil → direta), nunca voltar para um desconto menor. A revisão continua opcional e vale 0 XP.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
