@@ -1,0 +1,71 @@
+name: Process Badge Level 08
+
+on:
+  push:
+    branches:
+      - fix/badge-level08-only
+
+permissions:
+  contents: write
+
+jobs:
+  process:
+    if: github.event.head_commit.message == 'ci: processar somente emblema nível 8'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Instalar ferramentas
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq webp imagemagick
+      - name: Recuperar nitidez preservando transparência
+        run: |
+          set -euo pipefail
+          f='app/src/main/res/drawable-nodpi/profile_emblem_level_08.webp'
+          dwebp "$f" -o /tmp/original.png
+
+          # Guarda o alpha original sem qualquer alteração.
+          convert /tmp/original.png -alpha extract /tmp/alpha.png
+
+          # Trabalha somente o RGB da arte existente: contraste local suave + nitidez.
+          convert /tmp/original.png \
+            -alpha off \
+            -colorspace sRGB \
+            -sigmoidal-contrast 1.6,50% \
+            -unsharp 0x1.15+1.15+0.015 \
+            /tmp/enhanced_rgb.png
+
+          # Reaplica exatamente a máscara alpha original.
+          convert /tmp/enhanced_rgb.png /tmp/alpha.png \
+            -alpha off -compose CopyOpacity -composite /tmp/enhanced.png
+
+          cwebp -quiet -lossless -z 9 -alpha_q 100 -metadata none /tmp/enhanced.png -o "$f"
+
+          echo '=== VALIDACAO ==='
+          webpinfo "$f" | grep -E 'Canvas size|Width|Height|Alpha' || true
+          dwebp "$f" -o /tmp/check.png
+          identify -format 'size=%wx%h channels=%[channels]\n' /tmp/check.png
+          convert /tmp/check.png -alpha extract -format 'alpha_min=%[fx:minima] alpha_max=%[fx:maxima] alpha_mean=%[fx:mean]\n' info:
+          convert /tmp/check.png -alpha extract -threshold 1 -trim -format 'bbox=%wx%h%O\n' info:
+
+          # O alpha precisa ser idêntico ao original.
+          convert /tmp/check.png -alpha extract /tmp/check_alpha.png
+          compare -metric AE /tmp/alpha.png /tmp/check_alpha.png null: 2>/tmp/alpha_diff.txt || true
+          alpha_diff="$(cat /tmp/alpha_diff.txt)"
+          echo "alpha_pixels_changed=${alpha_diff}"
+          test "$alpha_diff" = '0'
+
+          dims="$(identify -format '%wx%h' /tmp/check.png)"
+          test "$dims" = '1024x1024'
+
+      - name: Commit somente do nível 8
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/src/main/res/drawable-nodpi/profile_emblem_level_08.webp
+          git diff --cached --quiet && { echo 'Nenhuma alteração binária necessária.'; exit 0; }
+          git commit -m 'fix(badge): recuperar qualidade HD do nível 8'
+          git push origin HEAD:fix/badge-level08-only
