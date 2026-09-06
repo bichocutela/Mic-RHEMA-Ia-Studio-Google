@@ -6,9 +6,8 @@ import org.json.JSONObject
 /**
  * Preserva a última tela de resultado da Jornada Bíblica por membro.
  *
- * O objetivo é simples: fechar o diálogo não significa "continuar". A resposta
- * final fica salva até que o membro toque explicitamente em "Sortear próxima
- * pergunta" ou mude de dificuldade.
+ * Fechar o diálogo não significa "continuar": a resposta final permanece salva
+ * até que o membro toque explicitamente em "Sortear próxima pergunta".
  */
 data class BibleJourneySavedResult(
     val difficulty: BibleQuizDifficulty,
@@ -53,13 +52,19 @@ data class BibleJourneySavedResult(
 object BibleJourneySessionStore {
     private const val PREFS = "micrhema_bible_journey_session"
 
-    private fun key(memberId: String) = "member:${memberId.trim()}"
+    /** O telefone é a identidade portátil da conta e sobrevive à consolidação de UID. */
+    private fun key(member: MemberRequest): String {
+        val phone = member.phone.filter(Char::isDigit).let { digits ->
+            if (digits.length in 12..13 && digits.startsWith("55")) digits.drop(2) else digits
+        }
+        return if (phone.length in 10..11) "phone:$phone" else "member:${member.id.trim()}"
+    }
 
-    fun load(context: Context, memberId: String): BibleJourneySavedResult? {
-        if (memberId.isBlank()) return null
+    fun load(context: Context, member: MemberRequest): BibleJourneySavedResult? {
+        if (member.id.isBlank() && member.phone.isBlank()) return null
         val raw = context.applicationContext
             .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString(key(memberId), null)
+            .getString(key(member), null)
             ?: return null
         return runCatching {
             val json = JSONObject(raw)
@@ -87,11 +92,11 @@ object BibleJourneySessionStore {
 
     fun save(
         context: Context,
-        memberId: String,
+        member: MemberRequest,
         difficulty: BibleQuizDifficulty,
         submission: BibleQuizSubmission
     ) {
-        if (memberId.isBlank()) return
+        if (member.id.isBlank() && member.phone.isBlank()) return
         val result = submission.result
         val json = JSONObject()
             .put("difficulty", difficulty.name)
@@ -110,16 +115,16 @@ object BibleJourneySessionStore {
         context.applicationContext
             .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit()
-            .putString(key(memberId), json.toString())
+            .putString(key(member), json.toString())
             .apply()
     }
 
-    fun clear(context: Context, memberId: String) {
-        if (memberId.isBlank()) return
+    fun clear(context: Context, member: MemberRequest) {
+        if (member.id.isBlank() && member.phone.isBlank()) return
         context.applicationContext
             .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit()
-            .remove(key(memberId))
+            .remove(key(member))
             .apply()
     }
 }
