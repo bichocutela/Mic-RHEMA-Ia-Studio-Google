@@ -62,7 +62,8 @@ object BibleNewsPagination {
             .addSnapshotListener { snapshot, error ->
                 if (error != null || snapshot == null) return@addSnapshotListener
                 if (snapshot.isEmpty) {
-                    bibleNewsState.clear()
+                    // Migração progressiva: uma coleção remota ainda vazia não apaga o
+                    // catálogo empacotado que mantém versões antigas funcionando offline.
                     lastDocument = null
                     hasMore = false
                     return@addSnapshotListener
@@ -90,7 +91,7 @@ object BibleNewsPagination {
             .await()
 
         if (snapshot.isEmpty) {
-            if (loadedAdditionalPages == 0) bibleNewsState.clear()
+            // Mantém o fallback local até que o catálogo remoto seja publicado.
             hasMore = false
             return
         }
