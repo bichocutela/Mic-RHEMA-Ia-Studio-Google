@@ -29,6 +29,25 @@ class FCMService : FirebaseMessagingService() {
         val collection = remoteMessage.data["collection"].orEmpty()
         val version = remoteMessage.data["version"].orEmpty()
 
+        // Push somente de dados: acorda o sincronizador e não precisa exibir aviso.
+        // O painel pode enviar category=content_sync após publicar conteúdo.
+        if (rawCategory == "content_sync") {
+            SilentContentSyncManager.enqueueImmediate(this, force = true)
+            return
+        }
+
+        // Os pushes de conteúdo já usados pelo app também acionam a atualização do
+        // cache. Isso mantém compatibilidade com o painel atual, sem exigir que todas
+        // as publicações sejam migradas para content_sync no mesmo dia.
+        val silentlySyncedCollections = setOf(
+            "conteudos_books", "conteudos_audios", "conteudos_videos", "conteudos_albums",
+            "devocionais", "events", "cultos_agenda", "carousel_items", "ibr_courses",
+            "bible_news", "app_tabs"
+        )
+        if (collection in silentlySyncedCollections) {
+            SilentContentSyncManager.enqueueImmediate(this, force = true)
+        }
+
         if (remoteMessage.notification == null && remoteMessage.data.isEmpty()) return
 
         // Release nova: o push instantâneo é reservado ao ADM que estiver logado.
