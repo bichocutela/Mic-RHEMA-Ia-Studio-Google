@@ -1,0 +1,42 @@
+name: Inspect Badges Block 3
+on:
+  push:
+    branches: [fix/badges-hd-block3]
+    paths: ['.github/workflows/inspect-badges-block3.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Instalar ferramentas
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq webp imagemagick
+      - name: Inspecionar níveis 18 a 22
+        shell: bash
+        run: |
+          set +e
+          mkdir -p /tmp/contact
+          failed=0
+          for n in 18 19 20 21 22; do
+            f="app/src/main/res/drawable-nodpi/profile_emblem_level_${n}.webp"
+            echo "=== NIVEL $n ==="
+            echo "bytes=$(stat -c%s "$f" 2>/dev/null || echo 0)"
+            webpinfo "$f" | grep -E 'Canvas size|Width|Height|Alpha' || true
+            if dwebp "$f" -o "/tmp/contact/${n}.png"; then
+              identify -format 'decoded=%wx%h channels=%[channels]\n' "/tmp/contact/${n}.png"
+              convert "/tmp/contact/${n}.png" -thumbnail '280x280>' -background '#20242b' -gravity center -extent 300x300 "/tmp/contact/${n}_thumb.png"
+            else
+              echo "decode=FAILED"
+              failed=1
+              convert -size 300x300 xc:'#20242b' -gravity center -fill white -pointsize 30 -annotate 0 "Nível $n\nCORROMPIDO" "/tmp/contact/${n}_thumb.png"
+            fi
+          done
+          convert /tmp/contact/18_thumb.png /tmp/contact/19_thumb.png /tmp/contact/20_thumb.png /tmp/contact/21_thumb.png /tmp/contact/22_thumb.png +append badge-contact-18-22.png
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: badge-contact-18-22
+          path: badge-contact-18-22.png
