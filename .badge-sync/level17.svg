@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+<defs>
+ <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#632500"/><stop offset=".18" stop-color="#ffd554"/><stop offset=".38" stop-color="#fff1a2"/><stop offset=".62" stop-color="#d78200"/><stop offset="1" stop-color="#4c1700"/></linearGradient>
+ <linearGradient id="purple" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#1c003d"/><stop offset=".25" stop-color="#6e169f"/><stop offset=".52" stop-color="#b734df"/><stop offset=".8" stop-color="#46106f"/><stop offset="1" stop-color="#19002d"/></linearGradient>
+ <radialGradient id="jewel"><stop stop-color="#e7b6ff"/><stop offset=".25" stop-color="#aa42ef"/><stop offset=".62" stop-color="#5a14ad"/><stop offset="1" stop-color="#20005c"/></radialGradient>
+ <filter id="glow"><feGaussianBlur stdDeviation="7" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<!-- royal ring -->
+<circle cx="512" cy="505" r="337" fill="none" stroke="#3c0a52" stroke-width="76"/>
+<circle cx="512" cy="505" r="337" fill="none" stroke="url(#purple)" stroke-width="60"/>
+<circle cx="512" cy="505" r="337" fill="none" stroke="url(#gold)" stroke-width="25"/>
+<circle cx="512" cy="505" r="292" fill="none" stroke="url(#gold)" stroke-width="10"/>
+<!-- crown -->
+<g transform="translate(512 168)" filter="url(#glow)" stroke="#6a2700" stroke-width="6">
+ <path d="M-155 46-132-73-69 5 0-112 69 5 132-73 155 46 112 80-112 80z" fill="url(#gold)"/>
+ <path d="M-119 43-105-29-55 26 0-67 55 26 105-29 119 43z" fill="url(#purple)"/>
+ <rect x="-135" y="43" width="270" height="55" rx="22" fill="url(#gold)"/>
+ <path d="M0-73 30-31 0 12-30-31z" fill="url(#jewel)" stroke="#fff0a0"/>
+ <circle cx="-81" cy="57" r="17" fill="url(#jewel)"/><circle cx="0" cy="57" r="18" fill="url(#jewel)"/><circle cx="81" cy="57" r="17" fill="url(#jewel)"/>
+</g>
+<!-- side ornaments -->
+<g fill="url(#gold)" stroke="#6b2700" stroke-width="5">
+ <path d="M193 350c-47 63-61 119-41 178 21-46 51-73 96-91-33-22-48-49-55-87z"/>
+ <path d="M831 350c47 63 61 119 41 178-21-46-51-73-96-91 33-22 48-49 55-87z"/>
+ <path d="M190 612c-37 61-42 112-17 164 18-42 47-67 89-81-34-22-52-48-72-83z"/>
+ <path d="M834 612c37 61 42 112 17 164-18-42-47-67-89-81 34-22 52-48 72-83z"/>
+</g>
+<!-- jewels around frame -->
+<g fill="url(#jewel)" stroke="url(#gold)" stroke-width="9">
+ <path d="M265 352l28-39 29 39-29 40z"/><path d="M702 352l29-39 28 39-28 40z"/>
+ <circle cx="247" cy="666" r="29"/><circle cx="777" cy="666" r="29"/>
+</g>
+<!-- winged lower crest -->
+<g stroke="#6b2700" stroke-width="5">
+ <path d="M512 802c-93-38-163-32-243-5 55 26 92 54 120 98-49-12-90-10-132 2 67 49 140 63 255 39z" fill="url(#gold)"/>
+ <path d="M512 802c93-38 163-32 243-5-55 26-92 54-120 98 49-12 90-10 132 2-67 49-140 63-255 39z" fill="url(#gold)"/>
+ <path d="M474 829c-69-19-118-22-167-14 50 22 85 45 111 81z" fill="#d9dbe6"/>
+ <path d="M550 829c69-19 118-22 167-14-50 22-85 45-111 81z" fill="#d9dbe6"/>
+</g>
+<!-- central royal gem -->
+<g transform="translate(512 858)" filter="url(#glow)">
+ <path d="M0-88 62-36 43 46 0 90-43 46-62-36z" fill="url(#gold)" stroke="#6b2700" stroke-width="8"/>
+ <path d="M0-57 39-24 27 29 0 58-27 29-39-24z" fill="url(#jewel)" stroke="#f8d983" stroke-width="6"/>
+ <circle cx="-73" cy="22" r="23" fill="url(#jewel)" stroke="url(#gold)" stroke-width="8"/><circle cx="73" cy="22" r="23" fill="url(#jewel)" stroke="url(#gold)" stroke-width="8"/>
+</g>
+</svg>
