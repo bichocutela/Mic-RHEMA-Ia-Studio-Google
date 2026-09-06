@@ -24,6 +24,7 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
           profile = Path('app/src/main/java/com/aistudio/micrhema/ProfileScreen.kt')
           text = profile.read_text()
@@ -57,15 +58,14 @@ jobs:
               raise SystemExit('Trecho inicial de ProfileScreen não encontrado')
           text = text.replace(old, new, 1)
 
-          old_logout = '''                        MemberManager.setLoggedInMember(context, null)
-                          onNavigateBack()
-          '''.replace('                          onNavigateBack()', '                        onNavigateBack()')
-          new_logout = '''                        MemberManager.setLoggedInMember(context, null)
-                          onLoggedOut()
-          '''.replace('                          onLoggedOut()', '                        onLoggedOut()')
-          if old_logout not in text:
+          text, count = re.subn(
+              r'(MemberManager\.setLoggedInMember\(context, null\)\s*)onNavigateBack\(\)',
+              r'\1onLoggedOut()',
+              text,
+              count=1,
+          )
+          if count != 1:
               raise SystemExit('Trecho de logout do perfil não encontrado')
-          text = text.replace(old_logout, new_logout, 1)
           profile.write_text(text)
 
           main = Path('app/src/main/java/com/aistudio/micrhema/MainActivity.kt')
