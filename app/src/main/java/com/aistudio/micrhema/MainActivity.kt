@@ -374,11 +374,28 @@ fun MainScreen() {
         )
     }
 
-    navController.addOnDestinationChangedListener { _, destination, _ ->
+    DisposableEffect(navController) {
+    val listener = androidx.navigation.NavController.OnDestinationChangedListener { _, destination, _ ->
         currentRoute = destination.route ?: Screen.Home.route
-        val foundTab = appTabsState.find { (if (it.id == "bible_tab") "bible" else (it.systemRoute ?: "custom_tab/${it.id}")) == currentRoute }
+        val foundTab = appTabsState.find {
+            (if (it.id == "bible_tab") "bible" else (it.systemRoute ?: "custom_tab/${it.id}")) == currentRoute
+        }
         topBarTitle = foundTab?.title ?: "MIC Rhema"
     }
+    navController.addOnDestinationChangedListener(listener)
+    onDispose { navController.removeOnDestinationChangedListener(listener) }
+}
+
+LaunchedEffect(loggedInMemberState.value?.id, currentRoute) {
+    if (loggedInMemberState.value == null && currentRoute == Screen.Profile.route) {
+        if (!navController.popBackStack(Screen.Home.route, inclusive = false)) {
+            navController.navigate(Screen.Home.route) {
+                popUpTo(navController.graph.startDestinationId) { inclusive = false }
+                launchSingleTop = true
+            }
+        }
+    }
+}
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -758,7 +775,19 @@ fun MainScreen() {
                     ContentScreen(initialType = type, initialId = id)
                 }
                 composable(Screen.Admin.route) { AdminScreen() }
-                composable(Screen.Profile.route) { ProfileScreen(onNavigateBack = { navController.popBackStack() }) }
+        composable(Screen.Profile.route) {
+            ProfileScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onLoggedOut = {
+                    if (!navController.popBackStack(Screen.Home.route, inclusive = false)) {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(navController.graph.startDestinationId) { inclusive = false }
+                            launchSingleTop = true
+                        }
+                    }
+                }
+            )
+        }
                 composable("news_list") { NewsListScreen(
                     onNavigateToDetail = { id -> navController.navigate("news_detail/$id") },
                     onBack = { navController.popBackStack() }

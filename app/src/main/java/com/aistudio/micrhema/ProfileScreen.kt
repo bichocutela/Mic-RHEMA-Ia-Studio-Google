@@ -46,11 +46,18 @@ private fun formatBirthDateInput(value: String): String {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onLoggedOut: () -> Unit = onNavigateBack
 ) {
     val loggedInMember = loggedInMemberState.value
     if (loggedInMember == null) {
-        onNavigateBack()
+        LaunchedEffect(Unit) { onLoggedOut() }
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            RhemaLoadingIndicator(message = "Atualizando sessão…")
+        }
         return
     }
 
@@ -651,7 +658,7 @@ fun ProfileScreen(
                     onClick = {
                         showLogoutDialog = false
                         MemberManager.setLoggedInMember(context, null)
-                        onNavigateBack()
+                        onLoggedOut()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
