@@ -2,10 +2,12 @@ package com.aistudio.micrhema
 
 import android.content.Context
 import android.util.Log
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -26,10 +28,8 @@ data class XpMediaResult(
 
 /**
  * Cliente único para progresso de Livro/Áudio/Vídeo.
- *
- * O Android informa apenas telemetria observada. O backend confirma que a mídia
- * pertence ao catálogo oficial, mede o tempo usando relógio do servidor, ignora
- * saltos artificiais e é a única camada que pode chamar xp_record_media_progress.
+ * O Android envia telemetria real e o backend, autenticado pelo Firebase,
+ * confirma catálogo, tempo consumido e os marcos que realmente valem XP.
  */
 object XpMediaClient {
     private const val MIN_SEND_INTERVAL_MS = 4_000L
@@ -44,56 +44,31 @@ object XpMediaClient {
     private val lastSentAt = ConcurrentHashMap<String, Long>()
     private val rejectedUntil = ConcurrentHashMap<String, Long>()
 
-    private fun normalizePhone(value: String): String {
-        val digits = value.filter(Char::isDigit)
-        return if (digits.length in 12..13 && digits.startsWith("55")) digits.drop(2) else digits
-    }
-
     fun recordBook(context: Context, bookUrl: String, fraction: Float) {
+        record(context, "book", bookUrl, 0L, 0L, fraction.coerceIn(0f, 1f), true)
+    }
+
+    fun recordAudio(context: Context, audioUrl: String, positionMs: Long, durationMs: Long, isActive: Boolean) {
         record(
-            context = context,
-            mediaType = "book",
-            contentId = bookUrl,
-            positionMs = 0L,
-            durationMs = 0L,
-            fraction = fraction.coerceIn(0f, 1f),
-            isActive = true
+            context,
+            "audio",
+            audioUrl,
+            positionMs.coerceAtLeast(0L),
+            durationMs.coerceAtLeast(0L),
+            if (durationMs > 0L) (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f) else 0f,
+            isActive
         )
     }
 
-    fun recordAudio(
-        context: Context,
-        audioUrl: String,
-        positionMs: Long,
-        durationMs: Long,
-        isActive: Boolean
-    ) {
+    fun recordVideo(context: Context, videoUrl: String, positionMs: Long, durationMs: Long, isActive: Boolean) {
         record(
-            context = context,
-            mediaType = "audio",
-            contentId = audioUrl,
-            positionMs = positionMs.coerceAtLeast(0L),
-            durationMs = durationMs.coerceAtLeast(0L),
-            fraction = if (durationMs > 0L) (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f) else 0f,
-            isActive = isActive
-        )
-    }
-
-    fun recordVideo(
-        context: Context,
-        videoUrl: String,
-        positionMs: Long,
-        durationMs: Long,
-        isActive: Boolean
-    ) {
-        record(
-            context = context,
-            mediaType = "video",
-            contentId = videoUrl,
-            positionMs = positionMs.coerceAtLeast(0L),
-            durationMs = durationMs.coerceAtLeast(0L),
-            fraction = if (durationMs > 0L) (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f) else 0f,
-            isActive = isActive
+            context,
+            "video",
+            videoUrl,
+            positionMs.coerceAtLeast(0L),
+            durationMs.coerceAtLeast(0L),
+            if (durationMs > 0L) (positionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f) else 0f,
+            isActive
         )
     }
 
@@ -107,7 +82,6 @@ object XpMediaClient {
         isActive: Boolean
     ) {
         val member = loggedInMemberState.value ?: return
-        if (!isXpUnlocked(member)) return
         val cleanId = contentId.trim()
         if (cleanId.isBlank()) return
 
@@ -121,15 +95,7 @@ object XpMediaClient {
         val appContext = context.applicationContext
         scope.launch {
             try {
-                val response = call(
-                    member = member,
-                    mediaType = mediaType,
-                    contentId = cleanId,
-                    positionMs = positionMs,
-                    durationMs = durationMs,
-                    fraction = fraction,
-                    isActive = isActive
-                )
+                val response = call(member, mediaType, cleanId, positionMs, durationMs, fraction, isActive)
                 val result = parseResult(member, mediaType, response)
                 withContext(Dispatchers.Main) {
                     xpAccountState.value = result.account
@@ -140,9 +106,7 @@ object XpMediaClient {
                             "video" -> BadgeActivityKeys.VIDEOS
                             else -> ""
                         }
-                        if (activity.isNotBlank()) {
-                            BadgeActivityTracker.recordVerifiedMedia(appContext, activity, result.canonicalId)
-                        }
+                        if (activity.isNotBlank()) BadgeActivityTracker.recordVerifiedMedia(appContext, activity, result.canonicalId)
                     }
                 }
             } catch (error: Throwable) {
@@ -157,6 +121,54 @@ object XpMediaClient {
         }
     }
 
+    private suspend fun firebaseToken(member: MemberRequest, forceRefresh: Boolean): String {
+        val user = FirebaseAuth.getInstance().currentUser
+            ?: throw IllegalStateException("Sua sessão de membro expirou. Entre novamente no MIC Rhema.")
+        if (user.uid != member.id) throw IllegalStateException("A sessão Firebase não pertence ao membro ativo. Entre novamente.")
+        return user.getIdToken(forceRefresh).await().token
+            ?: throw IllegalStateException("O Firebase não retornou um token válido para o progresso XP.")
+    }
+
+    private suspend fun executeCall(
+        member: MemberRequest,
+        mediaType: String,
+        contentId: String,
+        positionMs: Long,
+        durationMs: Long,
+        fraction: Float,
+        isActive: Boolean,
+        forceRefresh: Boolean
+    ): Pair<Int, JSONObject> = withContext(Dispatchers.IO) {
+        val baseUrl = BuildConfig.SUPABASE_URL.trim().trimEnd('/')
+        val anonKey = BuildConfig.SUPABASE_ANON_KEY.trim()
+        if (baseUrl.isBlank() || baseUrl.contains("your-project")) {
+            throw IllegalStateException("O progresso XP de mídia não está configurado nesta versão.")
+        }
+        val token = firebaseToken(member, forceRefresh)
+        val payload = JSONObject()
+            .put("memberId", member.id)
+            .put("mediaType", mediaType)
+            .put("contentId", contentId)
+            .put("positionMs", positionMs)
+            .put("durationMs", durationMs)
+            .put("fraction", fraction.toDouble())
+            .put("isActive", isActive)
+
+        val builder = Request.Builder()
+            .url("$baseUrl/functions/v1/xp-media")
+            .header("Authorization", "Bearer $token")
+            .header("Content-Type", "application/json")
+        if (anonKey.isNotBlank()) builder.header("apikey", anonKey)
+        val request = builder
+            .post(payload.toString().toRequestBody("application/json".toMediaType()))
+            .build()
+
+        client.newCall(request).execute().use { response ->
+            val raw = response.body?.string().orEmpty()
+            response.code to runCatching { JSONObject(raw) }.getOrElse { JSONObject() }
+        }
+    }
+
     private suspend fun call(
         member: MemberRequest,
         mediaType: String,
@@ -165,39 +177,17 @@ object XpMediaClient {
         durationMs: Long,
         fraction: Float,
         isActive: Boolean
-    ): JSONObject = withContext(Dispatchers.IO) {
-        val baseUrl = BuildConfig.SUPABASE_URL.trim().trimEnd('/')
-        val anonKey = BuildConfig.SUPABASE_ANON_KEY.trim()
-        if (baseUrl.isBlank() || anonKey.isBlank() || baseUrl.contains("your-project")) {
-            throw IllegalStateException("O progresso XP de mídia não está configurado nesta versão.")
+    ): JSONObject {
+        var (status, body) = executeCall(member, mediaType, contentId, positionMs, durationMs, fraction, isActive, false)
+        if (status == 401) {
+            val retry = executeCall(member, mediaType, contentId, positionMs, durationMs, fraction, isActive, true)
+            status = retry.first
+            body = retry.second
         }
-
-        val payload = JSONObject()
-            .put("memberId", member.id)
-            .put("phone", normalizePhone(member.phone))
-            .put("mediaType", mediaType)
-            .put("contentId", contentId)
-            .put("positionMs", positionMs)
-            .put("durationMs", durationMs)
-            .put("fraction", fraction.toDouble())
-            .put("isActive", isActive)
-
-        val request = Request.Builder()
-            .url("$baseUrl/functions/v1/xp-media")
-            .header("apikey", anonKey)
-            .header("Authorization", "Bearer $anonKey")
-            .header("Content-Type", "application/json")
-            .post(payload.toString().toRequestBody("application/json".toMediaType()))
-            .build()
-
-        client.newCall(request).execute().use { response ->
-            val raw = response.body?.string().orEmpty()
-            val json = runCatching { JSONObject(raw) }.getOrElse { JSONObject() }
-            if (!response.isSuccessful) {
-                throw IllegalStateException(json.optString("error").ifBlank { "Falha no progresso XP de mídia (${response.code})." })
-            }
-            json
+        if (status !in 200..299) {
+            throw IllegalStateException(body.optString("error").ifBlank { "Falha no progresso XP de mídia ($status)." })
         }
+        return body
     }
 
     private fun parseResult(member: MemberRequest, mediaType: String, root: JSONObject): XpMediaResult {
