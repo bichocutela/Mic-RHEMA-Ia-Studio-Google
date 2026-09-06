@@ -173,13 +173,19 @@ class MainActivity : ComponentActivity() {
                 ) {
                 MICRhemaTheme(darkTheme = isDark) {
                     val lastCrash = CrashHandler.getLastCrash(this@MainActivity)
-                    if (lastCrash != null) {
+                    var showCrashRecovery by androidx.compose.runtime.remember(lastCrash) {
+                        androidx.compose.runtime.mutableStateOf(lastCrash != null)
+                    }
+                    if (showCrashRecovery) {
                         androidx.compose.foundation.layout.Column(androidx.compose.ui.Modifier.fillMaxSize().verticalScroll(androidx.compose.foundation.rememberScrollState())) {
                             androidx.compose.material3.Text("Ocorreu um erro inesperado. O problema foi registrado para análise.", color = androidx.compose.ui.graphics.Color.Red)
                             if (com.aistudio.micrhema.BuildConfig.DEBUG) {
                                 androidx.compose.material3.Text(lastCrash)
                             }
-                            androidx.compose.material3.Button(onClick = { CrashHandler.clearLastCrash(this@MainActivity) }) {
+                            androidx.compose.material3.Button(onClick = {
+                                CrashHandler.clearLastCrash(this@MainActivity)
+                                showCrashRecovery = false
+                            }) {
                                 androidx.compose.material3.Text("Continuar")
                             }
                         }
