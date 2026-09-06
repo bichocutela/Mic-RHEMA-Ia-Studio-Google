@@ -248,6 +248,26 @@ Deno.serve(async (request) => {
       });
     }
 
+    if (action === "sync_avatar") {
+      const memberId = String(input.memberId ?? "").trim();
+      const identityPhone = normalizePhone(input.identityPhone ?? phone);
+      const avatarId = String(input.avatarId ?? "").trim();
+      if (!memberId) return json({ error: "Membro inválido." }, 400);
+      if (!/^[a-z0-9_:-]{1,180}$/i.test(avatarId)) return json({ error: "Avatar inválido." }, 400);
+      const current = await getDocument(projectId, token, "acessos_pendentes", memberId);
+      if (!current) return json({ error: "Cadastro não encontrado." }, 404);
+      if (normalizePhone(documentData(current).phone) !== identityPhone) {
+        return json({ error: "Identidade do membro não confere." }, 403);
+      }
+      if (avatarId.startsWith("profile_photo::") && !avatarId.startsWith(`profile_photo::${memberId}::`)) {
+        return json({ error: "A foto selecionada não pertence a este membro." }, 403);
+      }
+      const update = { avatarId, updatedAt: Date.now() };
+      await patchDocument(projectId, token, "acessos_pendentes", memberId, update);
+      await patchDocument(projectId, token, "users", memberId, update);
+      return json({ ok: true, memberId, avatarId });
+    }
+
     if (action === "sync_state") {
       const memberId = String(input.memberId ?? "").trim();
       const identityPhone = normalizePhone(input.identityPhone ?? phone);
@@ -258,12 +278,11 @@ Deno.serve(async (request) => {
       if (normalizePhone(currentData.phone) !== identityPhone) return json({ error: "Identidade do membro não confere." }, 403);
       const userDocument = await getDocument(projectId, token, "users", memberId);
       const userData = documentData(userDocument);
-      const newPhone = normalizePhone(input.phone ?? identityPhone);
-      if (newPhone !== identityPhone) {
-        const collisions = await findMembers(projectId, token, newPhone);
-        if (collisions.some((doc) => memberIdFromDocument(doc) !== memberId)) return json({ error: "Este telefone já pertence a outro cadastro." }, 409);
-      }
-      const safe = {
+      // O telefone identifica a conta e só pode ser alterado pelo painel ADM.
+      // APKs antigos ainda enviam esse campo no salvamento geral; ignoramos o valor
+      // recebido e preservamos o telefone confirmado na sessão.
+      const newPhone = identityPhone;
+      const profileSafe = {
         phone: newPhone,
         name: String(input.name ?? currentData.name ?? userData.name ?? "").trim(),
         email: String(input.email ?? currentData.email ?? userData.email ?? "").trim(),
@@ -271,14 +290,26 @@ Deno.serve(async (request) => {
         birthDate: String(input.birthDate ?? currentData.birthDate ?? userData.birthDate ?? "").trim(),
         avatarId: String(input.avatarId ?? currentData.avatarId ?? userData.avatarId ?? "").trim(),
         equippedBadgeId: String(input.equippedBadgeId ?? currentData.equippedBadgeId ?? userData.equippedBadgeId ?? "").trim(),
-        unlockedBadgeIds: unionStringLists(currentData.unlockedBadgeIds, userData.unlockedBadgeIds, input.unlockedBadgeIds),
-        badgeActivityIds: unionActivitySources(currentData.badgeActivityIds, userData.badgeActivityIds, input.badgeActivityIds),
         profilePhotoUrl: String(input.profilePhotoUrl ?? currentData.profilePhotoUrl ?? userData.profilePhotoUrl ?? "").trim(),
         supabaseStoragePath: String(input.supabaseStoragePath ?? currentData.supabaseStoragePath ?? userData.supabaseStoragePath ?? "").trim(),
         updatedAt: Date.now(),
       };
-      await patchDocument(projectId, token, "acessos_pendentes", memberId, safe);
-      await patchDocument(projectId, token, "users", memberId, safe);
+      // Perfis de versões antigas reenviam também todo o histórico ao trocar o avatar.
+      // Gravamos primeiro os campos pequenos para que uma atividade legada inválida
+      // nunca faça "Minha foto" desaparecer nem bloqueie nome/endereço.
+      await patchDocument(projectId, token, "acessos_pendentes", memberId, profileSafe);
+      await patchDocument(projectId, token, "users", memberId, profileSafe);
+
+      const progressSafe = {
+        unlockedBadgeIds: unionStringLists(currentData.unlockedBadgeIds, userData.unlockedBadgeIds, input.unlockedBadgeIds),
+        badgeActivityIds: unionActivitySources(currentData.badgeActivityIds, userData.badgeActivityIds, input.badgeActivityIds),
+      };
+      try {
+        await patchDocument(projectId, token, "acessos_pendentes", memberId, progressSafe);
+        await patchDocument(projectId, token, "users", memberId, progressSafe);
+      } catch (progressError) {
+        console.error("member-session legacy progress sync skipped", progressError);
+      }
       return json({ ok: true, memberId, phone: newPhone });
     }
 
