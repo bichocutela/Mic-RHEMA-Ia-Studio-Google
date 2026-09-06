@@ -4,7 +4,9 @@ import android.content.Context
 
 /** Aplica somente recompensas que o ledger da Loja XP confirma como entitlement ativo. */
 object XpRewardManager {
+    /** Mantém o mesmo ID para preservar qualquer entitlement já emitido. */
     const val GOLD_THEME = "tema_dourado_rhema"
+    const val GOLD_PLUS_THEME = GOLD_THEME
     const val PROMISE_FRAME = "moldura_luz_promessa"
     const val READER_BADGE = "badge_leitor_palavra"
 
@@ -33,12 +35,16 @@ object XpRewardManager {
             .orEmpty()
     }
 
-    fun activateGoldenTheme(context: Context, memberId: String): Boolean {
-        if (!isOwned(context, GOLD_THEME, memberId)) return false
+    fun activateGoldenPlusTheme(context: Context, memberId: String): Boolean {
+        if (!isOwned(context, GOLD_PLUS_THEME, memberId)) return false
         UserSettingsManager.saveSettings(
             context,
             currentSettingsState.value.copy(accentColor = AccentColor.GOLD)
         )
         return true
     }
+
+    /** Compatibilidade com chamadas antigas; agora ativa o Dourado Plus. */
+    fun activateGoldenTheme(context: Context, memberId: String): Boolean =
+        activateGoldenPlusTheme(context, memberId)
 }
