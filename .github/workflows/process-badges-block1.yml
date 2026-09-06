@@ -1,6 +1,10 @@
 name: Process Badges Block 1
 
 on:
+  push:
+    branches: [fix/badges-hd-block1]
+    paths:
+      - '.github/workflows/process-badges-block1.yml'
   workflow_dispatch:
 
 permissions:
@@ -24,69 +28,43 @@ jobs:
           python <<'PY'
           from pathlib import Path
           from PIL import Image, ImageFilter
-
           root = Path('app/src/main/res/drawable-nodpi')
           for level in range(8, 13):
               path = root / f'profile_emblem_level_{level:02d}.webp'
               image = Image.open(path).convert('RGBA')
-              alpha = image.getchannel('A')
-              bbox = alpha.getbbox()
+              bbox = image.getchannel('A').getbbox()
               if not bbox:
                   raise SystemExit(f'Emblema {level} sem conteúdo visível')
-
               content = image.crop(bbox)
-              # Mantém o design original inteiro e reserva 52 px de margem em cada lado.
-              max_content = 920
-              scale = min(max_content / content.width, max_content / content.height)
-              target = (
-                  max(1, round(content.width * scale)),
-                  max(1, round(content.height * scale)),
-              )
+              scale = min(920 / content.width, 920 / content.height)
+              target = (max(1, round(content.width * scale)), max(1, round(content.height * scale)))
               content = content.resize(target, Image.Resampling.LANCZOS)
-              # Nitidez leve para compensar os assets antigos de baixa resolução sem redesenhar.
               rgb = content.convert('RGB').filter(ImageFilter.UnsharpMask(radius=1.4, percent=125, threshold=3))
               rgb.putalpha(content.getchannel('A'))
-              content = rgb
-
               canvas = Image.new('RGBA', (1024, 1024), (0, 0, 0, 0))
-              x = (1024 - content.width) // 2
-              y = (1024 - content.height) // 2
-              canvas.alpha_composite(content, (x, y))
+              canvas.alpha_composite(rgb, ((1024-rgb.width)//2, (1024-rgb.height)//2))
               canvas.save(path, 'WEBP', lossless=True, quality=100, method=6)
-
               check = Image.open(path).convert('RGBA')
-              if check.size != (1024, 1024):
-                  raise SystemExit(f'Emblema {level}: resolução incorreta {check.size}')
-              if check.getchannel('A').getextrema()[0] != 0:
-                  raise SystemExit(f'Emblema {level}: fundo não é transparente')
               cb = check.getchannel('A').getbbox()
-              if cb is None or min(cb[0], cb[1], 1024-cb[2], 1024-cb[3]) < 45:
-                  raise SystemExit(f'Emblema {level}: margem segura insuficiente {cb}')
-              print(f'Nível {level}: 1024x1024, RGBA, bbox={cb}, bytes={path.stat().st_size}')
+              if check.size != (1024,1024): raise SystemExit(f'Emblema {level}: resolução incorreta')
+              if check.getchannel('A').getextrema()[0] != 0: raise SystemExit(f'Emblema {level}: sem transparência')
+              if cb is None or min(cb[0],cb[1],1024-cb[2],1024-cb[3]) < 45: raise SystemExit(f'Emblema {level}: margem insuficiente {cb}')
+              print(f'Nível {level}: 1024x1024 RGBA bbox={cb} bytes={path.stat().st_size}')
           PY
 
       - name: Validar ordem do catálogo 8 a 12
         run: |
           python <<'PY'
           from pathlib import Path
-          text = Path('app/src/main/java/com/aistudio/micrhema/BadgeCatalog.kt').read_text()
-          expected = [
-              ('semente_da_fe', 'Semente da Fé', 8),
-              ('caminho_da_promessa', 'Caminho da Promessa', 9),
-              ('escudo_da_fe', 'Escudo da Fé', 10),
-              ('aguas_vivas', 'Águas Vivas', 11),
-              ('videira_verdadeira', 'Videira Verdadeira', 12),
-          ]
+          text=Path('app/src/main/java/com/aistudio/micrhema/BadgeCatalog.kt').read_text()
+          expected=[('semente_da_fe','Semente da Fé'),('caminho_da_promessa','Caminho da Promessa'),('escudo_da_fe','Escudo da Fé'),('aguas_vivas','Águas Vivas'),('videira_verdadeira','Videira Verdadeira')]
           positions=[]
-          for badge_id, name, level in expected:
-              needle=f'BiblicalBadge("{badge_id}", "{name}"'
-              pos=text.find(needle)
-              if pos < 0:
-                  raise SystemExit(f'Catálogo não contém nível {level}: {name}')
+          for badge_id,name in expected:
+              pos=text.find(f'BiblicalBadge("{badge_id}", "{name}"')
+              if pos < 0: raise SystemExit(f'Catálogo sem {name}')
               positions.append(pos)
-          if positions != sorted(positions):
-              raise SystemExit('Ordem dos níveis 8–12 está incorreta')
-          print('Ordem 8–12 validada:', ' -> '.join(x[1] for x in expected))
+          if positions != sorted(positions): raise SystemExit('Ordem 8–12 incorreta')
+          print('Ordem 8–12 validada')
           PY
 
       - name: Commitar bloco 1 processado
