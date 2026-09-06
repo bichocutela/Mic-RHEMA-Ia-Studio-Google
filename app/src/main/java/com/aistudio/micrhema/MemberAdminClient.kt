@@ -125,6 +125,9 @@ object MemberAdminClient {
     /**
      * Atualiza somente o vínculo da foto. Não regrava permissões, badges, XP ou
      * outros dados do membro, reduzindo o risco de uma falha de sincronização.
+     *
+     * Se o membro estiver usando "Minha foto" e o ADM remover a imagem, o avatar
+     * bíblico anterior é restaurado automaticamente para nunca deixar o perfil sem imagem.
      */
     suspend fun updateMemberPhoto(
         original: MemberRequest,
@@ -132,18 +135,30 @@ object MemberAdminClient {
         storagePath: String
     ): MemberRequest = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
+        val cleanPath = storagePath.trim()
+        val removingPhoto = cleanPath.isBlank()
+        val restoredAvatarId = if (removingPhoto && isProfilePhotoAvatarId(original.avatarId)) {
+            biblicalAvatarIdBeforeProfilePhoto(original.avatarId)
+        } else {
+            original.avatarId
+        }
+
         val updated = original.copy(
             profilePhotoUrl = signedUrl.trim(),
-            supabaseStoragePath = storagePath.trim(),
+            supabaseStoragePath = cleanPath,
+            avatarId = restoredAvatarId,
             updatedAt = now
         )
-        val patch = mapOf<String, Any>(
+        val patch = mutableMapOf<String, Any>(
             // O caminho é a referência persistente. A URL assinada é mantida no
             // estado local para aparecer imediatamente e é renovada nos próximos syncs.
             "profilePhotoUrl" to "",
             "supabaseStoragePath" to updated.supabaseStoragePath,
             "updatedAt" to now
         )
+        if (restoredAvatarId != original.avatarId) {
+            patch["avatarId"] = restoredAvatarId
+        }
         applyMemberPatch(original, patch, updated)
     }
 }
