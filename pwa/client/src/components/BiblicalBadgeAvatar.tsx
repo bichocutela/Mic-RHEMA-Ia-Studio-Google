@@ -33,6 +33,10 @@ const profileEmblemAvatarFractions: Record<number, number> = {
   11: 0.5184,
   12: 0.5546,
   13: 0.4715,
+  14: 0.4375,
+  15: 0.4395,
+  16: 0.5215,
+  17: 0.4648,
 };
 
 function TopSymbol({ visual }: { visual: BadgeVisual }) {
