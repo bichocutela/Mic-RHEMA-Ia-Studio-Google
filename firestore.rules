@@ -134,6 +134,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Preferências pessoais são sincronizadas pelo APK usando o UID do membro
+    // como ID do documento. Cada membro acessa somente as próprias preferências.
+    match /user_settings/{userId} {
+      allow read, create, update, delete: if isOwner(userId) || isAdmin();
+    }
+
     // Qualquer pessoa pode pedir acesso, mas só com o perfil pendente e sem privilégios.
     // A aprovação, o IBR e qualquer alteração permanecem exclusivamente administrativos.
     match /acessos_pendentes/{document} {
