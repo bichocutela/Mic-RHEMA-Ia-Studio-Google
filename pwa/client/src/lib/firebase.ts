@@ -5,7 +5,7 @@
  */
 import { getApp, getApps, initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { addDoc, collection, doc, getFirestore, onSnapshot, serverTimestamp, setDoc, updateDoc, type DocumentData } from "firebase/firestore";
+import { collection, doc, getFirestore, onSnapshot, serverTimestamp, setDoc, updateDoc, type DocumentData } from "firebase/firestore";
 import { getPrayerDeviceIdentity } from "./prayer-device";
 
 const firebaseConfig = {
@@ -104,23 +104,23 @@ export async function saveIbrProgress(memberId: string, progress: { courseId: st
   }, { merge: true });
 }
 
+/**
+ * Compatibilidade com telas antigas: nunca mais cria acesso com addDoc/ID aleatório.
+ * Toda solicitação passa pelo pwa-auth, que usa a identidade canônica phone_{DDD+numero}
+ * e recupera uma conta existente antes de tentar criar outra.
+ */
 export async function submitPendingAccessRequest(input: { name: string; phone: string }) {
-  if (!firestore) throw new Error("A conexão Firebase da PWA não está disponível.");
-  await addDoc(collection(firestore, "acessos_pendentes"), {
-    name: input.name.trim(),
-    phone: input.phone.trim(),
-    email: "",
-    isApproved: false,
-    isVip: false,
-    isIbr: false,
-    isAdmin: false,
-    status: "pendente",
-    type: "acesso",
-    avatarId: "davi",
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-    createdAtServer: serverTimestamp(),
+  const digits = String(input.phone || "").replace(/\D/g, "");
+  const phone = digits.length >= 12 && digits.length <= 13 && digits.startsWith("55") ? digits.slice(2) : digits;
+  if (!input.name.trim() || phone.length < 10 || phone.length > 11) throw new Error("Informe nome e telefone válidos.");
+  const response = await fetch(`${supabaseUrl}/functions/v1/pwa-auth`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: input.name.trim(), phone }),
   });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || "Não foi possível verificar este cadastro agora.");
+  return payload;
 }
 
 export type PrayerHistoryItem = {
@@ -179,8 +179,8 @@ export async function loadPwaMemberProfile(): Promise<PwaMemberProfile> {
   return profileRequest({ action: "get" });
 }
 
-/** Salva somente os campos pessoais permitidos no documento real do membro do Android. */
-export async function savePwaMemberProfile(data: Partial<Pick<PwaMemberProfile, "name" | "phone" | "address" | "birthDate" | "email" | "avatarId" | "equippedBadgeId">>): Promise<PwaMemberProfile> {
+/** Telefone é identidade fixa; o perfil pode alterar nome e demais dados não-identitários. */
+export async function savePwaMemberProfile(data: Partial<Pick<PwaMemberProfile, "name" | "address" | "birthDate" | "email" | "avatarId" | "equippedBadgeId">>): Promise<PwaMemberProfile> {
   return profileRequest({ action: "save", data });
 }
 
