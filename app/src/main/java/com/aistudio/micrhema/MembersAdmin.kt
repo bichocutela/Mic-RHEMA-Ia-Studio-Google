@@ -1,52 +1,52 @@
 package com.aistudio.micrhema
-import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.background
+
+import android.widget.Toast
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.CameraAlt
-
-
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.layout.ContentScale
 import kotlinx.coroutines.launch
-import android.widget.Toast
 
 @Composable
 fun EditMembersSection() {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var searchQuery by remember { mutableStateOf("") }
     var statusFilter by remember { mutableStateOf("Todos") }
     var showAddMemberDialog by remember { mutableStateOf(false) }
     var newMemberName by remember { mutableStateOf("") }
     var newMemberPhone by remember { mutableStateOf("") }
     var isSavingMember by remember { mutableStateOf(false) }
+    var editingMember by remember { mutableStateOf<MemberRequest?>(null) }
+    var isUpdatingMember by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        // A tela de membros sempre reabre a sincronização para listar os documentos atuais.
         MemberManager.syncFromFirestore(context)
     }
 
     val filteredMembers = memberRequestsState.filter { member ->
-        val matchesQuery = searchQuery.isBlank() || member.name.contains(searchQuery, ignoreCase = true) || member.phone.contains(searchQuery, ignoreCase = true)
+        val matchesQuery = searchQuery.isBlank() ||
+            member.name.contains(searchQuery, ignoreCase = true) ||
+            member.phone.contains(searchQuery, ignoreCase = true)
         val matchesStatus = when (statusFilter) {
             "Pendentes" -> !member.isApproved && !member.isIbr
             "Aprovados" -> member.isApproved || member.isIbr
@@ -55,6 +55,7 @@ fun EditMembersSection() {
         }
         matchesQuery && matchesStatus
     }
+
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -63,7 +64,11 @@ fun EditMembersSection() {
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text("Gerenciar Membros", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Text("Aprovações, permissões e perfis sincronizados.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "Aprovações, permissões e dados de cadastro sincronizados.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
             Button(onClick = {
                 newMemberName = ""
@@ -75,6 +80,7 @@ fun EditMembersSection() {
                 Text("Adicionar")
             }
         }
+
         Spacer(Modifier.height(12.dp))
         OutlinedTextField(
             value = searchQuery,
@@ -87,100 +93,151 @@ fun EditMembersSection() {
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("Todos", "Pendentes", "Aprovados", "IBR").forEach { filter ->
-                FilterChip(selected = statusFilter == filter, onClick = { statusFilter = filter }, label = { Text(filter) })
+                FilterChip(
+                    selected = statusFilter == filter,
+                    onClick = { statusFilter = filter },
+                    label = { Text(filter) }
+                )
             }
         }
         Spacer(Modifier.height(10.dp))
-        Text("${filteredMembers.size} membro(s) encontrado(s)", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+        Text(
+            "${filteredMembers.size} membro(s) encontrado(s)",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary
+        )
         Spacer(Modifier.height(6.dp))
+
         if (filteredMembers.isEmpty()) {
             AdminEmptyState("Nenhum membro encontrado", "Tente outro nome, telefone ou filtro de status.")
-        } else LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(items = filteredMembers, key = { it.id }) { member ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Column {
-                                Text(member.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                                Text(member.phone, style = MaterialTheme.typography.bodyMedium)
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(items = filteredMembers, key = { it.id }) { member ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(member.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                                    Text(member.phone, style = MaterialTheme.typography.bodyMedium)
+                                }
+                                AdminStatusChip(
+                                    text = when {
+                                        member.isIbr -> "IBR"
+                                        member.isApproved -> "Aprovado"
+                                        else -> "Pendente"
+                                    },
+                                    positive = member.isApproved || member.isIbr
+                                )
                             }
-                            AdminStatusChip(
-                                text = when {
-                                    member.isIbr -> "IBR"
-                                    member.isApproved -> "Aprovado"
-                                    else -> "Pendente"
-                                },
-                                positive = member.isApproved || member.isIbr
-                            )
-                        }
-                        
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(
-                                checked = member.isApproved,
-                                onCheckedChange = { 
-                                    val index = memberRequestsState.indexOfFirst { it.id == member.id }
-                                    if (index != -1) {
-                                        val updated = member.copy(isApproved = it)
-                                        memberRequestsState[index] = updated
-                                        MemberManager.saveToFirestore(context, updated,
-                                            onSuccess = { Toast.makeText(context, if(it) "Acesso aprovado para ${member.name}" else "Acesso removido para ${member.name}", Toast.LENGTH_SHORT).show() },
-                                            onFailure = { memberRequestsState[index] = member; Toast.makeText(context, "Erro: ${it.message}\n\nVerifique as regras de segurança (Rules) do seu Firebase Firestore.", Toast.LENGTH_LONG).show() }
-                                        )
-                                    }
-                                }
-                            )
-                            Text("Aprovado")
-                            
 
-                            
-                            Spacer(modifier = Modifier.width(16.dp))
-                            
-                            Checkbox(
-                                checked = member.isIbr,
-                                onCheckedChange = { 
-                                    val index = memberRequestsState.indexOfFirst { it.id == member.id }
-                                    if (index != -1) {
-                                        val updated = member.copy(isIbr = it)
-                                        memberRequestsState[index] = updated
-                                        MemberManager.saveToFirestore(context, updated,
-                                            onSuccess = { Toast.makeText(context, if(it) "Acesso IBR aprovado para ${member.name}" else "Acesso IBR removido para ${member.name}", Toast.LENGTH_SHORT).show() },
-                                            onFailure = { memberRequestsState[index] = member; Toast.makeText(context, "Erro: ${it.message}\n\nVerifique as regras de segurança (Rules) do seu Firebase Firestore.", Toast.LENGTH_LONG).show() }
-                                        )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(
+                                    checked = member.isApproved,
+                                    onCheckedChange = { checked ->
+                                        val index = memberRequestsState.indexOfFirst { it.id == member.id }
+                                        if (index >= 0) {
+                                            val updated = member.copy(isApproved = checked)
+                                            memberRequestsState[index] = updated
+                                            MemberManager.saveToFirestore(
+                                                context,
+                                                updated,
+                                                onSuccess = {
+                                                    Toast.makeText(
+                                                        context,
+                                                        if (checked) "Acesso aprovado para ${member.name}" else "Acesso removido para ${member.name}",
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                },
+                                                onFailure = { error ->
+                                                    memberRequestsState[index] = member
+                                                    Toast.makeText(context, "Erro: ${error.message}", Toast.LENGTH_LONG).show()
+                                                }
+                                            )
+                                        }
                                     }
-                                }
-                            )
-                            Text("IBR")
-                            
-                            Spacer(modifier = Modifier.width(16.dp))
-                            
-                            Checkbox(
-                                checked = member.isAdmin,
-                                onCheckedChange = { 
-                                    val index = memberRequestsState.indexOfFirst { it.id == member.id }
-                                    if (index != -1) {
-                                        val updated = member.copy(isAdmin = it)
-                                        memberRequestsState[index] = updated
-                                        MemberManager.saveToFirestore(context, updated,
-                                            onSuccess = { Toast.makeText(context, if(it) "Acesso Admin aprovado para ${member.name}" else "Acesso Admin removido para ${member.name}", Toast.LENGTH_SHORT).show() },
-                                            onFailure = { memberRequestsState[index] = member; Toast.makeText(context, "Erro: ${it.message}\n\nVerifique as regras de segurança (Rules) do seu Firebase Firestore.", Toast.LENGTH_LONG).show() }
-                                        )
+                                )
+                                Text("Aprovado")
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Checkbox(
+                                    checked = member.isIbr,
+                                    onCheckedChange = { checked ->
+                                        val index = memberRequestsState.indexOfFirst { it.id == member.id }
+                                        if (index >= 0) {
+                                            val updated = member.copy(isIbr = checked)
+                                            memberRequestsState[index] = updated
+                                            MemberManager.saveToFirestore(
+                                                context,
+                                                updated,
+                                                onSuccess = {
+                                                    Toast.makeText(
+                                                        context,
+                                                        if (checked) "Acesso IBR aprovado para ${member.name}" else "Acesso IBR removido para ${member.name}",
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                },
+                                                onFailure = { error ->
+                                                    memberRequestsState[index] = member
+                                                    Toast.makeText(context, "Erro: ${error.message}", Toast.LENGTH_LONG).show()
+                                                }
+                                            )
+                                        }
                                     }
+                                )
+                                Text("IBR")
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Checkbox(
+                                    checked = member.isAdmin,
+                                    onCheckedChange = { checked ->
+                                        val index = memberRequestsState.indexOfFirst { it.id == member.id }
+                                        if (index >= 0) {
+                                            val updated = member.copy(isAdmin = checked)
+                                            memberRequestsState[index] = updated
+                                            MemberManager.saveToFirestore(
+                                                context,
+                                                updated,
+                                                onSuccess = {
+                                                    Toast.makeText(
+                                                        context,
+                                                        if (checked) "Acesso Admin aprovado para ${member.name}" else "Acesso Admin removido para ${member.name}",
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                },
+                                                onFailure = { error ->
+                                                    memberRequestsState[index] = member
+                                                    Toast.makeText(context, "Erro: ${error.message}", Toast.LENGTH_LONG).show()
+                                                }
+                                            )
+                                        }
+                                    }
+                                )
+                                Text("Admin")
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                TextButton(onClick = { editingMember = member }) {
+                                    Icon(Icons.Default.Edit, contentDescription = null)
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Editar dados")
                                 }
-                            )
-                            Text("Admin")
-                        }
-                        
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                            IconButton(onClick = { 
-                                MemberManager.deleteFromFirestore(context, member); MemberManager.saveMembers(context)
-                                memberRequestsState.remove(member)
-                            }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Deletar", tint = MaterialTheme.colorScheme.error)
+                                IconButton(onClick = {
+                                    MemberManager.deleteFromFirestore(context, member)
+                                    MemberManager.saveMembers(context)
+                                    memberRequestsState.remove(member)
+                                }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Deletar", tint = MaterialTheme.colorScheme.error)
+                                }
                             }
                         }
                     }
@@ -229,40 +286,78 @@ fun EditMembersSection() {
                             Toast.makeText(context, "Já existe um membro com este telefone.", Toast.LENGTH_LONG).show()
                         } else {
                             isSavingMember = true
-                        val member = MemberRequest(
-                            id = java.util.UUID.randomUUID().toString(),
-                            name = completeName,
-                            ibrCertificateName = completeName,
-                            phone = cleanPhone,
-                            isApproved = false,
-                            isVip = false,
-                            isIbr = false,
-                            status = "pendente",
-                            createdAt = System.currentTimeMillis(),
-                            updatedAt = System.currentTimeMillis()
-                        )
-                        MemberManager.saveToFirestore(
-                            context = context,
-                            member = member,
-                            onSuccess = {
-                                isSavingMember = false
-                                showAddMemberDialog = false
-                                Toast.makeText(context, "Membro cadastrado como pendente.", Toast.LENGTH_SHORT).show()
-                                MemberManager.syncFromFirestore(context)
-                            },
-                            onFailure = { error ->
-                                isSavingMember = false
-                                Toast.makeText(context, "Não foi possível cadastrar: ${error.message ?: "verifique a conexão"}", Toast.LENGTH_LONG).show()
-                            }
-                        )
+                            val member = MemberRequest(
+                                id = java.util.UUID.randomUUID().toString(),
+                                name = completeName,
+                                ibrCertificateName = completeName,
+                                phone = cleanPhone,
+                                isApproved = false,
+                                isVip = false,
+                                isIbr = false,
+                                status = "pendente",
+                                createdAt = System.currentTimeMillis(),
+                                updatedAt = System.currentTimeMillis()
+                            )
+                            MemberManager.saveToFirestore(
+                                context = context,
+                                member = member,
+                                onSuccess = {
+                                    isSavingMember = false
+                                    showAddMemberDialog = false
+                                    Toast.makeText(context, "Membro cadastrado como pendente.", Toast.LENGTH_SHORT).show()
+                                    MemberManager.syncFromFirestore(context)
+                                },
+                                onFailure = { error ->
+                                    isSavingMember = false
+                                    Toast.makeText(context, "Não foi possível cadastrar: ${error.message ?: "verifique a conexão"}", Toast.LENGTH_LONG).show()
+                                }
+                            )
                         }
                     }
                 ) {
-                    if (isSavingMember) CircularProgressIndicator(modifier = Modifier.size(18.dp)) else Text("Cadastrar pendente")
+                    if (isSavingMember) CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                    else Text("Cadastrar pendente")
                 }
             },
             dismissButton = {
                 TextButton(enabled = !isSavingMember, onClick = { showAddMemberDialog = false }) { Text("Cancelar") }
+            }
+        )
+    }
+
+    editingMember?.let { member ->
+        MemberAdminEditDialog(
+            member = member,
+            isSaving = isUpdatingMember,
+            onDismiss = { if (!isUpdatingMember) editingMember = null },
+            onSave = { name, phone, email, address, birthDate, certificateName ->
+                isUpdatingMember = true
+                coroutineScope.launch {
+                    runCatching {
+                        MemberAdminClient.updateMemberData(
+                            original = member,
+                            name = name,
+                            phone = phone,
+                            email = email,
+                            address = address,
+                            birthDate = birthDate,
+                            certificateName = certificateName
+                        )
+                    }.onSuccess { updated ->
+                        val phoneChanged = member.phone.filter(Char::isDigit) != updated.phone.filter(Char::isDigit)
+                        editingMember = null
+                        isUpdatingMember = false
+                        Toast.makeText(
+                            context,
+                            if (phoneChanged) "Telefone alterado. A conta foi transferida para ${updated.phone}." else "Dados do membro atualizados.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        MemberManager.syncFromFirestore(context)
+                    }.onFailure { error ->
+                        isUpdatingMember = false
+                        Toast.makeText(context, error.message ?: "Não foi possível atualizar o cadastro.", Toast.LENGTH_LONG).show()
+                    }
+                }
             }
         )
     }
@@ -326,7 +421,12 @@ fun EditProfilesSection() {
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("Perfis dos Membros", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp))
-        Text("Toque em um usuário para abrir todas as informações e alterar a foto.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 16.dp))
+        Text(
+            "Toque em um usuário para abrir todas as informações e alterar a foto.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
 
         if (approvedMembers.isEmpty()) {
             Text("Nenhum membro aprovado encontrado.", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -336,9 +436,7 @@ fun EditProfilesSection() {
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(items = approvedMembers, key = { it.id }) { member ->
                 Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { selectedMember = member },
+                    modifier = Modifier.fillMaxWidth().clickable { selectedMember = member },
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -381,7 +479,7 @@ fun EditProfilesSection() {
                                 }
                                 StorageManager.deleteLocalProfilePhoto(context, member.id)
                                 Toast.makeText(context, "Foto removida do perfil sincronizado", Toast.LENGTH_SHORT).show()
-                            } catch (error: Exception) {
+                            } catch (_: Exception) {
                                 Toast.makeText(context, "Perfil atualizado, mas o arquivo remoto precisa ser removido no Supabase", Toast.LENGTH_LONG).show()
                             } finally {
                                 isUploadingPhoto = false
@@ -425,15 +523,17 @@ private fun MemberAdminDetailsDialog(
         title = { Text("Perfil do usuário") },
         text = {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .imePadding().verticalScroll(rememberScrollState()),
+                modifier = Modifier.fillMaxWidth().imePadding().verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 MemberAvatar(member = member, size = 112.dp)
                 Text(member.name.ifBlank { "Sem nome" }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Text("Avatar bíblico: ${biblicalAvatarForId(member.avatarId).displayName}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "Avatar bíblico: ${biblicalAvatarForId(member.avatarId).displayName}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 if (isUploadingPhoto) {
                     CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.primary)
                     Text("Salvando foto…", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -444,9 +544,7 @@ private fun MemberAdminDetailsDialog(
                         Text("Alterar foto")
                     }
                     if (member.profilePhotoUrl.isNotBlank()) {
-                        TextButton(onClick = onRemovePhoto) {
-                            Text("Remover foto", color = MaterialTheme.colorScheme.error)
-                        }
+                        TextButton(onClick = onRemovePhoto) { Text("Remover foto", color = MaterialTheme.colorScheme.error) }
                     }
                 }
                 HorizontalDivider(modifier = Modifier.fillMaxWidth())
