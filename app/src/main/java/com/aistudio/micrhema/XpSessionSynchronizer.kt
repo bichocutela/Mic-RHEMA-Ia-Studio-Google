@@ -13,6 +13,10 @@ object XpSessionSynchronizer {
         val appContext = context.applicationContext
         var member = loggedInMemberState.value?.takeIf { it.id == sourceMember.id } ?: sourceMember
 
+        // Primeiro restaura o último saldo confirmado no aparelho. Assim a tela não
+        // volta para 0 XP enquanto aguarda rede/servidor.
+        XpAccountCache.restore(appContext, member)
+
         if (FirebaseAuth.getInstance().currentUser?.uid != member.id) {
             val phone = member.phone.filter(Char::isDigit)
             if (phone.length in 10..13) {
@@ -22,12 +26,17 @@ object XpSessionSynchronizer {
                 if (recovered != null) {
                     member = recovered
                     MemberManager.setLoggedInMember(appContext, recovered)
+                    // O telefone é a identidade portátil da conta. Se houve troca de
+                    // UID, reaproveitamos imediatamente o mesmo cache confirmado.
+                    XpAccountCache.restore(appContext, recovered)
                 }
             }
         }
 
         runCatching { XpEngineClient.flushPendingNow(appContext, member) }
         runCatching { XpEngineClient.refreshNow(member) }
+            .getOrNull()
+            ?.let { account -> XpAccountCache.save(appContext, member, account) }
         return loggedInMemberState.value?.takeIf { it.id == member.id } ?: member
     }
 }

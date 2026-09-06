@@ -8,6 +8,7 @@ class MICRhemaApplication : Application() {
         CrashHandler.init(this)
         BackgroundNotificationCoordinator.initialize(this)
         SilentContentSyncManager.initialize(this)
+        XpAccountCache.initialize(this)
         // Canal exclusivo para avisos de nova versão do APK. A PWA nunca é inscrita neste tópico.
         runCatching {
             com.google.firebase.messaging.FirebaseMessaging.getInstance()
