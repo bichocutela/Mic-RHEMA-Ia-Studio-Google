@@ -25,6 +25,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -108,6 +109,16 @@ fun AchievementProgressDialog(progress: BadgeProgressSummary, onDismiss: () -> U
     val member = loggedInMemberState.value
     if (showJourney) {
         if (member != null) {
+            // O ledger central é a autoridade do XP. Sempre que a Jornada for aberta,
+            // atualizamos silenciosamente o saldo antes/ao mesmo tempo em que o diálogo
+            // aparece. Isso corrige estados locais antigos (por exemplo, 0 XP após uma
+            // consolidação de cadastro) sem exigir logout, login ou ação manual.
+            LaunchedEffect(member.id) {
+                runCatching {
+                    XpEngineClient.refreshNow(member)
+                    XpEngineClient.loadJourneyStateNow(member)
+                }
+            }
             BibleJourneyDialog(member = member, onDismiss = { showJourney = false })
             return
         }
