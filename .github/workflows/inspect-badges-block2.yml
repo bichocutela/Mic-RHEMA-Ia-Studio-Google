@@ -1,31 +1,95 @@
-name: Inspect Badges Block 2
+name: Process Badges Block 2
 on:
   push:
     branches: [fix/badges-hd-block2]
     paths: ['.github/workflows/inspect-badges-block2.yml']
 permissions:
-  contents: read
+  contents: write
 jobs:
-  inspect:
+  process:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Instalar ferramentas de imagem
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Instalar decoder WebP
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq imagemagick webp
-      - name: Inspecionar assets 13 a 17
+          sudo apt-get install -y -qq webp
+          python -m pip install --quiet pillow
+      - name: Recuperar qualquer asset truncado
         run: |
-          set -e
-          mkdir -p /tmp/b2
+          set -euo pipefail
           for n in 13 14 15 16 17; do
-            f="app/src/main/res/drawable-nodpi/profile_emblem_level_${n}.webp"
-            echo "=== NIVEL $n ==="
-            webpinfo "$f" | grep -E 'Canvas size|Width|Height|Alpha' || true
-            dwebp "$f" -o "/tmp/b2/$n.png" >/dev/null
-            convert "/tmp/b2/$n.png" -thumbnail '180x180>' -background white -gravity center -extent 190x190 "/tmp/b2/${n}_thumb.png"
+            path="app/src/main/res/drawable-nodpi/profile_emblem_level_${n}.webp"
+            if dwebp "$path" -o /tmp/check.png >/dev/null 2>&1; then
+              echo "Nível $n atual é decodificável"
+              continue
+            fi
+            echo "Nível $n está truncado; procurando última versão íntegra no histórico..."
+            found=''
+            while read -r sha; do
+              git show "${sha}:${path}" > /tmp/candidate.webp 2>/dev/null || continue
+              if dwebp /tmp/candidate.webp -o /tmp/check.png >/dev/null 2>&1; then
+                cp /tmp/candidate.webp "$path"
+                found="$sha"
+                echo "Nível $n recuperado de $sha"
+                break
+              fi
+            done < <(git log --all --format='%H' -- "$path")
+            test -n "$found" || { echo "Sem versão íntegra para nível $n"; exit 1; }
           done
-      - uses: actions/upload-artifact@v4
-        with:
-          name: block2-contact
-          path: /tmp/b2/*_thumb.png
+      - name: Corrigir ordem 16 e 17 e padronizar 13 a 17
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          from PIL import Image, ImageFilter
+          root=Path('app/src/main/res/drawable-nodpi')
+          p16=root/'profile_emblem_level_16.webp'
+          p17=root/'profile_emblem_level_17.webp'
+          # Relato confirmado no app: Chama do Espírito estava no 17; troca para o nível 16.
+          a=p16.read_bytes(); b=p17.read_bytes(); p16.write_bytes(b); p17.write_bytes(a)
+          for level in range(13,18):
+              p=root/f'profile_emblem_level_{level:02d}.webp'
+              im=Image.open(p).convert('RGBA')
+              bbox=im.getchannel('A').getbbox()
+              if not bbox: raise SystemExit(f'Nível {level} sem conteúdo')
+              content=im.crop(bbox)
+              scale=min(920/content.width,920/content.height)
+              target=(max(1,round(content.width*scale)),max(1,round(content.height*scale)))
+              content=content.resize(target,Image.Resampling.LANCZOS)
+              rgb=content.convert('RGB').filter(ImageFilter.UnsharpMask(radius=1.4,percent=125,threshold=3))
+              rgb.putalpha(content.getchannel('A'))
+              canvas=Image.new('RGBA',(1024,1024),(0,0,0,0))
+              canvas.alpha_composite(rgb,((1024-rgb.width)//2,(1024-rgb.height)//2))
+              canvas.save(p,'WEBP',lossless=True,quality=100,method=6)
+              check=Image.open(p).convert('RGBA'); cb=check.getchannel('A').getbbox()
+              if check.size!=(1024,1024): raise SystemExit(f'Nível {level} não ficou 1024')
+              if check.getchannel('A').getextrema()[0]!=0: raise SystemExit(f'Nível {level} sem transparência')
+              if cb is None or min(cb[0],cb[1],1024-cb[2],1024-cb[3])<45: raise SystemExit(f'Nível {level} margem insuficiente {cb}')
+              print(f'Nível {level}: OK 1024x1024 bbox={cb}')
+          PY
+      - name: Validar ordem oficial 13 a 17
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          text=Path('app/src/main/java/com/aistudio/micrhema/BadgeCatalog.kt').read_text()
+          expected=[('luz_do_mundo','Luz do Mundo'),('armadura_de_deus','Armadura de Deus'),('leao_de_juda','Leão de Judá'),('chama_do_espirito','Chama do Espírito'),('coroa_da_vida','Coroa da Vida')]
+          pos=[]
+          for badge_id,name in expected:
+              p=text.find(f'BiblicalBadge("{badge_id}", "{name}"')
+              if p<0: raise SystemExit(f'Catálogo sem {name}')
+              pos.append(p)
+          if pos!=sorted(pos): raise SystemExit('Ordem 13–17 incorreta')
+          print('Ordem oficial 13–17 validada')
+          PY
+      - name: Commitar bloco 2
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/src/main/res/drawable-nodpi/profile_emblem_level_{13,14,15,16,17}.webp
+          git commit -m 'fix(badges): corrigir níveis 13 a 17 em 1024'
+          git push origin HEAD:fix/badges-hd-block2
