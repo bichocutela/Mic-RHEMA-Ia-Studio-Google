@@ -1,0 +1,26 @@
+name: Export Profile Emblems
+
+on:
+  push:
+    branches:
+      - fix/profile-emblems-1024
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preparar emblemas
+        run: |
+          mkdir -p exported-emblems
+          cp app/src/main/res/drawable-nodpi/profile_emblem_level_* exported-emblems/
+          file exported-emblems/*
+      - name: Enviar emblemas
+        uses: actions/upload-artifact@v4
+        with:
+          name: profile-emblems-current
+          path: exported-emblems/
+          retention-days: 1
