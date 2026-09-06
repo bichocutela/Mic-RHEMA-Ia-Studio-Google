@@ -78,17 +78,20 @@ fun BibleJourneyDialog(
     val stats = BibleJourneyProgressTracker.stats(liveMember)
     val badgeProgress = calculateBadgeProgress(liveMember)
     val missionProgress = calculateBibleMissionProgress(liveMember)
-    val questions = remember(difficulty) {
-        BibleQuizCatalog.questions.filter { it.difficulty == difficulty } +
-            BibleQuizExpansion.byDifficulty(difficulty)
+    val questions = remember(difficulty, member.id) {
+        (BibleQuizCatalog.questions.filter { it.difficulty == difficulty } +
+            BibleQuizExpansion.byDifficulty(difficulty)).shuffled()
     }
     val answeredIds = liveMember.badgeActivityIds[BadgeActivityKeys.QUIZ_ANSWERED].orEmpty().toSet()
     val answeredInDifficulty = questions.count { it.id in answeredIds }
     val question = currentQuestionId?.let { id -> questions.firstOrNull { it.id == id } }
 
-    LaunchedEffect(difficulty, liveMember.id) {
+    LaunchedEffect(difficulty, liveMember.id, questions) {
         val answered = liveMember.badgeActivityIds[BadgeActivityKeys.QUIZ_ANSWERED].orEmpty().toSet()
-        currentQuestionId = questions.firstOrNull { it.id !in answered }?.id
+        val serverNext = runCatching { QuizAuthorityClient.nextQuestionNow(liveMember, difficulty) }.getOrNull()
+        currentQuestionId = serverNext?.questionId
+            ?.takeIf { id -> questions.any { it.id == id } }
+            ?: questions.firstOrNull { it.id !in answered }?.id
         reviewMode = false
         selectedOption = -1
         submission = null
@@ -152,7 +155,7 @@ fun BibleJourneyDialog(
                         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.48f))) {
                             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text("Todas as perguntas foram concluídas", fontWeight = FontWeight.Bold)
-                                Text("Seu progresso fica salvo. Você não precisa responder tudo novamente.", style = MaterialTheme.typography.bodyMedium)
+                                Text("Seu progresso fica salvo. Perguntas já respondidas não voltam ao Quiz normal.", style = MaterialTheme.typography.bodyMedium)
                                 OutlinedButton(
                                     onClick = {
                                         reviewMode = true
@@ -170,7 +173,7 @@ fun BibleJourneyDialog(
                 } else {
                     if (reviewMode) {
                         Text(
-                            "Modo revisão: perguntas já respondidas não concedem XP novamente.",
+                            "Modo revisão: perguntas já respondidas podem reaparecer somente aqui e não concedem XP.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -255,29 +258,38 @@ fun BibleJourneyDialog(
 
                     if (submission != null) {
                         Button(
+                            enabled = !answerLoading,
                             onClick = {
-                                val latestMember = loggedInMemberState.value?.takeIf { it.id == member.id } ?: liveMember
-                                val answeredNow = latestMember.badgeActivityIds[BadgeActivityKeys.QUIZ_ANSWERED].orEmpty().toSet()
-                                val currentIndex = questions.indexOfFirst { it.id == question.id }.coerceAtLeast(0)
-                                val nextQuestion = if (reviewMode) {
-                                    if (questions.isEmpty()) null else questions[(currentIndex + 1) % questions.size]
+                                if (reviewMode) {
+                                    val currentIndex = questions.indexOfFirst { it.id == question.id }.coerceAtLeast(0)
+                                    currentQuestionId = if (questions.isEmpty()) null else questions[(currentIndex + 1) % questions.size].id
+                                    hintUsed = BibleQuizHintUsage.NONE
+                                    selectedOption = -1
+                                    submission = null
+                                    errorMessage = ""
                                 } else {
-                                    (1..questions.size)
-                                        .asSequence()
-                                        .map { offset -> questions[(currentIndex + offset) % questions.size] }
-                                        .firstOrNull { it.id !in answeredNow }
+                                    answerLoading = true
+                                    errorMessage = ""
+                                    scope.launch {
+                                        val latestMember = loggedInMemberState.value?.takeIf { it.id == member.id } ?: liveMember
+                                        val serverNext = runCatching { QuizAuthorityClient.nextQuestionNow(latestMember, difficulty) }
+                                            .onFailure { errorMessage = it.message ?: "Não foi possível sortear a próxima pergunta." }
+                                            .getOrNull()
+                                        val localAnswered = latestMember.badgeActivityIds[BadgeActivityKeys.QUIZ_ANSWERED].orEmpty().toSet()
+                                        currentQuestionId = serverNext?.questionId
+                                            ?.takeIf { id -> questions.any { it.id == id } }
+                                            ?: questions.firstOrNull { it.id !in localAnswered }?.id
+                                        if (currentQuestionId == null) reviewMode = false
+                                        hintUsed = BibleQuizHintUsage.NONE
+                                        selectedOption = -1
+                                        submission = null
+                                        hintLoading = false
+                                        answerLoading = false
+                                    }
                                 }
-                                currentQuestionId = nextQuestion?.id
-                                if (nextQuestion == null) reviewMode = false
-                                hintUsed = BibleQuizHintUsage.NONE
-                                selectedOption = -1
-                                submission = null
-                                hintLoading = false
-                                answerLoading = false
-                                errorMessage = ""
                             },
                             modifier = Modifier.fillMaxWidth()
-                        ) { Text(if (reviewMode) "Próxima revisão" else "Próxima pergunta") }
+                        ) { Text(if (reviewMode) "Próxima revisão" else "Sortear próxima pergunta") }
                     }
                 }
 
@@ -312,7 +324,7 @@ fun BibleJourneyDialog(
                 }
 
                 Text(
-                    "Regra de progresso: a primeira tentativa é confirmada no servidor antes de entrar no perfil. Dicas só podem aumentar de nível (nenhuma → sutil → direta), nunca voltar para um desconto menor. A revisão continua opcional e vale 0 XP.",
+                    "Regra de progresso: a próxima pergunta é sorteada no servidor apenas entre as ainda não respondidas. Dicas só podem aumentar de nível (nenhuma → sutil → direta), nunca voltar para um desconto menor. A revisão continua opcional e vale 0 XP.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
