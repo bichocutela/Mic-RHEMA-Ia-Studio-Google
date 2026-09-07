@@ -14,6 +14,7 @@ object XpRewardManager {
 
     private fun ownedKey(memberId: String) = "owned:$memberId"
     private fun activeKey(memberId: String, itemId: String) = "active:$memberId:$itemId"
+    private fun previousAccentKey(memberId: String) = "previous_accent:$memberId"
 
     fun syncOwned(context: Context, memberId: String, itemIds: Collection<String>) {
         val owned = itemIds
@@ -40,6 +41,7 @@ object XpRewardManager {
     fun isActive(context: Context, itemId: String, memberId: String? = loggedInMemberState.value?.id): Boolean {
         val id = memberId?.takeIf { it.isNotBlank() } ?: return false
         if (!isOwned(context, itemId, id)) return false
+        if (itemId == GOLD_PLUS_THEME) return currentSettingsState.value.accentColor == AccentColor.GOLD
         return context.applicationContext
             .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .getBoolean(activeKey(id, itemId), true)
@@ -47,6 +49,9 @@ object XpRewardManager {
 
     fun setActive(context: Context, memberId: String, itemId: String, active: Boolean): Boolean {
         if (!isOwned(context, itemId, memberId)) return false
+        if (itemId == GOLD_PLUS_THEME) {
+            return if (active) activateGoldenPlusTheme(context, memberId) else deactivateGoldenPlusTheme(context, memberId)
+        }
         context.applicationContext
             .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit()
@@ -57,9 +62,31 @@ object XpRewardManager {
 
     fun activateGoldenPlusTheme(context: Context, memberId: String): Boolean {
         if (!isOwned(context, GOLD_PLUS_THEME, memberId)) return false
+        val currentAccent = currentSettingsState.value.accentColor
+        if (currentAccent != AccentColor.GOLD) {
+            context.applicationContext
+                .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .edit()
+                .putString(previousAccentKey(memberId), currentAccent.name)
+                .apply()
+        }
         UserSettingsManager.saveSettings(
             context,
             currentSettingsState.value.copy(accentColor = AccentColor.GOLD)
+        )
+        return true
+    }
+
+    fun deactivateGoldenPlusTheme(context: Context, memberId: String): Boolean {
+        if (!isOwned(context, GOLD_PLUS_THEME, memberId)) return false
+        val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val previous = prefs.getString(previousAccentKey(memberId), null)
+            ?.let { stored -> runCatching { AccentColor.valueOf(stored) }.getOrNull() }
+            ?.takeIf { it != AccentColor.GOLD }
+            ?: AccentColor.BLUE
+        UserSettingsManager.saveSettings(
+            context,
+            currentSettingsState.value.copy(accentColor = previous)
         )
         return true
     }
