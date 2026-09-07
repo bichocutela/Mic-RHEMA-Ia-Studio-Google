@@ -60,10 +60,6 @@ private val DarkColorScheme = darkColorScheme(
     onSurface = Color(0xFFFFFFFF)
 )
 
-/**
- * Tema premium da Loja XP. O dourado comum continua disponível normalmente;
- * este esquema só entra quando o membro possui o entitlement e seleciona Dourado.
- */
 private val GoldPlusLightColorScheme = lightColorScheme(
     primary = Color(0xFFB47B00),
     onPrimary = Color.White,
@@ -175,6 +171,19 @@ fun MICRhemaTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
+        typography = ExpressiveTypography,
+        content = content
+    )
+}
+
+/** Prévia isolada usando exatamente o mesmo esquema visual do Dourado Plus. */
+@Composable
+fun GoldPlusPreviewTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    content: @Composable () -> Unit
+) {
+    MaterialTheme(
+        colorScheme = if (darkTheme) GoldPlusDarkColorScheme else GoldPlusLightColorScheme,
         typography = ExpressiveTypography,
         content = content
     )

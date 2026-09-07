@@ -1,11 +1,17 @@
 package com.aistudio.micrhema
 
+import android.app.DownloadManager
+import android.content.Context
+import android.net.Uri
+import android.os.Environment
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.*
@@ -19,7 +25,38 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import kotlinx.coroutines.launch
+import com.aistudio.micrhema.ui.theme.GoldPlusPreviewTheme
+
+private fun downloadXpDigitalReward(context: Context, item: XpShopItem) {
+    if (item.imageUrl.isBlank()) return
+    runCatching {
+        val uri = Uri.parse(item.imageUrl)
+        val rawExtension = uri.lastPathSegment
+            ?.substringAfterLast('.', "")
+            ?.substringBefore('?')
+            ?.lowercase()
+            .orEmpty()
+        val extension = rawExtension.takeIf { it in setOf("jpg", "jpeg", "png", "webp", "gif") } ?: "jpg"
+        val safeName = item.name
+            .trim()
+            .replace(Regex("[^A-Za-z0-9À-ÿ _-]"), "")
+            .replace(Regex("\\s+"), "_")
+            .ifBlank { "MIC_Rhema_XP" }
+        val fileName = "$safeName.$extension"
+        val request = DownloadManager.Request(uri)
+            .setTitle(item.name)
+            .setDescription("Recompensa digital da Loja XP")
+            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            .setAllowedOverMetered(true)
+            .setAllowedOverRoaming(true)
+            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName)
+        val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        manager.enqueue(request)
+        Toast.makeText(context, "Download iniciado. Veja a pasta Downloads.", Toast.LENGTH_LONG).show()
+    }.onFailure {
+        Toast.makeText(context, "Não foi possível iniciar o download.", Toast.LENGTH_LONG).show()
+    }
+}
 
 @Composable
 fun XpPurchasesDialog(
@@ -27,7 +64,6 @@ fun XpPurchasesDialog(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     var loading by remember(member.id) { mutableStateOf(true) }
     var error by remember(member.id) { mutableStateOf("") }
     var previewItem by remember { mutableStateOf<XpShopItem?>(null) }
@@ -134,7 +170,8 @@ fun XpPurchasesDialog(
                         XpPurchasedItemCard(
                             member = member,
                             item = item,
-                            onPreview = { previewItem = item }
+                            onPreview = { previewItem = item },
+                            onDownload = { downloadXpDigitalReward(context, item) }
                         )
                     }
                     if (error.isNotBlank()) {
@@ -153,33 +190,96 @@ fun XpPurchasesDialog(
     )
 
     previewItem?.let { item ->
+        val previewAvatar = biblicalAvatarForId(member.avatarId.ifBlank { DEFAULT_BIBLICAL_AVATAR_ID })
+        val previewBadge = biblicalBadgeForId(member.equippedBadgeId.ifBlank { DEFAULT_BIBLICAL_BADGE_ID })
+        val downloadable = item.kind == "digital" && item.imageUrl.isNotBlank()
         AlertDialog(
             onDismissRequest = { previewItem = null },
-            title = { Text(item.name) },
+            title = { Text("Prévia — ${item.name}") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    if (item.imageUrl.isNotBlank()) {
-                        AsyncImage(
-                            model = item.imageUrl,
-                            contentDescription = "Prévia de ${item.name}",
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp).clip(RoundedCornerShape(18.dp))
-                        )
-                    } else {
-                        Surface(
-                            modifier = Modifier.fillMaxWidth().height(150.dp),
-                            shape = RoundedCornerShape(18.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.Visibility, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    when (item.id) {
+                        XpRewardManager.PROMISE_FRAME -> {
+                            Text("Assim a Moldura Luz da Promessa ficará no seu avatar.", style = MaterialTheme.typography.bodySmall)
+                            BiblicalAvatarWithBadge(
+                                avatar = previewAvatar,
+                                badge = previewBadge,
+                                modifier = Modifier.size(260.dp),
+                                previewPromiseFrame = true
+                            )
+                        }
+                        XpRewardManager.READER_BADGE -> {
+                            Text("Assim o Distintivo Leitor da Palavra ficará no seu avatar.", style = MaterialTheme.typography.bodySmall)
+                            BiblicalAvatarWithBadge(
+                                avatar = previewAvatar,
+                                badge = previewBadge,
+                                modifier = Modifier.size(260.dp),
+                                previewReaderBadge = true
+                            )
+                        }
+                        XpRewardManager.GOLD_PLUS_THEME -> {
+                            GoldPlusPreviewTheme {
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = MaterialTheme.colorScheme.background
+                                ) {
+                                    Column(
+                                        Modifier.padding(16.dp),
+                                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Text("Dourado Plus", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                                        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                                            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                Text("Prévia fiel do tema", fontWeight = FontWeight.Bold)
+                                                Text("Superfícies, botões, destaques e contraste usam exatamente as cores do Dourado Plus.", style = MaterialTheme.typography.bodySmall)
+                                                Button(onClick = {}, modifier = Modifier.fillMaxWidth()) { Text("Botão Dourado Plus") }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        else -> {
+                            if (item.imageUrl.isNotBlank()) {
+                                AsyncImage(
+                                    model = item.imageUrl,
+                                    contentDescription = "Prévia de ${item.name}",
+                                    contentScale = ContentScale.Fit,
+                                    modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp).clip(RoundedCornerShape(18.dp))
+                                )
+                            } else {
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth().height(150.dp),
+                                    shape = RoundedCornerShape(18.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Default.Visibility, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                }
                             }
                         }
                     }
                     Text(item.description.ifBlank { "Recompensa adquirida na Loja XP." })
                 }
             },
-            confirmButton = { TextButton(onClick = { previewItem = null }) { Text("Fechar") } }
+            confirmButton = {
+                TextButton(onClick = { previewItem = null }) { Text("Fechar") }
+            },
+            dismissButton = if (downloadable) {
+                {
+                    TextButton(onClick = { downloadXpDigitalReward(context, item) }) {
+                        Icon(Icons.Default.Download, contentDescription = null)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Baixar")
+                    }
+                }
+            } else null
         )
     }
 }
@@ -188,20 +288,17 @@ fun XpPurchasesDialog(
 private fun XpPurchasedItemCard(
     member: MemberRequest,
     item: XpShopItem,
-    onPreview: () -> Unit
+    onPreview: () -> Unit,
+    onDownload: () -> Unit
 ) {
     val context = LocalContext.current
     var localToggle by remember(item.id) { mutableIntStateOf(0) }
     val isActivatable = item.id == XpRewardManager.GOLD_PLUS_THEME ||
         item.id == XpRewardManager.PROMISE_FRAME ||
         item.id == XpRewardManager.READER_BADGE
-    val isActive = when (item.id) {
-        XpRewardManager.GOLD_PLUS_THEME -> currentSettingsState.value.accentColor == AccentColor.GOLD
-        XpRewardManager.PROMISE_FRAME,
-        XpRewardManager.READER_BADGE -> XpRewardManager.isActive(context, item.id, member.id)
-        else -> false
-    }
     localToggle
+    val isActive = XpRewardManager.isActive(context, item.id, member.id)
+    val downloadable = item.kind == "digital" && item.imageUrl.isNotBlank()
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -234,23 +331,20 @@ private fun XpPurchasedItemCard(
                 if (isActivatable) {
                     Button(
                         onClick = {
-                            when (item.id) {
-                                XpRewardManager.GOLD_PLUS_THEME -> XpRewardManager.activateGoldenPlusTheme(context, member.id)
-                                else -> XpRewardManager.setActive(context, member.id, item.id, !isActive)
-                            }
+                            XpRewardManager.setActive(context, member.id, item.id, !isActive)
                             localToggle++
                         },
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text(
-                            when {
-                                item.id == XpRewardManager.GOLD_PLUS_THEME && isActive -> "Ativo"
-                                item.id == XpRewardManager.GOLD_PLUS_THEME -> "Ativar"
-                                isActive -> "Desativar"
-                                else -> "Ativar"
-                            }
-                        )
+                        Text(if (isActive) "Desativar" else "Ativar")
                     }
+                }
+            }
+            if (downloadable) {
+                OutlinedButton(onClick = onDownload, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.Download, contentDescription = null)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Baixar no celular")
                 }
             }
         }
