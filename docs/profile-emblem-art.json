@@ -1,7 +1,7 @@
 {
   "size": 1024,
   "format": "WebP lossless RGBA",
-  "revision": "hd-20260906",
+  "revision": "hd-20260907",
   "frames": [
     {
       "level": 8,
@@ -56,6 +56,87 @@
       "avatarFraction": 0.4715,
       "sha256": "3557ac2571de8e9055ce1eff610d24a5ed14de6e4a83b6cf07c861e10307a02c",
       "bytes": 759590,
+      "portraitLeakPixels": 0
+    },
+    {
+      "level": 14,
+      "id": "armadura_de_deus",
+      "name": "Armadura de Deus",
+      "avatarFraction": 0.4494,
+      "sha256": "140e2226d69820cfdd609a16cb53546beabaa0969f166bfe7b12c3f2f55116b3",
+      "bytes": 753654,
+      "portraitLeakPixels": 0
+    },
+    {
+      "level": 15,
+      "id": "leao_de_juda",
+      "name": "Leão de Judá",
+      "avatarFraction": 0.4553,
+      "sha256": "d0b45b77b06d4b43cdca5ff4b677fd026e926bbf6224faa9b1e47e1aeeab6ba2",
+      "bytes": 845312,
+      "portraitLeakPixels": 0
+    },
+    {
+      "level": 16,
+      "id": "chama_do_espirito",
+      "name": "Chama do Espírito",
+      "avatarFraction": 0.5176,
+      "sha256": "7886db2861d17f3e7d7dcc108542008c6feb2646914d1aaaf82b34deb1210547",
+      "bytes": 498918,
+      "portraitLeakPixels": 0
+    },
+    {
+      "level": 17,
+      "id": "coroa_da_vida",
+      "name": "Coroa da Vida",
+      "avatarFraction": 0.4784,
+      "sha256": "899e028c919b6992b55e7a7b372554ff761f01083e5df4ebba0f52a08c6af2ee",
+      "bytes": 718050,
+      "portraitLeakPixels": 0
+    },
+    {
+      "level": 18,
+      "id": "asas_da_promessa",
+      "name": "Asas da Promessa",
+      "avatarFraction": 0.4494,
+      "sha256": "8617665afdac2d6a89729f321a7179c9e846e8764c866b6a6f9f937e9762611e",
+      "bytes": 718736,
+      "portraitLeakPixels": 0
+    },
+    {
+      "level": 19,
+      "id": "tabernaculo",
+      "name": "Tabernáculo",
+      "avatarFraction": 0.5072,
+      "sha256": "d716a1b749d1b5b54a9eba9e42c4385212f69fd50470a21468158b057f7e770a",
+      "bytes": 645466,
+      "portraitLeakPixels": 0
+    },
+    {
+      "level": 20,
+      "id": "arca_da_alianca",
+      "name": "Arca da Aliança",
+      "avatarFraction": 0.5227,
+      "sha256": "5281e5b48d283187e73b9d781f340820888a3ea6f91407f5effd60f100beaf65",
+      "bytes": 759824,
+      "portraitLeakPixels": 0
+    },
+    {
+      "level": 21,
+      "id": "nova_jerusalem",
+      "name": "Nova Jerusalém",
+      "avatarFraction": 0.5027,
+      "sha256": "9c93849c1d3f95edf23500f83ddeedb9285f79d84ed26920d2c26ace9ea7212c",
+      "bytes": 710836,
+      "portraitLeakPixels": 0
+    },
+    {
+      "level": 22,
+      "id": "gloria_eterna",
+      "name": "Glória Eterna",
+      "avatarFraction": 0.461,
+      "sha256": "045cf3995fc717b101e318bf91ebf9247fb53f2470e6262edd0bd3c6792bdf67",
+      "bytes": 830884,
       "portraitLeakPixels": 0
     }
   ]

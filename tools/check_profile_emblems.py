@@ -111,6 +111,8 @@ def main() -> int:
                 errors.append("encaixe Android diverge da arte revisada")
             if not re.search(rf"\b{level}:\s*{re.escape(fraction)}\s*,", pwa):
                 errors.append("encaixe PWA diverge da arte revisada")
+            if not re.search(rf"\b{level}\s*->\s*R\.drawable\.profile_emblem_level_{level:02}\b", android):
+                errors.append("Android não aponta para a moldura revisada")
         pattern = (
             rf'BiblicalBadge\("{re.escape(badge_id)}",\s*"{re.escape(name)}",'
             rf'\s*"[^"\n]*",\s*BadgeCategory\.LEVEL,\s*{level},'
