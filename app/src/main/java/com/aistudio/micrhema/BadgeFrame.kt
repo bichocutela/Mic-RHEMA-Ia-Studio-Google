@@ -35,7 +35,8 @@ fun BiblicalAvatarWithBadge(
     val hasPromiseFrame = XpRewardManager.isOwned(context, XpRewardManager.PROMISE_FRAME)
     val hasReaderBadge = XpRewardManager.isOwned(context, XpRewardManager.READER_BADGE)
     val clickableModifier = if (onClick != null) modifier.clickable(onClick = onClick) else modifier
-    val isProfileEmblem = badge.frameStyle == BadgeFrameStyle.PROFILE_EMBLEM
+    val isProfileEmblem = badge.frameStyle == BadgeFrameStyle.PROFILE_EMBLEM ||
+        (badge.category == BadgeCategory.LEVEL && (badge.level ?: 0) in 1..7)
     val emblemScale = if (hasPromiseFrame) 0.92f else 1f
 
     Box(modifier = clickableModifier, contentAlignment = Alignment.Center) {
@@ -85,6 +86,13 @@ fun BiblicalAvatarWithBadge(
 // Each restored frame has its own opening. Scale the portrait and frame
 // together when an XP reward surrounds them, so their alignment is retained.
 private fun profileEmblemAvatarFraction(level: Int): Float = when (level) {
+    1 -> 0.5595f
+    2 -> 0.5588f
+    3 -> 0.556f
+    4 -> 0.5557f
+    5 -> 0.5578f
+    6 -> 0.5589f
+    7 -> 0.5621f
     8 -> 0.5947f
     9 -> 0.493f
     10 -> 0.4902f
@@ -103,7 +111,14 @@ private fun profileEmblemAvatarFraction(level: Int): Float = when (level) {
     else -> 0.58f
 }
 
-private fun profileEmblemDrawable(level: Int): Int = when (level.coerceIn(8, 22)) {
+private fun profileEmblemDrawable(level: Int): Int = when (level.coerceIn(1, 22)) {
+    1 -> R.drawable.profile_emblem_level_01
+    2 -> R.drawable.profile_emblem_level_02
+    3 -> R.drawable.profile_emblem_level_03
+    4 -> R.drawable.profile_emblem_level_04
+    5 -> R.drawable.profile_emblem_level_05
+    6 -> R.drawable.profile_emblem_level_06
+    7 -> R.drawable.profile_emblem_level_07
     8 -> R.drawable.profile_emblem_level_08
     9 -> R.drawable.profile_emblem_level_09
     10 -> R.drawable.profile_emblem_level_10

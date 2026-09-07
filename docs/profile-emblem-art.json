@@ -4,6 +4,69 @@
   "revision": "hd-20260907",
   "frames": [
     {
+      "level": 1,
+      "id": "caminhante",
+      "name": "Caminhante",
+      "avatarFraction": 0.5595,
+      "sha256": "134d18d20ba3bd9e83e6a6bad19524c24b1c5d74066ceb1ccad3508943637cef",
+      "bytes": 289218,
+      "portraitLeakPixels": 0
+    },
+    {
+      "level": 2,
+      "id": "semeador",
+      "name": "Semeador",
+      "avatarFraction": 0.5588,
+      "sha256": "58d91bed30524d95814b024e0d9fc32ee7566020d1c96f32b4c881f2694575e7",
+      "bytes": 326444,
+      "portraitLeakPixels": 0
+    },
+    {
+      "level": 3,
+      "id": "discipulo",
+      "name": "Discípulo",
+      "avatarFraction": 0.556,
+      "sha256": "cf8ebf55af29a3ddb946367e809bc8f19cf6bf7007b85e8b7864b79b62efe431",
+      "bytes": 331622,
+      "portraitLeakPixels": 0
+    },
+    {
+      "level": 4,
+      "id": "perseverante",
+      "name": "Perseverante",
+      "avatarFraction": 0.5557,
+      "sha256": "b83f9c7b4a9c5c9f2edc3a4e7924dc2d8fd8ee6ed22f47c4edb964b1216252b1",
+      "bytes": 306010,
+      "portraitLeakPixels": 0
+    },
+    {
+      "level": 5,
+      "id": "estudante_rhema",
+      "name": "Estudante Rhema",
+      "avatarFraction": 0.5578,
+      "sha256": "c4f47a0c4581a7c32217660cef0af56c7fcd1b4dfc8be65cd0c6fe3d4725fdcf",
+      "bytes": 366260,
+      "portraitLeakPixels": 0
+    },
+    {
+      "level": 6,
+      "id": "mestre_da_palavra",
+      "name": "Mestre da Palavra",
+      "avatarFraction": 0.5589,
+      "sha256": "5110da34c47a7fd3bbb39f4e10a7ca3db1def4c808698ca31e52822c9ed5c17b",
+      "bytes": 395824,
+      "portraitLeakPixels": 0
+    },
+    {
+      "level": 7,
+      "id": "guardiao_da_fe",
+      "name": "Guardião da Fé",
+      "avatarFraction": 0.5621,
+      "sha256": "11ef47e035d485afa7ed31df4c9ac04dad2f871b19de5a21f633abaf8663da1c",
+      "bytes": 348580,
+      "portraitLeakPixels": 0
+    },
+    {
       "level": 8,
       "id": "semente_da_fe",
       "name": "Semente da Fé",
