@@ -1,0 +1,204 @@
+name: Adicionar prévia antes do resgate XP
+
+on:
+  push:
+    branches: [feat/xp-shop-preview-before-buy]
+    paths:
+      - '.github/workflows/xp-shop-preview-patch.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/xp-shop-preview-before-buy
+          fetch-depth: 0
+
+      - name: Aplicar prévia fiel antes da compra
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/src/main/java/com/aistudio/micrhema/XpShopPanel.kt')
+          s = p.read_text()
+
+          if 'import com.aistudio.micrhema.ui.theme.GoldPlusPreviewTheme' not in s:
+              s = s.replace('import coil.compose.AsyncImage\n', 'import coil.compose.AsyncImage\nimport com.aistudio.micrhema.ui.theme.GoldPlusPreviewTheme\n')
+
+          s = s.replace(
+              '    var selectedItem by remember { mutableStateOf<XpShopItem?>(null) }\n',
+              '    var selectedItem by remember { mutableStateOf<XpShopItem?>(null) }\n    var previewItem by remember { mutableStateOf<XpShopItem?>(null) }\n'
+          )
+
+          old_call = 'XpShopItemCard(item, redeemedCount, limitReached, soldOut, enoughBalance, ownedLabel, onOwnedAction) { selectedItem = item }'
+          new_call = 'XpShopItemCard(item, redeemedCount, limitReached, soldOut, enoughBalance, ownedLabel, onOwnedAction, onPreview = { previewItem = item }) { selectedItem = item }'
+          s = s.replace(old_call, new_call)
+
+          marker = '    selectedItem?.let { item ->\n'
+          preview = '''    previewItem?.let { item ->
+        val previewAvatar = biblicalAvatarForId(member.avatarId.ifBlank { DEFAULT_BIBLICAL_AVATAR_ID })
+        val previewBadge = biblicalBadgeForId(member.equippedBadgeId.ifBlank { DEFAULT_BIBLICAL_BADGE_ID })
+        AlertDialog(
+            onDismissRequest = { previewItem = null },
+            icon = { Icon(Icons.Default.Visibility, contentDescription = null) },
+            title = { Text("Prévia — ${item.name}") },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    when (item.id) {
+                        XpRewardManager.PROMISE_FRAME -> {
+                            Text("Assim a Moldura Luz da Promessa ficará no seu avatar.", style = MaterialTheme.typography.bodySmall)
+                            BiblicalAvatarWithBadge(
+                                avatar = previewAvatar,
+                                badge = previewBadge,
+                                modifier = Modifier.size(260.dp),
+                                previewPromiseFrame = true
+                            )
+                        }
+                        XpRewardManager.READER_BADGE -> {
+                            Text("Assim o Distintivo Leitor da Palavra ficará no seu avatar.", style = MaterialTheme.typography.bodySmall)
+                            BiblicalAvatarWithBadge(
+                                avatar = previewAvatar,
+                                badge = previewBadge,
+                                modifier = Modifier.size(260.dp),
+                                previewReaderBadge = true
+                            )
+                        }
+                        XpRewardManager.GOLD_PLUS_THEME -> {
+                            GoldPlusPreviewTheme {
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = MaterialTheme.colorScheme.background
+                                ) {
+                                    Column(
+                                        Modifier.padding(16.dp),
+                                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Text("Dourado Plus", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                                        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                                            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                Text("Prévia fiel do tema", fontWeight = FontWeight.Bold)
+                                                Text("Superfícies, botões, destaques e contraste exatamente como ficarão depois da ativação.", style = MaterialTheme.typography.bodySmall)
+                                                Button(onClick = {}, modifier = Modifier.fillMaxWidth()) { Text("Botão Dourado Plus") }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        else -> {
+                            if (item.imageUrl.isNotBlank()) {
+                                AsyncImage(
+                                    model = item.imageUrl,
+                                    contentDescription = "Prévia de ${item.name}",
+                                    contentScale = ContentScale.Fit,
+                                    modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp).clip(RoundedCornerShape(18.dp))
+                                )
+                            } else {
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth().height(150.dp),
+                                    shape = RoundedCornerShape(18.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Default.Visibility, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Text(item.description.ifBlank { "Recompensa da Loja XP." })
+                    Text("Nenhum XP será gasto ao visualizar a prévia.", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                }
+            },
+            confirmButton = {
+                if (!redemptions.any { it.itemId == item.id && it.status != "cancelado" }) {
+                    Button(
+                        enabled = (account?.balance ?: 0) >= item.cost,
+                        onClick = { previewItem = null; selectedItem = item }
+                    ) { Text("Comprar por ${item.cost} XP") }
+                } else {
+                    TextButton(onClick = { previewItem = null }) { Text("Fechar") }
+                }
+            },
+            dismissButton = {
+                if (!redemptions.any { it.itemId == item.id && it.status != "cancelado" }) {
+                    TextButton(onClick = { previewItem = null }) { Text("Voltar") }
+                }
+            }
+        )
+    }
+
+'''
+          if 'title = { Text("Prévia — ${item.name}") }' not in s:
+              s = s.replace(marker, preview + marker, 1)
+
+          old_sig = 'private fun XpShopItemCard(item: XpShopItem, redeemedCount: Int, limitReached: Boolean, soldOut: Boolean, enoughBalance: Boolean, ownedLabel: String, onOwnedAction: (() -> Unit)?, onRedeem: () -> Unit) {'
+          new_sig = 'private fun XpShopItemCard(item: XpShopItem, redeemedCount: Int, limitReached: Boolean, soldOut: Boolean, enoughBalance: Boolean, ownedLabel: String, onOwnedAction: (() -> Unit)?, onPreview: () -> Unit, onRedeem: () -> Unit) {'
+          s = s.replace(old_sig, new_sig)
+
+          old_when = '''            when {
+                limitReached && onOwnedAction != null -> Button(onClick = onOwnedAction, modifier = Modifier.fillMaxWidth()) { Text(ownedLabel) }
+                limitReached -> OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) { Text(ownedLabel) }
+                soldOut -> OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) { Text("Esgotado") }
+                !enoughBalance -> OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) { Text("Saldo insuficiente") }
+                else -> Button(onClick = onRedeem, modifier = Modifier.fillMaxWidth()) { Text("Resgatar") }
+            }'''
+          new_when = '''            OutlinedButton(onClick = onPreview, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.Visibility, contentDescription = null)
+                Spacer(Modifier.width(6.dp))
+                Text(if (limitReached) "Ver prévia" else "Ver prévia antes de comprar")
+            }
+            when {
+                limitReached && onOwnedAction != null -> Button(onClick = onOwnedAction, modifier = Modifier.fillMaxWidth()) { Text(ownedLabel) }
+                limitReached -> OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) { Text(ownedLabel) }
+                soldOut -> OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) { Text("Esgotado") }
+                !enoughBalance -> OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) { Text("Saldo insuficiente") }
+                else -> Button(onClick = onRedeem, modifier = Modifier.fillMaxWidth()) { Text("Resgatar") }
+            }'''
+          if old_when not in s:
+              raise SystemExit('Bloco de ações da Loja XP não encontrado')
+          s = s.replace(old_when, new_when, 1)
+
+          p.write_text(s)
+          PY
+
+      - name: Restaurar Firebase
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          test -n "$GOOGLE_SERVICES_JSON"
+          printf '%s' "$GOOGLE_SERVICES_JSON" > app/google-services.json
+          jq empty app/google-services.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          validate-wrappers: false
+
+      - name: Compilar Android
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:compileDebugKotlin --no-daemon --stacktrace
+
+      - name: Commitar implementação validada
+        run: |
+          rm -f app/google-services.json
+          rm -f .github/workflows/xp-shop-preview-patch.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/src/main/java/com/aistudio/micrhema/XpShopPanel.kt .github/workflows/xp-shop-preview-patch.yml
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'feat(xp): adicionar prévia antes do resgate'
+          git push origin HEAD:feat/xp-shop-preview-before-buy
