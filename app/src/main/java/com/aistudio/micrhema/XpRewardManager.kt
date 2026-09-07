@@ -13,6 +13,7 @@ object XpRewardManager {
     private const val PREFS = "micrhema_xp_rewards"
 
     private fun ownedKey(memberId: String) = "owned:$memberId"
+    private fun activeKey(memberId: String, itemId: String) = "active:$memberId:$itemId"
 
     fun syncOwned(context: Context, memberId: String, itemIds: Collection<String>) {
         val owned = itemIds
@@ -33,6 +34,25 @@ object XpRewardManager {
             .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .getStringSet(ownedKey(id), emptySet())
             .orEmpty()
+    }
+
+    /** Recompensas cosméticas antigas continuam ativas por padrão para não mudar o visual do usuário. */
+    fun isActive(context: Context, itemId: String, memberId: String? = loggedInMemberState.value?.id): Boolean {
+        val id = memberId?.takeIf { it.isNotBlank() } ?: return false
+        if (!isOwned(context, itemId, id)) return false
+        return context.applicationContext
+            .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getBoolean(activeKey(id, itemId), true)
+    }
+
+    fun setActive(context: Context, memberId: String, itemId: String, active: Boolean): Boolean {
+        if (!isOwned(context, itemId, memberId)) return false
+        context.applicationContext
+            .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(activeKey(memberId, itemId), active)
+            .apply()
+        return true
     }
 
     fun activateGoldenPlusTheme(context: Context, memberId: String): Boolean {
