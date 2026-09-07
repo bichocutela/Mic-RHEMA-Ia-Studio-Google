@@ -16,6 +16,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.aistudio.micrhema.ui.theme.GoldPlusPreviewTheme
 import kotlinx.coroutines.launch
 
 @Composable
@@ -29,6 +30,7 @@ fun XpShopPanel(member: MemberRequest, xpUnlocked: Boolean) {
     var error by remember(member.id) { mutableStateOf("") }
     var redeeming by remember { mutableStateOf(false) }
     var selectedItem by remember { mutableStateOf<XpShopItem?>(null) }
+    var previewItem by remember { mutableStateOf<XpShopItem?>(null) }
     var successRedemption by remember { mutableStateOf<XpRedemption?>(null) }
 
     suspend fun refresh() {
@@ -101,7 +103,17 @@ fun XpShopPanel(member: MemberRequest, xpUnlocked: Boolean) {
                     item.kind == "digital" && item.imageUrl.isNotBlank() -> ({ runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(item.imageUrl))) } })
                     else -> null
                 }
-                XpShopItemCard(item, redeemedCount, limitReached, soldOut, enoughBalance, ownedLabel, onOwnedAction) { selectedItem = item }
+                XpShopItemCard(
+                    item = item,
+                    redeemedCount = redeemedCount,
+                    limitReached = limitReached,
+                    soldOut = soldOut,
+                    enoughBalance = enoughBalance,
+                    ownedLabel = ownedLabel,
+                    onOwnedAction = onOwnedAction,
+                    onPreview = { previewItem = item },
+                    onRedeem = { selectedItem = item }
+                )
             }
         }
 
@@ -116,6 +128,110 @@ fun XpShopPanel(member: MemberRequest, xpUnlocked: Boolean) {
             }
             redemptions.take(8).forEach { redemption -> XpRedemptionRow(redemption) }
         }
+    }
+
+    previewItem?.let { item ->
+        val previewAvatar = biblicalAvatarForId(member.avatarId.ifBlank { DEFAULT_BIBLICAL_AVATAR_ID })
+        val previewBadge = biblicalBadgeForId(member.equippedBadgeId.ifBlank { DEFAULT_BIBLICAL_BADGE_ID })
+        val alreadyOwned = redemptions.any { it.itemId == item.id && it.status != "cancelado" }
+        AlertDialog(
+            onDismissRequest = { previewItem = null },
+            icon = { Icon(Icons.Default.Visibility, contentDescription = null) },
+            title = { Text("Prévia — ${item.name}") },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    when (item.id) {
+                        XpRewardManager.PROMISE_FRAME -> {
+                            Text("Assim a Moldura Luz da Promessa ficará no seu avatar.", style = MaterialTheme.typography.bodySmall)
+                            BiblicalAvatarWithBadge(
+                                avatar = previewAvatar,
+                                badge = previewBadge,
+                                modifier = Modifier.size(260.dp),
+                                previewPromiseFrame = true
+                            )
+                        }
+                        XpRewardManager.READER_BADGE -> {
+                            Text("Assim o Distintivo Leitor da Palavra ficará no seu avatar.", style = MaterialTheme.typography.bodySmall)
+                            BiblicalAvatarWithBadge(
+                                avatar = previewAvatar,
+                                badge = previewBadge,
+                                modifier = Modifier.size(260.dp),
+                                previewReaderBadge = true
+                            )
+                        }
+                        XpRewardManager.GOLD_PLUS_THEME -> {
+                            GoldPlusPreviewTheme {
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = MaterialTheme.colorScheme.background
+                                ) {
+                                    Column(
+                                        Modifier.padding(16.dp),
+                                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Text("Dourado Plus", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                                        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                                            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                Text("Prévia fiel do tema", fontWeight = FontWeight.Bold)
+                                                Text("Superfícies, botões, destaques e contraste exatamente como ficarão depois da ativação.", style = MaterialTheme.typography.bodySmall)
+                                                Button(onClick = {}, modifier = Modifier.fillMaxWidth()) { Text("Botão Dourado Plus") }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        else -> {
+                            if (item.imageUrl.isNotBlank()) {
+                                AsyncImage(
+                                    model = item.imageUrl,
+                                    contentDescription = "Prévia de ${item.name}",
+                                    contentScale = ContentScale.Fit,
+                                    modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp).clip(RoundedCornerShape(18.dp))
+                                )
+                            } else {
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth().height(150.dp),
+                                    shape = RoundedCornerShape(18.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Default.Visibility, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Text(item.description.ifBlank { "Recompensa da Loja XP." })
+                    if (!alreadyOwned) {
+                        Text("Nenhum XP será gasto ao visualizar a prévia.", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            },
+            confirmButton = {
+                if (!alreadyOwned) {
+                    Button(
+                        enabled = (account?.balance ?: 0) >= item.cost,
+                        onClick = {
+                            previewItem = null
+                            selectedItem = item
+                        }
+                    ) { Text("Comprar por ${item.cost} XP") }
+                } else {
+                    TextButton(onClick = { previewItem = null }) { Text("Fechar") }
+                }
+            },
+            dismissButton = {
+                if (!alreadyOwned) {
+                    TextButton(onClick = { previewItem = null }) { Text("Voltar") }
+                }
+            }
+        )
     }
 
     selectedItem?.let { item ->
@@ -156,7 +272,17 @@ fun XpShopPanel(member: MemberRequest, xpUnlocked: Boolean) {
 }
 
 @Composable
-private fun XpShopItemCard(item: XpShopItem, redeemedCount: Int, limitReached: Boolean, soldOut: Boolean, enoughBalance: Boolean, ownedLabel: String, onOwnedAction: (() -> Unit)?, onRedeem: () -> Unit) {
+private fun XpShopItemCard(
+    item: XpShopItem,
+    redeemedCount: Int,
+    limitReached: Boolean,
+    soldOut: Boolean,
+    enoughBalance: Boolean,
+    ownedLabel: String,
+    onOwnedAction: (() -> Unit)?,
+    onPreview: () -> Unit,
+    onRedeem: () -> Unit
+) {
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f))) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (item.imageUrl.isNotBlank()) AsyncImage(model = item.imageUrl, contentDescription = item.name, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().height(128.dp).clip(RoundedCornerShape(13.dp)))
@@ -170,6 +296,13 @@ private fun XpShopItemCard(item: XpShopItem, redeemedCount: Int, limitReached: B
                 Spacer(Modifier.weight(1f)); Text(if (item.kind == "physical") "Física" else "Digital", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             if (redeemedCount > 0) Text("Resgates: ${redeemedCount.coerceAtMost(item.limitPerMember)}/${item.limitPerMember}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+            OutlinedButton(onClick = onPreview, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.Visibility, contentDescription = null)
+                Spacer(Modifier.width(6.dp))
+                Text(if (limitReached) "Ver prévia" else "Ver prévia antes de comprar")
+            }
+
             when {
                 limitReached && onOwnedAction != null -> Button(onClick = onOwnedAction, modifier = Modifier.fillMaxWidth()) { Text(ownedLabel) }
                 limitReached -> OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) { Text(ownedLabel) }
