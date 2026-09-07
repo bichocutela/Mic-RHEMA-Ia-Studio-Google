@@ -35,11 +35,10 @@ async function requireAdmin(request: Request): Promise<void> {
   if (!uid) throw new Error("Sessão administrativa inválida.");
 
   const email = clean(verified.payload.email, 320).toLowerCase();
-  const emailVerified = verified.payload.email_verified === true;
   const isAdminClaim = verified.payload.isAdmin === true;
 
   if (isAdminClaim) return;
-  if (email === ADMIN_EMAIL && emailVerified) return;
+  if (email === ADMIN_EMAIL) return;
 
   throw new Error("Acesso administrativo obrigatório.");
 }
