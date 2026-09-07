@@ -91,6 +91,15 @@ private fun profileEmblemAvatarFraction(level: Int): Float = when (level) {
     11 -> 0.5184f
     12 -> 0.5546f
     13 -> 0.4715f
+    14 -> 0.4494f
+    15 -> 0.4553f
+    16 -> 0.5176f
+    17 -> 0.4784f
+    18 -> 0.4494f
+    19 -> 0.5072f
+    20 -> 0.5227f
+    21 -> 0.5027f
+    22 -> 0.461f
     else -> 0.58f
 }
 
@@ -105,11 +114,11 @@ private fun profileEmblemDrawable(level: Int): Int = when (level.coerceIn(8, 22)
     15 -> R.drawable.profile_emblem_level_15
     16 -> R.drawable.profile_emblem_level_16
     17 -> R.drawable.profile_emblem_level_17
-    18 -> R.drawable.profile_emblem_level_18_hd
-    19 -> R.drawable.profile_emblem_level_19_hd
-    20 -> R.drawable.profile_emblem_level_20_hd
-    21 -> R.drawable.profile_emblem_level_21_hd
-    22 -> R.drawable.profile_emblem_level_22_hd
+    18 -> R.drawable.profile_emblem_level_18
+    19 -> R.drawable.profile_emblem_level_19
+    20 -> R.drawable.profile_emblem_level_20
+    21 -> R.drawable.profile_emblem_level_21
+    22 -> R.drawable.profile_emblem_level_22
     else -> R.drawable.profile_emblem_level_08
 }
 

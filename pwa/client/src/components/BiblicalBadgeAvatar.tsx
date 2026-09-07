@@ -24,7 +24,7 @@ const badgeVisuals: Record<string, BadgeVisual> = {
 
 const rawBase = "https://raw.githubusercontent.com/bichocutela/Mic-RHEMA-Ia-Studio-Google/main/app/src/main/res/drawable-nodpi";
 const avatarUrl = (id: string) => `${rawBase}/avatar_${id}.png`;
-const profileEmblemUrl = (level: number) => `${rawBase}/profile_emblem_level_${String(level).padStart(2,"0")}.webp?v=hd-20260906`;
+const profileEmblemUrl = (level: number) => `${rawBase}/profile_emblem_level_${String(level).padStart(2,"0")}.webp?v=hd-20260907`;
 // Keep these openings aligned with BadgeFrame.kt and the reviewed art manifest.
 const profileEmblemAvatarFractions: Record<number, number> = {
   8: 0.5947,
@@ -33,6 +33,15 @@ const profileEmblemAvatarFractions: Record<number, number> = {
   11: 0.5184,
   12: 0.5546,
   13: 0.4715,
+  14: 0.4494,
+  15: 0.4553,
+  16: 0.5176,
+  17: 0.4784,
+  18: 0.4494,
+  19: 0.5072,
+  20: 0.5227,
+  21: 0.5027,
+  22: 0.461,
 };
 
 function TopSymbol({ visual }: { visual: BadgeVisual }) {
