@@ -117,7 +117,9 @@ fun BiblicalAvatarImage(
             ?: loggedInMemberState.value?.takeIf { it.id == memberId }
         val context = LocalContext.current
         val localPhoto = member?.let { StorageManager.getLocalProfilePhotoUri(context, it.id) }.orEmpty()
-        val model = member?.profilePhotoUrl.orEmpty().ifBlank { localPhoto }
+        // Prioriza o cache persistente do próprio aparelho. A URL remota continua
+        // como fallback para primeiro acesso, reinstalação ou aparelho novo.
+        val model = localPhoto.ifBlank { member?.profilePhotoUrl.orEmpty() }
         val fallback = painterResource(id = avatar.resourceId)
 
         if (model.isNotBlank()) {
