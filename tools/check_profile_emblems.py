@@ -25,6 +25,13 @@ MANIFEST = ROOT / "docs/profile-emblem-art.json"
 ANDROID_RENDERER = ROOT / "app/src/main/java/com/aistudio/micrhema/BadgeFrame.kt"
 PWA_RENDERER = ROOT / "pwa/client/src/components/BiblicalBadgeAvatar.tsx"
 BADGES = {
+    1: ("caminhante", "Caminhante"),
+    2: ("semeador", "Semeador"),
+    3: ("discipulo", "Discípulo"),
+    4: ("perseverante", "Perseverante"),
+    5: ("estudante_rhema", "Estudante Rhema"),
+    6: ("mestre_da_palavra", "Mestre da Palavra"),
+    7: ("guardiao_da_fe", "Guardião da Fé"),
     8: ("semente_da_fe", "Semente da Fé"),
     9: ("caminho_da_promessa", "Caminho da Promessa"),
     10: ("escudo_da_fe", "Escudo da Fé"),
@@ -40,6 +47,12 @@ BADGES = {
     20: ("arca_da_alianca", "Arca da Aliança"),
     21: ("nova_jerusalem", "Nova Jerusalém"),
     22: ("gloria_eterna", "Glória Eterna"),
+}
+
+
+INTRODUCTORY_STYLES = {
+    1: "SIMPLE", 2: "SEEDLING", 3: "STAR", 4: "OLIVE_BRANCH",
+    5: "GOLDEN_BOOK", 6: "MASTER_WORD", 7: "GUARDIAN_SHIELD",
 }
 
 
@@ -85,7 +98,7 @@ def inspect_frame(path: Path) -> list[str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--level", type=int, action="append", choices=range(8, 23),
+    parser.add_argument("--level", type=int, action="append", choices=range(1, 23),
                         help="Verificar somente o nível informado antes do commit individual")
     args = parser.parse_args()
     selected = args.level or list(BADGES)
@@ -113,10 +126,13 @@ def main() -> int:
                 errors.append("encaixe PWA diverge da arte revisada")
             if not re.search(rf"\b{level}\s*->\s*R\.drawable\.profile_emblem_level_{level:02}\b", android):
                 errors.append("Android não aponta para a moldura revisada")
+        style = INTRODUCTORY_STYLES.get(level, "PROFILE_EMBLEM")
+        if level <= 7 and not re.search(rf"\b{re.escape(badge_id)}:\s*{level},", pwa):
+            errors.append("PWA não associa o nível inicial à arte revisada")
         pattern = (
             rf'BiblicalBadge\("{re.escape(badge_id)}",\s*"{re.escape(name)}",'
             rf'\s*"[^"\n]*",\s*BadgeCategory\.LEVEL,\s*{level},'
-            rf'\s*BadgeFrameStyle\.PROFILE_EMBLEM\b'
+            rf'\s*BadgeFrameStyle\.{style}\b'
         )
         if len(re.findall(pattern, catalog)) != 1:
             errors.append("associação ID/nome/nível diverge do contrato persistido")

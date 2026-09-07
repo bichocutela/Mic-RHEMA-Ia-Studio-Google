@@ -1,6 +1,6 @@
 # Molduras de perfil — revisão HD
 
-Conjunto final: níveis 8 a 22, WebP lossless RGBA de 1024×1024, centro transparente e bordas completas. Os níveis 1 a 7 continuam vetoriais.
+Conjunto final: níveis 1 a 22, WebP lossless RGBA de 1024×1024, centro transparente e bordas completas. As conquistas independentes continuam vetoriais.
 
 As artes antigas tinham 160×160/256×256, cortes e arquivos truncados. A sequência visual foi corrigida: luz no 13, armadura no 14, leão no 15, chama no 16 e coroa no 17. Foram corrigidas as imagens, preservando os IDs, nomes e níveis persistidos.
 
@@ -21,4 +21,6 @@ Avatares PNG, autenticação, progressão/XP, applicationId, assinatura e regras
 
 As molduras Android são recursos locais: sua entrega exige um novo APK assinado pelo processo existente. A PWA recebe as imagens após a publicação da versão web e dos arquivos em `main`. Atualizar somente a branch do PR não atualiza o aplicativo instalado.
 
-O PR 13 é o ponto de validação. A compilação dos níveis 8 a 13 passou; o resultado do pacote completo deve ser conferido no último commit do PR.
+Os PRs 13 e 15 entregaram os níveis 8 a 22. A etapa dos níveis 1 a 7 usa o mesmo carregamento e encaixe, preservando as cores e motivos dos desenhos iniciais: prata, broto verde, estrela azul, oliveira, livro dourado, brasão e escudo bronze. A categoria e o estilo persistidos no catálogo permanecem intactos; apenas as molduras de nível usam as novas artes.
+
+A validação local cobre 22/22 molduras. As sete novas composições foram revisadas com Davi e seus prompts estão em `docs/emblem-intro-prompts.json`. A compilação deve ser conferida no último commit do PR desta etapa.

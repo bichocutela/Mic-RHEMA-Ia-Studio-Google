@@ -27,6 +27,13 @@ const avatarUrl = (id: string) => `${rawBase}/avatar_${id}.png`;
 const profileEmblemUrl = (level: number) => `${rawBase}/profile_emblem_level_${String(level).padStart(2,"0")}.webp?v=hd-20260907`;
 // Keep these openings aligned with BadgeFrame.kt and the reviewed art manifest.
 const profileEmblemAvatarFractions: Record<number, number> = {
+  1: 0.5595,
+  2: 0.5588,
+  3: 0.556,
+  4: 0.5557,
+  5: 0.5578,
+  6: 0.5589,
+  7: 0.5621,
   8: 0.5947,
   9: 0.493,
   10: 0.4902,
@@ -42,6 +49,17 @@ const profileEmblemAvatarFractions: Record<number, number> = {
   20: 0.5227,
   21: 0.5027,
   22: 0.461,
+};
+
+// Only level badges use the new artwork; independent achievements keep their SVG.
+const introductoryEmblemLevelById: Record<string, number> = {
+  caminhante: 1,
+  semeador: 2,
+  discipulo: 3,
+  perseverante: 4,
+  estudante_rhema: 5,
+  mestre_da_palavra: 6,
+  guardiao_da_fe: 7,
 };
 
 function TopSymbol({ visual }: { visual: BadgeVisual }) {
@@ -74,7 +92,7 @@ function BottomMedallion({ accent, level }: { accent: string; level: number }) {
 }
 
 export function BiblicalBadgeAvatar({ avatarId, badgeId, size = 64, locked = false, dimWhenLocked = true, className = "", title }: { avatarId: string; badgeId: string; size?: number; locked?: boolean; dimWhenLocked?: boolean; className?: string; title?: string }) {
-  const profileLevel = profileEmblemLevelById[badgeId];
+  const profileLevel = profileEmblemLevelById[badgeId] ?? introductoryEmblemLevelById[badgeId];
   const opacity = locked && dimWhenLocked ? .34 : 1;
 
   if (profileLevel) {
