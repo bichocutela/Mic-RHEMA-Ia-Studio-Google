@@ -29,11 +29,13 @@ fun BiblicalAvatarWithBadge(
     badge: BiblicalBadge,
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
-    contentDescription: String? = avatar.displayName
+    contentDescription: String? = avatar.displayName,
+    previewPromiseFrame: Boolean? = null,
+    previewReaderBadge: Boolean? = null
 ) {
     val context = LocalContext.current
-    val hasPromiseFrame = XpRewardManager.isActive(context, XpRewardManager.PROMISE_FRAME)
-    val hasReaderBadge = XpRewardManager.isActive(context, XpRewardManager.READER_BADGE)
+    val hasPromiseFrame = previewPromiseFrame ?: XpRewardManager.isActive(context, XpRewardManager.PROMISE_FRAME)
+    val hasReaderBadge = previewReaderBadge ?: XpRewardManager.isActive(context, XpRewardManager.READER_BADGE)
     val clickableModifier = if (onClick != null) modifier.clickable(onClick = onClick) else modifier
     val isProfileEmblem = badge.frameStyle == BadgeFrameStyle.PROFILE_EMBLEM ||
         (badge.category == BadgeCategory.LEVEL && (badge.level ?: 0) in 1..7)
