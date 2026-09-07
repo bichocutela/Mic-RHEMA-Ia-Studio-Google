@@ -32,8 +32,8 @@ fun BiblicalAvatarWithBadge(
     contentDescription: String? = avatar.displayName
 ) {
     val context = LocalContext.current
-    val hasPromiseFrame = XpRewardManager.isOwned(context, XpRewardManager.PROMISE_FRAME)
-    val hasReaderBadge = XpRewardManager.isOwned(context, XpRewardManager.READER_BADGE)
+    val hasPromiseFrame = XpRewardManager.isActive(context, XpRewardManager.PROMISE_FRAME)
+    val hasReaderBadge = XpRewardManager.isActive(context, XpRewardManager.READER_BADGE)
     val clickableModifier = if (onClick != null) modifier.clickable(onClick = onClick) else modifier
     val isProfileEmblem = badge.frameStyle == BadgeFrameStyle.PROFILE_EMBLEM ||
         (badge.category == BadgeCategory.LEVEL && (badge.level ?: 0) in 1..7)

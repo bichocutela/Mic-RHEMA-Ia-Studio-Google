@@ -82,6 +82,7 @@ fun ProfileScreen(
     var showAvatarPreview by remember { mutableStateOf(false) }
     var showBadgePicker by remember { mutableStateOf(false) }
     var showAchievementProgress by remember { mutableStateOf(false) }
+    var showXpPurchases by remember { mutableStateOf(false) }
     var focusedBadgeId by remember { mutableStateOf<String?>(null) }
     var previewBadgeId by remember { mutableStateOf<String?>(null) }
     val selectedAvatar = biblicalAvatarForId(selectedAvatarId)
@@ -239,6 +240,17 @@ fun ProfileScreen(
                 }
             }
 
+            Spacer(modifier = Modifier.height(16.dp))
+
+            OutlinedButton(
+                onClick = { showXpPurchases = true },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.ReceiptLong, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Ver Compras XP", fontWeight = FontWeight.SemiBold)
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
 
             ProfileField(
@@ -331,6 +343,13 @@ fun ProfileScreen(
             }
             Spacer(modifier = Modifier.height(16.dp))
         }
+    }
+
+    if (showXpPurchases) {
+        XpPurchasesDialog(
+            member = loggedInMember,
+            onDismiss = { showXpPurchases = false }
+        )
     }
 
     if (showAchievementProgress) {
