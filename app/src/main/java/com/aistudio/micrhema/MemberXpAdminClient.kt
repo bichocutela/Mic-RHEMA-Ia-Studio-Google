@@ -20,18 +20,37 @@ data class AdminMemberXpSnapshot(
 )
 
 object MemberXpAdminClient {
+    private const val ADMIN_EMAIL = "admin@micrhema.app"
+    private const val ADMIN_PASSWORD = "igreja10"
+
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(25, TimeUnit.SECONDS)
         .build()
 
-    private suspend fun firebaseAdminToken(forceRefresh: Boolean): String {
+    private suspend fun ensureRemoteAdminSession(forceRefresh: Boolean): String {
         if (!adminAuthenticatedState.value) {
             throw IllegalStateException("Abra a Área Administrativa antes de alterar XP.")
         }
-        val user = FirebaseAuth.getInstance().currentUser
-            ?: throw IllegalStateException("A sessão remota do administrador ainda não está pronta.")
+
+        val auth = FirebaseAuth.getInstance()
+        val currentEmail = auth.currentUser?.email?.trim()?.lowercase()
+        if (currentEmail != ADMIN_EMAIL) {
+            auth.signOut()
+            try {
+                auth.signInWithEmailAndPassword(ADMIN_EMAIL, ADMIN_PASSWORD).await()
+            } catch (error: Exception) {
+                throw IllegalStateException("Não foi possível sincronizar a sessão administrativa com o Firebase.", error)
+            }
+        }
+
+        val user = auth.currentUser
+            ?: throw IllegalStateException("A sessão administrativa do Firebase não está disponível.")
+        if (user.email?.trim()?.lowercase() != ADMIN_EMAIL) {
+            throw IllegalStateException("A sessão Firebase atual não é a sessão administrativa.")
+        }
+
         return user.getIdToken(forceRefresh).await().token
             ?: throw IllegalStateException("Não foi possível validar a sessão administrativa.")
     }
@@ -54,7 +73,7 @@ object MemberXpAdminClient {
             .put("memberId", memberId)
         amount?.let { payload.put("amount", it) }
 
-        val token = firebaseAdminToken(forceRefresh)
+        val token = ensureRemoteAdminSession(forceRefresh)
         val request = Request.Builder()
             .url("$baseUrl/functions/v1/xp-member-admin")
             .header("apikey", apiKey)
@@ -71,7 +90,7 @@ object MemberXpAdminClient {
 
     private suspend fun call(action: String, memberId: String, amount: Int? = null): JSONObject {
         var (status, body) = executeCall(action, memberId, amount, false)
-        if (status == 401) {
+        if (status == 401 || status == 403) {
             val retry = executeCall(action, memberId, amount, true)
             status = retry.first
             body = retry.second
