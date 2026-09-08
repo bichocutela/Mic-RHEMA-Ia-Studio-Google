@@ -72,8 +72,9 @@ export default function Home() {
   },[]);
 
   useEffect(()=>{
-    if(!firebaseAdminAuth)return;
-    return onAuthStateChanged(firebaseAdminAuth,async user=>{
+    const adminAuth=firebaseAdminAuth;
+    if(!adminAuth)return;
+    return onAuthStateChanged(adminAuth,async user=>{
       if(!user){
         localStorage.removeItem(ADMIN_SESSION_KEY);
         setAdminSession(null);
@@ -86,7 +87,7 @@ export default function Home() {
       }
       const claims=(await user.getIdTokenResult().catch(()=>null))?.claims||{};
       if(claims.isAdmin!==true){
-        await signOut(firebaseAdminAuth).catch(()=>undefined);
+        await signOut(adminAuth).catch(()=>undefined);
         localStorage.removeItem(ADMIN_SESSION_KEY);
         setAdminSession(null);
         return;
@@ -150,7 +151,8 @@ export default function Home() {
   };
 
   const logoutAdmin=async()=>{
-    if(firebaseAdminAuth)await signOut(firebaseAdminAuth).catch(()=>undefined);
+    const adminAuth=firebaseAdminAuth;
+    if(adminAuth)await signOut(adminAuth).catch(()=>undefined);
     localStorage.removeItem(ADMIN_SESSION_KEY);
     setAdminSession(null);
     setShowAdminLogin(false);
