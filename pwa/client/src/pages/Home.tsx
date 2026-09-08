@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 import { toast } from "sonner";
 import { AndroidLoginParity } from "@/components/AndroidLoginParity";
 import { PwaShell, type AppView } from "@/components/PwaShell";
@@ -47,12 +47,21 @@ export default function Home() {
 
   useEffect(()=>{
     if(!firebaseAuth)return;
-    const cached=readStoredSession();
     return onAuthStateChanged(firebaseAuth,async user=>{
-      if(!user)return;
-      if(cached?.uid===user.uid)return;
+      if(!user){
+        localStorage.removeItem("mic-rhema-pwa-session");
+        setSession(null);
+        return;
+      }
+      const cached=readStoredSession();
+      if(cached?.uid===user.uid){
+        setSession(cached);
+        return;
+      }
       const claims=(await user.getIdTokenResult().catch(()=>null))?.claims||{};
-      setSession(current=>current||{uid:user.uid,name:"Membro MIC Rhema",isAdmin:claims.isAdmin===true,isIbr:claims.isIbr===true});
+      const next:PwaSession={uid:user.uid,name:"Membro MIC Rhema",isAdmin:claims.isAdmin===true,isIbr:claims.isIbr===true};
+      localStorage.setItem("mic-rhema-pwa-session",JSON.stringify(next));
+      setSession(next);
     });
   },[]);
 
@@ -98,6 +107,43 @@ export default function Home() {
     window.setTimeout(()=>void import("@/lib/push").then(module=>module.syncPwaPushPreferences()).catch(()=>undefined),0);
   };
 
+  const clearSession=async()=>{
+    if(firebaseAuth)await signOut(firebaseAuth).catch(()=>undefined);
+    localStorage.removeItem("mic-rhema-pwa-session");
+    setSession(null);
+    setDrawerOpen(false);
+  };
+
+  const logout=async()=>{
+    await clearSession();
+    setShowLogin(false);
+    setShowAdminLogin(false);
+    setView("home");
+    window.history.replaceState({},"",window.location.pathname);
+    toast.success("Sessão encerrada.");
+  };
+
+  const renewLegacyAdminSession=async()=>{
+    await clearSession();
+    setView("profile");
+    setShowAdminLogin(true);
+    toast.message("Entre novamente como administrador para renovar sua sessão.");
+  };
+
+  const navigate=(next:AppView)=>{
+    setView(next);
+    if(next==="admin"&&!session?.isAdmin)setShowAdminLogin(true);
+  };
+
+  const openProfile=()=>{
+    if(!session){setShowLogin(true);return;}
+    if(session.isAdmin&&session.uid==="admin"){
+      void renewLegacyAdminSession();
+      return;
+    }
+    setView("profile");
+  };
+
   const enableNotifications=async()=>{
     try{
       const {subscribeToPwaPush}=await import("@/lib/push");
@@ -109,15 +155,21 @@ export default function Home() {
   return <>
     <PwaShell
       active={view}
-      onNavigate={setView}
+      onNavigate={navigate}
       drawerOpen={drawerOpen}
       onOpenDrawer={()=>setDrawerOpen(true)}
       onCloseDrawer={()=>setDrawerOpen(false)}
-      onProfile={()=>session?setView("profile"):setShowLogin(true)}
+      onProfile={openProfile}
       onAdminLogin={()=>setShowAdminLogin(true)}
       session={session}
       onNotifications={enableNotifications}
     />
+    {session?.isAdmin&&view==="admin"&&<button
+      type="button"
+      onClick={()=>void logout()}
+      aria-label="Sair da administração"
+      style={{position:"fixed",top:"calc(env(safe-area-inset-top, 0px) + 12px)",right:16,zIndex:80,border:"1px solid #cf4a42",borderRadius:14,background:"var(--card, #fffdf7)",color:"#a23831",padding:"10px 14px",fontWeight:900,boxShadow:"0 4px 16px rgba(45,32,24,.12)"}}
+    >Sair</button>}
     {showLogin&&<AndroidLoginParity onClose={()=>setShowLogin(false)} onSuccess={persistSession}/>} 
     {showAdminLogin&&<AndroidLoginParity initialAdmin onClose={()=>setShowAdminLogin(false)} onSuccess={persistSession}/>} 
   </>;
