@@ -18,6 +18,7 @@ const firebaseConfig = {
 };
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://cwphbkdtorfpgmnlafqb.supabase.co";
+const ADMIN_APP_NAME = "mic-rhema-admin";
 
 export const firebaseEnabled = Boolean(
   firebaseConfig.apiKey && firebaseConfig.authDomain && firebaseConfig.projectId && firebaseConfig.appId,
@@ -29,8 +30,17 @@ export const firebaseApp = firebaseEnabled
     : initializeApp(firebaseConfig)
   : null;
 
+export const firebaseAdminApp = firebaseEnabled
+  ? getApps().find((app) => app.name === ADMIN_APP_NAME) || initializeApp(firebaseConfig, ADMIN_APP_NAME)
+  : null;
+
+/** Sessão exclusiva do membro/perfil. Nunca deve ser reutilizada pelo Painel ADM. */
 export const firebaseAuth = firebaseApp ? getAuth(firebaseApp) : null;
 export const firestore = firebaseApp ? getFirestore(firebaseApp) : null;
+
+/** Sessão exclusiva do Painel ADM. O login administrativo não substitui o login do membro. */
+export const firebaseAdminAuth = firebaseAdminApp ? getAuth(firebaseAdminApp) : null;
+export const adminFirestore = firebaseAdminApp ? getFirestore(firebaseAdminApp) : null;
 
 export type PwaMemberProfile = {
   id: string;
@@ -55,9 +65,10 @@ export function listenToCollection<T extends DocumentData>(
   onData: (items: Array<T & { id: string }>) => void,
   onError?: (error: Error) => void,
 ) {
-  if (!firestore) return () => undefined;
+  const readFirestore = firebaseAdminAuth?.currentUser && adminFirestore ? adminFirestore : firestore;
+  if (!readFirestore) return () => undefined;
   return onSnapshot(
-    collection(firestore, collectionName),
+    collection(readFirestore, collectionName),
     (snapshot) => onData(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as T & { id: string })),
     (error) => onError?.(error),
   );
@@ -70,9 +81,10 @@ export function listenToDocument<T extends DocumentData>(
   onData: (item: (T & { id: string }) | null) => void,
   onError?: (error: Error) => void,
 ) {
-  if (!firestore) return () => undefined;
+  const readFirestore = firebaseAdminAuth?.currentUser && adminFirestore ? adminFirestore : firestore;
+  if (!readFirestore) return () => undefined;
   return onSnapshot(
-    doc(firestore, collectionName, documentName),
+    doc(readFirestore, collectionName, documentName),
     (snapshot) => onData(snapshot.exists() ? ({ id: snapshot.id, ...snapshot.data() } as T & { id: string }) : null),
     (error) => onError?.(error),
   );
@@ -129,7 +141,8 @@ export type PrayerHistoryItem = {
 };
 
 async function prayerApi(body: Record<string, unknown>, admin = false) {
-  const idToken = await firebaseAuth?.currentUser?.getIdToken().catch(() => "") || "";
+  const auth = admin ? firebaseAdminAuth : firebaseAuth;
+  const idToken = await auth?.currentUser?.getIdToken().catch(() => "") || "";
   const functionName = admin ? "pwa-prayer-admin" : "pwa-prayer-request";
   const response = await fetch(`${supabaseUrl}/functions/v1/${functionName}`, {
     method: "POST",
@@ -194,15 +207,15 @@ export async function savePwaProfile(uid: string, data: Record<string, unknown>)
 }
 
 export async function approveMemberRequest(memberId: string) {
-  if (!firestore) throw new Error("A conexão Firebase da PWA não está disponível.");
-  await updateDoc(doc(firestore, "acessos_pendentes", memberId), { isApproved: true, status: "aprovado", updatedAt: Date.now() });
+  if (!adminFirestore) throw new Error("Entre novamente como administrador.");
+  await updateDoc(doc(adminFirestore, "acessos_pendentes", memberId), { isApproved: true, status: "aprovado", updatedAt: Date.now() });
 }
 
 /** PARIDADE ANDROID — cria mídia nos mesmos campos que as coleções conteudos_* do APK consomem. */
 export async function createAdminContent(input: { type: "video" | "audio" | "book"; title: string; description: string; mediaUrl: string; coverUrl?: string; credit?: string }) {
-  if (!firestore) throw new Error("A conexão Firebase da PWA não está disponível.");
+  if (!adminFirestore) throw new Error("Entre novamente como administrador.");
   const collectionName = input.type === "video" ? "conteudos_videos" : input.type === "audio" ? "conteudos_audios" : "conteudos_books";
-  const contentRef = doc(collection(firestore, collectionName));
+  const contentRef = doc(collection(adminFirestore, collectionName));
   const common = {
     id: contentRef.id,
     title: input.title.trim(),
