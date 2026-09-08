@@ -118,8 +118,6 @@ async function findMember(projectId: string, accessToken: string, phone: string)
   const unique = new Map<string, FirestoreDocument>();
   candidates.forEach((document) => {
     const id = String(document.name || "").split("/").pop() || "";
-    // Um ID legado phone_XXXXXXXX não vale como identidade se o campo phone
-    // já foi transferido pelo administrador para outro número.
     if (id && documentPhone(document) === phone) unique.set(id, document);
   });
   const selected = [...unique.values()].sort((left, right) => rankMember(right) - rankMember(left))[0];
@@ -139,8 +137,6 @@ function field(value: unknown): FirestoreField {
 }
 
 async function createPendingMember(projectId: string, accessToken: string, fullName: string, phone: string): Promise<Member> {
-  // O ID interno deixa de carregar o telefone. Isso permite que o ADM troque o
-  // número da conta sem precisar mover XP, favoritos, IBR ou subcoleções.
   const id = crypto.randomUUID();
   const now = Date.now();
   const data = {
@@ -204,19 +200,21 @@ Deno.serve(async (request) => {
       const existing = await findMember(projectId, accessToken, phone);
       if (!existing) {
         member = await createPendingMember(projectId, accessToken, name, phone);
-        if (!member.isApproved) return json({ ok: true, pending: true, requested: true, member });
+        if (!member.isApproved) return json({ ok: true, pending: true, requested: true, member: { ...member, isAdmin: false } });
       } else {
         member = existing;
-        if (!member.isApproved && !member.isAdmin) return json({ ok: true, pending: true, requested: false, member });
+        if (!member.isApproved && !member.isAdmin) return json({ ok: true, pending: true, requested: false, member: { ...member, isAdmin: false } });
       }
     }
 
+    const explicitAdminSession = isAdministrator && member.isAdmin;
+    const publicMember = explicitAdminSession ? member : { ...member, isAdmin: false };
     const token = await customFirebaseToken(account, member.id, {
-      isAdmin: member.isAdmin,
+      isAdmin: explicitAdminSession,
       isIbr: member.isIbr,
       memberId: member.id,
     });
-    return json({ ok: true, token, pending: false, requested: false, member });
+    return json({ ok: true, token, pending: false, requested: false, member: publicMember });
   } catch (error) {
     console.error("pwa-auth failed", error instanceof Error ? error.message : "unknown");
     return json({ error: error instanceof Error ? error.message : "Não foi possível iniciar sua sessão agora." }, 500);
