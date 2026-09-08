@@ -2,6 +2,11 @@ name: Publicar regras do Firestore
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "firestore.rules"
+      - ".github/workflows/publish-firestore-rules-manual.yml"
 
 permissions:
   contents: read
