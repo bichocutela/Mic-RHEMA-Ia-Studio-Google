@@ -3,8 +3,11 @@ import { onAuthStateChanged, signOut } from "firebase/auth";
 import { toast } from "sonner";
 import { AndroidLoginParity } from "@/components/AndroidLoginParity";
 import { PwaShell, type AppView } from "@/components/PwaShell";
-import { firebaseAuth } from "@/lib/firebase";
+import { firebaseAdminAuth, firebaseAuth } from "@/lib/firebase";
 import type { PwaSession } from "@/lib/pwa-auth";
+
+const MEMBER_SESSION_KEY="mic-rhema-pwa-session";
+const ADMIN_SESSION_KEY="mic-rhema-pwa-admin-session";
 
 function initialViewFromUrl(): AppView {
   const requested = new URLSearchParams(window.location.search).get("view") || "";
@@ -12,12 +15,12 @@ function initialViewFromUrl(): AppView {
   return allowed.has(requested as AppView) ? requested as AppView : "home";
 }
 
-function readStoredSession(): PwaSession | null {
+function readStoredSession(key:string): PwaSession | null {
   try {
-    const stored=localStorage.getItem("mic-rhema-pwa-session");
+    const stored=localStorage.getItem(key);
     return stored?JSON.parse(stored) as PwaSession:null;
   } catch {
-    localStorage.removeItem("mic-rhema-pwa-session");
+    localStorage.removeItem(key);
     return null;
   }
 }
@@ -40,7 +43,8 @@ function routeForPush(data:Record<string,string>):PushRoute|null{
 
 export default function Home() {
   const[view,setView]=useState<AppView>(()=>initialViewFromUrl());
-  const[session,setSession]=useState<PwaSession|null>(()=>readStoredSession());
+  const[session,setSession]=useState<PwaSession|null>(()=>readStoredSession(MEMBER_SESSION_KEY));
+  const[adminSession,setAdminSession]=useState<PwaSession|null>(()=>readStoredSession(ADMIN_SESSION_KEY));
   const[showLogin,setShowLogin]=useState(false);
   const[showAdminLogin,setShowAdminLogin]=useState(false);
   const[drawerOpen,setDrawerOpen]=useState(false);
@@ -49,19 +53,47 @@ export default function Home() {
     if(!firebaseAuth)return;
     return onAuthStateChanged(firebaseAuth,async user=>{
       if(!user){
-        localStorage.removeItem("mic-rhema-pwa-session");
+        localStorage.removeItem(MEMBER_SESSION_KEY);
         setSession(null);
         return;
       }
-      const cached=readStoredSession();
+      const cached=readStoredSession(MEMBER_SESSION_KEY);
       if(cached?.uid===user.uid){
-        setSession(cached);
+        const memberSession={...cached,isAdmin:false};
+        localStorage.setItem(MEMBER_SESSION_KEY,JSON.stringify(memberSession));
+        setSession(memberSession);
         return;
       }
       const claims=(await user.getIdTokenResult().catch(()=>null))?.claims||{};
-      const next:PwaSession={uid:user.uid,name:"Membro MIC Rhema",isAdmin:claims.isAdmin===true,isIbr:claims.isIbr===true};
-      localStorage.setItem("mic-rhema-pwa-session",JSON.stringify(next));
+      const next:PwaSession={uid:user.uid,name:"Membro MIC Rhema",isAdmin:false,isIbr:claims.isIbr===true};
+      localStorage.setItem(MEMBER_SESSION_KEY,JSON.stringify(next));
       setSession(next);
+    });
+  },[]);
+
+  useEffect(()=>{
+    if(!firebaseAdminAuth)return;
+    return onAuthStateChanged(firebaseAdminAuth,async user=>{
+      if(!user){
+        localStorage.removeItem(ADMIN_SESSION_KEY);
+        setAdminSession(null);
+        return;
+      }
+      const cached=readStoredSession(ADMIN_SESSION_KEY);
+      if(cached?.uid===user.uid&&cached.isAdmin){
+        setAdminSession(cached);
+        return;
+      }
+      const claims=(await user.getIdTokenResult().catch(()=>null))?.claims||{};
+      if(claims.isAdmin!==true){
+        await signOut(firebaseAdminAuth).catch(()=>undefined);
+        localStorage.removeItem(ADMIN_SESSION_KEY);
+        setAdminSession(null);
+        return;
+      }
+      const next:PwaSession={uid:user.uid,name:"Administrador",isAdmin:true,isIbr:claims.isIbr===true};
+      localStorage.setItem(ADMIN_SESSION_KEY,JSON.stringify(next));
+      setAdminSession(next);
     });
   },[]);
 
@@ -101,46 +133,39 @@ export default function Home() {
     return()=>{cancelled=true;unsubscribe();if(timer!=null)window.clearTimeout(timer);if(idleId!=null)idleWindow.cancelIdleCallback?.(idleId)};
   },[]);
 
-  const persistSession=(next:PwaSession)=>{
-    localStorage.setItem("mic-rhema-pwa-session",JSON.stringify(next));
-    setSession(next);
+  const persistMemberSession=(next:PwaSession)=>{
+    const memberSession={...next,isAdmin:false};
+    localStorage.setItem(MEMBER_SESSION_KEY,JSON.stringify(memberSession));
+    setSession(memberSession);
     window.setTimeout(()=>void import("@/lib/push").then(module=>module.syncPwaPushPreferences()).catch(()=>undefined),0);
   };
 
-  const clearSession=async()=>{
-    if(firebaseAuth)await signOut(firebaseAuth).catch(()=>undefined);
-    localStorage.removeItem("mic-rhema-pwa-session");
-    setSession(null);
-    setDrawerOpen(false);
+  const persistAdminSession=(next:PwaSession)=>{
+    if(!next.isAdmin){
+      toast.error("Este acesso não possui permissão administrativa.");
+      return;
+    }
+    localStorage.setItem(ADMIN_SESSION_KEY,JSON.stringify(next));
+    setAdminSession(next);
   };
 
-  const logout=async()=>{
-    await clearSession();
-    setShowLogin(false);
+  const logoutAdmin=async()=>{
+    if(firebaseAdminAuth)await signOut(firebaseAdminAuth).catch(()=>undefined);
+    localStorage.removeItem(ADMIN_SESSION_KEY);
+    setAdminSession(null);
     setShowAdminLogin(false);
-    setView("home");
-    window.history.replaceState({},"",window.location.pathname);
-    toast.success("Sessão encerrada.");
-  };
-
-  const renewLegacyAdminSession=async()=>{
-    await clearSession();
-    setView("profile");
-    setShowAdminLogin(true);
-    toast.message("Entre novamente como administrador para renovar sua sessão.");
+    setDrawerOpen(false);
+    setView("admin");
+    toast.success("Sessão administrativa encerrada. Seu Meu Perfil continua conectado.");
   };
 
   const navigate=(next:AppView)=>{
     setView(next);
-    if(next==="admin"&&!session?.isAdmin)setShowAdminLogin(true);
+    if(next==="admin"&&!adminSession?.isAdmin)setShowAdminLogin(true);
   };
 
   const openProfile=()=>{
     if(!session){setShowLogin(true);return;}
-    if(session.isAdmin&&session.uid==="admin"){
-      void renewLegacyAdminSession();
-      return;
-    }
     setView("profile");
   };
 
@@ -152,6 +177,8 @@ export default function Home() {
     }catch(error){toast.error("Não foi possível ativar os avisos",{description:error instanceof Error?error.message:"Tente novamente em instantes."})}
   };
 
+  const shellSession=view==="admin"?adminSession:session;
+
   return <>
     <PwaShell
       active={view}
@@ -161,16 +188,16 @@ export default function Home() {
       onCloseDrawer={()=>setDrawerOpen(false)}
       onProfile={openProfile}
       onAdminLogin={()=>setShowAdminLogin(true)}
-      session={session}
+      session={shellSession}
       onNotifications={enableNotifications}
     />
-    {session?.isAdmin&&view==="admin"&&<button
+    {adminSession?.isAdmin&&view==="admin"&&<button
       type="button"
-      onClick={()=>void logout()}
+      onClick={()=>void logoutAdmin()}
       aria-label="Sair da administração"
       style={{position:"fixed",top:"calc(env(safe-area-inset-top, 0px) + 12px)",right:16,zIndex:80,border:"1px solid #cf4a42",borderRadius:14,background:"var(--card, #fffdf7)",color:"#a23831",padding:"10px 14px",fontWeight:900,boxShadow:"0 4px 16px rgba(45,32,24,.12)"}}
     >Sair</button>}
-    {showLogin&&<AndroidLoginParity onClose={()=>setShowLogin(false)} onSuccess={persistSession}/>} 
-    {showAdminLogin&&<AndroidLoginParity initialAdmin onClose={()=>setShowAdminLogin(false)} onSuccess={persistSession}/>} 
+    {showLogin&&<AndroidLoginParity onClose={()=>setShowLogin(false)} onSuccess={persistMemberSession}/>} 
+    {showAdminLogin&&<AndroidLoginParity initialAdmin onClose={()=>setShowAdminLogin(false)} onSuccess={persistAdminSession}/>} 
   </>;
 }
