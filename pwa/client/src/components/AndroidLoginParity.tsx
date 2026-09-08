@@ -12,7 +12,7 @@ type AndroidLoginParityProps = {
 };
 
 export function AndroidLoginParity({ onClose, onSuccess, initialAdmin = false }: AndroidLoginParityProps) {
-  const [adminMode,setAdminMode]=useState(initialAdmin);
+  const adminMode=initialAdmin;
   const [name,setName]=useState("");
   const [phone,setPhone]=useState("");
   const [password,setPassword]=useState("");
@@ -41,7 +41,7 @@ export function AndroidLoginParity({ onClose, onSuccess, initialAdmin = false }:
       }
       const result=await signInOrRequestPwa({name,phone:cleanPhone});
       if(result.session){
-        onSuccess(result.session);
+        onSuccess({...result.session,isAdmin:false});
         toast.success(`Bem-vindo, ${result.session.name}.`);
         onClose();
         return;
@@ -56,14 +56,14 @@ export function AndroidLoginParity({ onClose, onSuccess, initialAdmin = false }:
     }
   };
 
-  return <div className="android-login-layer" role="dialog" aria-modal="true" aria-label="Entrar no MIC Rhema">
+  return <div className="android-login-layer" role="dialog" aria-modal="true" aria-label={adminMode?"Entrar como administrador":"Entrar no Meu Perfil"}>
     <div className="android-login-page">
       <button type="button" className="android-login-back" onClick={onClose} aria-label="Voltar"><ArrowLeft size={21}/><span>Voltar</span></button>
       <div className="android-login-logo"><img src={ASSETS.logo} alt="Ministério Igreja de Cristo Rhema"/></div>
       <section className="android-login-card">
         {pendingMessage?<div className="android-login-pending"><CheckCircle2 size={46}/><h1>Solicitação enviada</h1><p>{pendingMessage}</p><button type="button" onClick={onClose}>Voltar ao aplicativo</button></div>:<form onSubmit={submit}>
           <div className="android-login-heading">
-            {adminMode?<><span>ADMINISTRAÇÃO</span><h1>Acesso administrativo</h1><p>Use o mesmo acesso administrativo do aplicativo Android.</p></>:<><span>ÁREA DE MEMBROS</span><h1>Entre ou peça seu acesso</h1><p>Informe seu nome e telefone. Se esse número já tiver cadastro, sua conta será recuperada em vez de criar uma nova solicitação.</p></>}
+            {adminMode?<><span>ADMINISTRAÇÃO</span><h1>Acesso administrativo</h1><p>Este login é exclusivo do Painel ADM e não usa a sessão do Meu Perfil.</p></>:<><span>ÁREA DE MEMBROS</span><h1>Entre ou peça seu acesso</h1><p>Este login é exclusivo do Meu Perfil. Entrar aqui não libera o Painel ADM.</p></>}
           </div>
           {!adminMode&&<label>Nome completo<input value={name} onChange={(event)=>setName(event.target.value)} autoComplete="name" placeholder="Seu nome completo"/></label>}
           {!adminMode&&<label>Número de telefone com DDD<input value={phone} onChange={(event)=>setPhone(event.target.value.replace(/\D/g,"").slice(0,13))} inputMode="numeric" autoComplete="tel" placeholder="Ex: 84999832583"/></label>}
@@ -72,7 +72,6 @@ export function AndroidLoginParity({ onClose, onSuccess, initialAdmin = false }:
           {error&&<p className="android-login-error">{error}</p>}
           <button className="android-login-submit" disabled={busy} type="submit">{busy?<><LoaderCircle className="android-login-spin" size={21}/> Verificando…</>:adminMode?<><LockKeyhole size={19}/> Entrar como administrador</>:"Entrar ou solicitar acesso"}</button>
           {!adminMode&&<p className="android-login-note">Seu telefone identifica a conta. Em outro aparelho, use o mesmo número para recuperar o perfil e o progresso já sincronizado.</p>}
-          <button className="android-login-admin-toggle" type="button" onClick={()=>{setAdminMode(!adminMode);setError("");setPendingMessage("")}}>{adminMode?"Entrar como membro":"Acesso administrativo"}</button>
         </form>}
       </section>
     </div>
