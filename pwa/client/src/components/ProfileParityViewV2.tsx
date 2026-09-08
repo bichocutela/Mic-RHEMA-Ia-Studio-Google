@@ -15,6 +15,7 @@ import "./ProfileParityViewV2.css";
 type Avatar = { id: string; name: string };
 type IbrCourse = { id: string; chapters?: Array<{ id?: string }> };
 type IbrProgress = { id: string; courseId?: string; chapterId?: string; isCompleted?: boolean };
+type ProfileSection = "overview" | "xp" | "data" | "avatar" | "badges" | "missions" | "account";
 
 const avatars: Avatar[] = [
   { id:"davi",name:"Davi"},{id:"ester",name:"Ester"},{id:"daniel",name:"Daniel"},{id:"rute",name:"Rute"},
@@ -111,10 +112,18 @@ function computeProgress(profile: PwaMemberProfile, courses: IbrCourse[], progre
 }
 
 export function ProfileParityViewV2({ session, onNavigateHome }: { session: PwaSessionLike; onNavigateHome: () => void }) {
-  const [profile,setProfile]=useState<PwaMemberProfile|null>(null); const [draft,setDraft]=useState<PwaMemberProfile|null>(null);
-  const [courses,setCourses]=useState<IbrCourse[]>([]); const [ibrProgress,setIbrProgress]=useState<IbrProgress[]>([]);
+  const [profile,setProfile]=useState<PwaMemberProfile|null>(null);
+  const [draft,setDraft]=useState<PwaMemberProfile|null>(null);
+  const [courses,setCourses]=useState<IbrCourse[]>([]);
+  const [ibrProgress,setIbrProgress]=useState<IbrProgress[]>([]);
   const [centralXp,setCentralXp]=useState<number|null>(null);
-  const [loading,setLoading]=useState(true); const [loadError,setLoadError]=useState(""); const [saving,setSaving]=useState(false); const [avatarsOpen,setAvatarsOpen]=useState(false); const [badgesOpen,setBadgesOpen]=useState(false); const [missionsOpen,setMissionsOpen]=useState(true); const [focusedBadgeId,setFocusedBadgeId]=useState<string|null>(null); const [previewBadgeId,setPreviewBadgeId]=useState<string|null>(null);
+  const [loading,setLoading]=useState(true);
+  const [loadError,setLoadError]=useState("");
+  const [saving,setSaving]=useState(false);
+  const [section,setSection]=useState<ProfileSection>("overview");
+  const [focusedBadgeId,setFocusedBadgeId]=useState<string|null>(null);
+  const [previewBadgeId,setPreviewBadgeId]=useState<string|null>(null);
+
   const reload=async()=>{setLoading(true);setLoadError("");try{const value=await loadPwaMemberProfile();setProfile(value);setDraft(value);}catch(error){const message=error instanceof Error?error.message:"Não foi possível carregar o perfil.";setLoadError(message);toast.error(message);}finally{setLoading(false)}};
   useEffect(()=>{if(session)void reload()},[session?.uid]);
   useEffect(()=>listenToCollection<IbrCourse>("ibr_courses",setCourses,()=>setCourses([])),[]);
@@ -123,39 +132,72 @@ export function ProfileParityViewV2({ session, onNavigateHome }: { session: PwaS
     if(!profile?.id)return;
     const pending=localStorage.getItem("micrhema:pwa:open-badge");
     if(!pending)return;
-    setFocusedBadgeId(pending);setBadgesOpen(true);setMissionsOpen(false);
+    setFocusedBadgeId(pending);
+    setSection("badges");
     localStorage.removeItem("micrhema:pwa:open-badge");
     window.setTimeout(()=>document.getElementById(`profile-badge-${pending}`)?.scrollIntoView({behavior:"smooth",block:"center"}),180);
   },[profile?.id]);
+
   const summary=useMemo(()=>profile?computeProgress(profile,courses,ibrProgress,centralXp):null,[profile,courses,ibrProgress,centralXp]);
-  const logout=async()=>{if(firebaseAuth)await signOut(firebaseAuth).catch(()=>undefined);localStorage.removeItem("micrhema-pwa-session");onNavigateHome();window.location.reload();};
+  const logout=async()=>{if(firebaseAuth)await signOut(firebaseAuth).catch(()=>undefined);localStorage.removeItem("mic-rhema-pwa-session");onNavigateHome();window.location.reload();};
   if(!session)return <section className="parity-page"><div className="parity-empty"><UserRound size={46}/><h1>Meu Perfil</h1><p>Entre para acessar seus dados e conquistas.</p></div></section>;
   if(loading)return <section className="parity-page"><p className="parity-status">Sincronizando seu perfil com o Android…</p></section>;
   if(loadError||!profile||!draft||!summary)return <section className="parity-page"><div className="parity-empty"><UserRound size={46}/><h1>Não foi possível sincronizar o perfil</h1><p>{session.isAdmin?"Sua sessão de administrador pode ser anterior à unificação com o perfil Android. Atualize ou saia e entre novamente uma vez para vincular o mesmo cadastro.":loadError}</p><button className="parity-primary" onClick={()=>void reload()}><RefreshCcw size={17}/> Tentar novamente</button>{session.isAdmin&&<button className="parity-danger" onClick={()=>void logout()}><LogOut size={18}/> Sair e renovar sessão</button>}</div></section>;
+
   const avatar=avatars.find((item)=>item.id===draft.avatarId)||avatars[0];
   const equipped=badgeForId(draft.equippedBadgeId);
   const persist=async(next:PwaMemberProfile,success:string)=>{setSaving(true);try{const updated=await savePwaMemberProfile({name:next.name,phone:next.phone,address:next.address,birthDate:next.birthDate,email:next.email,avatarId:next.avatarId,equippedBadgeId:next.equippedBadgeId});setProfile(updated);setDraft(updated);const stored=localStorage.getItem("micrhema-pwa-session");if(stored){const parsed=JSON.parse(stored);parsed.name=updated.name;localStorage.setItem("micrhema-pwa-session",JSON.stringify(parsed));}toast.success(success);}catch(error){toast.error(error instanceof Error?error.message:"Não foi possível salvar.");setDraft(profile);}finally{setSaving(false)}};
   const save=()=>persist(draft,"Perfil atualizado também para o Android.");
-  const chooseAvatar=(id:string)=>{const next={...draft,avatarId:id};setDraft(next);setAvatarsOpen(false);void persist(next,"Avatar sincronizado com o Android.")};
+  const chooseAvatar=(id:string)=>{const next={...draft,avatarId:id};setDraft(next);void persist(next,"Avatar sincronizado com o Android.")};
   const chooseBadge=(badge:PwaBiblicalBadge)=>{if(!summary.calculated.has(badge.id)||saving)return;const next={...draft,equippedBadgeId:badge.id};setDraft(next);setFocusedBadgeId(null);setPreviewBadgeId(null);void persist(next,"Emblema equipado na sua conta.")};
   const previewBadge=previewBadgeId?badgeForId(previewBadgeId):null;
+  const changeSection=(next:ProfileSection)=>{setSection(next);window.requestAnimationFrame(()=>document.querySelector(".profile-v2-root")?.scrollIntoView({behavior:"smooth",block:"start"}))};
 
   return <section className="parity-page profile-v2-root">
     <header className="profile-v2-hero"><BiblicalBadgeAvatar avatarId={avatar.id} badgeId={equipped.id} size={96} title={`${avatar.name} · ${equipped.name}`}/><div><p>{session.isAdmin?"ADMINISTRADOR · ":""}SEU AVATAR BÍBLICO</p><h1>{draft.name}</h1><span>{avatar.name} · Nível {equipped.level||1}: {equipped.name}</span></div></header>
-    <article className="profile-v2-level"><Trophy size={25}/><div><strong>Progresso das conquistas</strong><span>{summary.completedLessons} aulas IBR concluídas · {summary.completedCourses} cursos concluídos · {summary.totalXp} XP</span>{summary.next?<><small>Próximo: {summary.next.name} — {summary.next.requirement}</small><div className="profile-v2-progress"><i style={{width:`${Math.round(summary.fraction*100)}%`}}/></div><b>{Math.round(summary.fraction*100)}%</b></>:<small>Todos os níveis principais foram alcançados.</small>}</div></article>
-    <div className="profile-v2-stats"><div><strong>{summary.calculated.size}</strong><span>Conquistas</span></div><div><strong>{summary.totalXp}</strong><span>XP acumulado</span></div><div><strong>{summary.activeMinutes}</strong><span>Minutos ativos</span></div><div><strong>{summary.counts.bible_chapters}</strong><span>Capítulos</span></div></div>
 
-    <PwaXpPanel onAccount={(account)=>setCentralXp(account.total_earned)}/>
+    <nav className="profile-v2-tabs" aria-label="Categorias do perfil">
+      <button className={section==="overview"?"active":""} onClick={()=>changeSection("overview")}>Resumo</button>
+      <button className={section==="xp"?"active":""} onClick={()=>changeSection("xp")}>Jornada XP</button>
+      <button className={section==="data"?"active":""} onClick={()=>changeSection("data")}>Meus dados</button>
+      <button className={section==="avatar"?"active":""} onClick={()=>changeSection("avatar")}>Avatar</button>
+      <button className={section==="badges"?"active":""} onClick={()=>changeSection("badges")}>Emblemas</button>
+      <button className={section==="missions"?"active":""} onClick={()=>changeSection("missions")}>Missões</button>
+      <button className={section==="account"?"active":""} onClick={()=>changeSection("account")}>Conta</button>
+    </nav>
 
-    <div className="profile-fields"><label>Nome completo<input value={draft.name} onChange={(e)=>setDraft({...draft,name:e.target.value})}/></label><label>Telefone<input inputMode="tel" value={draft.phone} onChange={(e)=>setDraft({...draft,phone:e.target.value.replace(/\D/g,"").slice(0,15)})}/></label><label>Endereço<input value={draft.address} onChange={(e)=>setDraft({...draft,address:e.target.value})}/></label><label>Data de nascimento<input inputMode="numeric" placeholder="dd/mm/aaaa" value={draft.birthDate} onChange={(e)=>setDraft({...draft,birthDate:e.target.value.replace(/[^0-9/]/g,"").slice(0,10)})}/></label><label>E-mail para certificado IBR<input type="email" value={draft.email} onChange={(e)=>setDraft({...draft,email:e.target.value})}/></label></div>
-    <button className="parity-primary" disabled={saving} onClick={()=>void save()}><Save size={18}/>{saving?"Sincronizando…":"Salvar dados pessoais"}</button>
+    {section==="overview"&&<div className="profile-v2-section">
+      <article className="profile-v2-level"><Trophy size={25}/><div><strong>Progresso das conquistas</strong><span>{summary.completedLessons} aulas IBR concluídas · {summary.completedCourses} cursos concluídos · {summary.totalXp} XP</span>{summary.next?<><small>Próximo: {summary.next.name} — {summary.next.requirement}</small><div className="profile-v2-progress"><i style={{width:`${Math.round(summary.fraction*100)}%`}}/></div><b>{Math.round(summary.fraction*100)}%</b></>:<small>Todos os níveis principais foram alcançados.</small>}</div></article>
+      <div className="profile-v2-stats"><div><strong>{summary.calculated.size}</strong><span>Conquistas</span></div><div><strong>{summary.totalXp}</strong><span>XP acumulado</span></div><div><strong>{summary.activeMinutes}</strong><span>Minutos ativos</span></div><div><strong>{summary.counts.bible_chapters}</strong><span>Capítulos</span></div></div>
+      <article className="profile-v2-activity"><BookOpen size={21}/><div><strong>Atividade sincronizada</strong><small>{summary.counts.devotionals} devocionais · {summary.counts.plan_themes} temas · {summary.counts.plans} planos · {summary.counts.books} livros · {summary.counts.videos} vídeos · {summary.counts.audios} áudios · {summary.counts.bible_news} notícias · {summary.counts.bible_chapters} capítulos</small></div></article>
+      <button className="profile-v2-refresh" onClick={()=>void reload()}><RefreshCcw size={17}/> Atualizar progresso</button>
+    </div>}
 
-    <div className="profile-choice-actions"><button onClick={()=>setAvatarsOpen(!avatarsOpen)}><UserRound size={18}/> Escolher avatar</button><button onClick={()=>setBadgesOpen(!badgesOpen)}><BadgeCheck size={18}/> Emblemas e níveis</button><button onClick={()=>setMissionsOpen(!missionsOpen)}><Trophy size={18}/> Missões</button></div>
-    {avatarsOpen&&<div className="profile-v2-avatar-grid">{avatars.map((item)=><button disabled={saving} key={item.id} className={draft.avatarId===item.id?"selected":""} onClick={()=>chooseAvatar(item.id)}><img src={avatarUrl(item.id)} alt={item.name} loading="lazy"/><small>{item.name}</small></button>)}</div>}
-    {badgesOpen&&<div className="profile-v2-badges">{biblicalBadges.map((badge)=>{const unlocked=summary.calculated.has(badge.id);const selected=draft.equippedBadgeId===badge.id;const focused=focusedBadgeId===badge.id;return <button id={`profile-badge-${badge.id}`} key={badge.id} disabled={saving} className={`${selected?"selected":""}${focused?" celebration-focus":""}`} onClick={()=>setPreviewBadgeId(badge.id)}><BiblicalBadgeAvatar avatarId={avatar.id} badgeId={badge.id} size={64} locked={!unlocked} title={badge.name}/><span><strong>{badge.level?`Nível ${badge.level} · `:""}{badge.name}</strong><small>{unlocked?badge.description:`Bloqueado — ${badge.requirement}`}</small><em>{selected?"Emblema equipado":focused&&unlocked?"Novo emblema desbloqueado · toque para ver":unlocked?"Conquistado · toque para ver":"Toque para visualizar"}</em></span></button>})}</div>}
-    {missionsOpen&&<section className="profile-v2-missions"><header><strong>Missões dos emblemas</strong><small>As mesmas regras do Android. Cada novo nível começa suas missões do zero; o XP permanece acumulado.</small></header>{levelBadges.map((badge)=>{const fraction=Math.max(0,Math.min(1,summary.missionFraction(badge.id)));const done=summary.calculated.has(badge.id);return <article key={badge.id} className={done?"done":""} onClick={()=>setPreviewBadgeId(badge.id)} role="button" tabIndex={0} onKeyDown={(event)=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();setPreviewBadgeId(badge.id)}}}><BiblicalBadgeAvatar avatarId={avatar.id} badgeId={badge.id} size={72} locked={!done} title={`Nível ${badge.level} · ${badge.name}`}/><div><strong>Nível {badge.level} · {badge.name}{badge.rarity?` · ${badge.rarity}`:""}</strong><small>{badge.requirement}</small><div className="profile-v2-progress"><i style={{width:`${Math.round(fraction*100)}%`}}/></div><em>{done?"Concluída · toque para ver":`${Math.round(fraction*100)}% concluído · toque para ver`}</em></div></article>})}</section>}
-    <article className="profile-v2-activity"><BookOpen size={21}/><div><strong>Atividade sincronizada</strong><small>{summary.counts.devotionals} devocionais · {summary.counts.plan_themes} temas · {summary.counts.plans} planos · {summary.counts.books} livros · {summary.counts.videos} vídeos · {summary.counts.audios} áudios · {summary.counts.bible_news} notícias · {summary.counts.bible_chapters} capítulos</small></div></article>
-    <button className="parity-danger" onClick={()=>void logout()}><LogOut size={18}/> Sair da conta</button><button className="profile-v2-refresh" onClick={()=>void reload()}><RefreshCcw size={17}/> Atualizar progresso</button>
+    {section==="xp"&&<div className="profile-v2-section"><PwaXpPanel onAccount={(account)=>setCentralXp(account.total_earned)}/></div>}
+
+    {section==="data"&&<div className="profile-v2-section">
+      <div className="profile-v2-section-heading"><div><strong>Meus dados</strong><small>Informações sincronizadas com o perfil do Android.</small></div></div>
+      <div className="profile-fields"><label>Nome completo<input value={draft.name} onChange={(e)=>setDraft({...draft,name:e.target.value})}/></label><label>Telefone<input inputMode="tel" value={draft.phone} onChange={(e)=>setDraft({...draft,phone:e.target.value.replace(/\D/g,"").slice(0,15)})}/></label><label>Endereço<input value={draft.address} onChange={(e)=>setDraft({...draft,address:e.target.value})}/></label><label>Data de nascimento<input inputMode="numeric" placeholder="dd/mm/aaaa" value={draft.birthDate} onChange={(e)=>setDraft({...draft,birthDate:e.target.value.replace(/[^0-9/]/g,"").slice(0,10)})}/></label><label>E-mail para certificado IBR<input type="email" value={draft.email} onChange={(e)=>setDraft({...draft,email:e.target.value})}/></label></div>
+      <button className="parity-primary" disabled={saving} onClick={()=>void save()}><Save size={18}/>{saving?"Sincronizando…":"Salvar dados pessoais"}</button>
+    </div>}
+
+    {section==="avatar"&&<div className="profile-v2-section">
+      <div className="profile-v2-section-heading"><div><strong>Escolher avatar</strong><small>Selecione um personagem para usar no seu perfil.</small></div><UserRound size={22}/></div>
+      <div className="profile-v2-avatar-grid">{avatars.map((item)=><button disabled={saving} key={item.id} className={draft.avatarId===item.id?"selected":""} onClick={()=>chooseAvatar(item.id)}><img src={avatarUrl(item.id)} alt={item.name} loading="lazy"/><small>{item.name}</small></button>)}</div>
+    </div>}
+
+    {section==="badges"&&<div className="profile-v2-section">
+      <div className="profile-v2-section-heading"><div><strong>Emblemas e níveis</strong><small>Veja, equipe e acompanhe as conquistas disponíveis.</small></div><BadgeCheck size={22}/></div>
+      <div className="profile-v2-badges">{biblicalBadges.map((badge)=>{const unlocked=summary.calculated.has(badge.id);const selected=draft.equippedBadgeId===badge.id;const focused=focusedBadgeId===badge.id;return <button id={`profile-badge-${badge.id}`} key={badge.id} disabled={saving} className={`${selected?"selected":""}${focused?" celebration-focus":""}`} onClick={()=>setPreviewBadgeId(badge.id)}><BiblicalBadgeAvatar avatarId={avatar.id} badgeId={badge.id} size={64} locked={!unlocked} title={badge.name}/><span><strong>{badge.level?`Nível ${badge.level} · `:""}{badge.name}</strong><small>{unlocked?badge.description:`Bloqueado — ${badge.requirement}`}</small><em>{selected?"Emblema equipado":focused&&unlocked?"Novo emblema desbloqueado · toque para ver":unlocked?"Conquistado · toque para ver":"Toque para visualizar"}</em></span></button>})}</div>
+    </div>}
+
+    {section==="missions"&&<div className="profile-v2-section"><section className="profile-v2-missions"><header><strong>Missões dos emblemas</strong><small>As mesmas regras do Android. Cada novo nível começa suas missões do zero; o XP permanece acumulado.</small></header>{levelBadges.map((badge)=>{const fraction=Math.max(0,Math.min(1,summary.missionFraction(badge.id)));const done=summary.calculated.has(badge.id);return <article key={badge.id} className={done?"done":""} onClick={()=>setPreviewBadgeId(badge.id)} role="button" tabIndex={0} onKeyDown={(event)=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();setPreviewBadgeId(badge.id)}}}><BiblicalBadgeAvatar avatarId={avatar.id} badgeId={badge.id} size={72} locked={!done} title={`Nível ${badge.level} · ${badge.name}`}/><div><strong>Nível {badge.level} · {badge.name}{badge.rarity?` · ${badge.rarity}`:""}</strong><small>{badge.requirement}</small><div className="profile-v2-progress"><i style={{width:`${Math.round(fraction*100)}%`}}/></div><em>{done?"Concluída · toque para ver":`${Math.round(fraction*100)}% concluído · toque para ver`}</em></div></article>})}</section></div>}
+
+    {section==="account"&&<div className="profile-v2-section profile-v2-account">
+      <div className="profile-v2-section-heading"><div><strong>Conta</strong><small>Atualize a sessão ou encerre o acesso neste aparelho.</small></div></div>
+      <button className="profile-v2-refresh" onClick={()=>void reload()}><RefreshCcw size={17}/> Sincronizar perfil agora</button>
+      <button className="parity-danger" onClick={()=>void logout()}><LogOut size={18}/> Sair da conta</button>
+    </div>}
 
     {previewBadge&&<div className="profile-v2-badge-modal" role="presentation" onClick={()=>setPreviewBadgeId(null)}>
       <article role="dialog" aria-modal="true" aria-label={`Emblema ${previewBadge.name}`} onClick={(event)=>event.stopPropagation()}>
