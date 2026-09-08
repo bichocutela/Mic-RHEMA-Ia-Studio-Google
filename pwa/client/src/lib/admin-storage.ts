@@ -1,10 +1,10 @@
-import { firebaseAuth } from "./firebase";
+import { firebaseAdminAuth } from "./firebase";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://cwphbkdtorfpgmnlafqb.supabase.co";
 const gateway = `${supabaseUrl}/functions/v1/storage-gateway`;
 
 async function authToken() {
-  const user = firebaseAuth?.currentUser;
+  const user = firebaseAdminAuth?.currentUser;
   if (!user) throw new Error("Entre novamente como administrador para gerenciar arquivos.");
   return { uid: user.uid, token: await user.getIdToken() };
 }
