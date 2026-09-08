@@ -3,7 +3,7 @@
  * O telefone com DDD identifica o cadastro; nome completo só é obrigatório ao criar uma nova solicitação.
  */
 import { signInWithCustomToken } from "firebase/auth";
-import { firebaseAuth } from "./firebase";
+import { firebaseAdminAuth, firebaseAuth } from "./firebase";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://cwphbkdtorfpgmnlafqb.supabase.co";
 
@@ -52,14 +52,16 @@ async function authRequest(input: { name: string; phone: string; password?: stri
   return payload;
 }
 
-async function sessionFromPayload(payload: AuthPayload, fallbackName: string): Promise<PwaSession> {
-  if (!firebaseAuth) throw new Error("A conexão Firebase da PWA ainda não foi configurada para este ambiente.");
+async function sessionFromPayload(payload: AuthPayload, fallbackName: string, admin = false): Promise<PwaSession> {
+  const auth = admin ? firebaseAdminAuth : firebaseAuth;
+  if (!auth) throw new Error("A conexão Firebase da PWA ainda não foi configurada para este ambiente.");
   if (!payload.token) throw new Error(payload.error || "O servidor não retornou uma sessão válida.");
-  const result = await signInWithCustomToken(firebaseAuth, payload.token);
+  if (admin && payload.member?.isAdmin !== true) throw new Error("Acesso administrativo inválido.");
+  const result = await signInWithCustomToken(auth, payload.token);
   return {
     uid: result.user.uid,
     name: payload.member?.name || fallbackName || "Membro MIC Rhema",
-    isAdmin: payload.member?.isAdmin === true,
+    isAdmin: admin,
     isIbr: payload.member?.isIbr === true,
   };
 }
@@ -87,7 +89,7 @@ export async function signInOrRequestPwa(input: { name: string; phone: string })
     };
   }
 
-  const session = await sessionFromPayload(payload, completeName);
+  const session = await sessionFromPayload(payload, completeName, false);
   return { session, pending: false, requested: false };
 }
 
@@ -101,5 +103,5 @@ export async function signInPwa(input: { name: string; phone: string; password?:
   }
 
   const payload = await authRequest({ name: "admin", phone: "admin", password: input.password || "" });
-  return sessionFromPayload(payload, "Administrador");
+  return sessionFromPayload(payload, "Administrador", true);
 }
