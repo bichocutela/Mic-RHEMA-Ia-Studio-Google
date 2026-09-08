@@ -3,12 +3,16 @@ import { Gift, History, RefreshCcw, ShoppingBag, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { loadPwaXpDashboard, redeemPwaXp, type PwaXpAccount, type PwaXpDashboard } from "@/lib/xp";
 import { PwaQuizPanel } from "./PwaQuizPanel";
+import "./PwaXpPanel.css";
+
+type XpSection = "summary" | "quiz" | "shop" | "history";
 
 export function PwaXpPanel({ onAccount }: { onAccount?: (account: PwaXpAccount) => void }) {
   const [dashboard, setDashboard] = useState<PwaXpDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [redeeming, setRedeeming] = useState<string | null>(null);
+  const [section, setSection] = useState<XpSection>("summary");
 
   const reload = async () => {
     setLoading(true);
@@ -36,10 +40,10 @@ export function PwaXpPanel({ onAccount }: { onAccount?: (account: PwaXpAccount) 
   }, [dashboard?.redemptions]);
 
   if (loading && !dashboard) {
-    return <section className="parity-card"><p className="parity-status">Sincronizando Jornada XP…</p></section>;
+    return <section className="parity-card xp-panel-card"><p className="parity-status">Sincronizando Jornada XP…</p></section>;
   }
   if (error && !dashboard) {
-    return <section className="parity-card"><p className="parity-warning">{error}</p><button className="parity-primary" onClick={() => void reload()}><RefreshCcw size={17}/> Tentar novamente</button></section>;
+    return <section className="parity-card xp-panel-card"><p className="parity-warning">{error}</p><button className="parity-primary" onClick={() => void reload()}><RefreshCcw size={17}/> Tentar novamente</button></section>;
   }
   if (!dashboard) return null;
 
@@ -58,13 +62,35 @@ export function PwaXpPanel({ onAccount }: { onAccount?: (account: PwaXpAccount) 
     }
   };
 
-  const shop = !dashboard.unlocked ? (
-    <p className="parity-status" style={{marginTop:12}}>A Loja XP é liberada no Nível 8 — Semente da Fé.</p>
-  ) : (
-    <div>
-      <div className="parity-title" style={{marginTop:20,marginBottom:10}}><div><p>RECOMPENSAS</p><h3>Loja XP</h3></div><ShoppingBag size={24}/></div>
-      {!dashboard.items.length ? <p className="parity-status">Nenhuma recompensa disponível agora.</p> : (
-        <div className="android-list-cards">
+  return <section className="parity-card xp-panel-card">
+    <div className="parity-title xp-panel-title"><div><p>JORNADA CENTRAL</p><h2>XP e Loja</h2><span>Mesmo saldo, Quiz, resgates e histórico do Android.</span></div><Sparkles size={27}/></div>
+
+    <nav className="xp-section-tabs" aria-label="Categorias da Jornada XP">
+      <button className={section === "summary" ? "active" : ""} onClick={() => setSection("summary")}>Resumo</button>
+      <button className={section === "quiz" ? "active" : ""} onClick={() => setSection("quiz")}>Quiz</button>
+      <button className={section === "shop" ? "active" : ""} onClick={() => setSection("shop")}>Loja</button>
+      <button className={section === "history" ? "active" : ""} onClick={() => setSection("history")}>Histórico</button>
+    </nav>
+
+    {section === "summary" && <div className="xp-section-body">
+      <div className="xp-summary-grid">
+        <div className="profile-v2-stat"><strong>{account.total_earned}</strong><small>XP total</small></div>
+        <div className="profile-v2-stat"><strong>{account.balance}</strong><small>Saldo XP</small></div>
+        <div className="profile-v2-stat"><strong>{dashboard.streak}</strong><small>Dias seguidos</small></div>
+      </div>
+      <div className="xp-summary-note"><strong>Jornada sincronizada</strong><span>Seu saldo e seus resgates são os mesmos usados no Android.</span></div>
+      {dashboard.entitlements.length > 0 && <div className="xp-collection-block">
+        <div className="parity-title"><div><p>COLEÇÃO</p><h3>Minhas recompensas</h3></div><Gift size={22}/></div>
+        <div className="xp-entitlement-list">{dashboard.entitlements.map(item => <span key={item.id}>{item.item_name}</span>)}</div>
+      </div>}
+    </div>}
+
+    {section === "quiz" && <div className="xp-section-body"><PwaQuizPanel onXpChange={reload}/></div>}
+
+    {section === "shop" && <div className="xp-section-body">
+      <div className="parity-title xp-subtitle"><div><p>RECOMPENSAS</p><h3>Loja XP</h3></div><ShoppingBag size={24}/></div>
+      {!dashboard.unlocked ? <p className="parity-status">A Loja XP é liberada no Nível 8 — Semente da Fé.</p> : !dashboard.items.length ? <p className="parity-status">Nenhuma recompensa disponível agora.</p> : (
+        <div className="xp-shop-list">
           {dashboard.items.map(item => {
             const count = redeemedCounts.get(item.id) || 0;
             const limit = Math.max(1, item.limit_per_member || 1);
@@ -72,41 +98,26 @@ export function PwaXpPanel({ onAccount }: { onAccount?: (account: PwaXpAccount) 
             const soldOut = item.stock !== null && item.stock <= 0;
             const insufficient = account.balance < item.cost;
             const label = limitReached ? "Já resgatado" : soldOut ? "Esgotado" : insufficient ? "Saldo insuficiente" : redeeming === item.id ? "Resgatando…" : `Resgatar por ${item.cost} XP`;
-            return <article key={item.id} style={{padding:14,border:"1px solid rgba(127,127,127,.25)",borderRadius:16}}>
-              <div style={{display:"flex",gap:12,alignItems:"center"}}>
-                {item.image_url && <img src={item.image_url} alt="" style={{width:66,height:66,objectFit:"cover",borderRadius:12}}/>}
-                <div style={{flex:1}}><strong>{item.name}</strong><small style={{display:"block",opacity:.75}}>{item.description}</small><b>{item.cost} XP</b>{count > 0 && <small style={{display:"block"}}>Resgates: {Math.min(count,limit)}/{limit}</small>}</div>
+            return <article key={item.id} className="xp-shop-item">
+              <div className="xp-shop-item-main">
+                {item.image_url && <img src={item.image_url} alt=""/>}
+                <div><strong>{item.name}</strong><small>{item.description}</small><b>{item.cost} XP</b>{count > 0 && <em>Resgates: {Math.min(count,limit)}/{limit}</em>}</div>
               </div>
-              <button className="parity-primary" style={{width:"100%",marginTop:10}} disabled={limitReached || soldOut || insufficient || redeeming === item.id} onClick={() => void redeem(item.id,item.cost)}><Gift size={17}/>{label}</button>
+              <button className="parity-primary" disabled={limitReached || soldOut || insufficient || redeeming === item.id} onClick={() => void redeem(item.id,item.cost)}><Gift size={17}/>{label}</button>
             </article>;
           })}
         </div>
       )}
-    </div>
-  );
-
-  return <section className="parity-card" style={{marginTop:18}}>
-    <div className="parity-title" style={{marginBottom:12}}><div><p>JORNADA CENTRAL</p><h2>XP e Loja</h2><span>Mesmo saldo, histórico, Quiz e resgates do Android.</span></div><Sparkles size={28}/></div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:10}}>
-      <div className="profile-v2-stat"><strong>{account.total_earned} XP</strong><small>XP Total</small></div>
-      <div className="profile-v2-stat"><strong>{account.balance} XP</strong><small>Saldo XP</small></div>
-      <div className="profile-v2-stat"><strong>{dashboard.streak}</strong><small>dias seguidos</small></div>
-    </div>
-
-    <PwaQuizPanel onXpChange={reload}/>
-
-    {shop}
-
-    {dashboard.entitlements.length > 0 && <div>
-      <div className="parity-title" style={{marginTop:20,marginBottom:8}}><div><p>COLEÇÃO</p><h3>Minhas recompensas</h3></div><Gift size={22}/></div>
-      <div className="filter-pills">{dashboard.entitlements.map(item => <span key={item.id}>{item.item_name}</span>)}</div>
     </div>}
 
-    <div className="parity-title" style={{marginTop:20,marginBottom:8}}><div><p>MOVIMENTAÇÕES</p><h3>Histórico XP</h3></div><History size={22}/></div>
-    {!dashboard.transactions.length ? <p className="parity-status">Ainda não há movimentações de XP.</p> : (
-      <div className="android-list-cards">{dashboard.transactions.slice(0,12).map(item => <div key={item.id} style={{display:"flex",justifyContent:"space-between",gap:12,padding:"10px 0"}}><div><strong>{item.description || item.activity}</strong><small style={{display:"block",opacity:.7}}>{item.date_key}</small></div><b>{item.type === "spend" ? "-" : "+"}{item.amount} XP</b></div>)}</div>
-    )}
-    {error && <p className="parity-warning">{error}</p>}
-    <button className="back-link" onClick={() => void reload()}><RefreshCcw size={16}/> Atualizar XP</button>
+    {section === "history" && <div className="xp-section-body">
+      <div className="parity-title xp-subtitle"><div><p>MOVIMENTAÇÕES</p><h3>Histórico XP</h3></div><History size={22}/></div>
+      {!dashboard.transactions.length ? <p className="parity-status">Ainda não há movimentações de XP.</p> : (
+        <div className="xp-history-list">{dashboard.transactions.slice(0,20).map(item => <div key={item.id}><div><strong>{item.description || item.activity}</strong><small>{item.date_key}</small></div><b>{item.type === "spend" ? "-" : "+"}{item.amount} XP</b></div>)}</div>
+      )}
+    </div>}
+
+    {error && <p className="parity-warning xp-panel-error">{error}</p>}
+    <button className="back-link xp-refresh" onClick={() => void reload()}><RefreshCcw size={16}/> Atualizar XP</button>
   </section>;
 }
