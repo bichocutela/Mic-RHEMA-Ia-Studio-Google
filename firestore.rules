@@ -8,9 +8,7 @@ service cloud.firestore {
     function isAdmin() {
       return signedIn() && (
         request.auth.token.email == 'admin@micrhema.app' ||
-        request.auth.token.isAdmin == true ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true ||
-        get(/databases/$(database)/documents/acessos_pendentes/$(request.auth.uid)).data.isAdmin == true
+        request.auth.token.isAdmin == true
       );
     }
 
