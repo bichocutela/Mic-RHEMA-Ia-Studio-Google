@@ -1,6 +1,6 @@
 /** Web Push da PWA com preferências equivalentes às Configurações do Android. */
 import { getMessaging, getToken, isSupported, onMessage, type MessagePayload } from "firebase/messaging";
-import { firebaseApp, firebaseAuth } from "./firebase";
+import { firebaseAdminAuth, firebaseApp, firebaseAuth } from "./firebase";
 import { getPrayerDeviceIdentity } from "./prayer-device";
 
 const VAPID_PUBLIC_KEY = "BHkibd35bzMzP9t3If0K32xxrgMlulTQXvevAe370icbBosqINSM1WDL_TEi3k6Ja7LhHHqn6ec7NiCyArEjSkM";
@@ -73,7 +73,7 @@ export async function listenToForegroundPush(onPayload: (payload: MessagePayload
 
 export async function sendPwaPush(input: { title: string; body: string; link?: string; category?: string }) {
   if (isAndroidAppUpdateCategory(input.category)) throw new Error("Atualizações do aplicativo Android não são enviadas para a PWA.");
-  const idToken = await firebaseAuth?.currentUser?.getIdToken();
+  const idToken = await firebaseAdminAuth?.currentUser?.getIdToken();
   if (!idToken) throw new Error("Entre novamente como administrador para enviar o aviso.");
   const response = await fetch(`${supabaseUrl}/functions/v1/pwa-push-send`, {
     method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${idToken}` }, body: JSON.stringify(input),
