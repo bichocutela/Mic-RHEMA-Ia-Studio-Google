@@ -1,9 +1,9 @@
 import { arrayRemove, arrayUnion, collection, deleteDoc, doc, getDocs, query, serverTimestamp, setDoc, where, writeBatch } from "firebase/firestore";
-import { firestore } from "./firebase";
+import { adminFirestore } from "./firebase";
 
 function db() {
-  if (!firestore) throw new Error("Firebase indisponível nesta PWA.");
-  return firestore;
+  if (!adminFirestore) throw new Error("Entre novamente como administrador.");
+  return adminFirestore;
 }
 
 function normalizedDocumentId(id: string | number | null | undefined) {
