@@ -84,7 +84,7 @@ export type PwaQuizQuestion = {
 };
 export type PwaQuizStatus = {
   ok: true;
-  unlocked: boolean;
+  unlocked?: boolean;
   difficulty: PwaQuizDifficulty;
   answered: number;
   total: number;
@@ -99,7 +99,7 @@ export type PwaQuizHint = {
 };
 export type PwaQuizAnswer = {
   ok: true;
-  unlocked: boolean;
+  unlocked?: boolean;
   questionId: string;
   duplicate: boolean;
   granted: number;
@@ -156,7 +156,9 @@ function request<T>(body: Record<string, unknown>, forceRefresh = false): Promis
   return authenticatedRequest<T>("pwa-xp", body, forceRefresh);
 }
 function quizRequest<T>(body: Record<string, unknown>, forceRefresh = false): Promise<T> {
-  return authenticatedRequest<T>("xp-quiz", body, forceRefresh);
+  // O Android usa xp-quiz-direct como autoridade do Quiz. A PWA precisa usar o mesmo
+  // endpoint para evitar o fluxo legado que dependia de um segundo OAuth do Firestore.
+  return authenticatedRequest<T>("xp-quiz-direct", body, forceRefresh);
 }
 function quizSyncKey() {
   const uid = firebaseAuth?.currentUser?.uid || "guest";
