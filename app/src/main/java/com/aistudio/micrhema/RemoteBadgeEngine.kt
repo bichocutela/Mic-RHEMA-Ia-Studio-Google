@@ -88,9 +88,7 @@ fun currentProfileEmblemBadges(): List<BiblicalBadge> {
 fun currentAdminUnlockableBadges(): List<BiblicalBadge> {
     remoteProfileBadgesState.value
     RemoteBadgeEngineClient.ensureCatalogLoaded()
-    val currentById = allBiblicalBadges.associateBy { it.id }
-    val achievements = simpleBiblicalBadges.map { native -> currentById[native.id] ?: native }
-    return (profileEmblemBadges + achievements).distinctBy { it.id }
+    return profileEmblemBadges.distinctBy { it.id }
 }
 
 private fun publishCatalogIntoLegacySelectors(catalog: List<RemoteProfileBadge>) {
@@ -98,7 +96,7 @@ private fun publishCatalogIntoLegacySelectors(catalog: List<RemoteProfileBadge>)
     val currentRemoteIds = catalog.map { it.id }.toSet()
     val remoteIds = previousRemoteIds + currentRemoteIds
     val mapped = catalog.map { it.asBiblicalBadge() }
-    val nativeAchievementIds = simpleBiblicalBadges.map { it.id }.toSet()
+    val mappedById = mapped.associateBy { it.id }
 
     val allList = allBiblicalBadges as? MutableList<BiblicalBadge>
     val profileList = profileEmblemBadges as? MutableList<BiblicalBadge>
@@ -111,12 +109,12 @@ private fun publishCatalogIntoLegacySelectors(catalog: List<RemoteProfileBadge>)
     allList.removeAll { it.id in remoteIds }
     allList.addAll(mapped)
 
-    // Catálogo específico de emblemas do perfil: mantém níveis 8–22 + personalizados.
-    // As cinco conquistas nativas continuam no catálogo geral, sem virar nível de perfil.
+    // Catálogo específico do perfil: níveis 8–22, as cinco conquistas nativas e personalizados.
     profileList.clear()
     profileList.addAll(biblicalLevelBadges.filter { (it.level ?: 0) in 8..22 })
+    profileList.addAll(simpleBiblicalBadges.map { native -> mappedById[native.id] ?: native })
     profileList.addAll(mapped.filter { remote ->
-        remote.id !in nativeAchievementIds && profileList.none { it.id == remote.id }
+        !isNativeAchievementBadgeId(remote.id) && profileList.none { it.id == remote.id }
     })
 }
 
