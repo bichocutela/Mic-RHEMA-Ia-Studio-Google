@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 
@@ -581,10 +582,14 @@ fun ProfileScreen(
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     BiblicalAvatarWithBadge(
-                                        ownerMemberId = loggedInMember.id,
+                                        ownerMemberId = null,
                                         avatar = selectedAvatar,
                                         badge = badge,
                                         contentDescription = badge.name,
+                                        previewPromiseFrame = false,
+                                        previewReaderBadge = false,
+                                        previewLightEffects = emptyList(),
+                                        previewDistinctives = emptyList(),
                                         modifier = Modifier.size(64.dp).alpha(if (isUnlocked) 1f else 0.28f)
                                     )
                                     if (!isUnlocked) {
@@ -642,20 +647,28 @@ fun ProfileScreen(
                     showBadgePicker = true
                 },
                 title = {
-                    Text(if (badge.level != null) "Nível ${badge.level}: ${badge.name}" else badge.name)
+                    Text(
+                        if (badge.level != null) "Nível ${badge.level}: ${badge.name}" else badge.name,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center
+                    )
                 },
                 text = {
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             BiblicalAvatarWithBadge(
-                                ownerMemberId = loggedInMember.id,
+                                ownerMemberId = null,
                                 avatar = selectedAvatar,
                                 badge = badge,
-                                modifier = Modifier.size(230.dp),
+                                previewPromiseFrame = false,
+                                previewReaderBadge = false,
+                                previewLightEffects = emptyList(),
+                                previewDistinctives = emptyList(),
+                                modifier = Modifier.size(220.dp),
                                 contentDescription = "Visualização ampliada do emblema ${badge.name}"
                             )
                             if (!isUnlocked) {
@@ -670,6 +683,8 @@ fun ProfileScreen(
                         badge.rarity?.let { rarity ->
                             Text(
                                 rarity.label,
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Center,
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Bold
@@ -677,18 +692,24 @@ fun ProfileScreen(
                         }
                         Text(
                             if (isUnlocked) "Emblema conquistado" else "Ainda bloqueado",
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center,
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
                             color = if (isUnlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
                             badge.description,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         if (!isUnlocked) {
                             Text(
                                 "Para desbloquear: ${badge.requirement}",
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Center,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
