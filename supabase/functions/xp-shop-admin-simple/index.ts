@@ -81,6 +81,60 @@ Deno.serve(async (request) => {
       return json({ ok: true, item: data });
     }
 
+    if (action === "admin_badges") {
+      const { data, error } = await sb.from("custom_profile_badges")
+        .select("id,sequence_no,name,description,challenge,image_ref,special,active,created_at,updated_at")
+        .order("special", { ascending: true })
+        .order("sequence_no", { ascending: true, nullsFirst: false })
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return json({ ok: true, badges: data ?? [] });
+    }
+
+    if (action === "admin_upsert_badge") {
+      const name = clean(input.name, 120);
+      const description = clean(input.description, 1200);
+      const challenge = clean(input.challenge, 1500);
+      const imageRef = clean(input.imageRef, 1200);
+      const special = input.special === true;
+      const active = input.active !== false;
+      if (!name) return json({ error: "Informe o nome do emblema." }, 400);
+      if (!challenge) return json({ error: "Informe o desafio para conquistar o emblema." }, 400);
+      if (!imageRef || !imageRef.toLowerCase().startsWith("micrhema-xp://emblem/")) {
+        return json({ error: "Envie um emblema PNG antes de salvar." }, 400);
+      }
+
+      let sequenceNo: number | null = null;
+      if (!special) {
+        const { data: lastRows, error: lastError } = await sb.from("custom_profile_badges")
+          .select("sequence_no").not("sequence_no", "is", null).order("sequence_no", { ascending: false }).limit(1);
+        if (lastError) throw lastError;
+        const last = Number(lastRows?.[0]?.sequence_no ?? 22);
+        sequenceNo = Math.max(23, Number.isFinite(last) ? last + 1 : 23);
+      }
+
+      const suppliedId = clean(input.id, 90).toLowerCase().replace(/[^a-z0-9_:-]+/g, "_").replace(/^_+|_+$/g, "");
+      const generatedId = special
+        ? `special_${name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 50)}_${Date.now()}`
+        : `custom_level_${sequenceNo}`;
+      const id = suppliedId || generatedId;
+
+      const row = {
+        id,
+        sequence_no: special ? null : sequenceNo,
+        name,
+        description,
+        challenge,
+        image_ref: imageRef,
+        special,
+        active,
+        updated_at: new Date().toISOString(),
+      };
+      const { data, error } = await sb.from("custom_profile_badges").upsert(row, { onConflict: "id" }).select().single();
+      if (error) throw error;
+      return json({ ok: true, badge: data });
+    }
+
     if (action === "admin_redemptions") {
       const status = clean(input.status, 30);
       let query = sb.from("xp_redemptions")
