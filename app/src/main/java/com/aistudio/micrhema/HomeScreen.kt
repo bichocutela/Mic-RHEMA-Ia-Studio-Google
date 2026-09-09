@@ -178,28 +178,53 @@ fun HomeScreen(
         ) {
         Spacer(modifier = Modifier.height(10.dp))
         
-        Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-            if (currentMember != null && currentMember.name.isNotBlank()) {
-                val firstName = currentMember.name.split(" ").firstOrNull() ?: ""
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                if (currentMember != null && currentMember.name.isNotBlank()) {
+                    val firstName = currentMember.name.split(" ").firstOrNull() ?: ""
+                    Text(
+                        text = "Olá, $firstName 👋",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                } else {
+                    Text(
+                        text = "Seja bem-vindo à Rhema",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
                 Text(
-                    text = "Olá, $firstName 👋",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-            } else {
-                Text(
-                    text = "Seja bem-vindo à Rhema",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
+                    text = "Que a paz do Senhor esteja com você",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
                 )
             }
-            Text(
-                text = "Que a paz do Senhor esteja com você",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
-            )
+
+            currentMember?.let { member ->
+                Spacer(modifier = Modifier.width(12.dp))
+                Box(
+                    modifier = Modifier
+                        .size(72.dp)
+                        .clickable { onNavigate(Screen.Profile.route) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    BiblicalAvatarWithBadge(
+                        avatar = biblicalAvatarForId(member.avatarId),
+                        badge = biblicalBadgeForId(member.equippedBadgeId),
+                        ownerMemberId = member.id,
+                        modifier = Modifier.fillMaxSize(),
+                        contentDescription = "Abrir perfil completo de ${member.name}"
+                    )
+                }
+            }
         }
         
         val todayServices = weeklyServicesState.filter { service -> 
