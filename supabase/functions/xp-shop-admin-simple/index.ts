@@ -4,6 +4,44 @@ import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 const ADMIN_PASSWORD = Deno.env.get("RHEMA_ADMIN_PASSWORD") || "igreja10";
 const ITEM_KINDS = new Set(["digital", "profile", "physical"]);
 const REDEMPTION_STATUSES = new Set(["pendente", "entregue", "cancelado"]);
+const BADGE_DIFFICULTIES = new Set(["easy", "medium", "hard"]);
+
+type BadgeChallenge = { difficulty: string; text: string; metric: string; target: number };
+const BADGE_CHALLENGES: Record<string, BadgeChallenge[]> = {
+  easy: [
+    { difficulty: "easy", text: "Leia 2 capítulos da Bíblia.", metric: "bible_chapters", target: 2 },
+    { difficulty: "easy", text: "Leia 1 devocional.", metric: "devotionals", target: 1 },
+    { difficulty: "easy", text: "Conclua 1 tema de plano.", metric: "plan_themes", target: 1 },
+    { difficulty: "easy", text: "Fique 10 minutos ativo no MIC Rhema.", metric: "active_minutes", target: 10 },
+    { difficulty: "easy", text: "Acerte 3 perguntas no Quiz.", metric: "quiz_correct", target: 3 },
+    { difficulty: "easy", text: "Ouça 1 áudio no MIC Rhema.", metric: "audios", target: 1 },
+    { difficulty: "easy", text: "Assista 1 vídeo no MIC Rhema.", metric: "videos", target: 1 },
+  ],
+  medium: [
+    { difficulty: "medium", text: "Leia 8 capítulos da Bíblia.", metric: "bible_chapters", target: 8 },
+    { difficulty: "medium", text: "Leia 4 devocionais.", metric: "devotionals", target: 4 },
+    { difficulty: "medium", text: "Conclua 3 temas de plano.", metric: "plan_themes", target: 3 },
+    { difficulty: "medium", text: "Conclua 2 planos.", metric: "plans", target: 2 },
+    { difficulty: "medium", text: "Fique 30 minutos ativo no MIC Rhema.", metric: "active_minutes", target: 30 },
+    { difficulty: "medium", text: "Acerte 10 perguntas no Quiz.", metric: "quiz_correct", target: 10 },
+    { difficulty: "medium", text: "Assista 2 vídeos no MIC Rhema.", metric: "videos", target: 2 },
+    { difficulty: "medium", text: "Estude 2 livros no MIC Rhema.", metric: "books", target: 2 },
+    { difficulty: "medium", text: "Leia 3 notícias bíblicas.", metric: "bible_news", target: 3 },
+  ],
+  hard: [
+    { difficulty: "hard", text: "Leia 20 capítulos da Bíblia.", metric: "bible_chapters", target: 20 },
+    { difficulty: "hard", text: "Fique 90 minutos ativo no MIC Rhema.", metric: "active_minutes", target: 90 },
+    { difficulty: "hard", text: "Acerte 15 perguntas difíceis no Quiz.", metric: "quiz_hard_correct", target: 15 },
+    { difficulty: "hard", text: "Acerte 20 perguntas sem usar nenhuma dica.", metric: "quiz_correct_no_hint", target: 20 },
+    { difficulty: "hard", text: "Acerte 25 perguntas sem usar Dica Fácil.", metric: "quiz_correct_no_easy_hint", target: 25 },
+    { difficulty: "hard", text: "Conclua 5 planos.", metric: "plans", target: 5 },
+    { difficulty: "hard", text: "Estude 5 livros no MIC Rhema.", metric: "books", target: 5 },
+    { difficulty: "hard", text: "Assista 5 vídeos no MIC Rhema.", metric: "videos", target: 5 },
+    { difficulty: "hard", text: "Ouça 5 áudios no MIC Rhema.", metric: "audios", target: 5 },
+    { difficulty: "hard", text: "Conquiste 1200 XP no MIC Rhema.", metric: "xp_total", target: 1200 },
+  ],
+};
+
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info, x-rhema-admin-password",
@@ -34,6 +72,18 @@ Deno.serve(async (request) => {
     const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     if (!supabaseUrl || !serviceRole) throw new Error("Backend da Loja XP não configurado.");
     const sb = createClient(supabaseUrl, serviceRole, { auth: { persistSession: false, autoRefreshToken: false } });
+
+    if (action === "admin_generate_badge_challenge") {
+      const difficulty = clean(input.difficulty, 20).toLowerCase();
+      if (!BADGE_DIFFICULTIES.has(difficulty)) return json({ error: "Escolha Fácil, Médio ou Difícil." }, 400);
+      const exclude = clean(input.exclude, 300);
+      const source = BADGE_CHALLENGES[difficulty] ?? [];
+      const candidates = source.filter((item) => item.text !== exclude);
+      const pool = candidates.length ? candidates : source;
+      if (!pool.length) throw new Error("Nenhum desafio disponível para esta dificuldade.");
+      const selected = pool[Math.floor(Math.random() * pool.length)];
+      return json({ ok: true, challenge: selected });
+    }
 
     if (action === "admin_catalog") {
       const { data, error } = await sb.from("xp_shop_items")
@@ -83,7 +133,7 @@ Deno.serve(async (request) => {
 
     if (action === "admin_badges") {
       const { data, error } = await sb.from("custom_profile_badges")
-        .select("id,sequence_no,name,description,challenge,image_ref,special,active,created_at,updated_at")
+        .select("id,sequence_no,name,description,challenge,image_ref,special,active,challenge_metric,challenge_target,created_at,updated_at")
         .order("special", { ascending: true })
         .order("sequence_no", { ascending: true, nullsFirst: false })
         .order("created_at", { ascending: true });
@@ -99,13 +149,23 @@ Deno.serve(async (request) => {
       const special = input.special === true;
       const active = input.active !== false;
       if (!name) return json({ error: "Informe o nome do emblema." }, 400);
-      if (!challenge) return json({ error: "Informe o desafio para conquistar o emblema." }, 400);
+      if (!challenge) return json({ error: "Escolha um desafio para conquistar o emblema." }, 400);
       if (!imageRef || !imageRef.toLowerCase().startsWith("micrhema-xp://emblem/")) {
         return json({ error: "Envie um emblema PNG antes de salvar." }, 400);
       }
 
+      const knownChallenge = Object.values(BADGE_CHALLENGES).flat().find((item) => item.text === challenge);
+      if (!knownChallenge) return json({ error: "Esse desafio não pertence ao catálogo verificável. Busque outro desafio pelo seletor." }, 400);
+
       let sequenceNo: number | null = null;
-      if (!special) {
+      const suppliedId = clean(input.id, 90).toLowerCase().replace(/[^a-z0-9_:-]+/g, "_").replace(/^_+|_+$/g, "");
+      if (suppliedId) {
+        const { data: existing, error: existingError } = await sb.from("custom_profile_badges")
+          .select("sequence_no,special").eq("id", suppliedId).maybeSingle();
+        if (existingError) throw existingError;
+        sequenceNo = existing?.sequence_no ?? null;
+      }
+      if (!special && sequenceNo === null) {
         const { data: lastRows, error: lastError } = await sb.from("custom_profile_badges")
           .select("sequence_no").not("sequence_no", "is", null).order("sequence_no", { ascending: false }).limit(1);
         if (lastError) throw lastError;
@@ -113,7 +173,6 @@ Deno.serve(async (request) => {
         sequenceNo = Math.max(23, Number.isFinite(last) ? last + 1 : 23);
       }
 
-      const suppliedId = clean(input.id, 90).toLowerCase().replace(/[^a-z0-9_:-]+/g, "_").replace(/^_+|_+$/g, "");
       const generatedId = special
         ? `special_${name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 50)}_${Date.now()}`
         : `custom_level_${sequenceNo}`;
@@ -125,6 +184,8 @@ Deno.serve(async (request) => {
         name,
         description,
         challenge,
+        challenge_metric: knownChallenge.metric,
+        challenge_target: knownChallenge.target,
         image_ref: imageRef,
         special,
         active,
@@ -141,7 +202,6 @@ Deno.serve(async (request) => {
         .select("id,member_id,member_name,item_id,item_name,cost,status,redemption_code,created_at,delivered_at,stock_consumed")
         .order("created_at", { ascending: false }).limit(200);
       if (status && status !== "todos") query = query.eq("status", status);
-      const { data, error } = await query;
       if (error) throw error;
       return json({ ok: true, redemptions: data ?? [] });
     }
