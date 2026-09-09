@@ -132,6 +132,9 @@ fun ProfileDistinctives(badgeId: String, memberId: String?, preview: List<AdminP
     var showProfile by remember(resolvedMemberId, badgeId) { mutableStateOf(false) }
 
     val selected = preview ?: activeProfileCosmeticsForMember(context, "distintivo", badgeId, resolvedMemberId)
+    val activeFrame = if (preview == null && !resolvedMemberId.isNullOrBlank()) {
+        activeProfileCosmeticsForMember(context, "moldura", badgeId, resolvedMemberId).firstOrNull()
+    } else null
     val availableIds = selected.map { it.id }
 
     LaunchedEffect(resolvedMemberId, availableIds) {
@@ -148,9 +151,10 @@ fun ProfileDistinctives(badgeId: String, memberId: String?, preview: List<AdminP
         (featured.mapNotNull(byId::get) + selected.filterNot { it.id in featured }).distinctBy { it.id }.take(4)
     }
 
-    // Esta camada ocupa o mesmo espaço do avatar. No perfil atual ela também
-    // funciona como área de toque para abrir o balão completo com emblema,
-    // efeitos, moldura e a coleção de distintivos.
+    // Esta camada ocupa o mesmo espaço do avatar. A moldura ativa acompanha
+    // o conjunto completo; os quatro distintivos escolhidos ficam somente no
+    // perfil atual/Home/Drawer. Pré-visualizações de outros emblemas podem
+    // passar preview vazio para permanecerem limpas.
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
@@ -160,6 +164,10 @@ fun ProfileDistinctives(badgeId: String, memberId: String?, preview: List<AdminP
                 } else Modifier
             )
     ) {
+        activeFrame?.let { frame ->
+            DistinctiveImage(frame, Modifier.fillMaxSize())
+        }
+
         if (visible.isNotEmpty()) {
             val side = minOf(maxWidth, maxHeight)
             val iconSize = side * .17f
