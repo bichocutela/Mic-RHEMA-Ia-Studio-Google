@@ -202,6 +202,7 @@ Deno.serve(async (request) => {
         .select("id,member_id,member_name,item_id,item_name,cost,status,redemption_code,created_at,delivered_at,stock_consumed")
         .order("created_at", { ascending: false }).limit(200);
       if (status && status !== "todos") query = query.eq("status", status);
+      const { data, error } = await query;
       if (error) throw error;
       return json({ ok: true, redemptions: data ?? [] });
     }
