@@ -136,27 +136,43 @@ Deno.serve(async (request) => {
       const imageRef = clean(input.imageRef, 1200);
       const special = input.special === true;
       const active = input.active !== false;
+      const requestedSequence = Math.floor(Number(input.sequenceNo ?? 0));
+      const isBuiltin = !special && requestedSequence >= 1 && requestedSequence <= 22;
       if (!name) return json({ error: "Informe o nome do emblema." }, 400);
       if (!challenge) return json({ error: "Escolha um desafio para conquistar o emblema." }, 400);
-      if (!imageRef || !imageRef.toLowerCase().startsWith("micrhema-xp://emblem/")) return json({ error: "Envie um emblema PNG antes de salvar." }, 400);
+      const validImage = imageRef.toLowerCase().startsWith("micrhema-xp://emblem/") || (isBuiltin && imageRef.toLowerCase().startsWith("builtin-emblem://"));
+      if (!validImage) return json({ error: "Envie um emblema PNG antes de salvar." }, 400);
       const known = Object.values(BADGE_CHALLENGES).flat().find((item) => item.text === challenge);
-      if (!known) return json({ error: "Esse desafio não pertence ao catálogo verificável. Busque outro desafio pelo seletor." }, 400);
-      let sequenceNo: number | null = null;
+      if (!known && !isBuiltin) return json({ error: "Esse desafio não pertence ao catálogo verificável. Busque outro desafio pelo seletor." }, 400);
+
+      let sequenceNo: number | null = isBuiltin ? requestedSequence : null;
       const suppliedId = clean(input.id, 90).toLowerCase().replace(/[^a-z0-9_:-]+/g, "_").replace(/^_+|_+$/g, "");
-      if (suppliedId) {
+      if (suppliedId && sequenceNo === null) {
         const { data: existing, error: existingError } = await sb.from("custom_profile_badges").select("sequence_no,special").eq("id", suppliedId).maybeSingle();
         if (existingError) throw existingError;
         sequenceNo = existing?.sequence_no ?? null;
       }
       if (!special && sequenceNo === null) {
-        const { data: lastRows, error: lastError } = await sb.from("custom_profile_badges").select("sequence_no").not("sequence_no", "is", null).order("sequence_no", { ascending: false }).limit(1);
+        const { data: lastRows, error: lastError } = await sb.from("custom_profile_badges").select("sequence_no").not("sequence_no", "is", null).gte("sequence_no", 23).order("sequence_no", { ascending: false }).limit(1);
         if (lastError) throw lastError;
         const last = Number(lastRows?.[0]?.sequence_no ?? 22);
         sequenceNo = Math.max(23, Number.isFinite(last) ? last + 1 : 23);
       }
       const generatedId = special ? `special_${slug(name)}_${Date.now()}` : `custom_level_${sequenceNo}`;
       const id = suppliedId || generatedId;
-      const row = { id, sequence_no: special ? null : sequenceNo, name, description, challenge, challenge_metric: known.metric, challenge_target: known.target, image_ref: imageRef, special, active, updated_at: new Date().toISOString() };
+      const row = {
+        id,
+        sequence_no: special ? null : sequenceNo,
+        name,
+        description,
+        challenge,
+        challenge_metric: known?.metric ?? null,
+        challenge_target: known?.target ?? null,
+        image_ref: imageRef,
+        special,
+        active,
+        updated_at: new Date().toISOString()
+      };
       const { data, error } = await sb.from("custom_profile_badges").upsert(row, { onConflict: "id" }).select().single();
       if (error) throw error;
       return json({ ok: true, badge: data });
