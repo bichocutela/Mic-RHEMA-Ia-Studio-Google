@@ -21,7 +21,7 @@ revoke all on public.profile_light_effects from anon, authenticated;
 grant select, insert, update, delete on public.profile_light_effects to service_role;
 
 insert into public.profile_light_effects (id,name,description,effect_type,tone,color_hex) values
-('aura_promessa','Aura da Promessa','Feixe dourado percorre o avatar com partículas suaves.','orbit','#medio','#FFD54F'),
+('aura_promessa','Aura da Promessa','Feixe dourado percorre o avatar com partículas suaves.','orbit','medio','#FFD54F'),
 ('ceu_estrelado','Céu Estrelado','Estrelas cintilantes ao redor do avatar.','stars','suave','#69A7FF'),
 ('chama_espirito','Chama do Espírito','Chamas luminosas animadas contornando o perfil.','flame','medio','#FF6A1A'),
 ('gloria_divina','Glória Divina','Aura pulsante com expansão de luz.','pulse','medio','#A66BFF'),
