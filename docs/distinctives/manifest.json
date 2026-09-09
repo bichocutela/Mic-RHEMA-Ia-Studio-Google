@@ -1,0 +1,86 @@
+[
+  {
+    "id": "distintivo_escudo_fe",
+    "name": "Escudo da Fé",
+    "description": "Escudo dourado com cruz e esmalte azul.",
+    "file": "escudo_fe.png"
+  },
+  {
+    "id": "distintivo_coroa_promessa",
+    "name": "Coroa da Promessa",
+    "description": "Coroa dourada com rubis, símbolo da promessa.",
+    "file": "coroa_promessa.png"
+  },
+  {
+    "id": "distintivo_chama_viva",
+    "name": "Chama Viva",
+    "description": "Chama dourada com coração de âmbar.",
+    "file": "chama_viva.png"
+  },
+  {
+    "id": "distintivo_pomba_paz",
+    "name": "Pomba da Paz",
+    "description": "Pomba perolada com ramo de oliveira.",
+    "file": "pomba_paz.png"
+  },
+  {
+    "id": "distintivo_leao_juda",
+    "name": "Leão de Judá",
+    "description": "Leão dourado de expressão nobre.",
+    "file": "leao_juda.png"
+  },
+  {
+    "id": "distintivo_palavra_viva",
+    "name": "Palavra Viva",
+    "description": "Livro aberto com cruz dourada.",
+    "file": "palavra_viva.png"
+  },
+  {
+    "id": "distintivo_estrela_esperanca",
+    "name": "Estrela da Esperança",
+    "description": "Estrela dourada com safira central.",
+    "file": "estrela_esperanca.png"
+  },
+  {
+    "id": "distintivo_oliveira_paz",
+    "name": "Oliveira da Paz",
+    "description": "Ramos de oliveira em ouro e jade.",
+    "file": "oliveira_paz.png"
+  },
+  {
+    "id": "distintivo_coracao_servo",
+    "name": "Coração Servo",
+    "description": "Coração rubi acolhido por mãos douradas.",
+    "file": "coracao_servo.png"
+  },
+  {
+    "id": "distintivo_espada_verdade",
+    "name": "Espada da Verdade",
+    "description": "Espada prateada sobre escudo azul.",
+    "file": "espada_verdade.png"
+  },
+  {
+    "id": "distintivo_ancora_esperanca",
+    "name": "Âncora da Esperança",
+    "description": "Âncora em ouro, prata e turquesa.",
+    "file": "ancora_esperanca.png"
+  },
+  {
+    "id": "distintivo_calice_alianca",
+    "name": "Cálice da Aliança",
+    "description": "Cálice dourado com detalhes em granada.",
+    "file": "calice_alianca.png"
+  },
+  {
+    "id": "distintivo_trombeta_vitoria",
+    "name": "Trombeta da Vitória",
+    "description": "Trombeta dourada com fita carmesim.",
+    "file": "trombeta_vitoria.png"
+  },
+  {
+    "id": "distintivo_diamante_graca",
+    "name": "Diamante da Graça",
+    "description": "Diamante violeta coroado em ouro.",
+    "file": "diamante_graca.png"
+  }
+]

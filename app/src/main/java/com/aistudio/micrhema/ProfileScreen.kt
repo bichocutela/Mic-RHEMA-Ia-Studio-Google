@@ -186,6 +186,7 @@ fun ProfileScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     BiblicalAvatarWithBadge(
+                        ownerMemberId = loggedInMember.id,
                         avatar = selectedAvatar,
                         badge = equippedBadge,
                         modifier = Modifier.size(96.dp),
@@ -455,6 +456,7 @@ fun ProfileScreen(
                 ) {
                     Text("Seu avatar bíblico", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     BiblicalAvatarWithBadge(
+                        ownerMemberId = loggedInMember.id,
                         avatar = selectedAvatar,
                         badge = equippedBadge,
                         modifier = Modifier.size(280.dp),
@@ -579,6 +581,7 @@ fun ProfileScreen(
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     BiblicalAvatarWithBadge(
+                                        ownerMemberId = loggedInMember.id,
                                         avatar = selectedAvatar,
                                         badge = badge,
                                         contentDescription = badge.name,
@@ -649,6 +652,7 @@ fun ProfileScreen(
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             BiblicalAvatarWithBadge(
+                                ownerMemberId = loggedInMember.id,
                                 avatar = selectedAvatar,
                                 badge = badge,
                                 modifier = Modifier.size(230.dp),

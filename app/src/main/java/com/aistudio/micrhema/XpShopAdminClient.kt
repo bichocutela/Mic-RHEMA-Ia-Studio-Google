@@ -55,7 +55,10 @@ data class AdminProfileCosmetic(
     val description: String,
     val challenge: String,
     val imageRef: String,
-    val active: Boolean
+    val active: Boolean,
+    val purchasable: Boolean = false,
+    val xpCost: Int = 0,
+    val emblemIds: List<String> = emptyList()
 )
 
 data class GeneratedBadgeChallenge(
@@ -76,7 +79,7 @@ object XpShopAdminClient {
         val baseUrl = BuildConfig.SUPABASE_URL.trim().trimEnd('/')
         val apiKey = BuildConfig.SUPABASE_ANON_KEY.trim()
         if (baseUrl.isBlank() || apiKey.isBlank() || baseUrl.contains("your-project")) throw IllegalStateException("A Loja XP não está configurada nesta versão.")
-        if (!adminAuthenticatedState.value) throw IllegalStateException("Abra a Área Administrativa antes de editar a Loja XP.")
+        if (action != "cosmetics_catalog" && !adminAuthenticatedState.value) throw IllegalStateException("Abra a Área Administrativa antes de editar a Loja XP.")
         val payload = JSONObject().put("action", action)
         configure?.invoke(payload)
         val request = Request.Builder()
@@ -158,7 +161,9 @@ object XpShopAdminClient {
     private fun parseCosmetic(item: JSONObject): AdminProfileCosmetic = AdminProfileCosmetic(
         id = item.optString("id"), kind = item.optString("kind"), name = item.optString("name"),
         description = item.optString("description"), challenge = item.optString("challenge"),
-        imageRef = item.optString("image_ref"), active = item.optBoolean("active", true)
+        imageRef = item.optString("image_ref"), active = item.optBoolean("active", true),
+        purchasable = item.optBoolean("purchasable", false), xpCost = item.optInt("xp_cost", 0),
+        emblemIds = item.optJSONArray("emblem_ids")?.let { a -> List(a.length()) { a.optString(it) } } ?: emptyList()
     )
 
     suspend fun loadCosmetics(kind: String): List<AdminProfileCosmetic> {
@@ -167,12 +172,21 @@ object XpShopAdminClient {
         return buildList { for (index in 0 until array.length()) array.optJSONObject(index)?.let { add(parseCosmetic(it)) } }
     }
 
+    suspend fun publicCosmetics(): List<AdminProfileCosmetic> {
+        val a = call("cosmetics_catalog") { put("kind", "distintivo") }.optJSONArray("items") ?: return emptyList()
+        return buildList { for (i in 0 until a.length()) a.optJSONObject(i)?.let { add(parseCosmetic(it)) } }
+    }
+
     suspend fun saveCosmetic(item: AdminProfileCosmetic): AdminProfileCosmetic {
         val response = call("admin_upsert_cosmetic") {
             put("id", item.id); put("kind", item.kind); put("name", item.name); put("description", item.description)
             put("challenge", item.challenge); put("imageRef", item.imageRef); put("active", item.active)
+            put("purchasable", item.purchasable); put("xpCost", item.xpCost)
+            put("emblemIds", org.json.JSONArray(item.emblemIds))
         }
-        return parseCosmetic(response.optJSONObject("item") ?: throw IllegalStateException("A personalização não foi salva."))
+        val saved = parseCosmetic(response.optJSONObject("item") ?: throw IllegalStateException("A personalização não foi salva."))
+        withContext(Dispatchers.Main) { DistinctiveCatalog.items.value = DistinctiveCatalog.items.value.filterNot { it.id == saved.id } + saved }
+        return saved
     }
 
     suspend fun loadRedemptions(status: String = "todos"): List<AdminXpRedemption> {

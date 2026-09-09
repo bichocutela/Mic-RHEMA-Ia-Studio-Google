@@ -178,11 +178,11 @@ Deno.serve(async (request) => {
       return json({ ok: true, badge: data });
     }
 
-    if (action === "admin_cosmetics") {
+    if (action === "admin_cosmetics" || action === "cosmetics_catalog") {
       const kind = clean(input.kind, 20).toLowerCase();
       if (!COSMETIC_KINDS.has(kind)) return json({ error: "Tipo de personalização inválido." }, 400);
       const { data, error } = await sb.from("profile_cosmetics")
-        .select("id,kind,name,description,challenge,challenge_metric,challenge_target,image_ref,active,created_at,updated_at")
+        .select("id,kind,name,description,challenge,challenge_metric,challenge_target,image_ref,active,purchasable,xp_cost,emblem_ids,created_at,updated_at")
         .eq("kind", kind).order("created_at", { ascending: true });
       if (error) throw error;
       return json({ ok: true, items: data ?? [] });
@@ -199,12 +199,23 @@ Deno.serve(async (request) => {
       if (!name) return json({ error: "Informe o nome." }, 400);
       if (!challenge) return json({ error: "Escolha um desafio." }, 400);
       const expectedPrefix = kind === "moldura" ? "micrhema-xp://frame/" : "micrhema-xp://badge/";
-      if (!imageRef.toLowerCase().startsWith(expectedPrefix)) return json({ error: "Envie o PNG antes de salvar." }, 400);
+      if (!imageRef.toLowerCase().startsWith(expectedPrefix) && !/^https:\/\/raw\.githubusercontent\.com\/bichocutela\/Mic-RHEMA-Ia-Studio-Google\/[a-f0-9]{40}\/docs\/distinctives\/[a-z0-9_]+\.png$/.test(imageRef)) return json({ error: "Envie o PNG antes de salvar." }, 400);
       const known = Object.values(BADGE_CHALLENGES).flat().find((item) => item.text === challenge);
       if (!known) return json({ error: "Escolha um desafio gerado pelo sistema." }, 400);
       const suppliedId = clean(input.id, 90).toLowerCase().replace(/[^a-z0-9_:-]+/g, "_").replace(/^_+|_+$/g, "");
       const id = suppliedId || `${kind}_${slug(name)}_${Date.now()}`;
-      const row = { id, kind, name, description, challenge, challenge_metric: known.metric, challenge_target: known.target, image_ref: imageRef, active, updated_at: new Date().toISOString() };
+      const commercial: Record<string, unknown> = {};
+      if ("purchasable" in input) commercial.purchasable = input.purchasable === true;
+      if ("xpCost" in input) {
+        const cost = Number(input.xpCost);
+        if (!Number.isSafeInteger(cost) || cost < 0 || cost > 2147483647) return json({ error: "Valor em XP inválido." }, 400);
+        commercial.xp_cost = cost;
+      }
+      if ("emblemIds" in input) {
+        if (!Array.isArray(input.emblemIds) || input.emblemIds.length > 300) return json({ error: "Lista de emblemas inválida." }, 400);
+        commercial.emblem_ids = [...new Set(input.emblemIds.map(id => clean(id, 90)).filter(Boolean))];
+      }
+      const row = { id, kind, name, description, challenge, challenge_metric: known.metric, challenge_target: known.target, image_ref: imageRef, active, ...commercial, updated_at: new Date().toISOString() };
       const { data, error } = await sb.from("profile_cosmetics").upsert(row, { onConflict: "id" }).select().single();
       if (error) throw error;
       return json({ ok: true, item: data });

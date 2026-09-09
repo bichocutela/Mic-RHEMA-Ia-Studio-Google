@@ -295,7 +295,7 @@ private fun XpPurchasedItemCard(
     var localToggle by remember(item.id) { mutableIntStateOf(0) }
     val isActivatable = item.id == XpRewardManager.GOLD_PLUS_THEME ||
         item.id == XpRewardManager.PROMISE_FRAME ||
-        item.id == XpRewardManager.READER_BADGE
+        item.id == XpRewardManager.READER_BADGE || item.id.startsWith("cosmetic:")
     localToggle
     val isActive = XpRewardManager.isActive(context, item.id, member.id)
     val downloadable = item.kind == "digital" && item.imageUrl.isNotBlank()
