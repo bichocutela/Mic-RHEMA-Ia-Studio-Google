@@ -62,7 +62,10 @@ fun AdminXpShopScreen() {
     }
 
     LaunchedEffect(selectedTab, redemptionFilter) {
-        if (selectedTab == 0) loadCatalog() else loadRedemptions()
+        when (selectedTab) {
+            0 -> loadCatalog()
+            1 -> loadRedemptions()
+        }
     }
 
     Column(
@@ -91,6 +94,7 @@ fun AdminXpShopScreen() {
         ScrollableTabRow(selectedTabIndex = selectedTab, edgePadding = 0.dp, divider = {}) {
             Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("Recompensas") })
             Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Resgates") })
+            Tab(selected = selectedTab == 2, onClick = { selectedTab = 2 }, text = { Text("Emblemas") })
         }
 
         if (error.isNotBlank()) {
@@ -99,52 +103,56 @@ fun AdminXpShopScreen() {
             }
         }
 
-        if (selectedTab == 0) {
-            Button(onClick = { showNewEditor = true }, modifier = Modifier.fillMaxWidth()) {
-                Icon(Icons.Default.Add, contentDescription = null)
-                Spacer(Modifier.size(7.dp))
-                Text("Nova recompensa")
-            }
+        when (selectedTab) {
+            0 -> {
+                Button(onClick = { showNewEditor = true }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.Add, contentDescription = null)
+                    Spacer(Modifier.size(7.dp))
+                    Text("Nova recompensa")
+                }
 
-            if (loading && catalog.isEmpty()) {
-                Text("Carregando recompensas...", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+                if (loading && catalog.isEmpty()) {
+                    Text("Carregando recompensas...", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
 
-            Column(
-                modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                catalog.forEach { item -> AdminXpRewardCard(item = item, onEdit = { editorItem = item }) }
-                if (!loading && catalog.isEmpty()) {
-                    Text("Nenhuma recompensa cadastrada.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Column(
+                    modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    catalog.forEach { item -> AdminXpRewardCard(item = item, onEdit = { editorItem = item }) }
+                    if (!loading && catalog.isEmpty()) {
+                        Text("Nenhuma recompensa cadastrada.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
-        } else {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                listOf("todos" to "Todos", "pendente" to "Pendentes", "entregue" to "Entregues", "cancelado" to "Cancelados").forEach { (value, label) ->
-                    FilterChip(selected = redemptionFilter == value, onClick = { redemptionFilter = value }, label = { Text(label) })
+            1 -> {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    listOf("todos" to "Todos", "pendente" to "Pendentes", "entregue" to "Entregues", "cancelado" to "Cancelados").forEach { (value, label) ->
+                        FilterChip(selected = redemptionFilter == value, onClick = { redemptionFilter = value }, label = { Text(label) })
+                    }
                 }
-            }
 
-            if (loading && redemptions.isEmpty()) {
-                Text("Carregando resgates...", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+                if (loading && redemptions.isEmpty()) {
+                    Text("Carregando resgates...", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
 
-            Column(
-                modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                redemptions.forEach { redemption ->
-                    AdminXpRedemptionCard(
-                        redemption = redemption,
-                        onDeliver = { pendingStatusChange = redemption to "entregue" },
-                        onCancel = { pendingStatusChange = redemption to "cancelado" }
-                    )
-                }
-                if (!loading && redemptions.isEmpty()) {
-                    Text("Nenhum resgate nesta categoria.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Column(
+                    modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    redemptions.forEach { redemption ->
+                        AdminXpRedemptionCard(
+                            redemption = redemption,
+                            onDeliver = { pendingStatusChange = redemption to "entregue" },
+                            onCancel = { pendingStatusChange = redemption to "cancelado" }
+                        )
+                    }
+                    if (!loading && redemptions.isEmpty()) {
+                        Text("Nenhum resgate nesta categoria.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
+            else -> AdminXpBadgesSection()
         }
     }
 
