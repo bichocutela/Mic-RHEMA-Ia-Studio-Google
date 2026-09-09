@@ -1,6 +1,5 @@
 package com.aistudio.micrhema
 
-import android.content.Context
 import android.graphics.Color as AndroidColor
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -14,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LocalMall
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -29,94 +30,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
-import org.json.JSONArray
-import org.json.JSONObject
-
-private data class AdminLightEffect(
-    val id: String,
-    val name: String,
-    val description: String,
-    val effectType: String,
-    val tone: String,
-    val colorHex: String,
-    val purchasable: Boolean = false,
-    val xpCost: Int = 0,
-    val emblemIds: List<String> = emptyList(),
-    val active: Boolean = true
-)
-
-private val defaultLightEffects = listOf(
-    AdminLightEffect("aura_promessa", "Aura da Promessa", "Feixe dourado e partículas contornando o avatar.", "orbit", "medio", "#FFD54F"),
-    AdminLightEffect("ceu_estrelado", "Céu Estrelado", "Estrelas cintilantes suaves ao redor do perfil.", "stars", "suave", "#69A7FF"),
-    AdminLightEffect("chama_espirito", "Chama do Espírito", "Chamas luminosas animadas ao redor do avatar.", "flame", "medio", "#FF6A1A"),
-    AdminLightEffect("gloria_divina", "Glória Divina", "Aura pulsante com expansão de luz.", "pulse", "medio", "#A66BFF"),
-    AdminLightEffect("vida_abundante", "Vida Abundante", "Partículas verdes e energia natural.", "particles", "suave", "#73E36B"),
-    AdminLightEffect("luz_celestial", "Luz Celestial", "Halo branco-dourado com brilho respirando.", "halo", "medio", "#FFF1B0"),
-    AdminLightEffect("espirito_fogo", "Espírito de Fogo", "Anel de fogo intenso com faíscas rápidas.", "fire_ring", "forte", "#FF3B1F"),
-    AdminLightEffect("raios_gloria", "Raios de Glória", "Raios luminosos surgem atrás do avatar.", "rays", "forte", "#FFC928"),
-    AdminLightEffect("poeira_dourada", "Poeira Dourada", "Poeira cintilante sobe lentamente.", "dust", "suave", "#F4CF68"),
-    AdminLightEffect("halo_divino", "Halo Divino", "Círculo luminoso fino girando lentamente.", "halo_orbit", "suave", "#FFF5CF"),
-    AdminLightEffect("energia_azul", "Energia Azul", "Arcos elétricos azuis ao redor do avatar.", "electric", "forte", "#3C8DFF"),
-    AdminLightEffect("aura_esmeralda", "Aura Esmeralda", "Brilho verde profundo com partículas.", "aura", "medio", "#34D399"),
-    AdminLightEffect("chamas_roxas", "Chamas Roxas", "Chamas violetas com brilho mágico.", "violet_flame", "forte", "#A855F7"),
-    AdminLightEffect("arco_alianca", "Arco-Íris da Aliança", "Gradiente luminoso multicolorido em movimento.", "rainbow_orbit", "medio", "#FFFFFF"),
-    AdminLightEffect("luz_espirito", "Luz do Espírito", "Pulso branco suave com pequenas fagulhas.", "spirit_light", "suave", "#FFFFFF")
-)
-
-private object AdminLightEffectStore {
-    private const val PREF = "micrhema_admin_light_effects"
-    private const val KEY = "items"
-
-    fun load(context: Context): List<AdminLightEffect> {
-        val raw = context.getSharedPreferences(PREF, Context.MODE_PRIVATE).getString(KEY, null) ?: return defaultLightEffects
-        return runCatching {
-            val arr = JSONArray(raw)
-            buildList {
-                for (i in 0 until arr.length()) {
-                    val o = arr.getJSONObject(i)
-                    val emblems = o.optJSONArray("emblemIds") ?: JSONArray()
-                    add(AdminLightEffect(
-                        id = o.optString("id"),
-                        name = o.optString("name"),
-                        description = o.optString("description"),
-                        effectType = o.optString("effectType", "orbit"),
-                        tone = o.optString("tone", "medio"),
-                        colorHex = o.optString("colorHex", "#FFD54F"),
-                        purchasable = o.optBoolean("purchasable", false),
-                        xpCost = o.optInt("xpCost", 0),
-                        emblemIds = buildList { for (j in 0 until emblems.length()) add(emblems.optString(j)) }.filter { it.isNotBlank() },
-                        active = o.optBoolean("active", true)
-                    ))
-                }
-            }
-        }.getOrElse { defaultLightEffects }
-    }
-
-    fun save(context: Context, items: List<AdminLightEffect>) {
-        val arr = JSONArray()
-        items.forEach { item ->
-            arr.put(JSONObject().apply {
-                put("id", item.id); put("name", item.name); put("description", item.description)
-                put("effectType", item.effectType); put("tone", item.tone); put("colorHex", item.colorHex)
-                put("purchasable", item.purchasable); put("xpCost", item.xpCost); put("active", item.active)
-                put("emblemIds", JSONArray(item.emblemIds))
-            })
-        }
-        context.getSharedPreferences(PREF, Context.MODE_PRIVATE).edit().putString(KEY, arr.toString()).apply()
-    }
-}
 
 @Composable
 fun AdminXpLightEffectsSection() {
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var items by remember { mutableStateOf(AdminLightEffectStore.load(context)) }
+    var items by remember { mutableStateOf<List<AdminLightEffect>>(emptyList()) }
     var badges by remember { mutableStateOf<List<AdminCustomBadge>>(emptyList()) }
     var editor by remember { mutableStateOf<AdminLightEffect?>(null) }
     var showNew by remember { mutableStateOf(false) }
@@ -124,33 +46,81 @@ fun AdminXpLightEffectsSection() {
     var pricing by remember { mutableStateOf<AdminLightEffect?>(null) }
     var attach by remember { mutableStateOf<AdminLightEffect?>(null) }
     var deleting by remember { mutableStateOf<AdminLightEffect?>(null) }
+    var loading by remember { mutableStateOf(false) }
+    var saving by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf("") }
 
-    LaunchedEffect(Unit) {
-        runCatching { XpShopAdminClient.loadBadges() }.onSuccess { badges = it }
+    fun refresh() {
+        if (loading) return
+        loading = true
+        error = ""
+        scope.launch {
+            runCatching {
+                val loadedEffects = XpLightEffectsAdminClient.load()
+                val loadedBadges = XpShopAdminClient.loadBadges()
+                loadedEffects to loadedBadges
+            }.onSuccess { (effects, loadedBadges) ->
+                items = effects
+                badges = loadedBadges
+            }.onFailure {
+                error = it.message ?: "Não foi possível sincronizar os efeitos de luz."
+            }
+            loading = false
+        }
     }
 
-    fun persist(newItems: List<AdminLightEffect>) {
-        items = newItems
-        AdminLightEffectStore.save(context, newItems)
+    fun saveRemote(item: AdminLightEffect, onDone: () -> Unit = {}) {
+        if (saving) return
+        saving = true
+        error = ""
+        scope.launch {
+            runCatching { XpLightEffectsAdminClient.save(item) }
+                .onSuccess { saved ->
+                    items = (items.filterNot { it.id == saved.id } + saved).sortedBy { it.name.lowercase() }
+                    onDone()
+                }
+                .onFailure { error = it.message ?: "Não foi possível salvar o efeito no servidor." }
+            saving = false
+        }
     }
+
+    LaunchedEffect(Unit) { refresh() }
 
     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Button(onClick = { showNew = true }, modifier = Modifier.fillMaxWidth()) {
-            Icon(Icons.Default.Add, contentDescription = null)
-            Spacer(Modifier.width(7.dp))
-            Text("Adicionar efeito")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            Button(enabled = !saving, onClick = { showNew = true }, modifier = Modifier.weight(1f)) {
+                Icon(Icons.Default.Add, contentDescription = null)
+                Spacer(Modifier.width(7.dp))
+                Text("Adicionar efeito")
+            }
+            OutlinedButton(enabled = !loading && !saving, onClick = { refresh() }) {
+                Icon(Icons.Default.Refresh, contentDescription = null)
+            }
         }
+
         Text(
-            "Efeitos animados do avatar. Tonalidade: Suave, Médio ou Luz forte.",
+            "Efeitos animados do avatar sincronizados com o Supabase. Tonalidade: Suave, Médio ou Luz forte.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+
+        if (error.isNotBlank()) {
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                Text(error, modifier = Modifier.padding(12.dp), color = MaterialTheme.colorScheme.onErrorContainer)
+            }
+        }
+
+        if (loading && items.isEmpty()) {
+            Row(Modifier.fillMaxWidth().padding(20.dp), horizontalArrangement = Arrangement.Center) {
+                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+            }
+        }
 
         AdminPagedList(
             items = items,
             modifier = Modifier.weight(1f),
             key = { it.id },
-            emptyContent = { Text("Nenhum efeito de luz cadastrado.") }
+            emptyContent = { if (!loading) Text("Nenhum efeito de luz cadastrado.") }
         ) { item ->
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -197,11 +167,12 @@ fun AdminXpLightEffectsSection() {
     }
 
     if (showNew || editor != null) {
-        LightEffectEditor(initial = editor, onDismiss = { showNew = false; editor = null }) { saved ->
-            val next = if (editor == null) items + saved else items.map { if (it.id == editor!!.id) saved else it }
-            persist(next)
-            showNew = false
-            editor = null
+        val editingItem = editor
+        LightEffectEditor(initial = editingItem, onDismiss = { showNew = false; editor = null }) { saved ->
+            saveRemote(saved) {
+                showNew = false
+                editor = null
+            }
         }
     }
 
@@ -211,25 +182,38 @@ fun AdminXpLightEffectsSection() {
 
     pricing?.let { item ->
         LightEffectPriceDialog(item, onDismiss = { pricing = null }) { enabled, cost ->
-            persist(items.map { if (it.id == item.id) it.copy(purchasable = enabled, xpCost = if (enabled) cost else 0) else it })
-            pricing = null
+            saveRemote(item.copy(purchasable = enabled, xpCost = if (enabled) cost else 0)) { pricing = null }
         }
     }
 
     attach?.let { item ->
         LightEffectEmblemDialog(item, badges, onDismiss = { attach = null }) { ids ->
-            persist(items.map { if (it.id == item.id) it.copy(emblemIds = ids) else it })
-            attach = null
+            saveRemote(item.copy(emblemIds = ids)) { attach = null }
         }
     }
 
     deleting?.let { item ->
         AlertDialog(
-            onDismissRequest = { deleting = null },
+            onDismissRequest = { if (!saving) deleting = null },
             title = { Text("Excluir efeito?") },
-            text = { Text("O efeito ${item.name} será removido desta coleção administrativa.") },
-            confirmButton = { Button(onClick = { persist(items.filterNot { it.id == item.id }); deleting = null }) { Text("Excluir") } },
-            dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancelar") } }
+            text = { Text("O efeito ${item.name} será removido do servidor e deixará de aparecer para os demais administradores.") },
+            confirmButton = {
+                Button(enabled = !saving, onClick = {
+                    if (saving) return@Button
+                    saving = true
+                    error = ""
+                    scope.launch {
+                        runCatching { XpLightEffectsAdminClient.delete(item.id) }
+                            .onSuccess {
+                                items = items.filterNot { it.id == item.id }
+                                deleting = null
+                            }
+                            .onFailure { error = it.message ?: "Não foi possível excluir o efeito." }
+                        saving = false
+                    }
+                }) { Text(if (saving) "Excluindo…" else "Excluir") }
+            },
+            dismissButton = { TextButton(enabled = !saving, onClick = { deleting = null }) { Text("Cancelar") } }
         )
     }
 }
