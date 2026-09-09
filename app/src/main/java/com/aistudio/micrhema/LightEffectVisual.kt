@@ -46,27 +46,53 @@ private fun DrawScope.drawAvatarLight(type: String, color: Color, strength: Floa
     val time = phase * (2 * PI).toFloat()
     fun point(angle: Float, radius: Float = r) = center + Offset(cos(angle), sin(angle)) * radius
     fun spark(p: Offset, radius: Float, tint: Color = color, alpha: Float = 1f, star: Boolean = false) {
-        drawCircle(Brush.radialGradient(listOf(tint.copy(alpha = alpha * .8f * strength), tint.copy(alpha = 0f)), p, radius * 5f), radius * 5f, p)
-        drawCircle(Color.White.copy(alpha = alpha * strength), radius * .48f, p)
+        val opacity = (alpha * strength).coerceIn(0f, 1f)
+        drawCircle(Brush.radialGradient(
+            0f to Color.White.copy(alpha = opacity),
+            .12f to lerp(tint, Color.White, .75f).copy(alpha = opacity),
+            .32f to tint.copy(alpha = opacity * .9f),
+            .65f to tint.copy(alpha = opacity * .25f),
+            1f to tint.copy(alpha = 0f),
+            center = p, radius = radius * 5f), radius * 5f, p)
+        drawCircle(Color.White.copy(alpha = opacity), radius * .65f, p)
         if (star) {
-            drawLine(tint.copy(alpha = alpha * strength), p - Offset(radius * 3, 0f), p + Offset(radius * 3, 0f), unit * .003f)
-            drawLine(Color.White.copy(alpha = alpha * strength), p - Offset(0f, radius * 3), p + Offset(0f, radius * 3), unit * .002f)
+            val flare = Path().apply {
+                moveTo(p.x - radius * 4f, p.y)
+                lineTo(p.x - radius * .35f, p.y - radius * .35f)
+                lineTo(p.x, p.y - radius * 4f)
+                lineTo(p.x + radius * .35f, p.y - radius * .35f)
+                lineTo(p.x + radius * 4f, p.y)
+                lineTo(p.x + radius * .35f, p.y + radius * .35f)
+                lineTo(p.x, p.y + radius * 4f)
+                lineTo(p.x - radius * .35f, p.y + radius * .35f)
+                close()
+            }
+            drawPath(flare, Brush.radialGradient(listOf(Color.White.copy(alpha = opacity),
+                tint.copy(alpha = 0f)), p, radius * 4f))
         }
     }
     fun luminousPath(path: Path, tint: Color = color, width: Float = unit * .004f, alpha: Float = 1f) {
-        // Broad translucent light, saturated middle and a hot core; no hardware blur dependency.
-        for (layer in 5 downTo 1) drawPath(path, tint.copy(alpha = .035f * strength * alpha), style = Stroke(width * layer * 3f, cap = StrokeCap.Round))
-        drawPath(path, tint.copy(alpha = .85f * strength * alpha), style = Stroke(width * 2, cap = StrokeCap.Round))
-        drawPath(path, lerp(tint, Color.White, .78f).copy(alpha = strength * alpha), style = Stroke(width * .65f, cap = StrokeCap.Round))
+        // Saturated outer glow stays visible on pale surfaces; white core supplies the flare.
+        for (layer in 4 downTo 1) drawPath(path,
+            tint.copy(alpha = (.075f + (4 - layer) * .025f) * strength * alpha),
+            style = Stroke(width * (2f + layer * 2.4f), cap = StrokeCap.Round))
+        drawPath(path, tint.copy(alpha = strength * alpha), style = Stroke(width * 2.8f, cap = StrokeCap.Round))
+        drawPath(path, lerp(tint, Color.White, .9f).copy(alpha = strength * alpha), style = Stroke(width, cap = StrokeCap.Round))
     }
     val breath = .75f + .25f * sin(time * 2)
-    // Soft annular bloom keeps the face transparent and all light inside the allocated bounds.
-    repeat(12) { i ->
-        drawCircle(color.copy(alpha = (.018f + .012f * breath) * strength), r,
-            style = Stroke(unit * (.018f + i * .006f)))
-    }
+    // A continuous, soft annular light field; the middle remains fully transparent.
+    drawCircle(Brush.radialGradient(
+        0f to color.copy(alpha = 0f),
+        .65f to color.copy(alpha = 0f),
+        .73f to color.copy(alpha = .10f * strength),
+        .80f to color.copy(alpha = .44f * strength * breath),
+        .84f to lerp(color, Color.White, .55f).copy(alpha = .48f * strength),
+        .89f to color.copy(alpha = .30f * strength),
+        1f to color.copy(alpha = 0f),
+        center = center, radius = unit * .45f), unit * .45f)
     val ring = Path().apply { addOval(androidx.compose.ui.geometry.Rect(center - Offset(r, r), center + Offset(r, r))) }
-    luminousPath(ring, width = unit * .0025f, alpha = .55f)
+    luminousPath(ring, width = unit * .0035f, alpha = .85f)
+
     fun ribbon(turns: Int, offset: Float, amplitude: Float, tint: Color = color, width: Float = .003f) {
         val path = Path()
         repeat(181) { i ->
@@ -83,12 +109,12 @@ private fun DrawScope.drawAvatarLight(type: String, color: Color, strength: Floa
         repeat(20) { i ->
             val a = angle - i * length / 20
             val b = angle - (i + 1) * length / 20
-            val p = point(a, r + offset * unit)
-            val q = point(b, r + offset * unit)
+            val p = point(a, r + (offset + .012f * sin(a * 2)) * unit)
+            val q = point(b, r + (offset + .012f * sin(b * 2)) * unit)
             luminousPath(Path().apply { moveTo(p.x, p.y); lineTo(q.x, q.y) }, tint,
                 unit * .0028f, (1 - i / 20f) * .9f)
         }
-        spark(point(angle, r + offset * unit), unit * .010f, tint, star = true)
+        spark(point(angle, r + (offset + .012f * sin(angle * 2)) * unit), unit * .014f, tint, star = true)
     }
     when (type) {
         "stars" -> {
@@ -128,7 +154,7 @@ private fun DrawScope.drawAvatarLight(type: String, color: Color, strength: Floa
             }
         }
         "flame", "fire_ring", "violet_flame" -> {
-            val count = when (type) { "fire_ring" -> 42; "violet_flame" -> 24; else -> 30 }
+                val count = when (type) { "fire_ring" -> 42; "violet_flame" -> 24; else -> 30 }
             if (type == "violet_flame") ribbon(4, .025f, .013f, lerp(color, Color.White, .3f))
             if (type == "fire_ring") comet(time * 3, .025f, Color(0xFFFFD166), .9f)
             repeat(count) { i ->
@@ -222,6 +248,20 @@ private fun DrawScope.drawAvatarLight(type: String, color: Color, strength: Floa
         }
         else -> comet(time, 0f)
 
+    }
+    when (type) {
+        "flame" -> comet(time * 2, -.012f, Color(0xFFFFE5A0), .8f)
+        "fire_ring" -> comet(-time * 3, -.008f, Color(0xFFFFF1C9), .6f)
+        "violet_flame" -> comet(-time * 2, -.006f, lerp(color, Color.White, .5f), 1.4f)
+        "electric" -> repeat(3) { i ->
+            val a = -time * 3 + i * (2 * PI / 3).toFloat()
+            spark(point(a, r + unit * .016f), unit * .013f, star = true)
+        }
+        "rays" -> spark(point(time), unit * .018f, star = true)
+        "particles" -> comet(-time, -.004f, lerp(color, Color.White, .4f), 1.2f)
+        "dust" -> spark(point(time + PI.toFloat()), unit * .012f, star = true)
+        "aura" -> comet(time, -.012f, length = 2.1f)
+        "spirit_light" -> ribbon(3, -.008f, .006f, width = .003f)
     }
     val count = when (type) { "stars" -> 28; "dust" -> 48; "particles", "aura" -> 36; else -> 18 }
     repeat(count) { i ->

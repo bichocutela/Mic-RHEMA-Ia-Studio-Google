@@ -62,7 +62,8 @@ fun BiblicalAvatarWithBadge(
     val clickableModifier = if (onClick != null) modifier.clickable(onClick = onClick) else modifier
     val isProfileEmblem = remoteEmblem != null || badge.frameStyle == BadgeFrameStyle.PROFILE_EMBLEM ||
         (badge.category == BadgeCategory.LEVEL && (badge.level ?: 0) in 1..7)
-    val emblemScale = if (hasPromiseFrame) 0.92f else 1f
+    val lightInset = if (effects.isNotEmpty()) 0.82f else 1f
+    val emblemScale = (if (hasPromiseFrame) 0.92f else 1f) * lightInset
 
     Box(modifier = clickableModifier, contentAlignment = Alignment.Center) {
         if (hasPromiseFrame) {
@@ -101,10 +102,10 @@ fun BiblicalAvatarWithBadge(
                 )
             }
         } else {
-            Canvas(modifier = Modifier.fillMaxSize(if (hasPromiseFrame) 0.91f else 1f)) { drawClassicBadgeFrame(badge) }
+            Canvas(modifier = Modifier.fillMaxSize((if (hasPromiseFrame) 0.91f else 1f) * lightInset)) { drawClassicBadgeFrame(badge) }
             BiblicalAvatarImage(
                 avatar = avatar,
-                modifier = Modifier.fillMaxSize(if (hasPromiseFrame) 0.66f else 0.72f).clip(CircleShape),
+                modifier = Modifier.fillMaxSize((if (hasPromiseFrame) 0.66f else 0.72f) * lightInset).clip(CircleShape),
                 contentDescription = contentDescription
             )
         }
