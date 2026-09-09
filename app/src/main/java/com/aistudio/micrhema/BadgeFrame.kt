@@ -65,7 +65,13 @@ fun BiblicalAvatarWithBadge(
     val lightInset = if (effects.isNotEmpty()) 0.82f else 1f
     val emblemScale = (if (hasPromiseFrame) 0.92f else 1f) * lightInset
 
+    val portraitFraction = if (isProfileEmblem) {
+        (if (remoteEmblem != null) 0.56f else profileEmblemAvatarFraction(badge.level ?: 8)) * emblemScale
+    } else (if (hasPromiseFrame) 0.66f else 0.72f) * lightInset
+    val lightPhase = if (effects.isNotEmpty()) rememberLightEffectPhase() else null
+
     Box(modifier = clickableModifier, contentAlignment = Alignment.Center) {
+        if (lightPhase != null) AvatarLightLayer(effects, lightPhase, false, portraitFraction)
         if (hasPromiseFrame) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val c = Offset(size.width / 2f, size.height / 2f)
@@ -110,11 +116,7 @@ fun BiblicalAvatarWithBadge(
             )
         }
 
-        effects.forEach { effect ->
-            androidx.compose.runtime.key(effect.id) {
-                LightEffectVisual(effect, Modifier.fillMaxSize(), showAvatarLabel = false)
-            }
-        }
+        if (lightPhase != null) AvatarLightLayer(effects, lightPhase, true, portraitFraction)
 
         if (hasReaderBadge) {
             Canvas(modifier = Modifier.fillMaxSize()) {
