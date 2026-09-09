@@ -91,20 +91,19 @@ fun TeamScreen() {
                 .padding(paddingValues),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Header
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 24.dp),
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
                     Icons.Default.Person,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(26.dp)
                 )
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Nossa Equipe",
                     style = MaterialTheme.typography.headlineMedium,
@@ -113,50 +112,51 @@ fun TeamScreen() {
                 )
             }
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(bottom = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            categories.forEach { category ->
-                FilterChip(
-                    selected = selectedCategory == category,
-                    onClick = { selectedCategory = category },
-                    label = { Text(category) }
-                )
-            }
-        }
-
-        AnimatedVisibility(
-            visible = isVisible,
-            enter = fadeIn(tween(600)) + androidx.compose.animation.slideInVertically(initialOffsetY = { it / 8 }, animationSpec = tween(600)),
-            modifier = Modifier.fillMaxSize()
-        ) {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                contentPadding = PaddingValues(bottom = 80.dp)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 2.dp)
+                    .padding(bottom = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-            val filteredMembers = teamMembersState.filter { 
-                selectedCategory == "Todos" || it.category.equals(selectedCategory, ignoreCase = true) 
-            }.sortedBy { it.order }
-            
-            items(filteredMembers, key = { it.id }) { member ->
-                TeamMemberCard(
-                    member = member, 
-                    modifier = Modifier.animateItem(tween(300)),
-                    onEditClick = { editingMember = member }
-                )
+                categories.forEach { category ->
+                    FilterChip(
+                        selected = selectedCategory == category,
+                        onClick = { selectedCategory = category },
+                        label = { Text(category) }
+                    )
+                }
             }
-        }
+
+            AnimatedVisibility(
+                visible = isVisible,
+                enter = fadeIn(tween(600)) + androidx.compose.animation.slideInVertically(initialOffsetY = { it / 8 }, animationSpec = tween(600)),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 64.dp)
+                ) {
+                    val filteredMembers = teamMembersState.filter {
+                        selectedCategory == "Todos" || it.category.equals(selectedCategory, ignoreCase = true)
+                    }.sortedBy { it.order }
+
+                    items(filteredMembers, key = { it.id }) { member ->
+                        TeamMemberCard(
+                            member = member,
+                            modifier = Modifier.animateItem(tween(300)),
+                            onEditClick = { editingMember = member }
+                        )
+                    }
+                }
+            }
         }
     }
 }
 
-}
 @Composable
 fun EditTeamSection() {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -189,7 +189,6 @@ fun EditTeamSection() {
                         }
                     }
                 } else {
-                    
                     showAddDialog = false
                     editingMember = null
                 }
@@ -200,7 +199,7 @@ fun EditTeamSection() {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(12.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -213,15 +212,15 @@ fun EditTeamSection() {
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             items(teamMembersState.sortedBy { it.order }) { member ->
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Row(
-                        modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                        modifier = Modifier.padding(12.dp).fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         SubcomposeAsyncImage(
@@ -230,10 +229,10 @@ fun EditTeamSection() {
                                 .crossfade(true)
                                 .build(),
                             contentDescription = null,
-                            modifier = Modifier.size(50.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant),
+                            modifier = Modifier.size(46.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant),
                             contentScale = ContentScale.Crop
                         )
-                        Spacer(modifier = Modifier.width(16.dp))
+                        Spacer(modifier = Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(member.name, fontWeight = FontWeight.Bold)
                             if (member.role.isNotBlank()) Text(member.role, style = MaterialTheme.typography.bodySmall)
@@ -244,8 +243,6 @@ fun EditTeamSection() {
                         IconButton(onClick = {
                             if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
                                 Firebase.firestore.collection("equipe").document(member.id).delete()
-                            } else {
-                                
                             }
                         }) {
                             Icon(Icons.Default.Delete, contentDescription = "Excluir", tint = MaterialTheme.colorScheme.error)
@@ -255,8 +252,8 @@ fun EditTeamSection() {
             }
         }
     }
-
 }
+
 @Composable
 fun TeamMemberCard(member: TeamMember, modifier: Modifier = Modifier, onEditClick: () -> Unit = {}) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -283,7 +280,7 @@ fun TeamMemberCard(member: TeamMember, modifier: Modifier = Modifier, onEditClic
         Box(modifier = Modifier.fillMaxWidth()) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(16.dp).fillMaxWidth()
+                modifier = Modifier.padding(12.dp).fillMaxWidth()
             ) {
                 SubcomposeAsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
@@ -297,12 +294,12 @@ fun TeamMemberCard(member: TeamMember, modifier: Modifier = Modifier, onEditClic
                     },
                     contentDescription = "Foto de ${member.name}",
                     modifier = Modifier
-                        .size(100.dp)
+                        .size(88.dp)
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentScale = ContentScale.Crop
                 )
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = member.name,
                     fontWeight = FontWeight.Bold,
@@ -310,7 +307,7 @@ fun TeamMemberCard(member: TeamMember, modifier: Modifier = Modifier, onEditClic
                     style = MaterialTheme.typography.titleMedium
                 )
                 if (member.role.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(3.dp))
                     Text(
                         text = member.role,
                         textAlign = TextAlign.Center,
@@ -371,12 +368,11 @@ fun TeamMemberDialog(
         }
     }
 
-
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (member != null) "Editar Membro" else "Novo Membro") },
         text = {
-            Column(modifier = Modifier.imePadding().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(modifier = Modifier.imePadding().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
@@ -398,7 +394,6 @@ fun TeamMemberDialog(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
-                
                 OutlinedTextField(
                     value = imageUrl,
                     onValueChange = { imageUrl = it },
