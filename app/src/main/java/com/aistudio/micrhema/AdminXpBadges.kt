@@ -21,18 +21,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
-private fun nativeAdminBadges(): List<AdminCustomBadge> = biblicalLevelBadges.map { badge ->
-    AdminCustomBadge(
-        id = badge.id,
-        sequenceNo = badge.level,
-        name = badge.name,
-        description = badge.description,
-        challenge = badge.requirement,
-        imageRef = buildBuiltinEmblemRef(badge.id),
-        special = false,
-        active = true
-    )
-}
+private fun nativeAdminBadges(): List<AdminCustomBadge> =
+    (biblicalLevelBadges + simpleBiblicalBadges).map { badge ->
+        AdminCustomBadge(
+            id = badge.id,
+            sequenceNo = badge.level,
+            name = badge.name,
+            description = badge.description,
+            challenge = badge.requirement,
+            imageRef = buildBuiltinEmblemRef(badge.id),
+            special = false,
+            active = true
+        )
+    }
 
 @Composable
 fun AdminXpBadgesSection() {
@@ -75,7 +76,7 @@ fun AdminXpBadgesSection() {
         }
 
         Text(
-            "Todos os emblemas do app aparecem aqui para edição. Os níveis 1–22 preservam a arte atual até você trocar o PNG; novos emblemas continuam em 23, 24, 25… ou podem ser especiais.",
+            "Todos os emblemas do app aparecem aqui para edição. Os níveis 1–22 e as conquistas nativas preservam a arte atual até você trocar o PNG; novos emblemas continuam em 23, 24, 25… ou podem ser especiais.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -100,6 +101,7 @@ fun AdminXpBadgesSection() {
                 if (!loading) Text("Nenhum emblema disponível.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         ) { badge ->
+            val nativeAchievement = isNativeAchievementBadgeId(badge.id)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -121,6 +123,7 @@ fun AdminXpBadgesSection() {
                             Text(
                                 when {
                                     badge.special -> "Especial"
+                                    nativeAchievement -> "Conquista nativa do app"
                                     (badge.sequenceNo ?: 0) in 1..22 -> "Emblema nativo do app"
                                     else -> "Catálogo numerado"
                                 },
@@ -161,7 +164,9 @@ private fun AdminXpBadgeEditor(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val isNative = (initial?.sequenceNo ?: 0) in 1..22 && initial?.special != true
+    val isNativeLevel = (initial?.sequenceNo ?: 0) in 1..22 && initial?.special != true
+    val isNativeAchievement = initial?.id?.let(::isNativeAchievementBadgeId) == true
+    val isNative = isNativeLevel || isNativeAchievement
     var name by remember(initial?.id) { mutableStateOf(initial?.name.orEmpty()) }
     var description by remember(initial?.id) { mutableStateOf(initial?.description.orEmpty()) }
     var challenge by remember(initial?.id) { mutableStateOf(initial?.challenge.orEmpty()) }
@@ -233,7 +238,11 @@ private fun AdminXpBadgeEditor(
             ) {
                 if (isNative) {
                     Text(
-                        "Emblema nativo · nível ${initial?.sequenceNo}. A arte original continua sendo usada até você enviar outro PNG.",
+                        if (isNativeAchievement) {
+                            "Conquista nativa do app. A arte original continua sendo usada até você enviar outro PNG."
+                        } else {
+                            "Emblema nativo · nível ${initial?.sequenceNo}. A arte original continua sendo usada até você enviar outro PNG."
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -313,7 +322,8 @@ private fun AdminXpBadgeEditor(
                         Text("Emblema especial", fontWeight = FontWeight.SemiBold)
                         Text(
                             when {
-                                isNative -> "Emblemas nativos mantêm a numeração original."
+                                isNativeAchievement -> "Conquistas nativas não recebem número de nível."
+                                isNativeLevel -> "Emblemas nativos mantêm a numeração original."
                                 special -> "Não usa número de nível."
                                 else -> "Receberá automaticamente o próximo número a partir do 23."
                             },

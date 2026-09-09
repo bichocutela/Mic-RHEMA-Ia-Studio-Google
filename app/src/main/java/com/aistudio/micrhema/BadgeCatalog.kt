@@ -78,7 +78,8 @@ val simpleBiblicalBadges: List<BiblicalBadge> = listOf(
 )
 
 val allBiblicalBadges: List<BiblicalBadge> = biblicalLevelBadges + simpleBiblicalBadges
-val profileEmblemBadges: List<BiblicalBadge> = biblicalLevelBadges.filter { (it.level ?: 0) in 8..22 }
+val profileEmblemBadges: List<BiblicalBadge> =
+    biblicalLevelBadges.filter { (it.level ?: 0) in 8..22 } + simpleBiblicalBadges
 
 const val DEFAULT_BIBLICAL_BADGE_ID = "caminhante"
 

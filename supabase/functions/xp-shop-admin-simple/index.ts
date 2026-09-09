@@ -5,6 +5,13 @@ const ITEM_KINDS = new Set(["digital", "profile", "physical"]);
 const REDEMPTION_STATUSES = new Set(["pendente", "entregue", "cancelado"]);
 const BADGE_DIFFICULTIES = new Set(["easy", "medium", "hard"]);
 const COSMETIC_KINDS = new Set(["distintivo", "moldura"]);
+const BUILTIN_ACHIEVEMENT_IDS = new Set([
+  "primeira_oracao",
+  "leitor_da_palavra",
+  "coracao_grato",
+  "constante",
+  "certificado_ibr",
+]);
 
 type BadgeChallenge = { difficulty: string; text: string; metric: string; target: number };
 const BADGE_CHALLENGES: Record<string, BadgeChallenge[]> = {
@@ -137,7 +144,10 @@ Deno.serve(async (request) => {
       const special = input.special === true;
       const active = input.active !== false;
       const requestedSequence = Math.floor(Number(input.sequenceNo ?? 0));
-      const isBuiltin = !special && requestedSequence >= 1 && requestedSequence <= 22;
+      const suppliedId = clean(input.id, 90).toLowerCase().replace(/[^a-z0-9_:-]+/g, "_").replace(/^_+|_+$/g, "");
+      const isBuiltinLevel = !special && requestedSequence >= 1 && requestedSequence <= 22;
+      const isBuiltinAchievement = !special && BUILTIN_ACHIEVEMENT_IDS.has(suppliedId);
+      const isBuiltin = isBuiltinLevel || isBuiltinAchievement;
       if (!name) return json({ error: "Informe o nome do emblema." }, 400);
       if (!challenge) return json({ error: "Escolha um desafio para conquistar o emblema." }, 400);
       const validImage = imageRef.toLowerCase().startsWith("micrhema-xp://emblem/") || (isBuiltin && imageRef.toLowerCase().startsWith("builtin-emblem://"));
@@ -145,14 +155,13 @@ Deno.serve(async (request) => {
       const known = Object.values(BADGE_CHALLENGES).flat().find((item) => item.text === challenge);
       if (!known && !isBuiltin) return json({ error: "Esse desafio não pertence ao catálogo verificável. Busque outro desafio pelo seletor." }, 400);
 
-      let sequenceNo: number | null = isBuiltin ? requestedSequence : null;
-      const suppliedId = clean(input.id, 90).toLowerCase().replace(/[^a-z0-9_:-]+/g, "_").replace(/^_+|_+$/g, "");
-      if (suppliedId && sequenceNo === null) {
+      let sequenceNo: number | null = isBuiltinLevel ? requestedSequence : null;
+      if (suppliedId && sequenceNo === null && !isBuiltinAchievement) {
         const { data: existing, error: existingError } = await sb.from("custom_profile_badges").select("sequence_no,special").eq("id", suppliedId).maybeSingle();
         if (existingError) throw existingError;
         sequenceNo = existing?.sequence_no ?? null;
       }
-      if (!special && sequenceNo === null) {
+      if (!special && sequenceNo === null && !isBuiltinAchievement) {
         const { data: lastRows, error: lastError } = await sb.from("custom_profile_badges").select("sequence_no").not("sequence_no", "is", null).gte("sequence_no", 23).order("sequence_no", { ascending: false }).limit(1);
         if (lastError) throw lastError;
         const last = Number(lastRows?.[0]?.sequence_no ?? 22);
@@ -162,14 +171,14 @@ Deno.serve(async (request) => {
       const id = suppliedId || generatedId;
       const row = {
         id,
-        sequence_no: special ? null : sequenceNo,
+        sequence_no: special || isBuiltinAchievement ? null : sequenceNo,
         name,
         description,
         challenge,
         challenge_metric: known?.metric ?? null,
         challenge_target: known?.target ?? null,
         image_ref: imageRef,
-        special,
+        special: isBuiltinAchievement ? false : special,
         active,
         updated_at: new Date().toISOString()
       };

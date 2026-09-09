@@ -26,6 +26,15 @@ data class RemoteProfileBadge(
     val special: Boolean
 ) {
     fun asBiblicalBadge(): BiblicalBadge {
+        val nativeAchievement = simpleBiblicalBadges.firstOrNull { it.id == id }
+        if (nativeAchievement != null) {
+            return nativeAchievement.copy(
+                name = name,
+                description = description,
+                requirement = challenge
+            )
+        }
+
         val level = sequenceNo
         val rarity = when (level) {
             in 8..12 -> ProfileEmblemRarity.RARE
@@ -54,8 +63,13 @@ data class RemoteProfileBadge(
  */
 val remoteProfileBadgesState = mutableStateOf<List<RemoteProfileBadge>>(emptyList())
 
+fun isNativeAchievementBadgeId(id: String): Boolean =
+    simpleBiblicalBadges.any { it.id == id }
+
 fun remoteProfileBadgeForId(id: String): RemoteProfileBadge? =
-    remoteProfileBadgesState.value.firstOrNull { it.id == id }
+    remoteProfileBadgesState.value.firstOrNull { it.id == id }?.takeUnless { remote ->
+        isNativeAchievementBadgeId(id) && remote.imageRef.startsWith("builtin-emblem://", ignoreCase = true)
+    }
 
 fun currentAllBiblicalBadges(): List<BiblicalBadge> {
     // A leitura do State garante recomposição quando o catálogo remoto termina de sincronizar.
@@ -70,11 +84,19 @@ fun currentProfileEmblemBadges(): List<BiblicalBadge> {
     return profileEmblemBadges
 }
 
+/** Catálogo que o ADM pode liberar manualmente: emblemas de perfil + conquistas nativas. */
+fun currentAdminUnlockableBadges(): List<BiblicalBadge> {
+    remoteProfileBadgesState.value
+    RemoteBadgeEngineClient.ensureCatalogLoaded()
+    return profileEmblemBadges.distinctBy { it.id }
+}
+
 private fun publishCatalogIntoLegacySelectors(catalog: List<RemoteProfileBadge>) {
     val previousRemoteIds = remoteProfileBadgesState.value.map { it.id }.toSet()
     val currentRemoteIds = catalog.map { it.id }.toSet()
     val remoteIds = previousRemoteIds + currentRemoteIds
     val mapped = catalog.map { it.asBiblicalBadge() }
+    val mappedById = mapped.associateBy { it.id }
 
     val allList = allBiblicalBadges as? MutableList<BiblicalBadge>
     val profileList = profileEmblemBadges as? MutableList<BiblicalBadge>
@@ -87,10 +109,13 @@ private fun publishCatalogIntoLegacySelectors(catalog: List<RemoteProfileBadge>)
     allList.removeAll { it.id in remoteIds }
     allList.addAll(mapped)
 
-    // Catálogo específico de emblemas do perfil: mantém níveis 8–22 + personalizados.
+    // Catálogo específico do perfil: níveis 8–22, as cinco conquistas nativas e personalizados.
     profileList.clear()
     profileList.addAll(biblicalLevelBadges.filter { (it.level ?: 0) in 8..22 })
-    profileList.addAll(mapped.filter { remote -> profileList.none { it.id == remote.id } })
+    profileList.addAll(simpleBiblicalBadges.map { native -> mappedById[native.id] ?: native })
+    profileList.addAll(mapped.filter { remote ->
+        !isNativeAchievementBadgeId(remote.id) && profileList.none { it.id == remote.id }
+    })
 }
 
 object RemoteBadgeEngineClient {
@@ -156,12 +181,30 @@ object RemoteBadgeEngineClient {
         }
     }
 
+    private fun withNativeAchievements(catalog: List<RemoteProfileBadge>): List<RemoteProfileBadge> {
+        val remoteIds = catalog.map { it.id }.toSet()
+        val fallbacks = simpleBiblicalBadges
+            .filterNot { it.id in remoteIds }
+            .map { badge ->
+                RemoteProfileBadge(
+                    id = badge.id,
+                    sequenceNo = null,
+                    name = badge.name,
+                    description = badge.description,
+                    challenge = badge.requirement,
+                    imageRef = buildBuiltinEmblemRef(badge.id),
+                    special = false
+                )
+            }
+        return catalog + fallbacks
+    }
+
     suspend fun loadCatalog(force: Boolean = false): List<RemoteProfileBadge> {
         val now = System.currentTimeMillis()
         if (!force && lastCatalogRefreshAt > 0L && now - lastCatalogRefreshAt < CATALOG_TTL_MS) {
             return remoteProfileBadgesState.value
         }
-        val catalog = parseCatalog(call("catalog"))
+        val catalog = withNativeAchievements(parseCatalog(call("catalog")))
         withContext(Dispatchers.Main.immediate) {
             publishCatalogIntoLegacySelectors(catalog)
             remoteProfileBadgesState.value = catalog
