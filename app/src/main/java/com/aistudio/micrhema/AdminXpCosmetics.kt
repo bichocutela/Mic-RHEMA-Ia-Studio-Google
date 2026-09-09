@@ -23,6 +23,34 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun AdminXpCosmeticsSection(kind: String) {
+    if (kind == "moldura") {
+        var section by remember { mutableStateOf(0) }
+        Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                FilterChip(
+                    selected = section == 0,
+                    onClick = { section = 0 },
+                    label = { Text("Molduras") },
+                    modifier = Modifier.weight(1f)
+                )
+                FilterChip(
+                    selected = section == 1,
+                    onClick = { section = 1 },
+                    label = { Text("Efeitos de Luz") },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                if (section == 0) AdminXpCosmeticsCore(kind) else AdminXpLightEffectsSection()
+            }
+        }
+        return
+    }
+    AdminXpCosmeticsCore(kind)
+}
+
+@Composable
+private fun AdminXpCosmeticsCore(kind: String) {
     val scope = rememberCoroutineScope()
     val label = if (kind == "moldura") "Moldura" else "Distintivo"
     val plural = if (kind == "moldura") "Molduras" else "Distintivos"
