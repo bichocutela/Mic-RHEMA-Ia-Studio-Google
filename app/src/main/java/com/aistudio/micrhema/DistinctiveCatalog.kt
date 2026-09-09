@@ -52,11 +52,12 @@ fun activeProfileCosmeticsForMember(
     context: Context,
     kind: String,
     badgeId: String,
-    memberId: String?
+    memberId: String?,
+    includeInactiveOwned: Boolean = false
 ): List<AdminProfileCosmetic> = DistinctiveCatalog.items.value.filter { item ->
     (item.active || isBuiltinCosmetic(item.id)) && item.kind == kind &&
         if (item.purchasable) {
-            memberId != null && XpRewardManager.isActive(context, cosmeticRewardId(item), memberId) &&
+            memberId != null && (if (includeInactiveOwned) XpRewardManager.isOwned(context, cosmeticRewardId(item), memberId) else XpRewardManager.isActive(context, cosmeticRewardId(item), memberId)) &&
                 (item.emblemIds.isEmpty() || badgeId in item.emblemIds)
         } else {
             item.emblemIds.isEmpty() || badgeId in item.emblemIds
@@ -66,6 +67,7 @@ fun activeProfileCosmeticsForMember(
 object DistinctiveHighlightsStore {
     private const val PREFS = "micrhema_distinctive_highlights"
     private val values = mutableStateMapOf<String, List<String>>()
+    private val frameValues = mutableStateMapOf<String, String>()
     private val primaryValues = mutableStateMapOf<String, String>()
     private val loaded = mutableSetOf<String>()
     private val mutex = Mutex()
@@ -77,12 +79,36 @@ object DistinctiveHighlightsStore {
         return available.firstOrNull { it.id == id }
     }
 
+    fun frame(memberId: String, available: List<AdminProfileCosmetic>): AdminProfileCosmetic? {
+        val id = frameValues[memberId]
+        return if (id != null) available.firstOrNull { it.id == id }
+        else available.firstOrNull { it.id != XpRewardManager.PROMISE_FRAME } ?: available.firstOrNull()
+    }
+
+    suspend fun choose(context: Context, memberId: String, item: AdminProfileCosmetic, badgeId: String) = mutex.withLock {
+        require(memberId.isNotBlank()) { "Entre novamente no seu perfil." }
+        require(item.kind == "moldura" || item.kind == "distintivo") { "Tipo de item inválido." }
+        require(activeProfileCosmeticsForMember(context, item.kind, badgeId, memberId, true).any { it.id == item.id }) {
+            "Este item não está mais disponível para seu perfil."
+        }
+        val field = if (item.kind == "moldura") "selectedProfileFrameId" else "primaryDistinctiveId"
+        FirebaseFirestore.getInstance().collection("users").document(memberId)
+            .set(mapOf(field to item.id, "updatedAt" to System.currentTimeMillis()), SetOptions.merge()).await()
+        if (item.purchasable) XpRewardManager.setActive(context, memberId, cosmeticRewardId(item), true)
+        val key = if (item.kind == "moldura") "frame:$memberId" else "primary:$memberId"
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(key, item.id).apply()
+        withContext(Dispatchers.Main.immediate) {
+            if (item.kind == "moldura") frameValues[memberId] = item.id else primaryValues[memberId] = item.id
+        }
+    }
+
     suspend fun load(context: Context, memberId: String, availableIds: List<String>) = mutex.withLock {
         if (memberId.isBlank()) return@withLock
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         var ids = prefs.getString(memberId, null)?.split('|')
             ?.filter { it.isNotBlank() }?.distinct()?.take(4) ?: availableIds.take(4)
         var primary = prefs.getString("primary:$memberId", null)
+        var frame = prefs.getString("frame:$memberId", null)
         if (memberId !in loaded) {
             try {
                 val snap = FirebaseFirestore.getInstance().collection("users").document(memberId).get().await()
@@ -90,6 +116,7 @@ object DistinctiveHighlightsStore {
                     ids = remote.filterIsInstance<String>().filter { it.isNotBlank() }.distinct().take(4)
                 }
                 if (snap.contains("primaryDistinctiveId")) primary = snap.getString("primaryDistinctiveId").orEmpty()
+                if (snap.contains("selectedProfileFrameId")) frame = snap.getString("selectedProfileFrameId").orEmpty()
                 loaded += memberId
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
                 throw cancelled
@@ -98,10 +125,14 @@ object DistinctiveHighlightsStore {
             }
         }
         prefs.edit().putString(memberId, ids.joinToString("|"))
-            .apply { if (primary != null) putString("primary:$memberId", primary) }.apply()
+            .apply {
+                if (primary != null) putString("primary:$memberId", primary)
+                if (frame != null) putString("frame:$memberId", frame)
+            }.apply()
         withContext(Dispatchers.Main.immediate) {
             values[memberId] = ids
             primary?.let { primaryValues[memberId] = it }
+            frame?.let { frameValues[memberId] = it }
         }
     }
 
@@ -144,7 +175,7 @@ fun ProfileDistinctives(badgeId: String, memberId: String?, preview: List<AdminP
 
     val selected = preview?.filter { it.kind == "distintivo" } ?: activeProfileCosmeticsForMember(context, "distintivo", badgeId, resolvedMemberId)
     val activeFrame = if (preview == null && !resolvedMemberId.isNullOrBlank()) {
-        activeProfileCosmeticsForMember(context, "moldura", badgeId, resolvedMemberId).firstOrNull { it.id != XpRewardManager.PROMISE_FRAME }
+        DistinctiveHighlightsStore.frame(resolvedMemberId, activeProfileCosmeticsForMember(context, "moldura", badgeId, resolvedMemberId))
     } else preview?.firstOrNull { it.kind == "moldura" }
     val availableIds = selected.map { it.id }
 

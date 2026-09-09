@@ -67,7 +67,10 @@ fun BiblicalAvatarWithBadge(
     val resolvedOwnerId = ownerMemberId ?: loggedInMemberState.value?.id
     val previewFrame = previewDistinctives?.firstOrNull { it.id == XpRewardManager.PROMISE_FRAME }
     val promiseFrame = previewFrame ?: DistinctiveCatalog.items.value.firstOrNull { it.id == XpRewardManager.PROMISE_FRAME }
-    val hasPromiseFrame = previewFrame != null || (previewPromiseFrame ?: XpRewardManager.isActive(context, XpRewardManager.PROMISE_FRAME, resolvedOwnerId))
+    val selectedFrame = resolvedOwnerId?.let {
+        DistinctiveHighlightsStore.frame(it, activeProfileCosmeticsForMember(context, "moldura", badge.id, it))
+    }
+    val hasPromiseFrame = previewFrame != null || (previewPromiseFrame ?: (selectedFrame?.id == XpRewardManager.PROMISE_FRAME))
     val availableDistinctives = activeProfileCosmeticsForMember(context, "distintivo", badge.id, resolvedOwnerId)
     val primaryDistinctive = previewPrimaryDistinctive ?: when {
         previewReaderBadge == true -> DistinctiveCatalog.items.value.firstOrNull { it.id == XpRewardManager.READER_BADGE }
