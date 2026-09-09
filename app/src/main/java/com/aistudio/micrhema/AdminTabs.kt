@@ -21,12 +21,11 @@ import java.util.UUID
 @Composable
 fun AdminTabsScreen() {
     var showAddDialog by remember { mutableStateOf(false) }
-
     var showPreview by remember { mutableStateOf(false) }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -39,20 +38,20 @@ fun AdminTabsScreen() {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f)
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 FilledTonalButton(onClick = { showPreview = !showPreview }) {
                     Icon(if (showPreview) Icons.Default.VisibilityOff else Icons.Default.Visibility, contentDescription = null)
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
                     Text(if (showPreview) "Ocultar" else "Visualizar")
                 }
                 Button(onClick = { showAddDialog = true }) {
                     Icon(Icons.Default.Add, contentDescription = "Adicionar aba")
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
                     Text("Adicionar")
                 }
             }
         }
-        
+
         if (showPreview) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -60,13 +59,13 @@ fun AdminTabsScreen() {
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
             ) {
                 Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     val bottomTabs = appTabsState.filter { it.isVisible && it.showInBottomBar }.sortedBy { it.order }
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Visibility, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Icon(Icons.Default.Visibility, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Prévia do menu inferior", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                             Text(
@@ -114,8 +113,8 @@ fun AdminTabsScreen() {
         val orderedTabs = appTabsState.sortedBy { it.order }
         LazyColumn(
             modifier = Modifier.fillMaxWidth().weight(1f),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(bottom = 24.dp)
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            contentPadding = PaddingValues(bottom = 16.dp)
         ) {
             items(orderedTabs) { tab ->
                 val tabTypeLabel = if (tab.systemRoute != null) "Sistema" else "Personalizada"
@@ -131,19 +130,19 @@ fun AdminTabsScreen() {
                     )
                 ) {
                     Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
                                 getIconFromName(tab.iconName),
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(28.dp)
+                                modifier = Modifier.size(24.dp)
                             )
-                            Spacer(modifier = Modifier.width(12.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(tab.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                Text(tab.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                                 Text(
                                     "$tabTypeLabel • Ícone ${tab.iconName}",
                                     style = MaterialTheme.typography.bodySmall,
@@ -169,10 +168,10 @@ fun AdminTabsScreen() {
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text("Visível", style = MaterialTheme.typography.labelLarge)
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
                                     Switch(
                                         checked = tab.isVisible,
                                         onCheckedChange = { checked ->
@@ -187,7 +186,7 @@ fun AdminTabsScreen() {
                                 }
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text("Menu inferior", style = MaterialTheme.typography.labelLarge)
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
                                     Switch(
                                         checked = tab.showInBottomBar,
                                         onCheckedChange = { checked ->
@@ -236,19 +235,21 @@ fun AdminTabsScreen() {
         var showInBottomBar by remember { mutableStateOf(false) }
         var selectedType by remember { mutableStateOf(TabContentType.MIXED) }
         var iconName by remember { mutableStateOf("Star") }
-        
+
         AlertDialog(
             onDismissRequest = { showAddDialog = false },
             title = { Text("Criar Nova Aba") },
             text = {
-                Column(modifier = Modifier.imePadding().verticalScroll(rememberScrollState())) {
+                Column(
+                    modifier = Modifier.imePadding().verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                     OutlinedTextField(
                         value = newTitle,
                         onValueChange = { newTitle = it },
                         label = { Text("Título da Aba") },
                         modifier = Modifier.fillMaxWidth()
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
                     Text("Tipo de Conteúdo")
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         TabContentType.values().filter { it != TabContentType.SYSTEM }.forEach { type ->
@@ -259,7 +260,6 @@ fun AdminTabsScreen() {
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
                     Text("Ícone")
                     val availableIcons = listOf("Home", "Book", "Church", "LibraryBooks", "Favorite", "People", "Group", "Info", "Settings", "Lock", "Video", "Photo", "Link", "Star", "MenuBook")
                     var expandedIconMenu by remember { mutableStateOf(false) }
@@ -291,7 +291,6 @@ fun AdminTabsScreen() {
                             }
                         }
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = isPrivate, onCheckedChange = { isPrivate = it })
                         Text("Aba Privada (Exige permissão)")
@@ -328,7 +327,6 @@ fun AdminTabsScreen() {
         )
     }
 }
-
 
 private fun moveAdminTab(tabId: String, direction: Int) {
     val orderedTabs = appTabsState.sortedBy { it.order }
