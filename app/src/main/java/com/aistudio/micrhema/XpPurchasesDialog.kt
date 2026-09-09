@@ -8,6 +8,8 @@ import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
@@ -26,6 +28,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.aistudio.micrhema.ui.theme.GoldPlusPreviewTheme
+import kotlinx.coroutines.launch
+
+private const val XP_PURCHASES_PAGE_SIZE = 10
 
 private fun downloadXpDigitalReward(context: Context, item: XpShopItem) {
     if (item.imageUrl.isBlank()) return
@@ -64,6 +69,7 @@ fun XpPurchasesDialog(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var loading by remember(member.id) { mutableStateOf(true) }
     var error by remember(member.id) { mutableStateOf("") }
     var previewItem by remember { mutableStateOf<XpShopItem?>(null) }
@@ -133,7 +139,16 @@ fun XpPurchasesDialog(
                 }
         }
     }
-    val allPurchased = purchasedItems + missingPurchases
+    val allPurchased = remember(purchasedItems, missingPurchases) { purchasedItems + missingPurchases }
+    val pages = remember(allPurchased) {
+        allPurchased.chunked(XP_PURCHASES_PAGE_SIZE).ifEmpty { listOf(emptyList()) }
+    }
+    val pagerState = rememberPagerState(pageCount = { pages.size })
+
+    LaunchedEffect(member.id) { pagerState.scrollToPage(0) }
+    LaunchedEffect(pages.size) {
+        if (pagerState.currentPage > pages.lastIndex) pagerState.scrollToPage(pages.lastIndex)
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -162,31 +177,72 @@ fun XpPurchasesDialog(
                     Text("Você ainda não comprou recompensas na Loja XP.", textAlign = TextAlign.Center)
                 }
 
-                else -> LazyColumn(
+                else -> Column(
                     modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    items(allPurchased, key = { it.id }) { item ->
-                        XpPurchasedItemCard(
-                            member = member,
-                            item = item,
-                            onPreview = { previewItem = item },
-                            onDownload = { downloadXpDigitalReward(context, item) }
-                        )
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        beyondViewportPageCount = 0,
+                        verticalAlignment = Alignment.Top
+                    ) { page ->
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            items(pages.getOrElse(page) { emptyList() }, key = { it.id }) { item ->
+                                XpPurchasedItemCard(
+                                    member = member,
+                                    item = item,
+                                    onPreview = { previewItem = item },
+                                    onDownload = { downloadXpDigitalReward(context, item) }
+                                )
+                            }
+                        }
                     }
                     if (error.isNotBlank()) {
-                        item {
-                            Text(
-                                error,
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
+                        Text(
+                            error,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
                     }
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Fechar") } }
+        confirmButton = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                if (allPurchased.isNotEmpty()) {
+                    Text(
+                        "Página ${pagerState.currentPage + 1} de ${pages.size} · Até 10 por página",
+                        modifier = Modifier.align(Alignment.CenterHorizontally),
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        TextButton(
+                            enabled = pagerState.currentPage > 0 && !pagerState.isScrollInProgress,
+                            onClick = { scope.launch { pagerState.animateScrollToPage((pagerState.currentPage - 1).coerceAtLeast(0)) } }
+                        ) { Text("Anterior") }
+                        TextButton(
+                            enabled = pagerState.currentPage < pages.lastIndex && !pagerState.isScrollInProgress,
+                            onClick = { scope.launch { pagerState.animateScrollToPage((pagerState.currentPage + 1).coerceAtMost(pages.lastIndex)) } }
+                        ) { Text("Avançar") }
+                    }
+                    if (pages.size > 1) {
+                        Text(
+                            "Deslize para os lados para trocar de página.",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.align(Alignment.CenterHorizontally)
+                        )
+                    }
+                }
+                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Fechar") }
+            }
+        }
     )
 
     previewItem?.let { item ->
