@@ -37,6 +37,17 @@ data class AdminXpRedemption(
     val deliveredAt: String
 )
 
+data class AdminCustomBadge(
+    val id: String,
+    val sequenceNo: Int?,
+    val name: String,
+    val description: String,
+    val challenge: String,
+    val imageRef: String,
+    val special: Boolean,
+    val active: Boolean
+)
+
 object XpShopAdminClient {
     private const val SIMPLE_ADMIN_PASSWORD = "igreja10"
 
@@ -135,6 +146,37 @@ object XpShopAdminClient {
             availableFrom = raw.optString("available_from"),
             availableUntil = raw.optString("available_until")
         )
+    }
+
+    private fun parseBadge(item: JSONObject): AdminCustomBadge = AdminCustomBadge(
+        id = item.optString("id"),
+        sequenceNo = if (item.isNull("sequence_no")) null else item.optInt("sequence_no"),
+        name = item.optString("name"),
+        description = item.optString("description"),
+        challenge = item.optString("challenge"),
+        imageRef = item.optString("image_ref"),
+        special = item.optBoolean("special", false),
+        active = item.optBoolean("active", true)
+    )
+
+    suspend fun loadBadges(): List<AdminCustomBadge> {
+        val array = call("admin_badges").optJSONArray("badges") ?: return emptyList()
+        return buildList {
+            for (index in 0 until array.length()) array.optJSONObject(index)?.let { add(parseBadge(it)) }
+        }
+    }
+
+    suspend fun saveBadge(item: AdminCustomBadge): AdminCustomBadge {
+        val response = call("admin_upsert_badge") {
+            put("id", item.id)
+            put("name", item.name)
+            put("description", item.description)
+            put("challenge", item.challenge)
+            put("imageRef", item.imageRef)
+            put("special", item.special)
+            put("active", item.active)
+        }
+        return parseBadge(response.optJSONObject("badge") ?: throw IllegalStateException("O emblema não foi salvo."))
     }
 
     suspend fun loadRedemptions(status: String = "todos"): List<AdminXpRedemption> {
