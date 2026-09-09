@@ -87,7 +87,7 @@ object DistinctiveHighlightsStore {
     }
 
     fun effects(memberId: String?, available: List<AdminLightEffect>): List<AdminLightEffect> {
-        val id = effectValues[memberId] ?: return available
+        val id = effectValues[memberId] ?: return available.filterNot { it.purchasable }
         return available.filter { it.id == id }.take(1)
     }
 
