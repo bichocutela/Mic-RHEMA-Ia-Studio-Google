@@ -3,3 +3,6 @@ verify_jwt = false
 
 [functions.notify-fcm]
 verify_jwt = false
+
+[functions.badge-engine]
+verify_jwt = false
