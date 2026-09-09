@@ -65,7 +65,6 @@ fun AboutScreen() {
         }
     }
     
-    // Automatically check on load
     LaunchedEffect(Unit) {
         checkUpdate()
     }
@@ -78,20 +77,19 @@ fun AboutScreen() {
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Header
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 24.dp),
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
                     Icons.Outlined.Info,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(26.dp)
                 )
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Sobre",
                     style = MaterialTheme.typography.headlineMedium,
@@ -103,68 +101,67 @@ fun AboutScreen() {
                 modifier = Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
+                    shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
-                    Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("Liderança", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
                         Text("Pastor Evaldo Leôncio", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary)
                     }
                 }
 
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
+                    shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
-                    Column(modifier = Modifier.padding(24.dp)) {
+                    Column(modifier = Modifier.padding(16.dp)) {
                         Text("Nossa Missão", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                         Text("Conectando Pessoas e Transformando Vidas. A palavra Rhema significa a palavra revelada de Deus para um momento específico.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
 
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
+                    shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
-                    Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text("Contato e Localização", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                         
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.LocationOn, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            Spacer(modifier = Modifier.width(12.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text("Rua Todos os Santos – Natal/RN", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Phone, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            Spacer(modifier = Modifier.width(12.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text("84 98804 1804", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Email, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            Spacer(modifier = Modifier.width(12.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text("micrhema2@gmail.com", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
 
-                // Update Checker Section
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
+                    shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
-                    Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text(
                             text = "Versão do aplicativo",
                             style = MaterialTheme.typography.titleMedium,
@@ -185,17 +182,17 @@ fun AboutScreen() {
                                     strokeWidth = 2.dp,
                                     color = MaterialTheme.colorScheme.primary
                                 )
-                                Spacer(modifier = Modifier.width(12.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
                                 Text("Verificando atualizações...", style = MaterialTheme.typography.bodyMedium)
                             }
                         } else {
                             when (val result = updateResult) {
                                 is UpdateResult.Success -> {
                                     if (result.info.updateAvailable) {
-                                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Icon(Icons.Outlined.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Spacer(modifier = Modifier.width(6.dp))
                                                 Text(
                                                     text = "Nova versão disponível",
                                                     style = MaterialTheme.typography.bodyLarge,
@@ -213,7 +210,7 @@ fun AboutScreen() {
                                                     text = "Novidades desta versão:",
                                                     style = MaterialTheme.typography.bodySmall,
                                                     fontWeight = FontWeight.Bold,
-                                                    modifier = Modifier.padding(top = 8.dp)
+                                                    modifier = Modifier.padding(top = 6.dp)
                                                 )
                                                 Text(
                                                     text = result.info.releaseNotes,
@@ -222,7 +219,7 @@ fun AboutScreen() {
                                                 )
                                             }
                                             
-                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Spacer(modifier = Modifier.height(6.dp))
                                             
                                             when (val state = downloadState) {
                                                 is DownloadState.Idle -> {
@@ -250,20 +247,20 @@ fun AboutScreen() {
                                                 is DownloadState.Downloading -> {
                                                     Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                                                         Text("Baixando atualização...", style = MaterialTheme.typography.bodyMedium)
-                                                        Spacer(Modifier.height(8.dp))
+                                                        Spacer(Modifier.height(6.dp))
                                                         LinearProgressIndicator(
                                                             progress = { state.progress / 100f },
                                                             modifier = Modifier.fillMaxWidth().height(8.dp),
                                                             color = MaterialTheme.colorScheme.primary,
                                                         )
-                                                        Spacer(Modifier.height(4.dp))
+                                                        Spacer(Modifier.height(3.dp))
                                                         Text("${state.progress}%", style = MaterialTheme.typography.labelSmall)
                                                     }
                                                 }
                                                 is DownloadState.Downloaded -> {
                                                     Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                                                         Text("A atualização foi baixada.", style = MaterialTheme.typography.bodyMedium, color = androidx.compose.ui.graphics.Color(0xFF4CAF50))
-                                                        Spacer(Modifier.height(8.dp))
+                                                        Spacer(Modifier.height(6.dp))
                                                         Button(
                                                             onClick = { updateDownloader.installApk(result.info.latestVersion) },
                                                             modifier = Modifier.fillMaxWidth()
@@ -275,7 +272,7 @@ fun AboutScreen() {
                                                 is DownloadState.Error -> {
                                                     Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                                                         Text("Não foi possível baixar a atualização.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
-                                                        Spacer(Modifier.height(8.dp))
+                                                        Spacer(Modifier.height(6.dp))
                                                         Button(
                                                             onClick = {
                                                                 downloadState = DownloadState.Idle
@@ -292,7 +289,7 @@ fun AboutScreen() {
                                     } else {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Icon(Icons.Default.CheckCircle, contentDescription = null, tint = androidx.compose.ui.graphics.Color(0xFF4CAF50))
-                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Spacer(modifier = Modifier.width(6.dp))
                                             Text(
                                                 text = "Seu aplicativo está atualizado",
                                                 style = MaterialTheme.typography.bodyMedium,
@@ -305,7 +302,7 @@ fun AboutScreen() {
                                 is UpdateResult.Error -> {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
                                         Text(
                                             text = "Não foi possível verificar atualizações. Confira sua conexão e tente novamente.",
                                             style = MaterialTheme.typography.bodySmall,
@@ -323,11 +320,11 @@ fun AboutScreen() {
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Text(if (updateResult is UpdateResult.Error) "Tentar novamente" else if (updateResult is UpdateResult.Success && (updateResult as UpdateResult.Success).info.updateAvailable) "Verificar novamente" else "Verificar atualização")
                             }
 
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
 
                             Text(
                                 text = "Compartilhar Via",
@@ -338,7 +335,7 @@ fun AboutScreen() {
 
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 OutlinedButton(
                                     onClick = {
@@ -378,11 +375,11 @@ fun AboutScreen() {
                                             strokeWidth = 2.dp,
                                             color = MaterialTheme.colorScheme.primary
                                         )
-                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Spacer(modifier = Modifier.width(5.dp))
                                         Text("Gerando")
                                     } else {
                                         Icon(Icons.Default.Android, contentDescription = "Android", modifier = Modifier.size(20.dp))
-                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Spacer(modifier = Modifier.width(5.dp))
                                         Text("Android")
                                     }
                                 }
@@ -400,7 +397,7 @@ fun AboutScreen() {
                                     modifier = Modifier.weight(1f)
                                 ) {
                                     Icon(Icons.Default.PhoneIphone, contentDescription = "iPhone", modifier = Modifier.size(20.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Spacer(modifier = Modifier.width(5.dp))
                                     Text("iPhone")
                                 }
                             }
@@ -414,7 +411,7 @@ fun AboutScreen() {
                     }
                 }
 
-                Spacer(modifier = Modifier.height(100.dp))
+                Spacer(modifier = Modifier.height(72.dp))
             }
         }
     }
@@ -435,7 +432,7 @@ fun AboutScreen() {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text(
                         text = "Versão disponível: v$publishedVersionName",
@@ -449,7 +446,7 @@ fun AboutScreen() {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .aspectRatio(1f)
-                                .padding(16.dp),
+                                .padding(8.dp),
                             contentScale = androidx.compose.ui.layout.ContentScale.Fit
                         )
                     }
@@ -486,7 +483,7 @@ fun AboutScreen() {
                     Text("Fechar")
                 }
             },
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(18.dp),
             containerColor = MaterialTheme.colorScheme.surface
         )
     }
@@ -507,7 +504,7 @@ fun AboutScreen() {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     pwaQrCodeBitmap?.let {
                         androidx.compose.foundation.Image(
@@ -516,7 +513,7 @@ fun AboutScreen() {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .aspectRatio(1f)
-                                .padding(16.dp),
+                                .padding(8.dp),
                             contentScale = androidx.compose.ui.layout.ContentScale.Fit
                         )
                     }
@@ -560,7 +557,7 @@ fun AboutScreen() {
                     Text("Fechar")
                 }
             },
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(18.dp),
             containerColor = MaterialTheme.colorScheme.surface
         )
     }
@@ -619,7 +616,7 @@ fun AboutScreen() {
                     Text("Fechar")
                 }
             },
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(18.dp),
             containerColor = MaterialTheme.colorScheme.surface
         )
     }
