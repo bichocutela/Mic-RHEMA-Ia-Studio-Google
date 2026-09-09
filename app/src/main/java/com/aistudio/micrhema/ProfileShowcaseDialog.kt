@@ -18,11 +18,12 @@ fun MemberProfileShowcaseDialog(
     member: MemberRequest,
     avatar: BiblicalAvatar = biblicalAvatarForId(member.avatarId),
     badge: BiblicalBadge = biblicalBadgeForId(member.equippedBadgeId),
+    openDistinctivesDirectly: Boolean = false,
     onDismiss: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
-    var showAll by remember { mutableStateOf(false) }
+    var showAll by remember(openDistinctivesDirectly) { mutableStateOf(openDistinctivesDirectly) }
     XpRewardManager.revision.value
     val distinctives = activeProfileCosmeticsForMember(context, "distintivo", badge.id, member.id)
     val frames = activeProfileCosmeticsForMember(context, "moldura", badge.id, member.id)
@@ -37,70 +38,75 @@ fun MemberProfileShowcaseDialog(
     val byId = distinctives.associateBy { it.id }
     val ordered = (featuredIds.mapNotNull(byId::get) + distinctives.filterNot { it.id in featuredIds }).distinctBy { it.id }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(member.name.ifBlank { "Perfil" }) },
-        text = {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Box(Modifier.size(240.dp), contentAlignment = Alignment.Center) {
-                    BiblicalAvatarWithBadge(
-                        avatar = avatar,
-                        badge = badge,
-                        ownerMemberId = null,
-                        previewDistinctives = emptyList(),
-                        modifier = Modifier.fillMaxSize(),
-                        contentDescription = "Prévia ampliada do perfil"
-                    )
-                    frames.firstOrNull()?.let { frame ->
-                        DistinctiveImage(frame, Modifier.fillMaxSize())
+    if (!openDistinctivesDirectly) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text(member.name.ifBlank { "Perfil" }) },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(Modifier.size(240.dp), contentAlignment = Alignment.Center) {
+                        BiblicalAvatarWithBadge(
+                            avatar = avatar,
+                            badge = badge,
+                            ownerMemberId = null,
+                            previewDistinctives = emptyList(),
+                            modifier = Modifier.fillMaxSize(),
+                            contentDescription = "Prévia ampliada do perfil"
+                        )
+                        frames.firstOrNull()?.let { frame ->
+                            DistinctiveImage(frame, Modifier.fillMaxSize())
+                        }
                     }
-                }
 
-                if (ordered.isNotEmpty()) {
-                    Text(
-                        "Distintivos",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    LazyRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        contentPadding = PaddingValues(horizontal = 8.dp)
-                    ) {
-                        items(ordered, key = { it.id }) { item ->
-                            Column(
-                                modifier = Modifier.width(62.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                DistinctiveImage(item, Modifier.size(48.dp))
-                                Text(
-                                    item.name,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    maxLines = 1
-                                )
+                    if (ordered.isNotEmpty()) {
+                        Text(
+                            "Distintivos",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        LazyRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp)
+                        ) {
+                            items(ordered, key = { it.id }) { item ->
+                                Column(
+                                    modifier = Modifier.width(62.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    DistinctiveImage(item, Modifier.size(48.dp))
+                                    Text(
+                                        item.name,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+                        if (distinctives.size > 4) {
+                            TextButton(onClick = { showAll = true }) {
+                                Text("Ver todos", style = MaterialTheme.typography.labelSmall)
                             }
                         }
                     }
-                    if (distinctives.size > 4) {
-                        TextButton(onClick = { showAll = true }) {
-                            Text("Ver todos", style = MaterialTheme.typography.labelSmall)
-                        }
-                    }
                 }
-            }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Fechar") } }
-    )
+            },
+            confirmButton = { TextButton(onClick = onDismiss) { Text("Fechar") } }
+        )
+    }
 
     if (showAll) {
         var selected by remember(featuredIds, showAll) { mutableStateOf(featuredIds.toSet()) }
         var saving by remember { mutableStateOf(false) }
+        fun closeDistinctives() {
+            if (openDistinctivesDirectly) onDismiss() else showAll = false
+        }
         AlertDialog(
-            onDismissRequest = { if (!saving) showAll = false },
+            onDismissRequest = { if (!saving) closeDistinctives() },
             title = { Text("Meus distintivos") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -142,7 +148,7 @@ fun MemberProfileShowcaseDialog(
                 }
             },
             dismissButton = {
-                TextButton(enabled = !saving, onClick = { showAll = false }) { Text("Cancelar") }
+                TextButton(enabled = !saving, onClick = { closeDistinctives() }) { Text("Cancelar") }
             },
             confirmButton = {
                 Button(
@@ -152,7 +158,7 @@ fun MemberProfileShowcaseDialog(
                         scope.launch {
                             DistinctiveHighlightsStore.save(context.applicationContext, member.id, selected.toList())
                             saving = false
-                            showAll = false
+                            closeDistinctives()
                         }
                     }
                 ) { Text(if (saving) "Salvando…" else "Usar em destaque") }
