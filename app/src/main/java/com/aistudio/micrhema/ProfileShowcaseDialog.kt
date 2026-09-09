@@ -30,10 +30,11 @@ fun MemberProfileShowcaseDialog(
     val availableIds = distinctives.map { it.id }
 
     LaunchedEffect(member.id, availableIds) {
-        DistinctiveCatalog.refresh()
+        runCatching { DistinctiveCatalog.refresh() }
         DistinctiveHighlightsStore.load(context.applicationContext, member.id, availableIds)
     }
 
+    val primaryDistinctive = DistinctiveHighlightsStore.primary(member.id, distinctives)
     val featuredIds = DistinctiveHighlightsStore.ids(member.id)
     val byId = distinctives.associateBy { it.id }
     val ordered = (featuredIds.mapNotNull(byId::get) + distinctives.filterNot { it.id in featuredIds }).distinctBy { it.id }
@@ -52,14 +53,17 @@ fun MemberProfileShowcaseDialog(
                         BiblicalAvatarWithBadge(
                             avatar = avatar,
                             badge = badge,
-                            ownerMemberId = null,
+                            ownerMemberId = member.id,
+                            previewPrimaryDistinctive = null,
+                            previewReaderBadge = false,
                             previewDistinctives = emptyList(),
                             modifier = Modifier.fillMaxSize(),
                             contentDescription = "Prévia ampliada do perfil"
                         )
-                        frames.firstOrNull()?.let { frame ->
+                        frames.firstOrNull { it.id != XpRewardManager.PROMISE_FRAME }?.let { frame ->
                             DistinctiveImage(frame, Modifier.fillMaxSize())
                         }
+                        primaryDistinctive?.let { PrimaryDistinctiveOverlay(it) }
                     }
 
                     if (ordered.isNotEmpty()) {
@@ -87,9 +91,9 @@ fun MemberProfileShowcaseDialog(
                                 }
                             }
                         }
-                        if (distinctives.size > 4) {
+                        if (distinctives.isNotEmpty()) {
                             TextButton(onClick = { showAll = true }) {
-                                Text("Ver todos", style = MaterialTheme.typography.labelSmall)
+                                Text("Escolher destaques", style = MaterialTheme.typography.labelLarge)
                             }
                         }
                     }
@@ -100,8 +104,11 @@ fun MemberProfileShowcaseDialog(
     }
 
     if (showAll) {
-        var selected by remember(featuredIds, showAll) { mutableStateOf(featuredIds.toSet()) }
+        var selected by remember(featuredIds, availableIds, showAll) { mutableStateOf(featuredIds.filter { it in availableIds }.toSet()) }
         var saving by remember { mutableStateOf(false) }
+        var primaryId by remember(member.id, primaryDistinctive?.id) { mutableStateOf(primaryDistinctive?.id.orEmpty()) }
+        var choosingPrimary by remember { mutableStateOf(false) }
+        var saveError by remember { mutableStateOf("") }
         fun closeDistinctives() {
             if (openDistinctivesDirectly) onDismiss() else showAll = false
         }
@@ -109,19 +116,44 @@ fun MemberProfileShowcaseDialog(
             onDismissRequest = { if (!saving) closeDistinctives() },
             title = { Text("Meus distintivos") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(modifier = Modifier.heightIn(max = 500.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("Destaque principal", fontWeight = FontWeight.Bold)
+                            Text("Escolha 1 distintivo para aparecer sobre o círculo escuro no seu avatar.", style = MaterialTheme.typography.bodySmall)
+                            Box {
+                                OutlinedButton(enabled = !saving, onClick = { choosingPrimary = true }, modifier = Modifier.fillMaxWidth()) {
+                                    distinctives.firstOrNull { it.id == primaryId }?.let {
+                                        DistinctiveImage(it, Modifier.size(32.dp))
+                                        Spacer(Modifier.width(8.dp))
+                                    }
+                                    Text(distinctives.firstOrNull { it.id == primaryId }?.name ?: "Escolher distintivo")
+                                }
+                                DropdownMenu(expanded = choosingPrimary, onDismissRequest = { choosingPrimary = false }, modifier = Modifier.heightIn(max = 260.dp)) {
+                                    DropdownMenuItem(text = { Text("Sem destaque principal") }, onClick = { primaryId = ""; choosingPrimary = false })
+                                    distinctives.forEach { item ->
+                                        DropdownMenuItem(
+                                            text = { Text(item.name) },
+                                            leadingIcon = { DistinctiveImage(item, Modifier.size(28.dp)) },
+                                            onClick = { primaryId = item.id; choosingPrimary = false }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                     Text(
                         "Escolha até 4 para aparecerem como destaque na Home, no Drawer e no seu perfil.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    LazyColumn(modifier = Modifier.heightIn(max = 420.dp)) {
+                    LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
                         items(distinctives, key = { it.id }) { item ->
                             val checked = item.id in selected
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable(enabled = checked || selected.size < 4) {
+                                    .clickable(enabled = !saving && (checked || selected.size < 4)) {
                                         selected = if (checked) selected - item.id else selected + item.id
                                     }
                                     .padding(vertical = 6.dp),
@@ -132,7 +164,7 @@ fun MemberProfileShowcaseDialog(
                                 Text(item.name, Modifier.weight(1f))
                                 Checkbox(
                                     checked = checked,
-                                    enabled = checked || selected.size < 4,
+                                    enabled = !saving && (checked || selected.size < 4),
                                     onCheckedChange = { value ->
                                         selected = if (value) selected + item.id else selected - item.id
                                     }
@@ -141,10 +173,11 @@ fun MemberProfileShowcaseDialog(
                         }
                     }
                     Text(
-                        "${selected.size}/4 selecionados",
+                        "${selected.count { it in availableIds }}/4 abaixo do avatar",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary
                     )
+                    if (saveError.isNotBlank()) Text(saveError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
             },
             dismissButton = {
@@ -152,13 +185,20 @@ fun MemberProfileShowcaseDialog(
             },
             confirmButton = {
                 Button(
-                    enabled = !saving && selected.isNotEmpty(),
+                    enabled = !saving,
                     onClick = {
                         saving = true
                         scope.launch {
-                            DistinctiveHighlightsStore.save(context.applicationContext, member.id, selected.toList())
+                            saveError = ""
+                            runCatching {
+                                DistinctiveHighlightsStore.save(
+                                    context.applicationContext, member.id,
+                                    selected.filter { it in availableIds },
+                                    primaryId.takeIf { it in availableIds }.orEmpty()
+                                )
+                            }.onSuccess { closeDistinctives() }
+                                .onFailure { saveError = "Não foi possível salvar os destaques. Tente novamente." }
                             saving = false
-                            closeDistinctives()
                         }
                     }
                 ) { Text(if (saving) "Salvando…" else "Usar em destaque") }

@@ -168,13 +168,18 @@ object XpShopAdminClient {
 
     suspend fun loadCosmetics(kind: String): List<AdminProfileCosmetic> {
         require(kind in setOf("distintivo", "moldura")) { "Tipo de personalização inválido." }
-        val array = call("admin_cosmetics") { put("kind", kind) }.optJSONArray("items") ?: return emptyList()
+        val array = call("admin_cosmetics") { put("kind", kind); put("includeBuiltins", true) }.optJSONArray("items") ?: return emptyList()
         return buildList { for (index in 0 until array.length()) array.optJSONObject(index)?.let { add(parseCosmetic(it)) } }
     }
 
     suspend fun publicCosmetics(): List<AdminProfileCosmetic> {
-        val a = call("cosmetics_catalog") { put("kind", "distintivo") }.optJSONArray("items") ?: return emptyList()
-        return buildList { for (i in 0 until a.length()) a.optJSONObject(i)?.let { add(parseCosmetic(it)) } }
+        return buildList {
+            for (kind in listOf("distintivo", "moldura")) {
+                val a = call("cosmetics_catalog") { put("kind", kind); put("includeBuiltins", true) }.optJSONArray("items")
+                    ?: throw IllegalStateException("Catálogo de personalizações incompleto.")
+                for (i in 0 until a.length()) a.optJSONObject(i)?.let { add(parseCosmetic(it)) }
+            }
+        }
     }
 
     suspend fun saveCosmetic(item: AdminProfileCosmetic): AdminProfileCosmetic {

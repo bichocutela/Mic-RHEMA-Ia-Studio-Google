@@ -17,7 +17,7 @@ import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 
 object DistinctiveCatalog {
-    val items = mutableStateOf<List<AdminProfileCosmetic>>(emptyList())
+    val items = mutableStateOf(builtinProfileCosmetics())
     private val mutex = Mutex()
     private var lastRefresh = 0L
 
@@ -32,6 +32,10 @@ object DistinctiveCatalog {
 
 @Composable
 fun DistinctiveImage(item: AdminProfileCosmetic, modifier: Modifier = Modifier) {
+    if (isBuiltinCosmetic(item.id) && item.imageRef.isBlank()) {
+        BuiltinCosmeticImage(item, modifier)
+        return
+    }
     val context = LocalContext.current
     val url by produceState<String?>(null, item.imageRef) {
         value = runCatching { resolveXpShopAssetUrl(context, item.imageRef) }.getOrNull()
@@ -50,9 +54,9 @@ fun activeProfileCosmeticsForMember(
     badgeId: String,
     memberId: String?
 ): List<AdminProfileCosmetic> = DistinctiveCatalog.items.value.filter { item ->
-    item.active && item.kind == kind &&
+    (item.active || isBuiltinCosmetic(item.id)) && item.kind == kind &&
         if (item.purchasable) {
-            memberId != null && XpRewardManager.isActive(context, "cosmetic:${item.id}", memberId) &&
+            memberId != null && XpRewardManager.isActive(context, cosmeticRewardId(item), memberId) &&
                 (item.emblemIds.isEmpty() || badgeId in item.emblemIds)
         } else {
             item.emblemIds.isEmpty() || badgeId in item.emblemIds
@@ -62,56 +66,63 @@ fun activeProfileCosmeticsForMember(
 object DistinctiveHighlightsStore {
     private const val PREFS = "micrhema_distinctive_highlights"
     private val values = mutableStateMapOf<String, List<String>>()
+    private val primaryValues = mutableStateMapOf<String, String>()
     private val loaded = mutableSetOf<String>()
+    private val mutex = Mutex()
 
     fun ids(memberId: String): List<String> = values[memberId].orEmpty()
 
-    suspend fun load(context: Context, memberId: String, availableIds: List<String>) {
-        if (memberId.isBlank()) return
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        var ids = prefs.getString(memberId, null)
-            ?.split('|')
-            ?.filter { it.isNotBlank() && it in availableIds }
-            ?.distinct()
-            ?.take(4)
-            .orEmpty()
-
-        if (memberId !in loaded) {
-            runCatching {
-                val snap = FirebaseFirestore.getInstance().collection("users").document(memberId).get().await()
-                val remote = (snap.get("featuredDistinctiveIds") as? List<*>)
-                    ?.mapNotNull { it?.toString() }
-                    ?.filter { it in availableIds }
-                    ?.distinct()
-                    ?.take(4)
-                    .orEmpty()
-                if (remote.isNotEmpty()) ids = remote
-            }
-            loaded += memberId
-        }
-
-        if (ids.isEmpty()) ids = availableIds.take(4)
-        prefs.edit().putString(memberId, ids.joinToString("|")).apply()
-        withContext(Dispatchers.Main.immediate) { values[memberId] = ids }
+    fun primary(memberId: String, available: List<AdminProfileCosmetic>): AdminProfileCosmetic? {
+        val id = primaryValues[memberId] ?: XpRewardManager.READER_BADGE
+        return available.firstOrNull { it.id == id }
     }
 
-    suspend fun save(context: Context, memberId: String, ids: List<String>) {
-        if (memberId.isBlank()) return
-        val normalized = ids.filter { it.isNotBlank() }.distinct().take(4)
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit().putString(memberId, normalized.joinToString("|")).apply()
-        withContext(Dispatchers.Main.immediate) { values[memberId] = normalized }
+    suspend fun load(context: Context, memberId: String, availableIds: List<String>) = mutex.withLock {
+        if (memberId.isBlank()) return@withLock
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        var ids = prefs.getString(memberId, null)?.split('|')
+            ?.filter { it.isNotBlank() }?.distinct()?.take(4) ?: availableIds.take(4)
+        var primary = prefs.getString("primary:$memberId", null)
+        if (memberId !in loaded) {
+            try {
+                val snap = FirebaseFirestore.getInstance().collection("users").document(memberId).get().await()
+                (snap.get("featuredDistinctiveIds") as? List<*>)?.let { remote ->
+                    ids = remote.filterIsInstance<String>().filter { it.isNotBlank() }.distinct().take(4)
+                }
+                if (snap.contains("primaryDistinctiveId")) primary = snap.getString("primaryDistinctiveId").orEmpty()
+                loaded += memberId
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // Keep the cached choice and retry on the next load.
+            }
+        }
+        prefs.edit().putString(memberId, ids.joinToString("|"))
+            .apply { if (primary != null) putString("primary:$memberId", primary) }.apply()
+        withContext(Dispatchers.Main.immediate) {
+            values[memberId] = ids
+            primary?.let { primaryValues[memberId] = it }
+        }
+    }
 
+    suspend fun save(context: Context, memberId: String, ids: List<String>, primaryId: String) = mutex.withLock {
+        require(memberId.isNotBlank()) { "Entre novamente no seu perfil." }
+        val normalized = ids.filter { it.isNotBlank() }.distinct().take(4)
         val payload = mapOf<String, Any>(
             "featuredDistinctiveIds" to normalized,
+            "primaryDistinctiveId" to primaryId,
             "updatedAt" to System.currentTimeMillis()
         )
-        runCatching {
-            val db = FirebaseFirestore.getInstance()
-            val batch = db.batch()
-            batch.set(db.collection("users").document(memberId), payload, SetOptions.merge())
-            batch.set(db.collection("acessos_pendentes").document(memberId), payload, SetOptions.merge())
-            batch.commit().await()
+        // The member owns users/{memberId}; acessos_pendentes is admin-only.
+        FirebaseFirestore.getInstance().collection("users").document(memberId)
+            .set(payload, SetOptions.merge()).await()
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString(memberId, normalized.joinToString("|"))
+            .putString("primary:$memberId", primaryId).apply()
+        withContext(Dispatchers.Main.immediate) {
+            values[memberId] = normalized
+            primaryValues[memberId] = primaryId
+            loaded += memberId
         }
     }
 }
@@ -131,10 +142,10 @@ fun ProfileDistinctives(badgeId: String, memberId: String?, preview: List<AdminP
     val resolvedMemberId = resolvedMember?.id ?: memberId
     var showProfile by remember(resolvedMemberId, badgeId) { mutableStateOf(false) }
 
-    val selected = preview ?: activeProfileCosmeticsForMember(context, "distintivo", badgeId, resolvedMemberId)
+    val selected = preview?.filter { it.kind == "distintivo" } ?: activeProfileCosmeticsForMember(context, "distintivo", badgeId, resolvedMemberId)
     val activeFrame = if (preview == null && !resolvedMemberId.isNullOrBlank()) {
-        activeProfileCosmeticsForMember(context, "moldura", badgeId, resolvedMemberId).firstOrNull()
-    } else null
+        activeProfileCosmeticsForMember(context, "moldura", badgeId, resolvedMemberId).firstOrNull { it.id != XpRewardManager.PROMISE_FRAME }
+    } else preview?.firstOrNull { it.kind == "moldura" }
     val availableIds = selected.map { it.id }
 
     LaunchedEffect(resolvedMemberId, availableIds) {
@@ -148,7 +159,7 @@ fun ProfileDistinctives(badgeId: String, memberId: String?, preview: List<AdminP
     } else {
         val featured = DistinctiveHighlightsStore.ids(resolvedMemberId)
         val byId = selected.associateBy { it.id }
-        (featured.mapNotNull(byId::get) + selected.filterNot { it.id in featured }).distinctBy { it.id }.take(4)
+        featured.mapNotNull(byId::get).take(4)
     }
 
     // Esta camada ocupa o mesmo espaço do avatar. A moldura ativa acompanha
@@ -164,7 +175,7 @@ fun ProfileDistinctives(badgeId: String, memberId: String?, preview: List<AdminP
                 } else Modifier
             )
     ) {
-        activeFrame?.let { frame ->
+        activeFrame?.takeUnless { it.id == XpRewardManager.PROMISE_FRAME }?.let { frame ->
             DistinctiveImage(frame, Modifier.fillMaxSize())
         }
 

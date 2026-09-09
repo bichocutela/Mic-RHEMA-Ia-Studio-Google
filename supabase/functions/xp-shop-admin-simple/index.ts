@@ -5,6 +5,18 @@ const ITEM_KINDS = new Set(["digital", "profile", "physical"]);
 const REDEMPTION_STATUSES = new Set(["pendente", "entregue", "cancelado"]);
 const BADGE_DIFFICULTIES = new Set(["easy", "medium", "hard"]);
 const COSMETIC_KINDS = new Set(["distintivo", "moldura"]);
+const BUILTIN_COSMETICS: Record<string, string> = {
+  moldura_luz_promessa: "moldura",
+  badge_leitor_palavra: "distintivo",
+};
+function builtinCosmetic(row: Record<string, unknown>) {
+  return {
+    id: row.id, kind: BUILTIN_COSMETICS[String(row.id)], name: row.name,
+    description: row.description, challenge: "Adquira na Loja XP.",
+    image_ref: row.image_url || "", active: row.active,
+    purchasable: true, xp_cost: row.cost, emblem_ids: [],
+  };
+}
 const BUILTIN_ACHIEVEMENT_IDS = new Set([
   "primeira_oracao",
   "leitor_da_palavra",
@@ -194,7 +206,17 @@ Deno.serve(async (request) => {
         .select("id,kind,name,description,challenge,challenge_metric,challenge_target,image_ref,active,purchasable,xp_cost,emblem_ids,created_at,updated_at")
         .eq("kind", kind).order("created_at", { ascending: true });
       if (error) throw error;
-      return json({ ok: true, items: data ?? [] });
+      // Opt-in keeps older Android/PWA clients unchanged. Original shop rows
+      // remain the source of truth, preserving purchases and entitlement IDs.
+      const items = [...(data ?? [])];
+      if (input.includeBuiltins === true) {
+        const ids = Object.keys(BUILTIN_COSMETICS).filter(id => BUILTIN_COSMETICS[id] === kind);
+        const { data: originals, error: originalError } = await sb.from("xp_shop_items")
+          .select("id,name,description,cost,image_url,active").in("id", ids);
+        if (originalError) throw originalError;
+        return json({ ok: true, items: [...(originals ?? []).map(builtinCosmetic), ...items] });
+      }
+      return json({ ok: true, items });
     }
 
     if (action === "admin_upsert_cosmetic") {
@@ -206,6 +228,20 @@ Deno.serve(async (request) => {
       const active = input.active !== false;
       if (!COSMETIC_KINDS.has(kind)) return json({ error: "Tipo de personalização inválido." }, 400);
       if (!name) return json({ error: "Informe o nome." }, 400);
+      const builtinId = clean(input.id, 90);
+      if (Object.hasOwn(BUILTIN_COSMETICS, builtinId)) {
+        if (BUILTIN_COSMETICS[builtinId] !== kind) return json({ error: "Tipo do item original inválido." }, 400);
+        const prefix = kind === "moldura" ? "micrhema-xp://frame/" : "micrhema-xp://badge/";
+        if (imageRef && !imageRef.startsWith(prefix)) return json({ error: "Envie um PNG ou mantenha a arte original." }, 400);
+        const cost = Number(input.xpCost);
+        if (!Number.isSafeInteger(cost) || cost <= 0 || cost > 2147483647) return json({ error: "Informe um valor em XP maior que zero." }, 400);
+        // Update only editable cosmetic fields; leave stock, scheduling and ledger intact.
+        const { data: original, error: originalError } = await sb.from("xp_shop_items")
+          .update({ name, description, cost, image_url: imageRef, active, updated_at: new Date().toISOString() })
+          .eq("id", builtinId).select("id,name,description,cost,image_url,active").single();
+        if (originalError) throw originalError;
+        return json({ ok: true, item: builtinCosmetic(original) });
+      }
       if (!challenge) return json({ error: "Escolha um desafio." }, 400);
       const expectedPrefix = kind === "moldura" ? "micrhema-xp://frame/" : "micrhema-xp://badge/";
       if (!imageRef.toLowerCase().startsWith(expectedPrefix) && !/^https:\/\/raw\.githubusercontent\.com\/bichocutela\/Mic-RHEMA-Ia-Studio-Google\/[a-f0-9]{40}\/docs\/distinctives\/[a-z0-9_]+\.png$/.test(imageRef)) return json({ error: "Envie o PNG antes de salvar." }, 400);
