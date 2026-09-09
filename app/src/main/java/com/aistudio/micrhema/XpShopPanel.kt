@@ -2,6 +2,7 @@ package com.aistudio.micrhema
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -181,6 +182,7 @@ private fun XpShopAssetPreview(item: XpShopItem) {
     val context = LocalContext.current
     val ref = remember(item.imageUrl) { parseXpShopAssetRef(item.imageUrl) }
     var resolvedUrl by remember(item.imageUrl) { mutableStateOf(if (ref == null) item.imageUrl else "") }
+    var showFullPreview by remember(item.id, item.imageUrl) { mutableStateOf(false) }
 
     LaunchedEffect(item.imageUrl) {
         if (ref != null && ref.type in setOf("image", "emblem")) {
@@ -194,9 +196,13 @@ private fun XpShopAssetPreview(item: XpShopItem) {
             if (resolvedUrl.isNotBlank()) {
                 AsyncImage(
                     model = resolvedUrl,
-                    contentDescription = item.name,
+                    contentDescription = "Abrir imagem completa de ${item.name}",
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxWidth().height(128.dp).clip(RoundedCornerShape(13.dp))
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(128.dp)
+                        .clip(RoundedCornerShape(13.dp))
+                        .clickable { showFullPreview = true }
                 )
             }
         }
@@ -222,6 +228,33 @@ private fun XpShopAssetPreview(item: XpShopItem) {
                 }
             }
         }
+    }
+
+    if (showFullPreview && resolvedUrl.isNotBlank()) {
+        AlertDialog(
+            onDismissRequest = { showFullPreview = false },
+            title = { Text(item.name, fontWeight = FontWeight.Bold) },
+            text = {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                ) {
+                    AsyncImage(
+                        model = resolvedUrl,
+                        contentDescription = item.name,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 240.dp, max = 520.dp)
+                            .padding(8.dp)
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showFullPreview = false }) { Text("Fechar") }
+            }
+        )
     }
 }
 
