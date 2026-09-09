@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,10 +36,16 @@ fun BiblicalAvatarWithBadge(
     previewReaderBadge: Boolean? = null
 ) {
     val context = LocalContext.current
+    val remoteEmblem = remoteProfileBadgeForId(badge.id)
+    val remoteEmblemUrl by produceState<String?>(initialValue = null, remoteEmblem?.imageRef) {
+        value = remoteEmblem?.imageRef?.let { ref ->
+            runCatching { resolveXpShopAssetUrl(context.applicationContext, ref) }.getOrNull()
+        }
+    }
     val hasPromiseFrame = previewPromiseFrame ?: XpRewardManager.isActive(context, XpRewardManager.PROMISE_FRAME)
     val hasReaderBadge = previewReaderBadge ?: XpRewardManager.isActive(context, XpRewardManager.READER_BADGE)
     val clickableModifier = if (onClick != null) modifier.clickable(onClick = onClick) else modifier
-    val isProfileEmblem = badge.frameStyle == BadgeFrameStyle.PROFILE_EMBLEM ||
+    val isProfileEmblem = remoteEmblem != null || badge.frameStyle == BadgeFrameStyle.PROFILE_EMBLEM ||
         (badge.category == BadgeCategory.LEVEL && (badge.level ?: 0) in 1..7)
     val emblemScale = if (hasPromiseFrame) 0.92f else 1f
 
@@ -54,17 +62,29 @@ fun BiblicalAvatarWithBadge(
 
         if (isProfileEmblem) {
             val level = badge.level ?: 8
+            val avatarFraction = if (remoteEmblem != null) 0.56f else profileEmblemAvatarFraction(level)
             BiblicalAvatarImage(
                 avatar = avatar,
-                modifier = Modifier.fillMaxSize(profileEmblemAvatarFraction(level) * emblemScale).clip(CircleShape),
+                modifier = Modifier.fillMaxSize(avatarFraction * emblemScale).clip(CircleShape),
                 contentDescription = contentDescription
             )
-            coil.compose.AsyncImage(
-                model = profileEmblemDrawable(level),
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(emblemScale),
-                contentScale = ContentScale.Fit
-            )
+            if (remoteEmblem != null) {
+                remoteEmblemUrl?.let { url ->
+                    coil.compose.AsyncImage(
+                        model = url,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(emblemScale),
+                        contentScale = ContentScale.Fit
+                    )
+                }
+            } else {
+                coil.compose.AsyncImage(
+                    model = profileEmblemDrawable(level),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(emblemScale),
+                    contentScale = ContentScale.Fit
+                )
+            }
         } else {
             Canvas(modifier = Modifier.fillMaxSize(if (hasPromiseFrame) 0.91f else 1f)) { drawClassicBadgeFrame(badge) }
             BiblicalAvatarImage(
