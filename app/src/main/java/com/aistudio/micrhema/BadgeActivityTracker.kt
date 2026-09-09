@@ -90,6 +90,7 @@ object BadgeActivityTracker {
         // de rede nunca impede o progresso local das missões e emblemas.
         XpEngineClient.refresh(context, member)
         XpActivityBridge.reconcileIbrCompleted(context)
+        RemoteBadgeEngineClient.reconcile(context.applicationContext, member)
 
         val journeyPrepared = ensureBibleJourneyBaseline(member)
         val preparedMember = ensureCurrentLevelMissionBaseline(journeyPrepared)
@@ -181,6 +182,11 @@ object BadgeActivityTracker {
         ids.firstOrNull { it !in previousIds }?.let { newId ->
             XpActivityBridge.recordedActivity(context, activity, newId)
         }
+
+        // O backend central decide se algum desafio remoto foi realmente cumprido.
+        // Uma nova reconciliação após cada atividade mantém o desbloqueio automático
+        // sem depender de interpretação local do texto do desafio.
+        RemoteBadgeEngineClient.reconcile(context.applicationContext, updatedMember)
     }
 
     internal fun updateMemberStates(member: MemberRequest) {
