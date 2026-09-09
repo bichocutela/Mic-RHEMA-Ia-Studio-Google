@@ -1,200 +1,137 @@
 package com.aistudio.micrhema
 
 import android.graphics.Color as AndroidColor
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.drawscope.*
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import kotlin.math.PI
-import kotlin.math.cos
-import kotlin.math.sin
+import kotlin.math.*
 
+/** Shared by the real avatar and the admin preview. All geometry scales with the avatar. */
 @Composable
-fun LightEffectVisual(
-    item: AdminLightEffect,
-    modifier: Modifier = Modifier,
-    showAvatarLabel: Boolean = true
-) {
-    val infinite = rememberInfiniteTransition(label = "realLightEffect")
-    val phase by infinite.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(4200, easing = LinearEasing)),
-        label = "phase"
-    )
-    val pulse by infinite.animateFloat(
-        initialValue = 0.82f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(if (item.tone == "forte") 560 else 1100), RepeatMode.Reverse),
-        label = "pulse"
-    )
-    val shimmer by infinite.animateFloat(
-        initialValue = 0.25f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(850), RepeatMode.Reverse),
-        label = "shimmer"
-    )
-    val baseColor = remember(item.colorHex) {
+fun LightEffectVisual(item: AdminLightEffect, modifier: Modifier = Modifier, showAvatarLabel: Boolean = true) {
+    val transition = rememberInfiniteTransition(label = "avatarLight")
+    val phase by transition.animateFloat(0f, 1f,
+        infiniteRepeatable(tween(6000, easing = LinearEasing)), label = "lightPhase")
+    val color = remember(item.colorHex) {
         runCatching { Color(AndroidColor.parseColor(item.colorHex)) }.getOrDefault(Color(0xFFFFD54F))
     }
-    val intensity = when (item.tone) {
-        "suave" -> 0.55f
-        "forte" -> 1f
-        else -> 0.78f
-    }
-
-    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+    val strength = when (item.tone) { "suave" -> .55f; "forte" -> 1f; else -> .78f }
+    Box(modifier, contentAlignment = Alignment.Center) {
+        if (showAvatarLabel) Box(Modifier.fillMaxSize(.62f).aspectRatio(1f)
+            .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape), Alignment.Center) {
+            Text("AVATAR", fontWeight = FontWeight.Bold)
+        }
         Canvas(Modifier.fillMaxSize()) {
-            val c = center
-            val avatarR = size.minDimension * 0.31f
-            val ringR = avatarR * (1.22f + (pulse - 0.82f) * 0.22f)
-            val glow = baseColor.copy(alpha = 0.08f + 0.12f * intensity)
+            // Read animation in the drawing phase; it does not recompose the profile every frame.
+            drawAvatarLight(item.effectType.lowercase(), color, strength, phase)
+        }
+    }
+}
 
-            repeat(4) { i ->
-                drawCircle(
-                    color = glow.copy(alpha = glow.alpha / (i + 1)),
-                    radius = ringR + i * 8f,
-                    center = c,
-                    style = Stroke(width = 12f + i * 5f)
-                )
-            }
-
-            when (item.effectType.lowercase()) {
-                "flame", "fire_ring", "violet_flame" -> {
-                    drawCircle(baseColor.copy(alpha = 0.6f * intensity), ringR, c, style = Stroke(width = 7f))
-                    val count = if (item.tone == "forte") 28 else 20
-                    repeat(count) { i ->
-                        val a = Math.toRadians((i * 360f / count + phase * 0.28f).toDouble())
-                        val wave = sin(Math.toRadians((phase * 2 + i * 39).toDouble())).toFloat()
-                        val startR = ringR - 1f
-                        val flameLen = (18f + 26f * (0.5f + 0.5f * wave)) * intensity
-                        val start = Offset(c.x + cos(a).toFloat() * startR, c.y + sin(a).toFloat() * startR)
-                        val end = Offset(c.x + cos(a).toFloat() * (startR + flameLen), c.y + sin(a).toFloat() * (startR + flameLen))
-                        drawLine(baseColor.copy(alpha = 0.38f + 0.5f * intensity), start, end, strokeWidth = 5f)
-                        drawCircle(baseColor.copy(alpha = 0.25f + 0.45f * shimmer), 4f + 3f * intensity, end)
-                    }
+private fun DrawScope.drawAvatarLight(type: String, color: Color, strength: Float, phase: Float) {
+    val unit = size.minDimension
+    if (unit <= 0f) return
+    val r = unit * .365f
+    val time = phase * (2 * PI).toFloat()
+    fun point(angle: Float, radius: Float = r) = center + Offset(cos(angle), sin(angle)) * radius
+    fun spark(p: Offset, radius: Float, tint: Color = color, alpha: Float = 1f, star: Boolean = false) {
+        drawCircle(Brush.radialGradient(listOf(tint.copy(alpha = alpha * .8f * strength), tint.copy(alpha = 0f)), p, radius * 5f), radius * 5f, p)
+        drawCircle(Color.White.copy(alpha = alpha * strength), radius * .48f, p)
+        if (star) {
+            drawLine(tint.copy(alpha = alpha * strength), p - Offset(radius * 3, 0f), p + Offset(radius * 3, 0f), unit * .003f)
+            drawLine(Color.White.copy(alpha = alpha * strength), p - Offset(0f, radius * 3), p + Offset(0f, radius * 3), unit * .002f)
+        }
+    }
+    fun luminousPath(path: Path, tint: Color = color, width: Float = unit * .004f, alpha: Float = 1f) {
+        // Broad translucent light, saturated middle and a hot core; no hardware blur dependency.
+        for (layer in 5 downTo 1) drawPath(path, tint.copy(alpha = .035f * strength * alpha), style = Stroke(width * layer * 3f, cap = StrokeCap.Round))
+        drawPath(path, tint.copy(alpha = .85f * strength * alpha), style = Stroke(width * 2, cap = StrokeCap.Round))
+        drawPath(path, lerp(tint, Color.White, .78f).copy(alpha = strength * alpha), style = Stroke(width * .65f, cap = StrokeCap.Round))
+    }
+    val breath = .75f + .25f * sin(time * 2)
+    // Soft annular bloom keeps the face transparent and all light inside the allocated bounds.
+    repeat(12) { i ->
+        drawCircle(color.copy(alpha = (.018f + .012f * breath) * strength), r,
+            style = Stroke(unit * (.018f + i * .006f)))
+    }
+    val ring = Path().apply { addOval(androidx.compose.ui.geometry.Rect(center - Offset(r, r), center + Offset(r, r))) }
+    luminousPath(ring, width = unit * .0025f, alpha = .55f)
+    when (type) {
+        "flame", "fire_ring", "violet_flame" -> {
+            val count = if (type == "fire_ring") 42 else 30
+            repeat(count) { i ->
+                val a = i * (2 * PI / count).toFloat() + time * .5f
+                val flicker = .5f + .5f * sin(time * (if (type == "fire_ring") 6 else 4) + i * 2.4f)
+                val length = unit * (.025f + .065f * flicker) * strength
+                val start = point(a - .065f, r - unit * .009f)
+                val tip = point(a + .11f, r + length)
+                val end = point(a + .065f)
+                val flame = Path().apply {
+                    moveTo(start.x, start.y)
+                    val c1 = point(a - .12f, r + length * .7f)
+                    val c2 = point(a + .19f, r + length * .55f)
+                    cubicTo(c1.x, c1.y, c2.x, c2.y, tip.x, tip.y)
+                    val c3 = point(a + .02f, r + length * .4f)
+                    quadraticBezierTo(c3.x, c3.y, end.x, end.y)
                 }
-                "stars" -> {
-                    repeat(18) { i ->
-                        val a = Math.toRadians((i * 47 + phase * 0.35f).toDouble())
-                        val r = ringR + 10f + (i % 4) * 8f
-                        val p = Offset(c.x + cos(a).toFloat() * r, c.y + sin(a).toFloat() * r)
-                        val alpha = (0.2f + 0.8f * ((shimmer + (i % 3) * 0.2f) % 1f)) * intensity
-                        drawCircle(baseColor.copy(alpha = alpha.coerceIn(0.12f, 1f)), 2.5f + (i % 3) * 1.7f, p)
-                        if (i % 4 == 0) {
-                            drawLine(baseColor.copy(alpha = alpha), Offset(p.x - 7f, p.y), Offset(p.x + 7f, p.y), 1.8f)
-                            drawLine(baseColor.copy(alpha = alpha), Offset(p.x, p.y - 7f), Offset(p.x, p.y + 7f), 1.8f)
-                        }
-                    }
-                }
-                "rays" -> {
-                    repeat(18) { i ->
-                        val a = Math.toRadians((i * 20 + phase * 0.08f).toDouble())
-                        val inner = ringR + 3f
-                        val outer = ringR + 26f + (i % 3) * 10f * pulse
-                        val p1 = Offset(c.x + cos(a).toFloat() * inner, c.y + sin(a).toFloat() * inner)
-                        val p2 = Offset(c.x + cos(a).toFloat() * outer, c.y + sin(a).toFloat() * outer)
-                        drawLine(baseColor.copy(alpha = (0.22f + 0.55f * shimmer) * intensity), p1, p2, 3f + 3f * intensity)
-                    }
-                    drawCircle(baseColor.copy(alpha = 0.72f * intensity), ringR, c, style = Stroke(width = 5f))
-                }
-                "electric" -> {
-                    val segments = 34
-                    var prev: Offset? = null
-                    repeat(segments + 1) { i ->
-                        val angle = Math.toRadians((i * 360f / segments + phase).toDouble())
-                        val jitter = sin(Math.toRadians((phase * 5 + i * 71).toDouble())).toFloat() * 8f
-                        val r = ringR + jitter
-                        val p = Offset(c.x + cos(angle).toFloat() * r, c.y + sin(angle).toFloat() * r)
-                        prev?.let { drawLine(baseColor.copy(alpha = 0.92f * intensity), it, p, 3.2f) }
-                        prev = p
-                    }
-                    repeat(7) { i ->
-                        val a = Math.toRadians((i * 53 + phase * 1.7f).toDouble())
-                        val p = Offset(c.x + cos(a).toFloat() * (ringR + 11f), c.y + sin(a).toFloat() * (ringR + 11f))
-                        drawCircle(Color.White.copy(alpha = 0.7f * intensity), 3.5f, p)
-                    }
-                }
-                "particles", "dust" -> {
-                    repeat(24) { i ->
-                        val a = Math.toRadians((i * 137.5 + phase * (0.15f + (i % 3) * 0.05f)).toDouble())
-                        val r = ringR + 6f + (i % 6) * 7f
-                        val drift = sin(Math.toRadians((phase * 1.6f + i * 29).toDouble())).toFloat() * 9f
-                        val p = Offset(c.x + cos(a).toFloat() * r, c.y + sin(a).toFloat() * r - drift)
-                        drawCircle(baseColor.copy(alpha = (0.22f + 0.65f * shimmer) * intensity), 2f + (i % 4) * 1.4f, p)
-                    }
-                }
-                "pulse", "aura", "halo", "spirit_light" -> {
-                    repeat(3) { i ->
-                        val rr = ringR + i * 11f + (pulse - 0.82f) * 35f
-                        drawCircle(baseColor.copy(alpha = (0.34f / (i + 1)) * intensity), rr, c, style = Stroke(width = 8f - i * 1.5f))
-                    }
-                    repeat(8) { i ->
-                        val a = Math.toRadians((i * 45 + phase * 0.35f).toDouble())
-                        val p = Offset(c.x + cos(a).toFloat() * (ringR + 15f), c.y + sin(a).toFloat() * (ringR + 15f))
-                        drawCircle(Color.White.copy(alpha = 0.55f * shimmer * intensity), 3f, p)
-                    }
-                }
-                "rainbow_orbit" -> {
-                    val colors = listOf(Color(0xFFFF5252), Color(0xFFFFC107), Color(0xFF66BB6A), Color(0xFF42A5F5), Color(0xFFAB47BC))
-                    colors.forEachIndexed { index, color ->
-                        drawArc(
-                            color = color.copy(alpha = 0.9f * intensity),
-                            startAngle = phase + index * 72f,
-                            sweepAngle = 54f,
-                            useCenter = false,
-                            topLeft = Offset(c.x - ringR, c.y - ringR),
-                            size = androidx.compose.ui.geometry.Size(ringR * 2, ringR * 2),
-                            style = Stroke(width = 8f)
-                        )
-                    }
-                }
-                else -> {
-                    drawCircle(baseColor.copy(alpha = 0.62f * intensity), ringR, c, style = Stroke(width = 6f))
-                    val a = Math.toRadians(phase.toDouble())
-                    repeat(6) { i ->
-                        val aa = a + i * (2 * PI / 6)
-                        val p = Offset(c.x + cos(aa).toFloat() * ringR, c.y + sin(aa).toFloat() * ringR)
-                        drawCircle(baseColor.copy(alpha = 0.85f * intensity), 4f + i % 2, p)
-                    }
-                }
-            }
-
-            if (item.effectType.lowercase() in setOf("orbit", "halo_orbit")) {
-                drawCircle(baseColor.copy(alpha = 0.68f * intensity), ringR, c, style = Stroke(width = 5f))
-                repeat(7) { i ->
-                    val a = Math.toRadians((phase + i * 51.4f).toDouble())
-                    val p = Offset(c.x + cos(a).toFloat() * ringR, c.y + sin(a).toFloat() * ringR)
-                    drawCircle(if (i == 0) Color.White else baseColor, if (i == 0) 7f else 3.5f, p, alpha = intensity)
-                }
+                luminousPath(flame, width = unit * .003f)
+                if (i % 3 == 0) spark(tip, unit * .0035f)
             }
         }
-
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.size(138.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
-        ) {
-            if (showAvatarLabel) Text("AVATAR", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        "electric" -> repeat(3) { band ->
+            val path = Path()
+            repeat(97) { i ->
+                val a = i * (2 * PI / 96).toFloat() + time
+                val jitter = sin(i * 2.7f + time * 8 + band) * sin(i * .7f - time * 4) * unit * .02f
+                val p = point(a, r + jitter + band * unit * .009f)
+                if (i == 0) path.moveTo(p.x, p.y) else path.lineTo(p.x, p.y)
+            }
+            luminousPath(path, width = unit * .002f)
         }
+        "rays" -> repeat(24) { i ->
+            val a = i * (2 * PI / 24).toFloat() + time * .5f
+            val start = point(a)
+            val end = point(a, r + unit * (.035f + .065f * (.5f + .5f * sin(time * 2 + i))))
+            luminousPath(Path().apply { moveTo(start.x, start.y); lineTo(end.x, end.y) }, width = unit * .002f)
+        }
+        "pulse", "halo", "aura", "spirit_light" -> repeat(3) { i ->
+            val progress = (phase * 2 + i / 3f) % 1f
+            val radius = r + progress * unit * .09f
+            drawCircle(color.copy(alpha = (1 - progress) * strength * .4f), radius,
+                style = Stroke(unit * (if (type == "halo") .012f else .006f)))
+        }
+        "orbit", "halo_orbit", "rainbow_orbit" -> repeat(if (type == "halo_orbit") 2 else 3) { orbit ->
+            val tint = if (type == "rainbow_orbit") Color.hsv((phase * 360 + orbit * 120) % 360, .8f, 1f) else color
+            val path = Path()
+            repeat(100) { i ->
+                val a = time + orbit * (2 * PI / 3).toFloat() - i * .022f
+                val p = point(a, r + sin(a * 2 + orbit) * unit * .022f)
+                if (i == 0) path.moveTo(p.x, p.y) else path.lineTo(p.x, p.y)
+            }
+            luminousPath(path, tint, unit * .003f)
+            val a = time + orbit * (2 * PI / 3).toFloat()
+            spark(point(a, r + sin(a * 2 + orbit) * unit * .022f), unit * .012f, tint, star = true)
+        }
+    }
+    val count = when (type) { "stars" -> 28; "dust" -> 48; "particles", "aura" -> 36; else -> 18 }
+    repeat(count) { i ->
+        val progress = (phase * (if (type == "dust") 1 else 2) + i * .618034f) % 1f
+        val a = i * 2.39996f + time * (if (type == "stars") .5f else 1f)
+        val radius = r + unit * (.018f + .075f * progress)
+        val p = point(a, radius)
+        val alpha = sin(progress * PI).toFloat().coerceIn(0f, 1f)
+        val tint = if (type == "rainbow_orbit") Color.hsv((i * 31f + phase * 360) % 360, .7f, 1f) else color
+        spark(p, unit * (if (type == "stars" && i % 4 == 0) .009f else .0035f), tint, alpha, type == "stars" || i % 7 == 0)
     }
 }

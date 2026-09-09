@@ -1,5 +1,8 @@
 package com.aistudio.micrhema
 
+import androidx.compose.runtime.mutableStateOf
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -24,6 +27,17 @@ data class AdminLightEffect(
 )
 
 object XpLightEffectsAdminClient {
+    val catalog = mutableStateOf<List<AdminLightEffect>>(emptyList())
+    private val refreshMutex = Mutex()
+    private var refreshedAt = 0L
+
+    suspend fun refreshPublicCatalog() = refreshMutex.withLock {
+        if (android.os.SystemClock.elapsedRealtime() - refreshedAt < 60_000L && refreshedAt != 0L) return@withLock
+        val items = readCatalog()
+        withContext(Dispatchers.Main) { catalog.value = items }
+        refreshedAt = android.os.SystemClock.elapsedRealtime()
+    }
+
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
@@ -36,7 +50,7 @@ object XpLightEffectsAdminClient {
         if (baseUrl.isBlank() || apiKey.isBlank() || baseUrl.contains("your-project")) {
             throw IllegalStateException("A Loja XP não está configurada nesta versão.")
         }
-        if (!adminAuthenticatedState.value) {
+        if (action != "list" && !adminAuthenticatedState.value) {
             throw IllegalStateException("Abra a Área Administrativa antes de editar os efeitos de luz.")
         }
 
@@ -80,13 +94,19 @@ object XpLightEffectsAdminClient {
         )
     }
 
-    suspend fun load(): List<AdminLightEffect> {
+    private suspend fun readCatalog(): List<AdminLightEffect> {
         val array = call("list").optJSONArray("items") ?: return emptyList()
         return buildList {
             for (index in 0 until array.length()) {
                 array.optJSONObject(index)?.let { add(parse(it)) }
             }
         }
+    }
+
+    suspend fun load(): List<AdminLightEffect> {
+        val items = readCatalog()
+        withContext(Dispatchers.Main) { catalog.value = items }
+        return items
     }
 
     suspend fun save(item: AdminLightEffect): AdminLightEffect {
@@ -102,10 +122,13 @@ object XpLightEffectsAdminClient {
             put("emblemIds", JSONArray(item.emblemIds))
             put("active", item.active)
         }
-        return parse(response.optJSONObject("item") ?: throw IllegalStateException("O efeito não foi salvo."))
+        val saved = parse(response.optJSONObject("item") ?: throw IllegalStateException("O efeito não foi salvo."))
+        withContext(Dispatchers.Main) { catalog.value = catalog.value.filterNot { it.id == saved.id } + saved }
+        return saved
     }
 
     suspend fun delete(id: String) {
         call("delete") { put("id", id) }
+        withContext(Dispatchers.Main) { catalog.value = catalog.value.filterNot { it.id == id } }
     }
 }
