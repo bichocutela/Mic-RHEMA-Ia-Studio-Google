@@ -56,7 +56,11 @@ private fun publishCatalogIntoLegacySelectors(catalog: List<RemoteProfileBadge>)
         list.addAll(mapped)
     }
     (profileEmblemBadges as? MutableList<BiblicalBadge>)?.let { list ->
-        list.removeAll { it.id in remoteIds }
+        // No seletor administrativo entram todos os níveis 1–22 e também os
+        // emblemas criados remotamente pelo ADM. Isso mantém a validação antiga
+        // compatível e evita uma segunda lista paralela só para administração.
+        list.clear()
+        list.addAll(biblicalLevelBadges)
         list.addAll(mapped)
     }
 }
