@@ -48,6 +48,13 @@ data class AdminCustomBadge(
     val active: Boolean
 )
 
+data class GeneratedBadgeChallenge(
+    val difficulty: String,
+    val text: String,
+    val metric: String,
+    val target: Int
+)
+
 object XpShopAdminClient {
     private const val SIMPLE_ADMIN_PASSWORD = "igreja10"
 
@@ -163,6 +170,23 @@ object XpShopAdminClient {
         val array = call("admin_badges").optJSONArray("badges") ?: return emptyList()
         return buildList {
             for (index in 0 until array.length()) array.optJSONObject(index)?.let { add(parseBadge(it)) }
+        }
+    }
+
+    suspend fun generateBadgeChallenge(difficulty: String, exclude: String = ""): GeneratedBadgeChallenge {
+        val normalized = difficulty.trim().lowercase().takeIf { it in setOf("easy", "medium", "hard") }
+            ?: throw IllegalArgumentException("Dificuldade inválida.")
+        val raw = call("admin_generate_badge_challenge") {
+            put("difficulty", normalized)
+            put("exclude", exclude.trim())
+        }.optJSONObject("challenge") ?: throw IllegalStateException("Não foi possível gerar o desafio.")
+        return GeneratedBadgeChallenge(
+            difficulty = raw.optString("difficulty", normalized),
+            text = raw.optString("text"),
+            metric = raw.optString("metric"),
+            target = raw.optInt("target", 0)
+        ).also {
+            require(it.text.isNotBlank() && it.metric.isNotBlank() && it.target > 0) { "O servidor retornou um desafio inválido." }
         }
     }
 
