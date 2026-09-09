@@ -52,19 +52,19 @@ fun MembersScreen() {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 24.dp),
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
                     Icons.Default.Person,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(24.dp)
                 )
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Área de Membros",
-                    style = MaterialTheme.typography.headlineMedium,
+                    style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
                 )
@@ -74,16 +74,16 @@ fun MembersScreen() {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 24.dp),
+                        .padding(horizontal = 16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary)
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(54.dp), tint = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.height(10.dp))
                     Text("Solicitação Enviada", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text("Aguarde a aprovação do administrador para acessar os conteúdos exclusivos. Você será notificado ou poderá verificar aqui mais tarde.", textAlign = androidx.compose.ui.text.style.TextAlign.Center, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f))
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
                     OutlinedButton(onClick = { MemberManager.setLoggedInMember(context, null) }) {
                         Text("Sair")
                     }
@@ -92,42 +92,42 @@ fun MembersScreen() {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 24.dp)
+                        .padding(horizontal = 16.dp)
                 ) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                     ) {
-                        Column(modifier = Modifier.padding(24.dp)) {
+                        Column(modifier = Modifier.padding(16.dp)) {
                             Text("Olá, ${loggedInMember.name}!", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(3.dp))
                             Text(loggedInMember.phone, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 if (loggedInMember.isIbr) AssistChip(onClick = {}, label = { Text("Aluno IBR") }, leadingIcon = { Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp)) })
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
                     Text("Meus Favoritos", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     if (favoriteItemsState.isEmpty()) {
                         Text("Você ainda não adicionou nenhum devocional ou versículo aos favoritos.", color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f), style = MaterialTheme.typography.bodyMedium)
                     } else {
                         LazyColumn(
                             modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             items(favoriteItemsState) { fav ->
                                 Card(
                                     modifier = Modifier.fillMaxWidth(),
-                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
                                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                                 ) {
-                                    Column(modifier = Modifier.padding(16.dp)) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -135,7 +135,7 @@ fun MembersScreen() {
                                         ) {
                                             Column(modifier = Modifier.weight(1f)) {
                                                 Text(fav.reference, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Spacer(modifier = Modifier.height(3.dp))
                                                 Text(fav.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                                             }
                                             IconButton(onClick = {
@@ -152,11 +152,11 @@ fun MembersScreen() {
                     }
 
                     if (favoriteItemsState.isEmpty()) Spacer(modifier = Modifier.weight(1f))
-                    else Spacer(modifier = Modifier.height(16.dp))
+                    else Spacer(modifier = Modifier.height(10.dp))
 
                     OutlinedButton(
                         onClick = { MemberManager.setLoggedInMember(context, null) },
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
                     ) {
                         Icon(Icons.Default.ExitToApp, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
