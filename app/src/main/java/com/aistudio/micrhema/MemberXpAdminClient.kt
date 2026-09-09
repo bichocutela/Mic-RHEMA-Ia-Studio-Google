@@ -1,6 +1,9 @@
 package com.aistudio.micrhema
 
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
@@ -155,5 +158,47 @@ object MemberXpAdminClient {
             }
         }
         return snapshot
+    }
+
+    suspend fun unlockBadges(member: MemberRequest, badgeIds: Collection<String>): List<String> {
+        require(adminAuthenticatedState.value) { "Abra a Área Administrativa antes de liberar emblemas." }
+        require(member.id.isNotBlank()) { "Membro inválido." }
+
+        val validIds = badgeIds
+            .map(String::trim)
+            .filter { requested -> profileEmblemBadges.any { it.id == requested } }
+            .distinct()
+        require(validIds.isNotEmpty()) { "Selecione pelo menos um emblema bloqueado." }
+
+        ensureRemoteAdminSession(forceRefresh = false)
+
+        val db = FirebaseFirestore.getInstance()
+        val updatedAt = System.currentTimeMillis()
+        val values = validIds.map { it as Any }.toTypedArray()
+        val update = mapOf<String, Any>(
+            "unlockedBadgeIds" to FieldValue.arrayUnion(*values),
+            "updatedAt" to updatedAt,
+            "lastBadgeAdminAction" to mapOf(
+                "type" to "unlock",
+                "badgeIds" to validIds,
+                "at" to updatedAt,
+                "by" to ADMIN_EMAIL
+            )
+        )
+
+        val batch = db.batch()
+        batch.set(db.collection("users").document(member.id), update, SetOptions.merge())
+        batch.set(db.collection("acessos_pendentes").document(member.id), update, SetOptions.merge())
+        batch.commit().await()
+
+        val unlocked = (member.unlockedBadgeIds + validIds + DEFAULT_BIBLICAL_BADGE_ID).distinct()
+        withContext(Dispatchers.Main.immediate) {
+            member.unlockedBadgeIds = unlocked
+            loggedInMemberState.value?.takeIf { it.id == member.id }?.let { logged ->
+                logged.unlockedBadgeIds = unlocked
+            }
+            memberRequestsState.firstOrNull { it.id == member.id }?.unlockedBadgeIds = unlocked
+        }
+        return unlocked
     }
 }
