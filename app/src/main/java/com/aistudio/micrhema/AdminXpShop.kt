@@ -1,51 +1,22 @@
 package com.aistudio.micrhema
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CardGiftcard
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Inventory2
-import androidx.compose.material.icons.filled.ReceiptLong
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.ScrollableTabRow
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Tab
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
@@ -129,10 +100,7 @@ fun AdminXpShopScreen() {
         }
 
         if (selectedTab == 0) {
-            Button(
-                onClick = { showNewEditor = true },
-                modifier = Modifier.fillMaxWidth()
-            ) {
+            Button(onClick = { showNewEditor = true }, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Default.Add, contentDescription = null)
                 Spacer(Modifier.size(7.dp))
                 Text("Nova recompensa")
@@ -146,9 +114,7 @@ fun AdminXpShopScreen() {
                 modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                catalog.forEach { item ->
-                    AdminXpRewardCard(item = item, onEdit = { editorItem = item })
-                }
+                catalog.forEach { item -> AdminXpRewardCard(item = item, onEdit = { editorItem = item }) }
                 if (!loading && catalog.isEmpty()) {
                     Text("Nenhuma recompensa cadastrada.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -156,11 +122,7 @@ fun AdminXpShopScreen() {
         } else {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 listOf("todos" to "Todos", "pendente" to "Pendentes", "entregue" to "Entregues", "cancelado" to "Cancelados").forEach { (value, label) ->
-                    FilterChip(
-                        selected = redemptionFilter == value,
-                        onClick = { redemptionFilter = value },
-                        label = { Text(label) }
-                    )
+                    FilterChip(selected = redemptionFilter == value, onClick = { redemptionFilter = value }, label = { Text(label) })
                 }
             }
 
@@ -260,6 +222,9 @@ private fun AdminXpRewardCard(item: AdminXpShopItem, onEdit: () -> Unit) {
                 Text("${item.cost} XP", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
             }
             if (item.description.isNotBlank()) Text(item.description, style = MaterialTheme.typography.bodySmall)
+            if (item.imageUrl.isNotBlank()) {
+                Text("Arquivo: ${xpShopAssetLabel(item.imageUrl)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Inventory2, contentDescription = null, modifier = Modifier.size(17.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.size(5.dp))
@@ -282,11 +247,7 @@ private fun AdminXpRewardCard(item: AdminXpShopItem, onEdit: () -> Unit) {
 }
 
 @Composable
-private fun AdminXpRedemptionCard(
-    redemption: AdminXpRedemption,
-    onDeliver: () -> Unit,
-    onCancel: () -> Unit
-) {
+private fun AdminXpRedemptionCard(redemption: AdminXpRedemption, onDeliver: () -> Unit, onCancel: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(17.dp),
@@ -328,11 +289,9 @@ private fun xpRedemptionStatusLabel(status: String): String = when (status) {
 }
 
 @Composable
-private fun AdminXpRewardEditor(
-    initial: AdminXpShopItem?,
-    onDismiss: () -> Unit,
-    onSave: (AdminXpShopItem) -> Unit
-) {
+private fun AdminXpRewardEditor(initial: AdminXpShopItem?, onDismiss: () -> Unit, onSave: (AdminXpShopItem) -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var name by remember(initial?.id) { mutableStateOf(initial?.name.orEmpty()) }
     var description by remember(initial?.id) { mutableStateOf(initial?.description.orEmpty()) }
     var cost by remember(initial?.id) { mutableStateOf(initial?.cost?.toString().orEmpty()) }
@@ -345,26 +304,110 @@ private fun AdminXpRewardEditor(
     var endDate by remember(initial?.id) { mutableStateOf(isoDateOnly(initial?.availableUntil.orEmpty())) }
     var active by remember(initial?.id) { mutableStateOf(initial?.active ?: true) }
     var localError by remember(initial?.id) { mutableStateOf("") }
+    var uploading by remember(initial?.id) { mutableStateOf(false) }
+    var uploadProgress by remember(initial?.id) { mutableStateOf(0f) }
+    var selectedAssetLabel by remember(initial?.id) { mutableStateOf(imageUrl.takeIf { it.isNotBlank() }?.let(::xpShopAssetLabel).orEmpty()) }
+
+    fun upload(uri: Uri?, type: String, forceKind: String? = null, mimeHint: String? = null) {
+        if (uri == null || uploading) return
+        uploading = true
+        uploadProgress = 0f
+        localError = ""
+        scope.launch {
+            runCatching {
+                val targetUid = StorageManager.resolveStorageTargetUid(context)
+                StorageManager.uploadMediaAsset(
+                    context = context,
+                    uri = uri,
+                    uid = targetUid,
+                    onProgress = { uploadProgress = it },
+                    mimeTypeHint = mimeHint
+                )
+            }.onSuccess { result ->
+                imageUrl = buildXpShopAssetRef(type, result)
+                selectedAssetLabel = xpShopAssetLabel(imageUrl)
+                forceKind?.let { kind = it }
+                if (type == "emblem" && category.isBlank()) category = "Personalização"
+            }.onFailure { localError = it.message ?: "Não foi possível enviar o arquivo." }
+            uploading = false
+        }
+    }
+
+    val imageLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { upload(it, "image", "digital", "image/*") }
+    val videoLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { upload(it, "video", "digital", "video/*") }
+    val audioLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { upload(it, "audio", "digital", "audio/*") }
+    val emblemLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { upload(it, "emblem", "profile", "image/png") }
+    val pdfLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { upload(it, "pdf", "digital", "application/pdf") }
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!uploading) onDismiss() },
         title = { Text(if (initial == null) "Nova recompensa" else "Editar recompensa") },
         text = {
             Column(
-                modifier = Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()),
+                modifier = Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(9.dp)
             ) {
                 OutlinedTextField(value = name, onValueChange = { name = it; localError = "" }, label = { Text("Nome") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Descrição") }, minLines = 2, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = cost, onValueChange = { cost = it.filter(Char::isDigit) }, label = { Text("Preço em XP") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = category, onValueChange = { category = it }, label = { Text("Categoria") }, modifier = Modifier.fillMaxWidth())
+
                 Text("Tipo", style = MaterialTheme.typography.labelLarge)
                 Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     FilterChip(selected = kind == "digital", onClick = { kind = "digital" }, label = { Text("Digital") })
                     FilterChip(selected = kind == "profile", onClick = { kind = "profile" }, label = { Text("Perfil") })
                     FilterChip(selected = kind == "physical", onClick = { kind = "physical" }, label = { Text("Física") })
                 }
-                OutlinedTextField(value = imageUrl, onValueChange = { imageUrl = it }, label = { Text("URL da imagem") }, modifier = Modifier.fillMaxWidth())
+
+                Text("Arquivo da recompensa", style = MaterialTheme.typography.labelLarge)
+                Text(
+                    "Escolha o conteúdo que será associado à venda. Emblema aceita PNG.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(enabled = !uploading, onClick = { imageLauncher.launch("image/*") }, modifier = Modifier.weight(1f)) {
+                            Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(17.dp)); Spacer(Modifier.size(5.dp)); Text("Imagem")
+                        }
+                        OutlinedButton(enabled = !uploading, onClick = { videoLauncher.launch("video/*") }, modifier = Modifier.weight(1f)) {
+                            Icon(Icons.Default.VideoFile, contentDescription = null, modifier = Modifier.size(17.dp)); Spacer(Modifier.size(5.dp)); Text("Vídeo")
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(enabled = !uploading, onClick = { audioLauncher.launch("audio/*") }, modifier = Modifier.weight(1f)) {
+                            Icon(Icons.Default.AudioFile, contentDescription = null, modifier = Modifier.size(17.dp)); Spacer(Modifier.size(5.dp)); Text("Áudio")
+                        }
+                        OutlinedButton(enabled = !uploading, onClick = { emblemLauncher.launch("image/png") }, modifier = Modifier.weight(1f)) {
+                            Icon(Icons.Default.MilitaryTech, contentDescription = null, modifier = Modifier.size(17.dp)); Spacer(Modifier.size(5.dp)); Text("Emblema PNG")
+                        }
+                    }
+                    OutlinedButton(enabled = !uploading, onClick = { pdfLauncher.launch("application/pdf") }, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Default.PictureAsPdf, contentDescription = null, modifier = Modifier.size(17.dp)); Spacer(Modifier.size(5.dp)); Text("PDF")
+                    }
+                }
+
+                if (uploading) {
+                    LinearProgressIndicator(progress = { uploadProgress.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
+                    Text("Enviando arquivo... ${(uploadProgress * 100).toInt()}%", style = MaterialTheme.typography.bodySmall)
+                } else if (selectedAssetLabel.isNotBlank()) {
+                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f))) {
+                        Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.size(7.dp))
+                            Text("$selectedAssetLabel enviado", modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+                            TextButton(onClick = { imageUrl = ""; selectedAssetLabel = "" }) { Text("Remover") }
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = imageUrl,
+                    onValueChange = { imageUrl = it; selectedAssetLabel = it.takeIf(String::isNotBlank)?.let(::xpShopAssetLabel).orEmpty() },
+                    label = { Text("URL/arquivo da recompensa") },
+                    supportingText = { Text("Você ainda pode colar uma URL externa, se preferir.") },
+                    modifier = Modifier.fillMaxWidth()
+                )
                 OutlinedTextField(value = stock, onValueChange = { stock = it.filter(Char::isDigit) }, label = { Text("Estoque (vazio = ilimitado)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = limit, onValueChange = { limit = it.filter(Char::isDigit) }, label = { Text("Limite por usuário") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = startDate, onValueChange = { startDate = it }, label = { Text("Data inicial (AAAA-MM-DD)") }, modifier = Modifier.fillMaxWidth())
@@ -380,7 +423,7 @@ private fun AdminXpRewardEditor(
             }
         },
         confirmButton = {
-            Button(onClick = {
+            Button(enabled = !uploading, onClick = {
                 val parsedCost = cost.toIntOrNull() ?: 0
                 val parsedLimit = limit.toIntOrNull() ?: 0
                 val parsedStock = stock.takeIf { it.isNotBlank() }?.toIntOrNull()
@@ -410,6 +453,6 @@ private fun AdminXpRewardEditor(
                 }
             }) { Text("Salvar") }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
+        dismissButton = { TextButton(enabled = !uploading, onClick = onDismiss) { Text("Cancelar") } }
     )
 }
