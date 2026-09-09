@@ -186,8 +186,8 @@ fun HomeScreenWithLive(onNavigate: (String) -> Unit = {}) {
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(top = 2.dp, end = 14.dp)
-                    .size(84.dp),
+                    .padding(top = 8.dp, end = 14.dp)
+                    .size(72.dp),
                 contentAlignment = Alignment.Center
             ) {
                 BiblicalAvatarWithBadge(
