@@ -90,6 +90,36 @@ fun ProfileScreen(
     val badgeProgress = calculateBadgeProgress(loggedInMember)
     val unlockedBadgeIds = badgeProgress.unlockedIds
 
+    var xpPurchasesChecked by remember(loggedInMember.id) {
+        mutableStateOf(
+            xpRedemptionsState.value?.memberId == loggedInMember.id ||
+                xpEntitlementsState.value?.memberId == loggedInMember.id
+        )
+    }
+    var xpPurchasesCheckFailed by remember(loggedInMember.id) { mutableStateOf(false) }
+    val memberXpRedemptions = xpRedemptionsState.value
+        ?.takeIf { it.memberId == loggedInMember.id }
+        ?.redemptions
+        .orEmpty()
+    val memberXpEntitlements = xpEntitlementsState.value
+        ?.takeIf { it.memberId == loggedInMember.id }
+        ?.entitlements
+        .orEmpty()
+    val hasXpPurchases = memberXpRedemptions.any { it.status != "cancelado" } || memberXpEntitlements.isNotEmpty()
+
+    LaunchedEffect(loggedInMember.id) {
+        if (!xpPurchasesChecked) {
+            xpPurchasesCheckFailed = false
+            runCatching {
+                XpShopClient.loadRedemptions(loggedInMember, context)
+            }.onSuccess {
+                xpPurchasesChecked = true
+            }.onFailure {
+                xpPurchasesCheckFailed = true
+            }
+        }
+    }
+
     LaunchedEffect(loggedInMember.id, loggedInMember.name, loggedInMember.phone, loggedInMember.address, loggedInMember.birthDate, loggedInMember.email, loggedInMember.avatarId, loggedInMember.equippedBadgeId, loggedInMember.unlockedBadgeIds) {
         if (!isEditingName) name = loggedInMember.name
         if (!isEditingPhone) phone = loggedInMember.phone
@@ -242,13 +272,65 @@ fun ProfileScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            OutlinedButton(
-                onClick = { showXpPurchases = true },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Default.ReceiptLong, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Ver Compras XP", fontWeight = FontWeight.SemiBold)
+            when {
+                hasXpPurchases -> {
+                    OutlinedButton(
+                        onClick = { showXpPurchases = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.ReceiptLong, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Ver Compras XP", fontWeight = FontWeight.SemiBold)
+                    }
+                }
+                xpPurchasesChecked -> {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.28f)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                "Sua Loja XP está pronta ✨",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                "Você ainda não fez nenhuma compra na Loja XP. Quando adquirir uma recompensa, ela aparecerá aqui no seu perfil.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+                xpPurchasesCheckFailed -> {
+                    Text(
+                        "Não foi possível verificar suas compras XP agora. Entre novamente na sua conta para sincronizar e tente mais tarde.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                else -> {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            "Verificando suas compras XP…",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -345,7 +427,7 @@ fun ProfileScreen(
         }
     }
 
-    if (showXpPurchases) {
+    if (showXpPurchases && hasXpPurchases) {
         XpPurchasesDialog(
             member = loggedInMember,
             onDismiss = { showXpPurchases = false }
