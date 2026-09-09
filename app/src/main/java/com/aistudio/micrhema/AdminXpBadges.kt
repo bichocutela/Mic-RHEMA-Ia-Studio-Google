@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.MilitaryTech
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -129,6 +130,9 @@ private fun AdminXpBadgeEditor(
     var name by remember(initial?.id) { mutableStateOf(initial?.name.orEmpty()) }
     var description by remember(initial?.id) { mutableStateOf(initial?.description.orEmpty()) }
     var challenge by remember(initial?.id) { mutableStateOf(initial?.challenge.orEmpty()) }
+    var challengeDifficulty by remember(initial?.id) { mutableStateOf("easy") }
+    var generatedChallenge by remember(initial?.id) { mutableStateOf<GeneratedBadgeChallenge?>(null) }
+    var loadingChallenge by remember(initial?.id) { mutableStateOf(false) }
     var imageRef by remember(initial?.id) { mutableStateOf(initial?.imageRef.orEmpty()) }
     var special by remember(initial?.id) { mutableStateOf(initial?.special ?: false) }
     var active by remember(initial?.id) { mutableStateOf(initial?.active ?: true) }
@@ -136,6 +140,31 @@ private fun AdminXpBadgeEditor(
     var saving by remember(initial?.id) { mutableStateOf(false) }
     var progress by remember(initial?.id) { mutableStateOf(0f) }
     var error by remember(initial?.id) { mutableStateOf("") }
+
+    fun requestChallenge(difficulty: String = challengeDifficulty, excludeCurrent: Boolean = true) {
+        if (loadingChallenge || saving) return
+        challengeDifficulty = difficulty
+        loadingChallenge = true
+        error = ""
+        scope.launch {
+            runCatching {
+                XpShopAdminClient.generateBadgeChallenge(
+                    difficulty = difficulty,
+                    exclude = if (excludeCurrent) generatedChallenge?.text.orEmpty() else ""
+                )
+            }.onSuccess { generated ->
+                generatedChallenge = generated
+                challenge = generated.text
+            }.onFailure {
+                error = it.message ?: "Não foi possível buscar um desafio agora."
+            }
+            loadingChallenge = false
+        }
+    }
+
+    LaunchedEffect(initial?.id) {
+        if (initial == null && challenge.isBlank()) requestChallenge(challengeDifficulty, excludeCurrent = false)
+    }
 
     fun upload(uri: Uri?) {
         if (uri == null || uploading) return
@@ -160,21 +189,78 @@ private fun AdminXpBadgeEditor(
     }
 
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { upload(it) }
+    val busy = uploading || saving || loadingChallenge
 
     AlertDialog(
-        onDismissRequest = { if (!uploading && !saving) onDismiss() },
+        onDismissRequest = { if (!busy) onDismiss() },
         icon = { Icon(Icons.Default.MilitaryTech, contentDescription = null) },
         title = { Text(if (initial == null) "Novo emblema" else "Editar emblema") },
         text = {
             Column(
-                modifier = Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
+                modifier = Modifier.heightIn(max = 600.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(9.dp)
             ) {
                 OutlinedTextField(value = name, onValueChange = { name = it; error = "" }, label = { Text("Nome do emblema") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Descrição") }, minLines = 2, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = challenge, onValueChange = { challenge = it; error = "" }, label = { Text("Desafio para adquirir") }, minLines = 3, modifier = Modifier.fillMaxWidth())
 
-                OutlinedButton(enabled = !uploading && !saving, onClick = { launcher.launch("image/png") }, modifier = Modifier.fillMaxWidth()) {
+                Text("Dificuldade do desafio", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("easy" to "Fácil", "medium" to "Médio", "hard" to "Difícil").forEach { (key, label) ->
+                        FilterChip(
+                            selected = challengeDifficulty == key,
+                            onClick = { if (challengeDifficulty != key) requestChallenge(key, excludeCurrent = false) },
+                            enabled = !busy,
+                            label = { Text(label) }
+                        )
+                    }
+                }
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.38f)),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                        Text("Desafio escolhido", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                        if (loadingChallenge) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Buscando um desafio verificável…", style = MaterialTheme.typography.bodySmall)
+                            }
+                        } else {
+                            Text(
+                                challenge.ifBlank { "Escolha uma dificuldade para buscar um desafio." },
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            generatedChallenge?.let { generated ->
+                                Text(
+                                    "Detecção automática pronta · meta ${generated.target}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+
+                OutlinedButton(
+                    enabled = !busy,
+                    onClick = { requestChallenge(challengeDifficulty, excludeCurrent = true) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = null)
+                    Spacer(Modifier.width(7.dp))
+                    Text("Buscar outro desafio")
+                }
+                Text(
+                    "Os desafios são gerados somente a partir de atividades que o MIC Rhema consegue verificar no servidor. Você não precisa digitar a regra.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                OutlinedButton(enabled = !busy, onClick = { launcher.launch("image/png") }, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.MilitaryTech, contentDescription = null)
                     Spacer(Modifier.width(7.dp))
                     Text(if (imageRef.isBlank()) "Enviar emblema PNG transparente" else "Trocar emblema PNG")
@@ -199,21 +285,21 @@ private fun AdminXpBadgeEditor(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    Switch(checked = special, onCheckedChange = { special = it })
+                    Switch(checked = special, onCheckedChange = { special = it }, enabled = !busy)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Disponível no catálogo", modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
-                    Switch(checked = active, onCheckedChange = { active = it })
+                    Switch(checked = active, onCheckedChange = { active = it }, enabled = !busy)
                 }
 
                 if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             }
         },
         confirmButton = {
-            Button(enabled = !uploading && !saving, onClick = {
+            Button(enabled = !busy, onClick = {
                 when {
                     name.isBlank() -> error = "Informe o nome do emblema."
-                    challenge.isBlank() -> error = "Informe o desafio para conquistar o emblema."
+                    challenge.isBlank() -> error = "Escolha um desafio para o emblema."
                     imageRef.isBlank() -> error = "Envie o arquivo PNG do emblema."
                     else -> {
                         saving = true
@@ -232,8 +318,10 @@ private fun AdminXpBadgeEditor(
                                         active = active
                                     )
                                 )
-                            }.onSuccess { onSaved() }
-                                .onFailure { error = it.message ?: "Não foi possível salvar o emblema." }
+                            }.onSuccess {
+                                RemoteBadgeEngineClient.refreshCatalog(force = true)
+                                onSaved()
+                            }.onFailure { error = it.message ?: "Não foi possível salvar o emblema." }
                             saving = false
                         }
                     }
@@ -246,6 +334,6 @@ private fun AdminXpBadgeEditor(
                 Text(if (saving) "Salvando…" else "Salvar")
             }
         },
-        dismissButton = { TextButton(enabled = !uploading && !saving, onClick = onDismiss) { Text("Cancelar") } }
+        dismissButton = { TextButton(enabled = !busy, onClick = onDismiss) { Text("Cancelar") } }
     )
 }
