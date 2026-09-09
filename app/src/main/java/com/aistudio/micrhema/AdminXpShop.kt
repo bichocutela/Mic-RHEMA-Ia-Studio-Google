@@ -42,6 +42,8 @@ fun AdminXpShopScreen() {
     var editorItem by remember { mutableStateOf<AdminXpShopItem?>(null) }
     var showNewEditor by remember { mutableStateOf(false) }
     var pendingStatusChange by remember { mutableStateOf<Pair<AdminXpRedemption, String>?>(null) }
+    var previewItem by remember { mutableStateOf<AdminXpShopItem?>(null) }
+    var testItem by remember { mutableStateOf<AdminXpShopItem?>(null) }
 
     suspend fun loadCatalog() {
         loading = true
@@ -119,7 +121,13 @@ fun AdminXpShopScreen() {
                     modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    catalog.forEach { item -> AdminXpRewardCard(item = item, onEdit = { editorItem = item }) }
+                    catalog.forEach { item ->
+                        AdminXpRewardCard(
+                            item = item,
+                            onEdit = { editorItem = item },
+                            onPreview = { previewItem = item }
+                        )
+                    }
                     if (!loading && catalog.isEmpty()) {
                         Text("Nenhuma recompensa cadastrada.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -164,6 +172,8 @@ fun AdminXpShopScreen() {
                 showNewEditor = false
                 editorItem = null
             },
+            onPreview = { previewItem = it },
+            onTest = { testItem = it },
             onSave = { draft ->
                 scope.launch {
                     loading = true
@@ -179,6 +189,13 @@ fun AdminXpShopScreen() {
                 }
             }
         )
+    }
+
+    previewItem?.let { item ->
+        AdminXpProductPreviewDialog(item = item, testMode = false, onDismiss = { previewItem = null })
+    }
+    testItem?.let { item ->
+        AdminXpProductPreviewDialog(item = item, testMode = true, onDismiss = { testItem = null })
     }
 
     pendingStatusChange?.let { (redemption, newStatus) ->
@@ -215,8 +232,9 @@ fun AdminXpShopScreen() {
 }
 
 @Composable
-private fun AdminXpRewardCard(item: AdminXpShopItem, onEdit: () -> Unit) {
+private fun AdminXpRewardCard(item: AdminXpShopItem, onEdit: () -> Unit, onPreview: () -> Unit) {
     Card(
+        onClick = onPreview,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(17.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f))
@@ -245,6 +263,7 @@ private fun AdminXpRewardCard(item: AdminXpShopItem, onEdit: () -> Unit) {
                 isoDateOnly(item.availableUntil).takeIf { it.isNotBlank() }?.let { "até $it" }
             ).joinToString(" ")
             if (period.isNotBlank()) Text("Disponibilidade: $period", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Toque no produto para ver a prévia real", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
             OutlinedButton(onClick = onEdit, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(17.dp))
                 Spacer(Modifier.size(6.dp))
@@ -297,7 +316,13 @@ private fun xpRedemptionStatusLabel(status: String): String = when (status) {
 }
 
 @Composable
-private fun AdminXpRewardEditor(initial: AdminXpShopItem?, onDismiss: () -> Unit, onSave: (AdminXpShopItem) -> Unit) {
+private fun AdminXpRewardEditor(
+    initial: AdminXpShopItem?,
+    onDismiss: () -> Unit,
+    onPreview: (AdminXpShopItem) -> Unit,
+    onTest: (AdminXpShopItem) -> Unit,
+    onSave: (AdminXpShopItem) -> Unit
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var name by remember(initial?.id) { mutableStateOf(initial?.name.orEmpty()) }
@@ -315,6 +340,21 @@ private fun AdminXpRewardEditor(initial: AdminXpShopItem?, onDismiss: () -> Unit
     var uploading by remember(initial?.id) { mutableStateOf(false) }
     var uploadProgress by remember(initial?.id) { mutableStateOf(0f) }
     var selectedAssetLabel by remember(initial?.id) { mutableStateOf(imageUrl.takeIf { it.isNotBlank() }?.let(::xpShopAssetLabel).orEmpty()) }
+
+    fun draft(): AdminXpShopItem = AdminXpShopItem(
+        id = initial?.id ?: xpShopSlug(name).ifBlank { "preview_product" },
+        name = name.trim().ifBlank { "Produto sem nome" },
+        description = description.trim(),
+        cost = cost.toIntOrNull() ?: 0,
+        category = category.trim().ifBlank { "Recompensas" },
+        kind = kind,
+        imageUrl = imageUrl.trim(),
+        stock = stock.takeIf { it.isNotBlank() }?.toIntOrNull(),
+        limitPerMember = (limit.toIntOrNull() ?: 1).coerceAtLeast(1),
+        active = active,
+        availableFrom = startOfXpDate(startDate),
+        availableUntil = endOfXpDate(endDate)
+    )
 
     fun upload(uri: Uri?, type: String, forceKind: String? = null, mimeHint: String? = null) {
         if (uri == null || uploading) return
@@ -442,25 +482,24 @@ private fun AdminXpRewardEditor(initial: AdminXpShopItem?, onDismiss: () -> Unit
                     stock.isNotBlank() && parsedStock == null -> localError = "Estoque inválido."
                     startDate.isNotBlank() && !Regex("\\d{4}-\\d{2}-\\d{2}").matches(startDate) -> localError = "Use AAAA-MM-DD na data inicial."
                     endDate.isNotBlank() && !Regex("\\d{4}-\\d{2}-\\d{2}").matches(endDate) -> localError = "Use AAAA-MM-DD na data final."
-                    else -> onSave(
-                        AdminXpShopItem(
-                            id = initial?.id ?: xpShopSlug(name),
-                            name = name.trim(),
-                            description = description.trim(),
-                            cost = parsedCost,
-                            category = category.trim().ifBlank { "Recompensas" },
-                            kind = kind,
-                            imageUrl = imageUrl.trim(),
-                            stock = parsedStock,
-                            limitPerMember = parsedLimit,
-                            active = active,
-                            availableFrom = startOfXpDate(startDate),
-                            availableUntil = endOfXpDate(endDate)
-                        )
-                    )
+                    else -> onSave(draft())
                 }
             }) { Text("Salvar") }
         },
-        dismissButton = { TextButton(enabled = !uploading, onClick = onDismiss) { Text("Cancelar") } }
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+                TextButton(enabled = !uploading, onClick = onDismiss) { Text("Cancelar") }
+                TextButton(enabled = !uploading, onClick = { onPreview(draft()) }) {
+                    Icon(Icons.Default.Visibility, contentDescription = null, modifier = Modifier.size(17.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Prévia")
+                }
+                TextButton(enabled = !uploading, onClick = { onTest(draft()) }) {
+                    Icon(Icons.Default.Science, contentDescription = null, modifier = Modifier.size(17.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Testar")
+                }
+            }
+        }
     )
 }
