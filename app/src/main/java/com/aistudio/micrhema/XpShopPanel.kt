@@ -32,6 +32,7 @@ fun XpShopPanel(member: MemberRequest, xpUnlocked: Boolean) {
     var redeeming by remember { mutableStateOf(false) }
     var selectedItem by remember { mutableStateOf<XpShopItem?>(null) }
     var successRedemption by remember { mutableStateOf<XpRedemption?>(null) }
+    var showDistinctives by remember(member.id) { mutableStateOf(false) }
 
     suspend fun synchronizedMember(): MemberRequest =
         XpSessionSynchronizer.synchronize(context.applicationContext, member)
@@ -97,6 +98,10 @@ fun XpShopPanel(member: MemberRequest, xpUnlocked: Boolean) {
                 val soldOut = item.stock != null && item.stock <= 0
                 val enoughBalance = (account?.balance ?: 0) >= item.cost
                 val hasAsset = item.kind != "physical" && item.imageUrl.isNotBlank()
+                val cosmetic = DistinctiveCatalog.items.value.firstOrNull { "cosmetic:${it.id}" == item.id }
+                val isDistinctive = item.kind == "profile" &&
+                    (cosmetic?.kind == "distintivo" ||
+                        (cosmetic == null && item.category.equals("Distintivos", ignoreCase = true)))
                 val ownedLabel = when (item.id) {
                     XpRewardManager.GOLD_PLUS_THEME -> if (currentSettingsState.value.accentColor == AccentColor.GOLD) "Dourado Plus ativo" else "Ativar Dourado Plus"
                     XpRewardManager.PROMISE_FRAME -> "Moldura ativa no avatar"
@@ -105,6 +110,7 @@ fun XpShopPanel(member: MemberRequest, xpUnlocked: Boolean) {
                 }
                 val onOwnedAction: (() -> Unit)? = when {
                     item.id == XpRewardManager.GOLD_PLUS_THEME && currentSettingsState.value.accentColor != AccentColor.GOLD -> ({ XpRewardManager.activateGoldenPlusTheme(context, member.id) })
+                    isDistinctive -> ({ showDistinctives = true })
                     hasAsset -> ({ openXpShopAsset(scope, context, item.imageUrl) { message -> error = message } })
                     else -> null
                 }
@@ -123,6 +129,14 @@ fun XpShopPanel(member: MemberRequest, xpUnlocked: Boolean) {
             }
             redemptions.take(8).forEach { redemption -> XpRedemptionRow(redemption) }
         }
+    }
+
+    if (showDistinctives) {
+        MemberProfileShowcaseDialog(
+            member = loggedInMemberState.value?.takeIf { it.id == member.id } ?: member,
+            openDistinctivesDirectly = true,
+            onDismiss = { showDistinctives = false }
+        )
     }
 
     selectedItem?.let { item ->
