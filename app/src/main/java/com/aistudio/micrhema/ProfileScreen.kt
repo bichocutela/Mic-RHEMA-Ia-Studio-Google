@@ -6,9 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
@@ -29,6 +28,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import kotlinx.coroutines.launch
 
 private fun formatBirthDateInput(value: String): String {
     val digits = value.filter { it.isDigit() }
@@ -486,17 +486,27 @@ fun ProfileScreen(
     }
 
     if (showAvatarPicker) {
+        val avatars = biblicalAvatarCatalog
+        val pagerState = rememberPagerState(
+            initialPage = avatars.indexOfFirst { it.id == selectedAvatarId }.coerceAtLeast(0),
+            pageCount = { avatars.size }
+        )
+        val pickerScope = rememberCoroutineScope()
         AlertDialog(
             onDismissRequest = { showAvatarPicker = false },
             title = { Text("Escolha seu avatar bíblico") },
             text = {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(3),
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 390.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    items(biblicalAvatarCatalog) { avatar ->
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Deslize para os lados. Toque no avatar para escolher.", style = MaterialTheme.typography.bodySmall)
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.fillMaxWidth().height(226.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp),
+                        pageSpacing = 12.dp,
+                        beyondViewportPageCount = 0,
+                        key = { avatars[it].id }
+                    ) { page ->
+                        val avatar = avatars[page]
                         val isSelected = selectedAvatarId == avatar.id
                         Column(
                             modifier = Modifier
@@ -531,13 +541,34 @@ fun ProfileScreen(
                                 .padding(3.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            BiblicalAvatarImage(
-                                avatar = avatar,
-                                modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(CircleShape),
-                                contentDescription = avatar.displayName
-                            )
-                            Text(avatar.displayName, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                            if (isProfilePhotoAvatarId(avatar.id)) {
+                                BiblicalAvatarImage(
+                                    avatar = avatar,
+                                    modifier = Modifier.size(180.dp).clip(CircleShape),
+                                    contentDescription = avatar.displayName
+                                )
+                            } else {
+                                // Decode off the UI thread, sized to this thumbnail, using Coil's cache.
+                                coil.compose.AsyncImage(
+                                    model = avatar.resourceId,
+                                    modifier = Modifier.size(180.dp).clip(CircleShape),
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                    contentDescription = avatar.displayName
+                                )
+                            }
+                            Text(avatar.displayName, style = MaterialTheme.typography.titleSmall, maxLines = 1)
                         }
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(
+                            enabled = pagerState.currentPage > 0 && !pagerState.isScrollInProgress,
+                            onClick = { pickerScope.launch { pagerState.animateScrollToPage((pagerState.currentPage - 1).coerceAtLeast(0)) } }
+                        ) { Text("Anterior") }
+                        Text("${pagerState.currentPage + 1}/${avatars.size}", style = MaterialTheme.typography.labelMedium)
+                        TextButton(
+                            enabled = pagerState.currentPage < avatars.lastIndex && !pagerState.isScrollInProgress,
+                            onClick = { pickerScope.launch { pagerState.animateScrollToPage((pagerState.currentPage + 1).coerceAtMost(avatars.lastIndex)) } }
+                        ) { Text("Próximo") }
                     }
                 }
             },
