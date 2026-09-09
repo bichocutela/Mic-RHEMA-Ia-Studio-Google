@@ -119,20 +119,19 @@ fun AdminXpShopScreen() {
                     Text("Carregando recompensas...", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
 
-                Column(
-                    modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    catalog.forEach { item ->
-                        AdminXpRewardCard(
-                            item = item,
-                            onEdit = { editorItem = item },
-                            onPreview = { previewItem = item }
-                        )
+                AdminPagedList(
+                    items = catalog,
+                    modifier = Modifier.weight(1f),
+                    key = { it.id },
+                    emptyContent = {
+                        if (!loading) Text("Nenhuma recompensa cadastrada.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    if (!loading && catalog.isEmpty()) {
-                        Text("Nenhuma recompensa cadastrada.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                ) { item ->
+                    AdminXpRewardCard(
+                        item = item,
+                        onEdit = { editorItem = item },
+                        onPreview = { previewItem = item }
+                    )
                 }
             }
             1 -> {
@@ -146,20 +145,19 @@ fun AdminXpShopScreen() {
                     Text("Carregando resgates...", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
 
-                Column(
-                    modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    redemptions.forEach { redemption ->
-                        AdminXpRedemptionCard(
-                            redemption = redemption,
-                            onDeliver = { pendingStatusChange = redemption to "entregue" },
-                            onCancel = { pendingStatusChange = redemption to "cancelado" }
-                        )
+                AdminPagedList(
+                    items = redemptions,
+                    modifier = Modifier.weight(1f),
+                    key = { it.id },
+                    emptyContent = {
+                        if (!loading) Text("Nenhum resgate nesta categoria.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    if (!loading && redemptions.isEmpty()) {
-                        Text("Nenhum resgate nesta categoria.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                ) { redemption ->
+                    AdminXpRedemptionCard(
+                        redemption = redemption,
+                        onDeliver = { pendingStatusChange = redemption to "entregue" },
+                        onCancel = { pendingStatusChange = redemption to "cancelado" }
+                    )
                 }
             }
             2 -> AdminXpBadgesSection()
