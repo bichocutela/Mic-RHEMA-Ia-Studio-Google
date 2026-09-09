@@ -327,7 +327,7 @@ private fun LightEffectPreviewDialog(item: AdminLightEffect, testMode: Boolean, 
                 BiblicalAvatarWithBadge(
                     avatar = biblicalAvatarForId(loggedInMemberState.value?.avatarId ?: DEFAULT_BIBLICAL_AVATAR_ID),
                     badge = currentProfileEmblemBadges().firstOrNull { it.id in item.emblemIds }
-                        ?: biblicalLevelBadges.last(),
+                        ?: biblicalBadgeForId(loggedInMemberState.value?.equippedBadgeId ?: DEFAULT_BIBLICAL_BADGE_ID),
                     modifier = Modifier.size(220.dp),
                     previewPromiseFrame = false,
                     previewReaderBadge = false,
