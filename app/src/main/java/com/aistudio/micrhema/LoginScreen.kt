@@ -73,8 +73,6 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                     return@launch
                 }
 
-                // A sessão Firebase já foi restaurada com UID estável pelo MemberSessionClient.
-                // Assim IBR, favoritos e demais dados do usuário podem ser lidos no novo aparelho.
                 MemberManager.setLoggedInMember(context, existing)
                 loadFavoritesFromFirestore()
                 MemberSessionClient.syncMemberState(
@@ -93,9 +91,6 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                 return@launch
             }
 
-            // O ID interno é estável e independente do telefone. Assim o ADM pode
-            // transferir a identidade de acesso para outro número sem mover XP,
-            // favoritos, IBR ou qualquer subcoleção da conta.
             val newRequest = MemberRequest(
                 id = java.util.UUID.randomUUID().toString(),
                 name = shortMemberName(completeName),
@@ -129,42 +124,42 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp)
+            .padding(horizontal = 18.dp, vertical = 14.dp)
             .imePadding()
             .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(14.dp))
         Image(
             painter = painterResource(id = R.drawable.rhema_login_logo),
             contentDescription = "Logo Ministério Igreja de Cristo Rhema",
             modifier = Modifier
                 .fillMaxWidth()
-                .height(210.dp)
-                .padding(horizontal = 12.dp),
+                .height(170.dp)
+                .padding(horizontal = 8.dp),
             contentScale = ContentScale.Fit
         )
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(14.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
         ) {
-            Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(modifier = Modifier.padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     "Entre ou peça seu acesso",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.align(Alignment.Start)
                 )
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     "Informe seu nome e telefone. Se esse número já tiver cadastro, sua conta será recuperada em vez de criar uma nova solicitação.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
@@ -172,10 +167,10 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                     supportingText = { Text("Se aprovado no IBR, será usado no certificado. No app exibiremos seu primeiro nome ou os dois primeiros nomes.") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(10.dp),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text)
                 )
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 OutlinedTextField(
                     value = phone,
                     onValueChange = { phone = it.filter { character -> character.isDigit() }.take(13) },
@@ -183,28 +178,28 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                     placeholder = { Text("Ex: 84999832583") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(10.dp),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 Button(
                     onClick = { createAccessRequest() },
-                    modifier = Modifier.fillMaxWidth().height(50.dp),
-                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                     enabled = !isLoading
                 ) {
                     if (isLoading) {
-                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(22.dp))
                     } else {
                         Text("Entrar ou solicitar acesso", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
                 errorMessage?.let {
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     Text(it, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
                 }
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 Text(
                     "Seu telefone identifica a conta. Em outro aparelho, use o mesmo número para recuperar o perfil e o progresso já sincronizado.",
                     style = MaterialTheme.typography.bodySmall,
@@ -213,5 +208,6 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                 )
             }
         }
+        Spacer(modifier = Modifier.height(12.dp))
     }
 }

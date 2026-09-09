@@ -83,7 +83,7 @@ fun BadgeUnlockCelebration(
                         )
                     )
                 )
-                .padding(horizontal = 22.dp, vertical = 34.dp),
+                .padding(horizontal = 18.dp, vertical = 24.dp),
             contentAlignment = Alignment.Center
         ) {
             ConfettiBurst(
@@ -95,15 +95,15 @@ fun BadgeUnlockCelebration(
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .widthIn(max = 460.dp)
+                    .widthIn(max = 430.dp)
                     .zIndex(2f),
-                shape = RoundedCornerShape(32.dp),
+                shape = RoundedCornerShape(26.dp),
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
-                tonalElevation = 14.dp,
-                shadowElevation = 22.dp
+                tonalElevation = 12.dp,
+                shadowElevation = 18.dp
             ) {
                 Column(
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 28.dp),
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 22.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
@@ -111,9 +111,9 @@ fun BadgeUnlockCelebration(
                         Icons.Default.EmojiEvents,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(34.dp)
+                        modifier = Modifier.size(30.dp)
                     )
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(6.dp))
                     Text(
                         text = if (badge.level != null) "NOVO NÍVEL DESBLOQUEADO!" else "NOVO EMBLEMA!",
                         style = MaterialTheme.typography.labelLarge,
@@ -121,7 +121,7 @@ fun BadgeUnlockCelebration(
                         fontWeight = FontWeight.ExtraBold,
                         textAlign = TextAlign.Center
                     )
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(6.dp))
                     Text(
                         text = "Parabéns!",
                         style = MaterialTheme.typography.headlineMedium,
@@ -135,17 +135,17 @@ fun BadgeUnlockCelebration(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
                     )
-                    Spacer(Modifier.height(18.dp))
+                    Spacer(Modifier.height(12.dp))
                     BiblicalAvatarWithBadge(
                         avatar = avatar,
                         badge = badge,
-                        modifier = Modifier.size(218.dp).scale(scale.value),
+                        modifier = Modifier.size(188.dp).scale(scale.value),
                         contentDescription = "Emblema ${badge.name} conquistado"
                     )
-                    Spacer(Modifier.height(14.dp))
+                    Spacer(Modifier.height(10.dp))
                     Text(
                         text = if (badge.level != null) "Nível ${badge.level} · ${badge.name}" else badge.name,
-                        style = MaterialTheme.typography.headlineSmall,
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.ExtraBold,
                         textAlign = TextAlign.Center
                     )
@@ -156,7 +156,7 @@ fun BadgeUnlockCelebration(
                         textAlign = TextAlign.Center
                     )
                     if (notification.badges.size > 1) {
-                        Spacer(Modifier.height(6.dp))
+                        Spacer(Modifier.height(4.dp))
                         Text(
                             text = "+ ${notification.badges.size - 1} conquista(s) desbloqueada(s)",
                             style = MaterialTheme.typography.labelMedium,
@@ -164,13 +164,13 @@ fun BadgeUnlockCelebration(
                             fontWeight = FontWeight.Bold
                         )
                     }
-                    Spacer(Modifier.height(22.dp))
+                    Spacer(Modifier.height(16.dp))
                     Button(
                         onClick = { onOpenBadge(badge.id) },
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Icon(Icons.Default.EmojiEvents, contentDescription = null)
-                        Spacer(Modifier.size(8.dp))
+                        Spacer(Modifier.size(6.dp))
                         Text("Ver e usar meu emblema", fontWeight = FontWeight.Bold)
                     }
                     TextButton(onClick = onDismiss) {
