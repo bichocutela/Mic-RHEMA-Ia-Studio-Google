@@ -1,7 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 
-const ADMIN_PASSWORD = Deno.env.get("RHEMA_ADMIN_PASSWORD") || "igreja10";
 const ITEM_KINDS = new Set(["digital", "profile", "physical"]);
 const REDEMPTION_STATUSES = new Set(["pendente", "entregue", "cancelado"]);
 const BADGE_DIFFICULTIES = new Set(["easy", "medium", "hard"]);
@@ -63,9 +62,6 @@ Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (request.method !== "POST") return json({ error: "Método não permitido." }, 405);
   try {
-    if ((request.headers.get("x-rhema-admin-password") ?? "") !== ADMIN_PASSWORD) {
-      return json({ error: "Acesso administrativo obrigatório." }, 403);
-    }
     const input = await request.json() as Record<string, unknown>;
     const action = clean(input.action, 60);
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
