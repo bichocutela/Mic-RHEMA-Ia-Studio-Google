@@ -49,7 +49,10 @@ import java.time.LocalDateTime
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(onNavigate: (String) -> Unit = {}) {
+fun HomeScreen(
+    onNavigate: (String) -> Unit = {},
+    onLiveOpen: () -> Unit = {}
+) {
     val scrollState = rememberScrollState()
     val context = LocalContext.current
 
@@ -62,15 +65,14 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
     var selectedService by remember { mutableStateOf<ChurchService?>(null) }
     var selectedEventInfo by remember { mutableStateOf<String?>(null) }
     
-    // Data filtering for Banners
     val today = LocalDate.now()
     val validBanners = carouselItemsState.filter { banner ->
         if (banner.eventDate.isBlank()) return@filter true
         try {
-            val date = LocalDate.parse(banner.eventDate) // format yyyy-MM-dd
+            val date = LocalDate.parse(banner.eventDate)
             !date.isBefore(today)
         } catch (e: DateTimeParseException) {
-            true // If format is invalid, keep it to not break the app
+            true
         }
     }
     
@@ -89,7 +91,6 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
         }
     }
 
-    // Sort logic for Services
     val dayMap = mapOf(
         "Domingo" to DayOfWeek.SUNDAY,
         "Segunda" to DayOfWeek.MONDAY,
@@ -118,7 +119,6 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
                 parsedTime = LocalTime.of(timeParts[0].toInt(), timeParts[1].take(2).toInt())
             }
         } catch (e: Exception) {
-            // Treat invalid times safely without crashing
         }
 
         if (diff < 0) {
@@ -132,23 +132,16 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
         today.plusDays(diff.toLong()).atTime(parsedTime)
     }.take(3)
     
-    // Devocional Diário: aceita todos os formatos usados historicamente e
-    // prefere exatamente a data de hoje. Se não houver publicação para hoje,
-    // usa somente o devocional anterior mais recente, nunca um conteúdo futuro.
     val todayDevotional = DevotionalDateUtils.todayOrLatest(devotionalsState.toList(), today)
     
     val editorialNews = BibleNewsEditorial.withEditorialCatalog(
         if (bibleNewsState.isEmpty()) BibleNewsData.newsList else bibleNewsState.toList()
     )
-    // A seleção permanece estável durante esta sessão e muda em uma nova abertura real do app.
     val latestNews = HomeNewsSession.select(editorialNews, limit = 5)
     
-    // Mood State
     var showMoodSelector by remember { mutableStateOf(false) }
     val prefs = context.getSharedPreferences("mic_rhema_prefs", Context.MODE_PRIVATE)
-    
     val todayDateStr = today.toString()
-    
     var savedMoodKey by remember { mutableStateOf(prefs.getString("moodKey", null)) }
     var savedMoodDate by remember { mutableStateOf(prefs.getString("moodDate", null)) }
     
@@ -180,12 +173,11 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(scrollState)
-                .padding(bottom = 100.dp), // Padding for Bottom Navigation
+                .padding(bottom = 100.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
         Spacer(modifier = Modifier.height(16.dp))
         
-        // 1. Saudação
         Column(modifier = Modifier.padding(horizontal = 20.dp)) {
             if (currentMember != null && currentMember.name.isNotBlank()) {
                 val firstName = currentMember.name.split(" ").firstOrNull() ?: ""
@@ -210,7 +202,6 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
             )
         }
         
-        // 1.5. Culto Hoje Aviso Contextual
         val todayServices = weeklyServicesState.filter { service -> 
             val serviceDay = dayMap[service.day] ?: DayOfWeek.SUNDAY
             serviceDay == currentDayOfWeek
@@ -273,7 +264,6 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
             }
         }
 
-        // 2. Carrossel de banners configurado pelo painel administrativo
         if (validBanners.isNotEmpty()) {
             Column {
                 LazyRow(
@@ -374,14 +364,17 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
             }
         }
         
-        // 3. Como você está se sentindo hoje?
         MoodCard(
             savedMoodKey = savedMoodKey,
             onSelectMood = { showMoodSelector = true },
             onNavigate = onNavigate
         )
+
+        val live = liveStreamState.value
+        if (live.isLive && (live.videoId.isNotBlank() || live.url.isNotBlank())) {
+            LiveStreamHomeBanner(onOpen = onLiveOpen)
+        }
         
-        // 4. Atalhos rápidos
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
             horizontalArrangement = Arrangement.SpaceBetween
@@ -392,7 +385,6 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
             QuickActionItem(icon = Icons.Filled.People, label = "Membros", onClick = { onNavigate(Screen.Members.route) })
         }
         
-        // 5. Devocional Diário
         if (todayDevotional != null) {
             Card(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).clickable { onNavigate(Screen.Devotionals.route + "?id=${todayDevotional.id}") },
@@ -417,7 +409,6 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
             }
         }
         
-        // 6. Notícias Bíblicas
         if (latestNews.isNotEmpty()) {
             HomeSectionHeader(title = "Notícias Bíblicas", action = "Ver todas", onAction = { onNavigate("news_list") })
             LazyRow(
@@ -449,7 +440,6 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
             }
         }
         
-        // 7. Próximos Cultos
         if (validServices.isNotEmpty()) {
             HomeSectionHeader(title = "Próximos Cultos", action = "Ver", onAction = { onNavigate(Screen.Services.route) })
             LazyRow(
@@ -481,7 +471,6 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
             }
         }
         
-        // 8. Mídia
         val recentVideos = contentVideosState
             .sortedByDescending { it.id.toLongOrNull() ?: Long.MIN_VALUE }
             .take(3)
@@ -556,7 +545,6 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
         )
     }
 
-    // Mood Bottom Sheet
     if (showMoodSelector) {
         ModalBottomSheet(
             onDismissRequest = { showMoodSelector = false }
@@ -579,7 +567,6 @@ fun HomeScreen(onNavigate: (String) -> Unit = {}) {
                     MoodItem("Preciso de esperança", "🙏", "Esperança")
                 )
                 
-                // Chunk to rows of 2
                 moods.chunked(2).forEach { rowMoods ->
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         rowMoods.forEach { mood ->
@@ -838,7 +825,6 @@ val PrayingHandsIcon: ImageVector
             close()
         }
     }.build()
-
 
 private fun formatChurchServiceDate(date: String): String = runCatching {
     val parsed = LocalDate.parse(date)
