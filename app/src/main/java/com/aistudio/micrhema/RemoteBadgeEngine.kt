@@ -181,12 +181,30 @@ object RemoteBadgeEngineClient {
         }
     }
 
+    private fun withNativeAchievements(catalog: List<RemoteProfileBadge>): List<RemoteProfileBadge> {
+        val remoteIds = catalog.map { it.id }.toSet()
+        val fallbacks = simpleBiblicalBadges
+            .filterNot { it.id in remoteIds }
+            .map { badge ->
+                RemoteProfileBadge(
+                    id = badge.id,
+                    sequenceNo = null,
+                    name = badge.name,
+                    description = badge.description,
+                    challenge = badge.requirement,
+                    imageRef = buildBuiltinEmblemRef(badge.id),
+                    special = false
+                )
+            }
+        return catalog + fallbacks
+    }
+
     suspend fun loadCatalog(force: Boolean = false): List<RemoteProfileBadge> {
         val now = System.currentTimeMillis()
         if (!force && lastCatalogRefreshAt > 0L && now - lastCatalogRefreshAt < CATALOG_TTL_MS) {
             return remoteProfileBadgesState.value
         }
-        val catalog = parseCatalog(call("catalog"))
+        val catalog = withNativeAchievements(parseCatalog(call("catalog")))
         withContext(Dispatchers.Main.immediate) {
             publishCatalogIntoLegacySelectors(catalog)
             remoteProfileBadgesState.value = catalog
