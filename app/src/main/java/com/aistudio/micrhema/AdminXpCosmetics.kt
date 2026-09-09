@@ -67,35 +67,35 @@ fun AdminXpCosmeticsSection(kind: String) {
                 CircularProgressIndicator(modifier = Modifier.size(24.dp))
             }
         }
-        Column(
-            modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(9.dp)
-        ) {
-            items.forEach { item ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f))
-                ) {
-                    Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Star, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            Spacer(Modifier.width(7.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(item.name, fontWeight = FontWeight.Bold)
-                                Text(if (item.active) "Ativo" else "Inativo", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                            }
-                        }
-                        if (item.description.isNotBlank()) Text(item.description, style = MaterialTheme.typography.bodySmall)
-                        Text("Desafio: ${item.challenge}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        OutlinedButton(onClick = { editing = item; showEditor = true }, modifier = Modifier.fillMaxWidth()) {
-                            Text("Editar $label")
+
+        AdminPagedList(
+            items = items,
+            modifier = Modifier.weight(1f),
+            key = { it.id },
+            emptyContent = {
+                if (!loading) Text("Nenhum ${label.lowercase()} personalizado criado ainda.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        ) { item ->
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f))
+            ) {
+                Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Star, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(7.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(item.name, fontWeight = FontWeight.Bold)
+                            Text(if (item.active) "Ativo" else "Inativo", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                         }
                     }
+                    if (item.description.isNotBlank()) Text(item.description, style = MaterialTheme.typography.bodySmall)
+                    Text("Desafio: ${item.challenge}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    OutlinedButton(onClick = { editing = item; showEditor = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Editar $label")
+                    }
                 }
-            }
-            if (!loading && items.isEmpty()) {
-                Text("Nenhum ${label.lowercase()} personalizado criado ainda.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
