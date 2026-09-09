@@ -97,6 +97,8 @@ fun AdminXpShopScreen() {
             Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("Recompensas") })
             Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Resgates") })
             Tab(selected = selectedTab == 2, onClick = { selectedTab = 2 }, text = { Text("Emblemas") })
+            Tab(selected = selectedTab == 3, onClick = { selectedTab = 3 }, text = { Text("Distintivos") })
+            Tab(selected = selectedTab == 4, onClick = { selectedTab = 4 }, text = { Text("Molduras") })
         }
 
         if (error.isNotBlank()) {
@@ -160,7 +162,9 @@ fun AdminXpShopScreen() {
                     }
                 }
             }
-            else -> AdminXpBadgesSection()
+            2 -> AdminXpBadgesSection()
+            3 -> AdminXpCosmeticsSection("distintivo")
+            4 -> AdminXpCosmeticsSection("moldura")
         }
     }
 
