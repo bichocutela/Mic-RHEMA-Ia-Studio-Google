@@ -1,6 +1,9 @@
 package com.aistudio.micrhema
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -26,7 +29,31 @@ fun MemberProfileShowcaseDialog(
     var showAll by remember(openDistinctivesDirectly) { mutableStateOf(openDistinctivesDirectly) }
     XpRewardManager.revision.value
     val distinctives = activeProfileCosmeticsForMember(context, "distintivo", badge.id, member.id)
-    val frames = activeProfileCosmeticsForMember(context, "moldura", badge.id, member.id)
+    val ownedDistinctives = activeProfileCosmeticsForMember(context, "distintivo", badge.id, member.id, true)
+    val frames = activeProfileCosmeticsForMember(context, "moldura", badge.id, member.id, true)
+    val activeFrames = activeProfileCosmeticsForMember(context, "moldura", badge.id, member.id)
+    val selectedFrame = DistinctiveHighlightsStore.frame(member.id, activeFrames)
+    var previewDistinctiveId by remember(member.id, badge.id) { mutableStateOf<String?>(null) }
+    var previewFrameId by remember(member.id, badge.id) { mutableStateOf<String?>(null) }
+    var applying by remember(member.id) { mutableStateOf(false) }
+    var applyError by remember(member.id) { mutableStateOf("") }
+
+    fun choose(item: AdminProfileCosmetic) {
+        if (applying) return
+        applying = true
+        applyError = ""
+        scope.launch {
+            try {
+                DistinctiveHighlightsStore.choose(context.applicationContext, member.id, item, badge.id)
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                applyError = error.message ?: "Não foi possível ativar. Tente novamente."
+            } finally {
+                applying = false
+            }
+        }
+    }
     val availableIds = distinctives.map { it.id }
 
     LaunchedEffect(member.id, availableIds) {
@@ -36,70 +63,78 @@ fun MemberProfileShowcaseDialog(
 
     val primaryDistinctive = DistinctiveHighlightsStore.primary(member.id, distinctives)
     val featuredIds = DistinctiveHighlightsStore.ids(member.id)
-    val byId = distinctives.associateBy { it.id }
-    val ordered = (featuredIds.mapNotNull(byId::get) + distinctives.filterNot { it.id in featuredIds }).distinctBy { it.id }
+    val byId = ownedDistinctives.associateBy { it.id }
+    val ordered = (featuredIds.mapNotNull(byId::get) + ownedDistinctives.filterNot { it.id in featuredIds }).distinctBy { it.id }
+    val previewDistinctive = byId[previewDistinctiveId] ?: primaryDistinctive
+    val previewFrame = frames.firstOrNull { it.id == previewFrameId } ?: selectedFrame
 
     if (!openDistinctivesDirectly) {
         AlertDialog(
-            onDismissRequest = onDismiss,
+            onDismissRequest = { if (!applying) onDismiss() },
             title = { Text(member.name.ifBlank { "Perfil" }) },
             text = {
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 560.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Box(Modifier.size(240.dp), contentAlignment = Alignment.Center) {
-                        BiblicalAvatarWithBadge(
-                            avatar = avatar,
-                            badge = badge,
-                            ownerMemberId = member.id,
-                            previewPrimaryDistinctive = null,
-                            previewReaderBadge = false,
-                            previewDistinctives = emptyList(),
-                            modifier = Modifier.fillMaxSize(),
-                            contentDescription = "Prévia ampliada do perfil"
-                        )
-                        frames.firstOrNull { it.id != XpRewardManager.PROMISE_FRAME }?.let { frame ->
-                            DistinctiveImage(frame, Modifier.fillMaxSize())
-                        }
-                        primaryDistinctive?.let { PrimaryDistinctiveOverlay(it) }
-                    }
-
-                    if (ordered.isNotEmpty()) {
-                        Text(
-                            "Distintivos",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        LazyRow(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            contentPadding = PaddingValues(horizontal = 8.dp)
-                        ) {
-                            items(ordered, key = { it.id }) { item ->
-                                Column(
-                                    modifier = Modifier.width(62.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    DistinctiveImage(item, Modifier.size(48.dp))
-                                    Text(
-                                        item.name,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        maxLines = 1
-                                    )
+                    BiblicalAvatarWithBadge(
+                        avatar = avatar,
+                        badge = badge,
+                        ownerMemberId = member.id,
+                        previewPrimaryDistinctive = previewDistinctive,
+                        previewReaderBadge = false,
+                        previewPromiseFrame = false,
+                        previewDistinctives = listOfNotNull(previewFrame),
+                        modifier = Modifier.size(200.dp),
+                        contentDescription = "Prévia do perfil com ${previewDistinctive?.name ?: "nenhum distintivo principal"} e ${previewFrame?.name ?: "nenhuma moldura"}"
+                    )
+                    Column(
+                        modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (ordered.isNotEmpty()) {
+                            Text("Distintivos", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                            ProfileCosmeticCarousel(ordered, previewDistinctive?.id, !applying) {
+                                previewDistinctiveId = it.id
+                                applyError = ""
+                            }
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                TextButton(enabled = !applying, onClick = { showAll = true }, modifier = Modifier.weight(1f)) {
+                                    Text("Escolher destaques")
+                                }
+                                val candidate = byId[previewDistinctiveId]
+                                if (candidate != null) {
+                                    Button(
+                                        enabled = !applying && candidate.id != primaryDistinctive?.id,
+                                        onClick = { choose(candidate) }, modifier = Modifier.weight(1f)
+                                    ) { Text(if (candidate.id == primaryDistinctive?.id) "Em uso" else "Escolher esse") }
                                 }
                             }
                         }
-                        if (distinctives.isNotEmpty()) {
-                            TextButton(onClick = { showAll = true }) {
-                                Text("Escolher destaques", style = MaterialTheme.typography.labelLarge)
+                        Text("Molduras", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                        if (frames.isEmpty()) {
+                            Text("Você ainda não tem molduras disponíveis para este emblema.", style = MaterialTheme.typography.bodySmall)
+                        } else {
+                            ProfileCosmeticCarousel(frames, previewFrame?.id, !applying) {
+                                previewFrameId = it.id
+                                applyError = ""
+                            }
+                            val candidate = frames.firstOrNull { it.id == previewFrameId }
+                            if (candidate != null) {
+                                Button(
+                                    enabled = !applying && candidate.id != selectedFrame?.id,
+                                    onClick = { choose(candidate) }, modifier = Modifier.align(Alignment.End)
+                                ) { Text(if (candidate.id == selectedFrame?.id) "Em uso" else "Escolher esse") }
                             }
                         }
+                        Text("Toque para ver no avatar. Confirme em Escolher esse para ativar.", style = MaterialTheme.typography.bodySmall)
+                        if (applying) LinearProgressIndicator(Modifier.fillMaxWidth())
+                        if (applyError.isNotBlank()) Text(applyError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = onDismiss) { Text("Fechar") } }
+            confirmButton = { TextButton(enabled = !applying, onClick = onDismiss) { Text("Fechar") } }
         )
     }
 
@@ -204,5 +239,39 @@ fun MemberProfileShowcaseDialog(
                 ) { Text(if (saving) "Salvando…" else "Usar em destaque") }
             }
         )
+    }
+}
+
+@Composable
+private fun ProfileCosmeticCarousel(
+    items: List<AdminProfileCosmetic>,
+    previewId: String?,
+    enabled: Boolean,
+    onPreview: (AdminProfileCosmetic) -> Unit
+) {
+    LazyRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(horizontal = 2.dp)
+    ) {
+        items(items, key = { it.id }) { item ->
+            Surface(
+                modifier = Modifier.width(86.dp),
+                onClick = { onPreview(item) },
+                enabled = enabled,
+                shape = RoundedCornerShape(12.dp),
+                color = if (item.id == previewId) MaterialTheme.colorScheme.primaryContainer
+                    else MaterialTheme.colorScheme.surface
+            ) {
+                Column(
+                    Modifier.padding(6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    DistinctiveImage(item, Modifier.size(48.dp))
+                    Text(item.name, style = MaterialTheme.typography.labelSmall, maxLines = 2)
+                }
+            }
+        }
     }
 }
