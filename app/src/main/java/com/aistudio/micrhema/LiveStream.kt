@@ -155,26 +155,17 @@ object LiveStreamRepository {
         }
     }
 
-    suspend fun saveConfig(
-        autoEnabled: Boolean,
-        manualEnabled: Boolean,
-        youtubeHandle: String,
-        manualUrl: String,
-        manualTitle: String
-    ) {
+    suspend fun saveConfig(autoEnabled: Boolean, manualEnabled: Boolean, youtubeHandle: String, manualUrl: String, manualTitle: String) {
         firestore.collection("settings").document("live_stream")
-            .set(
-                mapOf(
-                    "autoEnabled" to autoEnabled,
-                    "manualEnabled" to manualEnabled,
-                    "youtubeHandle" to youtubeHandle.trim().ifBlank { DEFAULT_LIVE_HANDLE },
-                    "manualUrl" to manualUrl.trim(),
-                    "manualTitle" to manualTitle.trim().ifBlank { "Estamos ao vivo" },
-                    "updatedAt" to System.currentTimeMillis(),
-                    "sourceEditor" to "android"
-                ),
-                SetOptions.merge()
-            ).await()
+            .set(mapOf(
+                "autoEnabled" to autoEnabled,
+                "manualEnabled" to manualEnabled,
+                "youtubeHandle" to youtubeHandle.trim().ifBlank { DEFAULT_LIVE_HANDLE },
+                "manualUrl" to manualUrl.trim(),
+                "manualTitle" to manualTitle.trim().ifBlank { "Estamos ao vivo" },
+                "updatedAt" to System.currentTimeMillis(),
+                "sourceEditor" to "android"
+            ), SetOptions.merge()).await()
         refresh(force = true)
     }
 }
@@ -189,17 +180,14 @@ fun HomeScreenWithLive(onNavigate: (String) -> Unit = {}) {
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        HomeScreen(
-            onNavigate = onNavigate,
-            onLiveOpen = { playerOpen = true }
-        )
+        HomeScreen(onNavigate = onNavigate, onLiveOpen = { playerOpen = true })
 
         member?.let { current ->
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(top = 12.dp, end = 14.dp)
-                    .size(108.dp),
+                    .padding(top = 2.dp, end = 14.dp)
+                    .size(84.dp),
                 contentAlignment = Alignment.Center
             ) {
                 BiblicalAvatarWithBadge(
@@ -231,24 +219,10 @@ fun LiveStreamHomeBanner(onOpen: () -> Unit) {
     val state = liveStreamState.value
     if (!state.isLive || (state.videoId.isBlank() && state.url.isBlank())) return
     val transition = rememberInfiniteTransition(label = "livePulse")
-    val pulse by transition.animateFloat(
-        initialValue = 0.45f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(850), RepeatMode.Reverse),
-        label = "livePulseAlpha"
-    )
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).clickable { onOpen() },
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFECEC))
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(15.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier.size(14.dp).alpha(pulse).background(Color(0xFFE53935), CircleShape)
-            )
+    val pulse by transition.animateFloat(initialValue = 0.45f, targetValue = 1f, animationSpec = infiniteRepeatable(tween(850), RepeatMode.Reverse), label = "livePulseAlpha")
+    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).clickable { onOpen() }, shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFFFECEC))) {
+        Row(modifier = Modifier.fillMaxWidth().padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.size(14.dp).alpha(pulse).background(Color(0xFFE53935), CircleShape))
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text("ESTAMOS AO VIVO", color = Color(0xFFC62828), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.ExtraBold)
@@ -265,20 +239,10 @@ fun LiveStreamPlayerDialog(onDismiss: () -> Unit) {
     val state = liveStreamState.value
     val context = LocalContext.current
     val videoId = state.videoId.ifBlank { extractYoutubeVideoId(state.url) }
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Surface(
-            modifier = Modifier.fillMaxSize().padding(top = 26.dp, bottom = 26.dp, start = 12.dp, end = 12.dp),
-            shape = RoundedCornerShape(22.dp),
-            color = MaterialTheme.colorScheme.surface
-        ) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(modifier = Modifier.fillMaxSize().padding(top = 26.dp, bottom = 26.dp, start = 12.dp, end = 12.dp), shape = RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.surface) {
             Column {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text("● AO VIVO", color = Color(0xFFE53935), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.ExtraBold)
                         Text(state.title.ifBlank { "Transmissão MIC Rhema" }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -310,16 +274,9 @@ fun LiveStreamPlayerDialog(onDismiss: () -> Unit) {
                     }
                 }
                 Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        if (state.source == "manual") "Transmissão ativada manualmente pelo painel." else "Transmissão detectada automaticamente no canal MIC Rhema.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Text(if (state.source == "manual") "Transmissão ativada manualmente pelo painel." else "Transmissão detectada automaticamente no canal MIC Rhema.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (state.url.isNotBlank()) {
-                        OutlinedButton(
-                            onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(state.url))) },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
+                        OutlinedButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(state.url))) }, modifier = Modifier.fillMaxWidth()) {
                             Icon(Icons.Default.OpenInNew, contentDescription = null)
                             Spacer(Modifier.width(8.dp))
                             Text("Abrir no YouTube")
@@ -349,17 +306,13 @@ fun EditLiveStreamSection() {
         runCatching { LiveStreamRepository.refresh(false) }
     }
 
-    Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Text("Transmissão híbrida", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Text("O modo manual tem prioridade. Se estiver desligado, o MIC Rhema usa a detecção automática do canal do YouTube.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Text("Detecção automática", fontWeight = FontWeight.SemiBold)
@@ -368,7 +321,6 @@ fun EditLiveStreamSection() {
             Switch(checked = autoEnabled, onCheckedChange = { autoEnabled = it })
         }
         OutlinedTextField(value = handle, onValueChange = { handle = it }, label = { Text("Canal ou @handle do YouTube") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-
         HorizontalDivider()
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
@@ -379,7 +331,6 @@ fun EditLiveStreamSection() {
         }
         OutlinedTextField(value = manualUrl, onValueChange = { manualUrl = it }, label = { Text("Link manual da live") }, placeholder = { Text("https://youtube.com/watch?v=...") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(value = manualTitle, onValueChange = { manualTitle = it }, label = { Text("Título exibido") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-
         Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = if (remote.isLive) Color(0xFFFFECEC) else MaterialTheme.colorScheme.surfaceVariant)) {
             Column(modifier = Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(if (remote.isLive) "● AO VIVO AGORA" else "OFFLINE", color = if (remote.isLive) Color(0xFFC62828) else MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.ExtraBold)
@@ -388,41 +339,32 @@ fun EditLiveStreamSection() {
                 if (remote.autoError.isNotBlank()) Text("Última verificação: ${remote.autoError}", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             }
         }
-
-        Button(
-            enabled = !saving && (!manualEnabled || manualUrl.isNotBlank()),
-            onClick = {
-                scope.launch {
-                    saving = true
-                    try {
-                        LiveStreamRepository.saveConfig(autoEnabled, manualEnabled, handle, manualUrl, manualTitle)
-                        Toast.makeText(context, "Configuração da transmissão salva.", Toast.LENGTH_SHORT).show()
-                    } catch (error: Exception) {
-                        Toast.makeText(context, error.message ?: "Não foi possível salvar.", Toast.LENGTH_LONG).show()
-                    } finally { saving = false }
-                }
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) {
+        Button(enabled = !saving && (!manualEnabled || manualUrl.isNotBlank()), onClick = {
+            scope.launch {
+                saving = true
+                try {
+                    LiveStreamRepository.saveConfig(autoEnabled, manualEnabled, handle, manualUrl, manualTitle)
+                    Toast.makeText(context, "Configuração da transmissão salva.", Toast.LENGTH_SHORT).show()
+                } catch (error: Exception) {
+                    Toast.makeText(context, error.message ?: "Não foi possível salvar.", Toast.LENGTH_LONG).show()
+                } finally { saving = false }
+            }
+        }, modifier = Modifier.fillMaxWidth()) {
             if (saving) CircularProgressIndicator(modifier = Modifier.size(18.dp)) else Icon(Icons.Default.Save, contentDescription = null)
             Spacer(Modifier.width(8.dp))
             Text(if (saving) "Salvando…" else "Salvar transmissão")
         }
-        OutlinedButton(
-            enabled = !checking,
-            onClick = {
-                scope.launch {
-                    checking = true
-                    try {
-                        LiveStreamRepository.refresh(true)
-                        Toast.makeText(context, "Canal verificado agora.", Toast.LENGTH_SHORT).show()
-                    } catch (error: Exception) {
-                        Toast.makeText(context, error.message ?: "Falha ao verificar.", Toast.LENGTH_LONG).show()
-                    } finally { checking = false }
-                }
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) {
+        OutlinedButton(enabled = !checking, onClick = {
+            scope.launch {
+                checking = true
+                try {
+                    LiveStreamRepository.refresh(true)
+                    Toast.makeText(context, "Canal verificado agora.", Toast.LENGTH_SHORT).show()
+                } catch (error: Exception) {
+                    Toast.makeText(context, error.message ?: "Falha ao verificar.", Toast.LENGTH_LONG).show()
+                } finally { checking = false }
+            }
+        }, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Default.Refresh, contentDescription = null)
             Spacer(Modifier.width(8.dp))
             Text(if (checking) "Verificando…" else "Verificar agora")
