@@ -26,10 +26,10 @@ fun DonationsScreen() {
                 .fillMaxSize()
                 .padding(paddingValues)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 28.dp),
+                .padding(horizontal = 16.dp, vertical = 14.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             Surface(
                 shape = MaterialTheme.shapes.extraLarge,
@@ -38,12 +38,12 @@ fun DonationsScreen() {
                 Icon(
                     imageVector = androidx.compose.material.icons.Icons.Default.Favorite,
                     contentDescription = null,
-                    modifier = Modifier.padding(18.dp).size(32.dp),
+                    modifier = Modifier.padding(14.dp).size(28.dp),
                     tint = MaterialTheme.colorScheme.primary
                 )
             }
 
-            Spacer(modifier = Modifier.height(22.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Text(
                 text = "Dízimos e Ofertas",
@@ -52,7 +52,7 @@ fun DonationsScreen() {
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             Text(
                 text = "Contribua com a obra de Deus.",
@@ -61,7 +61,7 @@ fun DonationsScreen() {
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.78f)
             )
 
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -70,7 +70,7 @@ fun DonationsScreen() {
                 )
             ) {
                 Column(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 18.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
@@ -79,7 +79,7 @@ fun DonationsScreen() {
                         fontWeight = FontWeight.SemiBold,
                         textAlign = TextAlign.Center
                     )
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "2 Coríntios 9:7",
                         style = MaterialTheme.typography.bodyMedium,
@@ -92,7 +92,7 @@ fun DonationsScreen() {
             val qrCodeUrl = pixQrCodeUrlState.value
 
             if (pixKey.isEmpty() && qrCodeUrl.isEmpty()) {
-                Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -101,7 +101,7 @@ fun DonationsScreen() {
                 ) {
                     Text(
                         text = "As informações para contribuição ainda não foram configuradas.",
-                        modifier = Modifier.fillMaxWidth().padding(20.dp),
+                        modifier = Modifier.fillMaxWidth().padding(14.dp),
                         style = MaterialTheme.typography.bodyMedium,
                         textAlign = TextAlign.Center,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -110,7 +110,7 @@ fun DonationsScreen() {
             }
 
             if (pixKey.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -118,7 +118,7 @@ fun DonationsScreen() {
                     )
                 ) {
                     Column(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 22.dp),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
@@ -127,7 +127,7 @@ fun DonationsScreen() {
                             fontWeight = FontWeight.Bold
                         )
 
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
 
                         Text(
                             text = pixKey,
@@ -136,7 +136,7 @@ fun DonationsScreen() {
                             textAlign = TextAlign.Center
                         )
 
-                        Spacer(modifier = Modifier.height(18.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
                         Button(
                             onClick = {
@@ -147,7 +147,7 @@ fun DonationsScreen() {
                             }
                         ) {
                             Icon(androidx.compose.material.icons.Icons.Default.ContentCopy, contentDescription = "Copiar chave")
-                            Spacer(Modifier.width(8.dp))
+                            Spacer(Modifier.width(6.dp))
                             Text("Copiar chave")
                         }
                     }
@@ -155,7 +155,7 @@ fun DonationsScreen() {
             }
 
             if (qrCodeUrl.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -163,7 +163,7 @@ fun DonationsScreen() {
                     )
                 ) {
                     Column(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 20.dp),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
@@ -173,7 +173,7 @@ fun DonationsScreen() {
                             textAlign = TextAlign.Center
                         )
 
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
 
                         Text(
                             text = "Escaneie para contribuir.",
@@ -182,7 +182,7 @@ fun DonationsScreen() {
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.78f)
                         )
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
                         Surface(
                             shape = MaterialTheme.shapes.large,
@@ -192,7 +192,7 @@ fun DonationsScreen() {
                             coil.compose.AsyncImage(
                                 model = qrCodeUrl,
                                 contentDescription = "QR Code PIX",
-                                modifier = Modifier.padding(12.dp).size(220.dp),
+                                modifier = Modifier.padding(10.dp).size(200.dp),
                                 contentScale = androidx.compose.ui.layout.ContentScale.Fit
                             )
                         }
@@ -200,7 +200,7 @@ fun DonationsScreen() {
                 }
             }
 
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
