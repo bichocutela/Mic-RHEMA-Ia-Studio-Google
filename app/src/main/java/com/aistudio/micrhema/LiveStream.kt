@@ -181,22 +181,38 @@ object LiveStreamRepository {
 
 @Composable
 fun HomeScreenWithLive(onNavigate: (String) -> Unit = {}) {
-    val live = liveStreamState.value
+    val member = loggedInMemberState.value
     var playerOpen by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         LiveStreamRepository.start()
         runCatching { LiveStreamRepository.refresh(false) }
     }
-    Column(modifier = Modifier.fillMaxSize()) {
-        if (live.isLive && (live.videoId.isNotBlank() || live.url.isNotBlank())) {
-            Spacer(Modifier.height(8.dp))
-            LiveStreamHomeBanner { playerOpen = true }
-            Spacer(Modifier.height(8.dp))
-        }
-        Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
-            HomeScreen(onNavigate = onNavigate)
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        HomeScreen(
+            onNavigate = onNavigate,
+            onLiveOpen = { playerOpen = true }
+        )
+
+        member?.let { current ->
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 12.dp, end = 14.dp)
+                    .size(108.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                BiblicalAvatarWithBadge(
+                    avatar = biblicalAvatarForId(current.avatarId),
+                    badge = biblicalBadgeForId(current.equippedBadgeId),
+                    ownerMemberId = current.id,
+                    modifier = Modifier.fillMaxSize(),
+                    contentDescription = "Abrir perfil completo de ${current.name}"
+                )
+            }
         }
     }
+
     if (playerOpen) LiveStreamPlayerDialog { playerOpen = false }
 }
 
