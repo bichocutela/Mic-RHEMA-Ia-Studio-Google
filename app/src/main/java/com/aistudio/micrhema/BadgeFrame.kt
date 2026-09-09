@@ -37,13 +37,18 @@ fun BiblicalAvatarWithBadge(
     contentDescription: String? = avatar.displayName,
     previewPromiseFrame: Boolean? = null,
     previewReaderBadge: Boolean? = null,
-    previewLightEffects: List<AdminLightEffect>? = null
+    previewLightEffects: List<AdminLightEffect>? = null,
+    ownerMemberId: String? = null,
+    previewDistinctives: List<AdminProfileCosmetic>? = null
 ) {
     LaunchedEffect(Unit) {
         while (true) {
             try { XpLightEffectsAdminClient.refreshPublicCatalog() }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (error: Exception) { android.util.Log.w("AvatarLight", "Não foi possível atualizar efeitos", error) }
+            try { DistinctiveCatalog.refresh() }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (error: Exception) { android.util.Log.w("Distinctives", "Não foi possível atualizar distintivos", error) }
             delay(60_000L)
         }
     }
@@ -117,6 +122,8 @@ fun BiblicalAvatarWithBadge(
         }
 
         if (lightPhase != null) AvatarLightLayer(effects, lightPhase, true, portraitFraction)
+
+        ProfileDistinctives(badge.id, ownerMemberId, previewDistinctives)
 
         if (hasReaderBadge) {
             Canvas(modifier = Modifier.fillMaxSize()) {

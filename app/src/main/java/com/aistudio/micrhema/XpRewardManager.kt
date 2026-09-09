@@ -4,6 +4,7 @@ import android.content.Context
 
 /** Aplica somente recompensas que o ledger da Loja XP confirma como entitlement ativo. */
 object XpRewardManager {
+    val revision = androidx.compose.runtime.mutableIntStateOf(0)
     /** Mantém o mesmo ID para preservar qualquer entitlement já emitido. */
     const val GOLD_THEME = "tema_dourado_rhema"
     const val GOLD_PLUS_THEME = GOLD_THEME
@@ -27,6 +28,7 @@ object XpRewardManager {
             .edit()
             .putStringSet(ownedKey(memberId), owned)
             .apply()
+        revision.intValue++
     }
 
     fun isOwned(context: Context, itemId: String, memberId: String? = loggedInMemberState.value?.id): Boolean {
@@ -57,6 +59,7 @@ object XpRewardManager {
             .edit()
             .putBoolean(activeKey(memberId, itemId), active)
             .apply()
+        revision.intValue++
         return true
     }
 
