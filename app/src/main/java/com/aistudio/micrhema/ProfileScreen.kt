@@ -160,7 +160,7 @@ fun ProfileScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
                 .imePadding().verticalScroll(scrollState)
-                .padding(24.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
@@ -173,28 +173,28 @@ fun ProfileScreen(
                 "As alterações deste perfil são sincronizadas com sua conta para recuperação em outro aparelho.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                modifier = Modifier.fillMaxWidth().padding(top = 3.dp)
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     BiblicalAvatarWithBadge(
                         ownerMemberId = loggedInMember.id,
                         avatar = selectedAvatar,
                         badge = equippedBadge,
-                        modifier = Modifier.size(96.dp),
+                        modifier = Modifier.size(84.dp),
                         onClick = { showAvatarPreview = true },
                         contentDescription = "Ver avatar bíblico de ${selectedAvatar.displayName} em tamanho ampliado"
                     )
-                    Spacer(modifier = Modifier.width(14.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Seu avatar bíblico", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         Text(selectedAvatar.displayName, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -207,28 +207,30 @@ fun ProfileScreen(
                 }
                 OutlinedButton(
                     onClick = { showBadgePicker = true },
-                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
+                    modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
                 ) {
                     Icon(Icons.Default.EmojiEvents, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text("Ver emblemas e níveis")
                 }
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { showAchievementProgress = true },
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)),
-                shape = RoundedCornerShape(20.dp)
+                shape = RoundedCornerShape(16.dp)
             ) {
                 Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.EmojiEvents, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text("Progresso das conquistas", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     }
                     Text(
@@ -272,7 +274,7 @@ fun ProfileScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             when {
                 hasXpPurchases -> {
@@ -281,21 +283,21 @@ fun ProfileScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Icon(Icons.Default.ReceiptLong, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Ver Compras XP", fontWeight = FontWeight.SemiBold)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Ver Itens XP", fontWeight = FontWeight.SemiBold)
                     }
                 }
                 xpPurchasesChecked -> {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(18.dp),
+                        shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.28f)
                         )
                     ) {
                         Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Text(
                                 "Sua Loja XP está pronta ✨",
@@ -325,7 +327,7 @@ fun ProfileScreen(
                         horizontalArrangement = Arrangement.Center
                     ) {
                         CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             "Verificando suas compras XP…",
                             style = MaterialTheme.typography.bodySmall,
@@ -335,7 +337,7 @@ fun ProfileScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             ProfileField(
                 label = "Nome completo",
@@ -412,7 +414,7 @@ fun ProfileScreen(
                 }
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             OutlinedButton(
                 onClick = { showLogoutDialog = true },
                 modifier = Modifier.fillMaxWidth(),
@@ -422,10 +424,10 @@ fun ProfileScreen(
                 border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.7f))
             ) {
                 Icon(Icons.Default.ExitToApp, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(6.dp))
                 Text("Sair da conta", fontWeight = FontWeight.SemiBold)
             }
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(10.dp))
         }
     }
 
@@ -446,21 +448,21 @@ fun ProfileScreen(
     if (showAvatarPreview) {
         Dialog(onDismissRequest = { showAvatarPreview = false }) {
             Surface(
-                shape = RoundedCornerShape(28.dp),
+                shape = RoundedCornerShape(22.dp),
                 color = MaterialTheme.colorScheme.surface,
                 tonalElevation = 8.dp
             ) {
                 Column(
-                    modifier = Modifier.padding(24.dp),
+                    modifier = Modifier.padding(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text("Seu avatar bíblico", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     BiblicalAvatarWithBadge(
                         ownerMemberId = loggedInMember.id,
                         avatar = selectedAvatar,
                         badge = equippedBadge,
-                        modifier = Modifier.size(280.dp),
+                        modifier = Modifier.size(240.dp),
                         contentDescription = "Avatar ampliado de ${selectedAvatar.displayName}"
                     )
                     Text(selectedAvatar.displayName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -490,17 +492,17 @@ fun ProfileScreen(
             text = {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(3),
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 390.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     items(biblicalAvatarCatalog) { avatar ->
                         val isSelected = selectedAvatarId == avatar.id
                         Column(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(16.dp))
+                                .clip(RoundedCornerShape(14.dp))
                                 .then(
-                                    if (isSelected) Modifier.border(3.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(16.dp))
+                                    if (isSelected) Modifier.border(3.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(14.dp))
                                     else Modifier
                                 )
                                 .clickable {
@@ -526,7 +528,7 @@ fun ProfileScreen(
                                         }
                                     }
                                 }
-                                .padding(4.dp),
+                                .padding(3.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             BiblicalAvatarImage(
@@ -551,8 +553,8 @@ fun ProfileScreen(
             title = { Text("Emblemas e níveis") },
             text = {
                 LazyColumn(
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 500.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 460.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     items(allBiblicalBadges) { badge ->
                         val isUnlocked = badge.id in unlockedBadgeIds
@@ -564,7 +566,7 @@ fun ProfileScreen(
                                     if (badge.id == focusedBadgeId) Modifier.border(
                                         2.dp,
                                         MaterialTheme.colorScheme.primary,
-                                        RoundedCornerShape(16.dp)
+                                        RoundedCornerShape(14.dp)
                                     ) else Modifier
                                 )
                                 .clickable {
@@ -577,7 +579,7 @@ fun ProfileScreen(
                             )
                         ) {
                             Row(
-                                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                modifier = Modifier.fillMaxWidth().padding(10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
@@ -590,7 +592,7 @@ fun ProfileScreen(
                                         previewReaderBadge = false,
                                         previewLightEffects = emptyList(),
                                         previewDistinctives = emptyList(),
-                                        modifier = Modifier.size(64.dp).alpha(if (isUnlocked) 1f else 0.28f)
+                                        modifier = Modifier.size(58.dp).alpha(if (isUnlocked) 1f else 0.28f)
                                     )
                                     if (!isUnlocked) {
                                         Icon(
@@ -601,7 +603,7 @@ fun ProfileScreen(
                                         )
                                     }
                                 }
-                                Spacer(modifier = Modifier.width(10.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         if (badge.level != null) "Nível ${badge.level}: ${badge.name}" else badge.name,
@@ -657,7 +659,7 @@ fun ProfileScreen(
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             BiblicalAvatarWithBadge(
@@ -668,7 +670,7 @@ fun ProfileScreen(
                                 previewReaderBadge = false,
                                 previewLightEffects = emptyList(),
                                 previewDistinctives = emptyList(),
-                                modifier = Modifier.size(220.dp),
+                                modifier = Modifier.size(190.dp),
                                 contentDescription = "Visualização ampliada do emblema ${badge.name}"
                             )
                             if (!isUnlocked) {
@@ -816,19 +818,19 @@ fun ProfileField(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            .padding(vertical = 4.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier.padding(12.dp)
         ) {
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
