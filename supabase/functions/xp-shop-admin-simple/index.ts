@@ -4,6 +4,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 const ITEM_KINDS = new Set(["digital", "profile", "physical"]);
 const REDEMPTION_STATUSES = new Set(["pendente", "entregue", "cancelado"]);
 const BADGE_DIFFICULTIES = new Set(["easy", "medium", "hard"]);
+const COSMETIC_KINDS = new Set(["distintivo", "moldura"]);
 
 type BadgeChallenge = { difficulty: string; text: string; metric: string; target: number };
 const BADGE_CHALLENGES: Record<string, BadgeChallenge[]> = {
@@ -57,6 +58,9 @@ function parseNullableDate(value: unknown): string | null {
   if (!Number.isFinite(time)) throw new Error("Data da recompensa inválida.");
   return new Date(time).toISOString();
 }
+function slug(value: string): string {
+  return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 60);
+}
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -77,8 +81,7 @@ Deno.serve(async (request) => {
       const candidates = source.filter((item) => item.text !== exclude);
       const pool = candidates.length ? candidates : source;
       if (!pool.length) throw new Error("Nenhum desafio disponível para esta dificuldade.");
-      const selected = pool[Math.floor(Math.random() * pool.length)];
-      return json({ ok: true, challenge: selected });
+      return json({ ok: true, challenge: pool[Math.floor(Math.random() * pool.length)] });
     }
 
     if (action === "admin_catalog") {
@@ -104,7 +107,6 @@ Deno.serve(async (request) => {
       const active = input.active !== false;
       const availableFrom = parseNullableDate(input.availableFrom);
       const availableUntil = parseNullableDate(input.availableUntil);
-
       if (!id || id.length < 3) return json({ error: "Informe um identificador válido para a recompensa." }, 400);
       if (!name) return json({ error: "Informe o nome da recompensa." }, 400);
       if (!Number.isFinite(cost) || cost <= 0) return json({ error: "O preço em XP deve ser maior que zero." }, 400);
@@ -112,16 +114,8 @@ Deno.serve(async (request) => {
       if (!Number.isFinite(limitPerMember) || limitPerMember < 1) return json({ error: "Limite por membro inválido." }, 400);
       if (kind !== "physical" && limitPerMember !== 1) return json({ error: "Recompensas digitais e de perfil só podem ser resgatadas uma vez por membro." }, 400);
       if (stock !== null && (!Number.isFinite(stock) || stock < 0)) return json({ error: "Estoque inválido." }, 400);
-      if (availableFrom && availableUntil && Date.parse(availableUntil) <= Date.parse(availableFrom)) {
-        return json({ error: "A data final precisa ser posterior à data inicial." }, 400);
-      }
-
-      const row = {
-        id, name, description, cost, category, kind,
-        image_url: imageUrl, stock, limit_per_member: limitPerMember, active,
-        available_from: availableFrom, available_until: availableUntil,
-        updated_at: new Date().toISOString(),
-      };
+      if (availableFrom && availableUntil && Date.parse(availableUntil) <= Date.parse(availableFrom)) return json({ error: "A data final precisa ser posterior à data inicial." }, 400);
+      const row = { id, name, description, cost, category, kind, image_url: imageUrl, stock, limit_per_member: limitPerMember, active, available_from: availableFrom, available_until: availableUntil, updated_at: new Date().toISOString() };
       const { data, error } = await sb.from("xp_shop_items").upsert(row, { onConflict: "id" }).select().single();
       if (error) throw error;
       return json({ ok: true, item: data });
@@ -130,9 +124,7 @@ Deno.serve(async (request) => {
     if (action === "admin_badges") {
       const { data, error } = await sb.from("custom_profile_badges")
         .select("id,sequence_no,name,description,challenge,image_ref,special,active,challenge_metric,challenge_target,created_at,updated_at")
-        .order("special", { ascending: true })
-        .order("sequence_no", { ascending: true, nullsFirst: false })
-        .order("created_at", { ascending: true });
+        .order("special", { ascending: true }).order("sequence_no", { ascending: true, nullsFirst: false }).order("created_at", { ascending: true });
       if (error) throw error;
       return json({ ok: true, badges: data ?? [] });
     }
@@ -146,57 +138,65 @@ Deno.serve(async (request) => {
       const active = input.active !== false;
       if (!name) return json({ error: "Informe o nome do emblema." }, 400);
       if (!challenge) return json({ error: "Escolha um desafio para conquistar o emblema." }, 400);
-      if (!imageRef || !imageRef.toLowerCase().startsWith("micrhema-xp://emblem/")) {
-        return json({ error: "Envie um emblema PNG antes de salvar." }, 400);
-      }
-
-      const knownChallenge = Object.values(BADGE_CHALLENGES).flat().find((item) => item.text === challenge);
-      if (!knownChallenge) return json({ error: "Esse desafio não pertence ao catálogo verificável. Busque outro desafio pelo seletor." }, 400);
-
+      if (!imageRef || !imageRef.toLowerCase().startsWith("micrhema-xp://emblem/")) return json({ error: "Envie um emblema PNG antes de salvar." }, 400);
+      const known = Object.values(BADGE_CHALLENGES).flat().find((item) => item.text === challenge);
+      if (!known) return json({ error: "Esse desafio não pertence ao catálogo verificável. Busque outro desafio pelo seletor." }, 400);
       let sequenceNo: number | null = null;
       const suppliedId = clean(input.id, 90).toLowerCase().replace(/[^a-z0-9_:-]+/g, "_").replace(/^_+|_+$/g, "");
       if (suppliedId) {
-        const { data: existing, error: existingError } = await sb.from("custom_profile_badges")
-          .select("sequence_no,special").eq("id", suppliedId).maybeSingle();
+        const { data: existing, error: existingError } = await sb.from("custom_profile_badges").select("sequence_no,special").eq("id", suppliedId).maybeSingle();
         if (existingError) throw existingError;
         sequenceNo = existing?.sequence_no ?? null;
       }
       if (!special && sequenceNo === null) {
-        const { data: lastRows, error: lastError } = await sb.from("custom_profile_badges")
-          .select("sequence_no").not("sequence_no", "is", null).order("sequence_no", { ascending: false }).limit(1);
+        const { data: lastRows, error: lastError } = await sb.from("custom_profile_badges").select("sequence_no").not("sequence_no", "is", null).order("sequence_no", { ascending: false }).limit(1);
         if (lastError) throw lastError;
         const last = Number(lastRows?.[0]?.sequence_no ?? 22);
         sequenceNo = Math.max(23, Number.isFinite(last) ? last + 1 : 23);
       }
-
-      const generatedId = special
-        ? `special_${name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 50)}_${Date.now()}`
-        : `custom_level_${sequenceNo}`;
+      const generatedId = special ? `special_${slug(name)}_${Date.now()}` : `custom_level_${sequenceNo}`;
       const id = suppliedId || generatedId;
-
-      const row = {
-        id,
-        sequence_no: special ? null : sequenceNo,
-        name,
-        description,
-        challenge,
-        challenge_metric: knownChallenge.metric,
-        challenge_target: knownChallenge.target,
-        image_ref: imageRef,
-        special,
-        active,
-        updated_at: new Date().toISOString(),
-      };
+      const row = { id, sequence_no: special ? null : sequenceNo, name, description, challenge, challenge_metric: known.metric, challenge_target: known.target, image_ref: imageRef, special, active, updated_at: new Date().toISOString() };
       const { data, error } = await sb.from("custom_profile_badges").upsert(row, { onConflict: "id" }).select().single();
       if (error) throw error;
       return json({ ok: true, badge: data });
     }
 
+    if (action === "admin_cosmetics") {
+      const kind = clean(input.kind, 20).toLowerCase();
+      if (!COSMETIC_KINDS.has(kind)) return json({ error: "Tipo de personalização inválido." }, 400);
+      const { data, error } = await sb.from("profile_cosmetics")
+        .select("id,kind,name,description,challenge,challenge_metric,challenge_target,image_ref,active,created_at,updated_at")
+        .eq("kind", kind).order("created_at", { ascending: true });
+      if (error) throw error;
+      return json({ ok: true, items: data ?? [] });
+    }
+
+    if (action === "admin_upsert_cosmetic") {
+      const kind = clean(input.kind, 20).toLowerCase();
+      const name = clean(input.name, 120);
+      const description = clean(input.description, 1200);
+      const challenge = clean(input.challenge, 1500);
+      const imageRef = clean(input.imageRef, 1200);
+      const active = input.active !== false;
+      if (!COSMETIC_KINDS.has(kind)) return json({ error: "Tipo de personalização inválido." }, 400);
+      if (!name) return json({ error: "Informe o nome." }, 400);
+      if (!challenge) return json({ error: "Escolha um desafio." }, 400);
+      const expectedPrefix = kind === "moldura" ? "micrhema-xp://frame/" : "micrhema-xp://badge/";
+      if (!imageRef.toLowerCase().startsWith(expectedPrefix)) return json({ error: "Envie o PNG antes de salvar." }, 400);
+      const known = Object.values(BADGE_CHALLENGES).flat().find((item) => item.text === challenge);
+      if (!known) return json({ error: "Escolha um desafio gerado pelo sistema." }, 400);
+      const suppliedId = clean(input.id, 90).toLowerCase().replace(/[^a-z0-9_:-]+/g, "_").replace(/^_+|_+$/g, "");
+      const id = suppliedId || `${kind}_${slug(name)}_${Date.now()}`;
+      const row = { id, kind, name, description, challenge, challenge_metric: known.metric, challenge_target: known.target, image_ref: imageRef, active, updated_at: new Date().toISOString() };
+      const { data, error } = await sb.from("profile_cosmetics").upsert(row, { onConflict: "id" }).select().single();
+      if (error) throw error;
+      return json({ ok: true, item: data });
+    }
+
     if (action === "admin_redemptions") {
       const status = clean(input.status, 30);
-      let query = sb.from("xp_redemptions")
-        .select("id,member_id,member_name,item_id,item_name,cost,status,redemption_code,created_at,delivered_at,stock_consumed")
-        .order("created_at", { ascending: false }).limit(200);
+      let query = sb.from("xp_redemptions").select("id,member_id,member_name,item_id,item_name,cost,status,redemption_code,created_at,delivered_at,stock_consumed").order("created_at", { ascending: false }).limit(200);
       if (status && status !== "todos") query = query.eq("status", status);
       const { data, error } = await query;
       if (error) throw error;
