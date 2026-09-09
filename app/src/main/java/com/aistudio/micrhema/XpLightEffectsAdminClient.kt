@@ -132,3 +132,12 @@ object XpLightEffectsAdminClient {
         withContext(Dispatchers.Main) { catalog.value = catalog.value.filterNot { it.id == id } }
     }
 }
+
+/** Only effects granted to this emblem or confirmed in the purchase ledger. */
+fun availableProfileLightEffects(context: android.content.Context, memberId: String?, badgeId: String): List<AdminLightEffect> =
+    XpLightEffectsAdminClient.catalog.value.filter { item ->
+        item.active && if (item.purchasable) {
+            memberId != null && XpRewardManager.isOwned(context, item.id, memberId) &&
+                (item.emblemIds.isEmpty() || badgeId in item.emblemIds)
+        } else badgeId in item.emblemIds
+    }
