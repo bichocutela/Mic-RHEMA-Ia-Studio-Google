@@ -50,21 +50,21 @@ fun RhemaLoadingIndicator(
         contentAlignment = Alignment.Center
     ) {
         Surface(
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(18.dp),
             tonalElevation = 8.dp,
             shadowElevation = 8.dp,
             color = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f)
         ) {
             Column(
-                modifier = Modifier.padding(horizontal = 28.dp, vertical = 24.dp),
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Image(
                     painter = painterResource(id = R.drawable.rhema_loading_logo_new),
                     contentDescription = "Ministério Igreja de Cristo Rhema",
                     modifier = Modifier
-                        .size(132.dp)
+                        .size(112.dp)
                         .scale(logoScale),
                     contentScale = ContentScale.Fit
                 )
