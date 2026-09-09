@@ -43,10 +43,23 @@ fun remoteProfileBadgeForId(id: String): RemoteProfileBadge? =
     remoteProfileBadgesState.value.firstOrNull { it.id == id }
 
 fun currentAllBiblicalBadges(): List<BiblicalBadge> =
-    allBiblicalBadges + remoteProfileBadgesState.value.map { it.asBiblicalBadge() }
+    (allBiblicalBadges + remoteProfileBadgesState.value.map { it.asBiblicalBadge() }).distinctBy { it.id }
 
 fun currentProfileEmblemBadges(): List<BiblicalBadge> =
-    profileEmblemBadges + remoteProfileBadgesState.value.map { it.asBiblicalBadge() }
+    (profileEmblemBadges + remoteProfileBadgesState.value.map { it.asBiblicalBadge() }).distinctBy { it.id }
+
+private fun publishCatalogIntoLegacySelectors(catalog: List<RemoteProfileBadge>) {
+    val remoteIds = remoteProfileBadgesState.value.map { it.id }.toSet() + catalog.map { it.id }.toSet()
+    val mapped = catalog.map { it.asBiblicalBadge() }
+    (allBiblicalBadges as? MutableList<BiblicalBadge>)?.let { list ->
+        list.removeAll { it.id in remoteIds }
+        list.addAll(mapped)
+    }
+    (profileEmblemBadges as? MutableList<BiblicalBadge>)?.let { list ->
+        list.removeAll { it.id in remoteIds }
+        list.addAll(mapped)
+    }
+}
 
 /**
  * Motor remoto dos emblemas personalizados.
@@ -125,6 +138,7 @@ object RemoteBadgeEngineClient {
         }
         val catalog = parseCatalog(call("catalog"))
         withContext(Dispatchers.Main.immediate) {
+            publishCatalogIntoLegacySelectors(catalog)
             remoteProfileBadgesState.value = catalog
         }
         lastCatalogRefreshAt = now
