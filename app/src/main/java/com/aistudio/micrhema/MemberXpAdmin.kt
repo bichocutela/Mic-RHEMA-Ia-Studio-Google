@@ -5,6 +5,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -341,7 +343,7 @@ private fun MemberXpAdminDialog(
                         .onSuccess { updated ->
                             unlockedBadgeIds = updated.toSet()
                             showBadgePicker = false
-                            val names = profileEmblemBadges
+                            val names = currentProfileEmblemBadges()
                                 .filter { it.id in selected }
                                 .joinToString { it.name }
                             onMessage(
@@ -365,7 +367,43 @@ private fun AdminBadgeUnlockDialog(
     onDismiss: () -> Unit,
     onConfirm: (Set<String>) -> Unit
 ) {
+    val scope = rememberCoroutineScope()
     var selectedIds by remember(member.id, unlockedBadgeIds) { mutableStateOf(emptySet<String>()) }
+    var searchQuery by remember(member.id) { mutableStateOf("") }
+    var loadingCatalog by remember(member.id) { mutableStateOf(true) }
+    var catalogError by remember(member.id) { mutableStateOf("") }
+    val remoteBadges = remoteProfileBadgesState.value
+
+    LaunchedEffect(member.id) {
+        loadingCatalog = true
+        catalogError = ""
+        runCatching { RemoteBadgeEngineClient.loadCatalog(force = true) }
+            .onFailure { catalogError = it.message ?: "Não foi possível atualizar os novos emblemas." }
+        loadingCatalog = false
+    }
+
+    val allBadges = remember(remoteBadges) {
+        (biblicalLevelBadges + remoteBadges.map { it.asBiblicalBadge() })
+            .distinctBy { it.id }
+            .sortedWith(compareBy<BiblicalBadge> { it.level == null }.thenBy { it.level ?: Int.MAX_VALUE }.thenBy { it.name })
+    }
+    val filteredBadges = remember(allBadges, searchQuery) {
+        val query = searchQuery.trim().lowercase()
+        if (query.isBlank()) allBadges
+        else allBadges.filter { badge ->
+            badge.name.lowercase().contains(query) ||
+                badge.id.lowercase().contains(query) ||
+                badge.level?.toString() == query ||
+                (remoteProfileBadgeForId(badge.id)?.special == true && "especial".contains(query))
+        }
+    }
+    val pages = remember(filteredBadges) { filteredBadges.chunked(10).ifEmpty { listOf(emptyList()) } }
+    val pagerState = rememberPagerState(pageCount = { pages.size })
+
+    LaunchedEffect(searchQuery, pages.size) {
+        if (pagerState.currentPage > pages.lastIndex) pagerState.scrollToPage(pages.lastIndex.coerceAtLeast(0))
+        else if (searchQuery.isNotBlank()) pagerState.scrollToPage(0)
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -373,48 +411,139 @@ private fun AdminBadgeUnlockDialog(
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    "Escolha um ou mais emblemas para desbloquear manualmente para ${member.name.ifBlank { "este usuário" }}.",
+                    "Escolha os emblemas para ${member.name.ifBlank { "este usuário" }}. Os novos emblemas criados no catálogo aparecem aqui automaticamente.",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Spacer(Modifier.height(10.dp))
-                LazyColumn(
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 380.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    enabled = !isSaving,
+                    label = { Text("Buscar emblema") },
+                    placeholder = { Text("Nome, número ou especial") }
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    items(profileEmblemBadges, key = { it.id }) { badge ->
-                        val alreadyUnlocked = badge.id in unlockedBadgeIds
-                        val selected = badge.id in selectedIds
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable(enabled = !alreadyUnlocked && !isSaving) {
-                                    selectedIds = if (selected) selectedIds - badge.id else selectedIds + badge.id
-                                }
-                                .padding(vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                    Text(
+                        "${filteredBadges.size} emblema(s) · 10 por página",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    TextButton(
+                        enabled = !isSaving && filteredBadges.any { it.id !in unlockedBadgeIds },
+                        onClick = {
+                            selectedIds = selectedIds + filteredBadges
+                                .filter { it.id !in unlockedBadgeIds }
+                                .map { it.id }
+                        }
+                    ) { Text("Selecionar bloqueados") }
+                }
+
+                if (loadingCatalog) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    Spacer(Modifier.height(6.dp))
+                }
+                if (catalogError.isNotBlank()) {
+                    Text(catalogError, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                    Spacer(Modifier.height(6.dp))
+                }
+
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxWidth().height(390.dp),
+                    userScrollEnabled = !isSaving
+                ) { page ->
+                    val pageItems = pages.getOrElse(page) { emptyList() }
+                    if (pageItems.isEmpty()) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("Nenhum emblema encontrado.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                            Checkbox(
-                                checked = alreadyUnlocked || selected,
-                                onCheckedChange = if (alreadyUnlocked || isSaving) null else { checked ->
-                                    selectedIds = if (checked) selectedIds + badge.id else selectedIds - badge.id
-                                },
-                                enabled = !alreadyUnlocked && !isSaving
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    "Nível ${badge.level} · ${badge.name}",
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Text(
-                                    if (alreadyUnlocked) "Já desbloqueado" else badge.rarity?.label.orEmpty(),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = if (alreadyUnlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                            items(pageItems, key = { it.id }) { badge ->
+                                val alreadyUnlocked = badge.id in unlockedBadgeIds
+                                val selected = badge.id in selectedIds
+                                val remote = remoteProfileBadgeForId(badge.id)
+                                val titlePrefix = when {
+                                    remote?.special == true -> "Especial"
+                                    badge.level != null -> "Nível ${badge.level}"
+                                    else -> "Emblema"
+                                }
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable(enabled = !alreadyUnlocked && !isSaving) {
+                                            selectedIds = if (selected) selectedIds - badge.id else selectedIds + badge.id
+                                        }
+                                        .padding(vertical = 7.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Checkbox(
+                                        checked = alreadyUnlocked || selected,
+                                        onCheckedChange = if (alreadyUnlocked || isSaving) null else { checked ->
+                                            selectedIds = if (checked) selectedIds + badge.id else selectedIds - badge.id
+                                        },
+                                        enabled = !alreadyUnlocked && !isSaving
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            "$titlePrefix · ${badge.name}",
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Text(
+                                            when {
+                                                alreadyUnlocked -> "Já desbloqueado"
+                                                remote != null -> remote.challenge.ifBlank { "Emblema personalizado" }
+                                                badge.rarity != null -> badge.rarity.label
+                                                else -> badge.requirement
+                                            },
+                                            style = MaterialTheme.typography.bodySmall,
+                                            maxLines = 2,
+                                            color = if (alreadyUnlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
                 }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedButton(
+                        enabled = pagerState.currentPage > 0 && !isSaving,
+                        onClick = { scope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) } }
+                    ) { Text("Anterior") }
+                    Text(
+                        "Página ${pagerState.currentPage + 1} de ${pages.size}",
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                    OutlinedButton(
+                        enabled = pagerState.currentPage < pages.lastIndex && !isSaving,
+                        onClick = { scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } }
+                    ) { Text("Próxima") }
+                }
+                Text(
+                    "Você também pode deslizar da direita para a esquerda para avançar as páginas.",
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         },
         dismissButton = {
@@ -429,7 +558,7 @@ private fun AdminBadgeUnlockDialog(
                     CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                     Spacer(Modifier.width(8.dp))
                 }
-                Text(if (isSaving) "Liberando…" else "Liberar selecionados")
+                Text(if (isSaving) "Liberando…" else "Liberar selecionados (${selectedIds.size})")
             }
         }
     )
