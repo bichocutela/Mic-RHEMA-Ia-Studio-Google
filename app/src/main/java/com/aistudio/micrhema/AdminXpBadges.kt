@@ -154,7 +154,6 @@ private fun AdminXpBadgeEditor(
                 )
             }.onSuccess { generated ->
                 generatedChallenge = generated
-                challenge = generated.text
             }.onFailure {
                 error = it.message ?: "Não foi possível buscar um desafio agora."
             }
@@ -190,6 +189,7 @@ private fun AdminXpBadgeEditor(
 
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { upload(it) }
     val busy = uploading || saving || loadingChallenge
+    val candidateAccepted = generatedChallenge?.text?.let { it == challenge } == true
 
     AlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
@@ -197,7 +197,7 @@ private fun AdminXpBadgeEditor(
         title = { Text(if (initial == null) "Novo emblema" else "Editar emblema") },
         text = {
             Column(
-                modifier = Modifier.heightIn(max = 600.dp).verticalScroll(rememberScrollState()),
+                modifier = Modifier.heightIn(max = 620.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(9.dp)
             ) {
                 OutlinedTextField(value = name, onValueChange = { name = it; error = "" }, label = { Text("Nome do emblema") }, modifier = Modifier.fillMaxWidth())
@@ -215,33 +215,46 @@ private fun AdminXpBadgeEditor(
                     }
                 }
 
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.38f)),
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                        Text("Desafio escolhido", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                        if (loadingChallenge) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                                Spacer(Modifier.width(8.dp))
-                                Text("Buscando um desafio verificável…", style = MaterialTheme.typography.bodySmall)
-                            }
-                        } else {
+                generatedChallenge?.let { generated ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.38f)),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                            Text("Sugestão de desafio", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                            Text(generated.text, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                             Text(
-                                challenge.ifBlank { "Escolha uma dificuldade para buscar um desafio." },
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold
+                                "Detecção automática pronta · meta ${generated.target}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            generatedChallenge?.let { generated ->
-                                Text(
-                                    "Detecção automática pronta · meta ${generated.target}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                            Button(
+                                onClick = {
+                                    challenge = generated.text
+                                    error = ""
+                                },
+                                enabled = !busy && !candidateAccepted,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                if (candidateAccepted) {
+                                    Icon(Icons.Default.CheckCircle, contentDescription = null)
+                                    Spacer(Modifier.width(7.dp))
+                                }
+                                Text(if (candidateAccepted) "Desafio escolhido" else "Usar este desafio")
                             }
                         }
+                    }
+                } ?: Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                ) {
+                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (loadingChallenge) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(8.dp))
+                        }
+                        Text(if (loadingChallenge) "Buscando um desafio verificável…" else "Escolha uma dificuldade para buscar um desafio.")
                     }
                 }
 
@@ -254,8 +267,17 @@ private fun AdminXpBadgeEditor(
                     Spacer(Modifier.width(7.dp))
                     Text("Buscar outro desafio")
                 }
+
+                if (challenge.isNotBlank()) {
+                    Text(
+                        "Desafio que será salvo: $challenge",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
                 Text(
-                    "Os desafios são gerados somente a partir de atividades que o MIC Rhema consegue verificar no servidor. Você não precisa digitar a regra.",
+                    "Os desafios são escolhidos apenas entre atividades que o MIC Rhema consegue verificar no servidor. Assim o desbloqueio não depende de interpretação de texto.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -299,7 +321,7 @@ private fun AdminXpBadgeEditor(
             Button(enabled = !busy, onClick = {
                 when {
                     name.isBlank() -> error = "Informe o nome do emblema."
-                    challenge.isBlank() -> error = "Escolha um desafio para o emblema."
+                    challenge.isBlank() -> error = "Escolha e confirme um desafio para o emblema."
                     imageRef.isBlank() -> error = "Envie o arquivo PNG do emblema."
                     else -> {
                         saving = true
