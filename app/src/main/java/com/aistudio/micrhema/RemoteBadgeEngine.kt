@@ -15,7 +15,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
-/** Emblema criado remotamente pelo ADM. O PNG continua armazenado no Supabase Storage. */
+/** Emblema criado ou sobrescrito remotamente pelo ADM. */
 data class RemoteProfileBadge(
     val id: String,
     val sequenceNo: Int?,
@@ -25,16 +25,26 @@ data class RemoteProfileBadge(
     val imageRef: String,
     val special: Boolean
 ) {
-    fun asBiblicalBadge(): BiblicalBadge = BiblicalBadge(
-        id = id,
-        name = name,
-        description = description,
-        category = BadgeCategory.ACHIEVEMENT,
-        level = sequenceNo,
-        frameStyle = BadgeFrameStyle.PROFILE_EMBLEM,
-        accentColorHex = 0xFFFFC107,
-        requirement = challenge
-    )
+    fun asBiblicalBadge(): BiblicalBadge {
+        val level = sequenceNo
+        val rarity = when (level) {
+            in 8..12 -> ProfileEmblemRarity.RARE
+            in 13..17 -> ProfileEmblemRarity.EPIC
+            in 18..22 -> ProfileEmblemRarity.LEGENDARY
+            else -> null
+        }
+        return BiblicalBadge(
+            id = id,
+            name = name,
+            description = description,
+            category = if (level != null) BadgeCategory.LEVEL else BadgeCategory.ACHIEVEMENT,
+            level = level,
+            frameStyle = BadgeFrameStyle.PROFILE_EMBLEM,
+            accentColorHex = 0xFFFFC107,
+            requirement = challenge,
+            rarity = rarity
+        )
+    }
 }
 
 val remoteProfileBadgesState = mutableStateOf<List<RemoteProfileBadge>>(emptyList())
@@ -43,10 +53,10 @@ fun remoteProfileBadgeForId(id: String): RemoteProfileBadge? =
     remoteProfileBadgesState.value.firstOrNull { it.id == id }
 
 fun currentAllBiblicalBadges(): List<BiblicalBadge> =
-    (allBiblicalBadges + remoteProfileBadgesState.value.map { it.asBiblicalBadge() }).distinctBy { it.id }
+    (remoteProfileBadgesState.value.map { it.asBiblicalBadge() } + allBiblicalBadges).distinctBy { it.id }
 
 fun currentProfileEmblemBadges(): List<BiblicalBadge> =
-    (profileEmblemBadges + remoteProfileBadgesState.value.map { it.asBiblicalBadge() }).distinctBy { it.id }
+    (remoteProfileBadgesState.value.map { it.asBiblicalBadge() } + biblicalLevelBadges).distinctBy { it.id }
 
 private fun publishCatalogIntoLegacySelectors(catalog: List<RemoteProfileBadge>) {
     val remoteIds = remoteProfileBadgesState.value.map { it.id }.toSet() + catalog.map { it.id }.toSet()
@@ -56,23 +66,12 @@ private fun publishCatalogIntoLegacySelectors(catalog: List<RemoteProfileBadge>)
         list.addAll(mapped)
     }
     (profileEmblemBadges as? MutableList<BiblicalBadge>)?.let { list ->
-        // No seletor administrativo entram todos os níveis 1–22 e também os
-        // emblemas criados remotamente pelo ADM. Isso mantém a validação antiga
-        // compatível e evita uma segunda lista paralela só para administração.
         list.clear()
-        list.addAll(biblicalLevelBadges)
         list.addAll(mapped)
+        list.addAll(biblicalLevelBadges.filter { native -> mapped.none { it.id == native.id } })
     }
 }
 
-/**
- * Motor remoto dos emblemas personalizados.
- *
- * O aplicativo nunca decide sozinho se um desafio remoto foi cumprido: ele pede
- * ao Supabase para reconciliar as métricas verificadas no ledger central de XP.
- * O resultado volta para o perfil e é sincronizado no Firebase para recuperação
- * em outros aparelhos.
- */
 object RemoteBadgeEngineClient {
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -187,12 +186,8 @@ object RemoteBadgeEngineClient {
                         BadgeActivityTracker.syncPortableState(context.applicationContext, updated)
                     }
 
-                    val newlyUnlocked = newlyUnlockedIds.mapNotNull { id ->
-                        currentAllBiblicalBadges().firstOrNull { it.id == id }
-                    }
-                    if (newlyUnlocked.isNotEmpty()) {
-                        badgeAwardNotificationState.value = BadgeAwardNotification(newlyUnlocked)
-                    }
+                    val newlyUnlocked = newlyUnlockedIds.mapNotNull { id -> currentAllBiblicalBadges().firstOrNull { it.id == id } }
+                    if (newlyUnlocked.isNotEmpty()) badgeAwardNotificationState.value = BadgeAwardNotification(newlyUnlocked)
                 }
             } catch (error: Exception) {
                 Log.w("RemoteBadgeEngine", "Reconciliação remota de emblemas falhou", error)
