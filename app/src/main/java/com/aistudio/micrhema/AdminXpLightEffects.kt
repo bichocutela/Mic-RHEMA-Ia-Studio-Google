@@ -1,16 +1,8 @@
 package com.aistudio.micrhema
 
 import android.graphics.Color as AndroidColor
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
@@ -27,8 +19,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -325,40 +315,25 @@ private fun LightEffectEmblemDialog(item: AdminLightEffect, badges: List<AdminCu
 
 @Composable
 private fun LightEffectPreviewDialog(item: AdminLightEffect, testMode: Boolean, onDismiss: () -> Unit) {
-    val infinite = rememberInfiniteTransition(label = "lightEffect")
-    val pulse by infinite.animateFloat(
-        initialValue = 0.78f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(if (item.tone == "forte") 650 else 1200), RepeatMode.Reverse),
-        label = "pulse"
-    )
     val color = remember(item.colorHex) {
         runCatching { Color(AndroidColor.parseColor(item.colorHex)) }.getOrDefault(Color(0xFFFFD54F))
     }
-    val width = when (item.tone) { "suave" -> 3.dp; "forte" -> 8.dp; else -> 5.dp }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (testMode) "Testar • ${item.name}" else "Prévia • ${item.name}") },
         text = {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Box(contentAlignment = Alignment.Center, modifier = Modifier.size(190.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .size(170.dp)
-                            .scale(pulse)
-                            .alpha(if (item.tone == "suave") 0.65f else 0.9f)
-                            .border(width, color, CircleShape)
-                    )
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier.size(138.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
-                    ) {
-                        Text("AVATAR", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
+                LightEffectVisual(
+                    item = item,
+                    modifier = Modifier.size(220.dp),
+                    showAvatarLabel = true
+                )
                 Text(toneLabel(item.tone), color = color, fontWeight = FontWeight.Bold)
-                Text(if (testMode) "Modo de teste ativo: visualize o comportamento contínuo antes de publicar." else item.description, style = MaterialTheme.typography.bodySmall)
+                Text(
+                    if (testMode) "Modo de teste ativo: este é o efeito animado real que será usado no avatar." else item.description,
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
         },
         confirmButton = { Button(onClick = onDismiss) { Text("Fechar") } }
