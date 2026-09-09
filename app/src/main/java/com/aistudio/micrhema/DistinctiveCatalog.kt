@@ -1,6 +1,7 @@
 package com.aistudio.micrhema
 
 import android.content.Context
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -119,42 +120,71 @@ object DistinctiveHighlightsStore {
 fun ProfileDistinctives(badgeId: String, memberId: String?, preview: List<AdminProfileCosmetic>? = null) {
     val context = LocalContext.current
     XpRewardManager.revision.value
-    val selected = preview ?: activeProfileCosmeticsForMember(context, "distintivo", badgeId, memberId)
+
+    val loggedMember = loggedInMemberState.value
+    val resolvedMember = when {
+        preview != null -> null
+        !memberId.isNullOrBlank() -> loggedMember?.takeIf { it.id == memberId }
+        loggedMember?.equippedBadgeId == badgeId -> loggedMember
+        else -> null
+    }
+    val resolvedMemberId = resolvedMember?.id ?: memberId
+    var showProfile by remember(resolvedMemberId, badgeId) { mutableStateOf(false) }
+
+    val selected = preview ?: activeProfileCosmeticsForMember(context, "distintivo", badgeId, resolvedMemberId)
     val availableIds = selected.map { it.id }
 
-    LaunchedEffect(memberId, availableIds) {
-        if (!memberId.isNullOrBlank() && preview == null) {
-            DistinctiveHighlightsStore.load(context.applicationContext, memberId, availableIds)
+    LaunchedEffect(resolvedMemberId, availableIds) {
+        if (!resolvedMemberId.isNullOrBlank() && preview == null) {
+            DistinctiveHighlightsStore.load(context.applicationContext, resolvedMemberId, availableIds)
         }
     }
 
-    val visible = if (preview != null || memberId.isNullOrBlank()) {
+    val visible = if (preview != null || resolvedMemberId.isNullOrBlank()) {
         selected.take(4)
     } else {
-        val featured = DistinctiveHighlightsStore.ids(memberId)
+        val featured = DistinctiveHighlightsStore.ids(resolvedMemberId)
         val byId = selected.associateBy { it.id }
         (featured.mapNotNull(byId::get) + selected.filterNot { it.id in featured }).distinctBy { it.id }.take(4)
     }
 
-    // No avatar, Drawer e Home ficam somente os quatro distintivos escolhidos
-    // como destaque. A coleção completa é exibida no balão ampliado do perfil.
-    BoxWithConstraints(Modifier.fillMaxSize()) {
-        if (visible.isEmpty()) return@BoxWithConstraints
-        val side = minOf(maxWidth, maxHeight)
-        val iconSize = side * .17f
-        val gap = side * .035f
-        Row(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .offset(y = iconSize * .92f)
-                .width(side * .88f),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            visible.forEachIndexed { index, item ->
-                if (index > 0) Spacer(Modifier.width(gap))
-                DistinctiveImage(item, Modifier.size(iconSize))
+    // Esta camada ocupa o mesmo espaço do avatar. No perfil atual ela também
+    // funciona como área de toque para abrir o balão completo com emblema,
+    // efeitos, moldura e a coleção de distintivos.
+    BoxWithConstraints(
+        Modifier
+            .fillMaxSize()
+            .then(
+                if (resolvedMember != null && preview == null) {
+                    Modifier.clickable { showProfile = true }
+                } else Modifier
+            )
+    ) {
+        if (visible.isNotEmpty()) {
+            val side = minOf(maxWidth, maxHeight)
+            val iconSize = side * .17f
+            val gap = side * .035f
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .offset(y = iconSize * .92f)
+                    .width(side * .88f),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                visible.forEachIndexed { index, item ->
+                    if (index > 0) Spacer(Modifier.width(gap))
+                    DistinctiveImage(item, Modifier.size(iconSize))
+                }
             }
         }
+    }
+
+    if (showProfile && resolvedMember != null) {
+        MemberProfileShowcaseDialog(
+            member = resolvedMember,
+            badge = biblicalBadgeForId(badgeId),
+            onDismiss = { showProfile = false }
+        )
     }
 }
