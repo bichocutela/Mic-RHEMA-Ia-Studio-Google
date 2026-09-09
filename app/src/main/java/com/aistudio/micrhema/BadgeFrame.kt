@@ -53,9 +53,6 @@ fun BiblicalAvatarWithBadge(
             delay(60_000L)
         }
     }
-    val effects = previewLightEffects ?: XpLightEffectsAdminClient.catalog.value.filter {
-        it.active && !it.purchasable && badge.id in it.emblemIds
-    }
     val context = LocalContext.current
     val remoteEmblem = remoteProfileBadgeForId(badge.id)
     val remoteEmblemUrl by produceState<String?>(initialValue = null, remoteEmblem?.imageRef) {
@@ -65,6 +62,9 @@ fun BiblicalAvatarWithBadge(
     }
     XpRewardManager.revision.value
     val resolvedOwnerId = ownerMemberId ?: loggedInMemberState.value?.id
+    val effects = previewLightEffects ?: DistinctiveHighlightsStore.effects(
+        resolvedOwnerId, availableProfileLightEffects(context, resolvedOwnerId, badge.id)
+    )
     val previewFrame = previewDistinctives?.firstOrNull { it.id == XpRewardManager.PROMISE_FRAME }
     val promiseFrame = previewFrame ?: DistinctiveCatalog.items.value.firstOrNull { it.id == XpRewardManager.PROMISE_FRAME }
     val selectedFrame = resolvedOwnerId?.let {

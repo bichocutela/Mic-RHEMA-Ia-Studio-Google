@@ -9,6 +9,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,11 +35,18 @@ fun MemberProfileShowcaseDialog(
     val ownedDistinctives = activeProfileCosmeticsForMember(context, "distintivo", badge.id, member.id, true)
     val frames = activeProfileCosmeticsForMember(context, "moldura", badge.id, member.id, true)
     val activeFrames = activeProfileCosmeticsForMember(context, "moldura", badge.id, member.id)
+    val availableEffects = availableProfileLightEffects(context, member.id, badge.id)
+    val selectedEffects = DistinctiveHighlightsStore.effects(member.id, availableEffects)
+    var previewEffectId by remember(member.id, badge.id) { mutableStateOf<String?>(null) }
     val selectedFrame = DistinctiveHighlightsStore.frame(member.id, activeFrames)
     var previewDistinctiveId by remember(member.id, badge.id) { mutableStateOf<String?>(null) }
     var previewFrameId by remember(member.id, badge.id) { mutableStateOf<String?>(null) }
     var applying by remember(member.id) { mutableStateOf(false) }
     var applyError by remember(member.id) { mutableStateOf("") }
+
+    LaunchedEffect(showAll) {
+        if (!showAll) previewDistinctiveId = null
+    }
 
     fun choose(item: AdminProfileCosmetic) {
         if (applying) return
@@ -54,6 +64,36 @@ fun MemberProfileShowcaseDialog(
             }
         }
     }
+    fun remove(kind: String) {
+        if (applying) return
+        applying = true
+        applyError = ""
+        scope.launch {
+            try {
+                DistinctiveHighlightsStore.clear(context.applicationContext, member.id, kind)
+                when (kind) {
+                    "distintivo" -> previewDistinctiveId = ""
+                    "moldura" -> previewFrameId = ""
+                    "efeito" -> previewEffectId = ""
+                }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (error: Exception) { applyError = error.message ?: "Não foi possível remover. Tente novamente." }
+            finally { applying = false }
+        }
+    }
+
+    fun chooseEffect(item: AdminLightEffect) {
+        if (applying) return
+        applying = true
+        applyError = ""
+        scope.launch {
+            try {
+                DistinctiveHighlightsStore.chooseEffect(context.applicationContext, member.id, item, badge.id)
+            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (error: Exception) { applyError = error.message ?: "Não foi possível ativar o efeito." }
+            finally { applying = false }
+        }
+    }
     val availableIds = distinctives.map { it.id }
 
     LaunchedEffect(member.id, availableIds) {
@@ -65,8 +105,9 @@ fun MemberProfileShowcaseDialog(
     val featuredIds = DistinctiveHighlightsStore.ids(member.id)
     val byId = ownedDistinctives.associateBy { it.id }
     val ordered = (featuredIds.mapNotNull(byId::get) + ownedDistinctives.filterNot { it.id in featuredIds }).distinctBy { it.id }
-    val previewDistinctive = byId[previewDistinctiveId] ?: primaryDistinctive
-    val previewFrame = frames.firstOrNull { it.id == previewFrameId } ?: selectedFrame
+    val previewDistinctive = if (previewDistinctiveId == null) primaryDistinctive else byId[previewDistinctiveId]
+    val previewFrame = if (previewFrameId == null) selectedFrame else frames.firstOrNull { it.id == previewFrameId }
+    val previewEffects = if (previewEffectId == null) selectedEffects else availableEffects.filter { it.id == previewEffectId }.take(1)
 
     if (!openDistinctivesDirectly) {
         AlertDialog(
@@ -85,6 +126,7 @@ fun MemberProfileShowcaseDialog(
                         previewPrimaryDistinctive = previewDistinctive,
                         previewReaderBadge = false,
                         previewPromiseFrame = false,
+                        previewLightEffects = previewEffects,
                         previewDistinctives = listOfNotNull(previewFrame),
                         modifier = Modifier.size(200.dp),
                         contentDescription = "Prévia do perfil com ${previewDistinctive?.name ?: "nenhum distintivo principal"} e ${previewFrame?.name ?: "nenhuma moldura"}"
@@ -95,8 +137,8 @@ fun MemberProfileShowcaseDialog(
                     ) {
                         if (ordered.isNotEmpty()) {
                             Text("Distintivos", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                            ProfileCosmeticCarousel(ordered, previewDistinctive?.id, !applying) {
-                                previewDistinctiveId = it.id
+                            ProfileCosmeticCarousel(ordered, previewDistinctive?.id, !applying, "Sem distintivo", { previewDistinctiveId = "" }) {
+                                previewDistinctiveId = if (it.id == previewDistinctive?.id) "" else it.id
                                 applyError = ""
                             }
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -104,11 +146,12 @@ fun MemberProfileShowcaseDialog(
                                     Text("Escolher destaques")
                                 }
                                 val candidate = byId[previewDistinctiveId]
-                                if (candidate != null) {
+                                if (previewDistinctiveId != null) {
                                     Button(
-                                        enabled = !applying && candidate.id != primaryDistinctive?.id,
-                                        onClick = { choose(candidate) }, modifier = Modifier.weight(1f)
-                                    ) { Text(if (candidate.id == primaryDistinctive?.id) "Em uso" else "Escolher esse") }
+                                        enabled = !applying,
+                                        onClick = { if (candidate == null || candidate.id == primaryDistinctive?.id) remove("distintivo") else choose(candidate) },
+                                        modifier = Modifier.weight(1f)
+                                    ) { Text(if (candidate == null || candidate.id == primaryDistinctive?.id) "Desmarcar" else "Escolher esse") }
                                 }
                             }
                         }
@@ -116,19 +159,53 @@ fun MemberProfileShowcaseDialog(
                         if (frames.isEmpty()) {
                             Text("Você ainda não tem molduras disponíveis para este emblema.", style = MaterialTheme.typography.bodySmall)
                         } else {
-                            ProfileCosmeticCarousel(frames, previewFrame?.id, !applying) {
-                                previewFrameId = it.id
+                            ProfileCosmeticCarousel(frames, previewFrame?.id, !applying, "Sem moldura", { previewFrameId = "" }) {
+                                previewFrameId = if (it.id == previewFrame?.id) "" else it.id
                                 applyError = ""
                             }
                             val candidate = frames.firstOrNull { it.id == previewFrameId }
-                            if (candidate != null) {
+                            if (previewFrameId != null) {
                                 Button(
-                                    enabled = !applying && candidate.id != selectedFrame?.id,
-                                    onClick = { choose(candidate) }, modifier = Modifier.align(Alignment.End)
-                                ) { Text(if (candidate.id == selectedFrame?.id) "Em uso" else "Escolher esse") }
+                                    enabled = !applying,
+                                    onClick = { if (candidate == null || candidate.id == selectedFrame?.id) remove("moldura") else choose(candidate) },
+                                    modifier = Modifier.align(Alignment.End)
+                                ) { Text(if (candidate == null || candidate.id == selectedFrame?.id) "Desmarcar" else "Escolher esse") }
                             }
                         }
-                        Text("Toque para ver no avatar. Confirme em Escolher esse para ativar.", style = MaterialTheme.typography.bodySmall)
+                        Text("Efeitos de luz", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            item(key = "none") {
+                                Surface(onClick = { previewEffectId = "" }, enabled = !applying,
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = if (previewEffects.isEmpty()) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
+                                ) { Text("Sem efeito", Modifier.padding(16.dp)) }
+                            }
+                            items(availableEffects, key = { it.id }) { effect ->
+                                val color = remember(effect.colorHex) {
+                                    runCatching { Color(android.graphics.Color.parseColor(effect.colorHex)) }.getOrDefault(Color(0xFFFFD76A))
+                                }
+                                Surface(
+                                    onClick = { previewEffectId = if (previewEffects.singleOrNull()?.id == effect.id) "" else effect.id },
+                                    enabled = !applying, modifier = Modifier.width(96.dp), shape = RoundedCornerShape(12.dp),
+                                    color = if (previewEffects.any { it.id == effect.id }) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
+                                ) {
+                                    Column(Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Icon(Icons.Default.Star, contentDescription = null, tint = color, modifier = Modifier.size(40.dp))
+                                        Text(effect.name, style = MaterialTheme.typography.labelSmall, maxLines = 2)
+                                    }
+                                }
+                            }
+                        }
+                        if (availableEffects.isEmpty()) Text("Nenhum efeito disponível para este emblema.", style = MaterialTheme.typography.bodySmall)
+                        if (previewEffectId != null) {
+                            val candidate = availableEffects.firstOrNull { it.id == previewEffectId }
+                            val removeEffect = candidate == null || selectedEffects.singleOrNull()?.id == candidate.id
+                            Button(enabled = !applying,
+                                onClick = { if (removeEffect) remove("efeito") else candidate?.let { chooseEffect(it) } },
+                                modifier = Modifier.align(Alignment.End)
+                            ) { Text(if (removeEffect) "Desmarcar" else "Escolher esse") }
+                        }
+                        Text("Toque para testar. Toque novamente no item para tirar da prévia e confirme em Desmarcar para ficar sem ele.", style = MaterialTheme.typography.bodySmall)
                         if (applying) LinearProgressIndicator(Modifier.fillMaxWidth())
                         if (applyError.isNotBlank()) Text(applyError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     }
@@ -247,6 +324,8 @@ private fun ProfileCosmeticCarousel(
     items: List<AdminProfileCosmetic>,
     previewId: String?,
     enabled: Boolean,
+    noneLabel: String,
+    onClear: () -> Unit,
     onPreview: (AdminProfileCosmetic) -> Unit
 ) {
     LazyRow(
@@ -254,6 +333,12 @@ private fun ProfileCosmeticCarousel(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(horizontal = 2.dp)
     ) {
+        item(key = "none") {
+            Surface(onClick = onClear, enabled = enabled, modifier = Modifier.width(86.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = if (previewId == null) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
+            ) { Text(noneLabel, Modifier.padding(12.dp), style = MaterialTheme.typography.labelSmall) }
+        }
         items(items, key = { it.id }) { item ->
             Surface(
                 modifier = Modifier.width(86.dp),

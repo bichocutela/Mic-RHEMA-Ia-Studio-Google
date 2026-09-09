@@ -67,6 +67,7 @@ fun activeProfileCosmeticsForMember(
 object DistinctiveHighlightsStore {
     private const val PREFS = "micrhema_distinctive_highlights"
     private val values = mutableStateMapOf<String, List<String>>()
+    private val effectValues = mutableStateMapOf<String, String>()
     private val frameValues = mutableStateMapOf<String, String>()
     private val primaryValues = mutableStateMapOf<String, String>()
     private val loaded = mutableSetOf<String>()
@@ -83,6 +84,42 @@ object DistinctiveHighlightsStore {
         val id = frameValues[memberId]
         return if (id != null) available.firstOrNull { it.id == id }
         else available.firstOrNull { it.id != XpRewardManager.PROMISE_FRAME } ?: available.firstOrNull()
+    }
+
+    fun effects(memberId: String?, available: List<AdminLightEffect>): List<AdminLightEffect> {
+        val id = effectValues[memberId] ?: return available
+        return available.filter { it.id == id }.take(1)
+    }
+
+    suspend fun clear(context: Context, memberId: String, kind: String) = mutex.withLock {
+        require(memberId.isNotBlank()) { "Entre novamente no seu perfil." }
+        val (field, key) = when (kind) {
+            "distintivo" -> "primaryDistinctiveId" to "primary:$memberId"
+            "moldura" -> "selectedProfileFrameId" to "frame:$memberId"
+            "efeito" -> "selectedProfileEffectId" to "effect:$memberId"
+            else -> error("Tipo de item inválido.")
+        }
+        FirebaseFirestore.getInstance().collection("users").document(memberId)
+            .set(mapOf(field to "", "updatedAt" to System.currentTimeMillis()), SetOptions.merge()).await()
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(key, "").apply()
+        withContext(Dispatchers.Main.immediate) {
+            when (kind) {
+                "distintivo" -> primaryValues[memberId] = ""
+                "moldura" -> frameValues[memberId] = ""
+                "efeito" -> effectValues[memberId] = ""
+            }
+        }
+    }
+
+    suspend fun chooseEffect(context: Context, memberId: String, item: AdminLightEffect, badgeId: String) = mutex.withLock {
+        require(memberId.isNotBlank()) { "Entre novamente no seu perfil." }
+        require(availableProfileLightEffects(context, memberId, badgeId).any { it.id == item.id }) {
+            "Este efeito não está mais disponível para seu perfil."
+        }
+        FirebaseFirestore.getInstance().collection("users").document(memberId)
+            .set(mapOf("selectedProfileEffectId" to item.id, "updatedAt" to System.currentTimeMillis()), SetOptions.merge()).await()
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString("effect:$memberId", item.id).apply()
+        withContext(Dispatchers.Main.immediate) { effectValues[memberId] = item.id }
     }
 
     suspend fun choose(context: Context, memberId: String, item: AdminProfileCosmetic, badgeId: String) = mutex.withLock {
@@ -109,6 +146,7 @@ object DistinctiveHighlightsStore {
             ?.filter { it.isNotBlank() }?.distinct()?.take(4) ?: availableIds.take(4)
         var primary = prefs.getString("primary:$memberId", null)
         var frame = prefs.getString("frame:$memberId", null)
+        var effect = prefs.getString("effect:$memberId", null)
         if (memberId !in loaded) {
             try {
                 val snap = FirebaseFirestore.getInstance().collection("users").document(memberId).get().await()
@@ -117,6 +155,7 @@ object DistinctiveHighlightsStore {
                 }
                 if (snap.contains("primaryDistinctiveId")) primary = snap.getString("primaryDistinctiveId").orEmpty()
                 if (snap.contains("selectedProfileFrameId")) frame = snap.getString("selectedProfileFrameId").orEmpty()
+                if (snap.contains("selectedProfileEffectId")) effect = snap.getString("selectedProfileEffectId").orEmpty()
                 loaded += memberId
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
                 throw cancelled
@@ -128,11 +167,13 @@ object DistinctiveHighlightsStore {
             .apply {
                 if (primary != null) putString("primary:$memberId", primary)
                 if (frame != null) putString("frame:$memberId", frame)
+                if (effect != null) putString("effect:$memberId", effect)
             }.apply()
         withContext(Dispatchers.Main.immediate) {
             values[memberId] = ids
             primary?.let { primaryValues[memberId] = it }
             frame?.let { frameValues[memberId] = it }
+            effect?.let { effectValues[memberId] = it }
         }
     }
 
