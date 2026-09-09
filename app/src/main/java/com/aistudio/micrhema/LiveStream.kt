@@ -172,34 +172,13 @@ object LiveStreamRepository {
 
 @Composable
 fun HomeScreenWithLive(onNavigate: (String) -> Unit = {}) {
-    val member = loggedInMemberState.value
     var playerOpen by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         LiveStreamRepository.start()
         runCatching { LiveStreamRepository.refresh(false) }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        HomeScreen(onNavigate = onNavigate, onLiveOpen = { playerOpen = true })
-
-        member?.let { current ->
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 8.dp, end = 14.dp)
-                    .size(72.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                BiblicalAvatarWithBadge(
-                    avatar = biblicalAvatarForId(current.avatarId),
-                    badge = biblicalBadgeForId(current.equippedBadgeId),
-                    ownerMemberId = current.id,
-                    modifier = Modifier.fillMaxSize(),
-                    contentDescription = "Abrir perfil completo de ${current.name}"
-                )
-            }
-        }
-    }
+    HomeScreen(onNavigate = onNavigate, onLiveOpen = { playerOpen = true })
 
     if (playerOpen) LiveStreamPlayerDialog { playerOpen = false }
 }
