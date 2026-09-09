@@ -129,8 +129,31 @@ fun XpShopPanel(member: MemberRequest, xpUnlocked: Boolean) {
         AlertDialog(
             onDismissRequest = { if (!redeeming) selectedItem = null },
             icon = { Icon(Icons.Default.CardGiftcard, contentDescription = null) },
-            title = { Text("Resgatar ${item.name}?") },
-            text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { Text(item.description); Text("Custo: ${item.cost} XP", fontWeight = FontWeight.Bold); Text("Seu XP Total e seu nível não serão alterados. Apenas o Saldo XP será reduzido.", style = MaterialTheme.typography.bodySmall) } },
+            title = { Text("Prévia de ${item.name}") },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    if (item.kind == "profile" && item.imageUrl.isNotBlank()) {
+                        Text(
+                            "Veja como este item ficará no seu perfil antes de confirmar.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        XpProfilePurchasePreview(member, item)
+                    } else if (item.imageUrl.isNotBlank()) {
+                        XpShopAssetPreview(item)
+                    }
+                    if (item.description.isNotBlank()) Text(item.description, modifier = Modifier.fillMaxWidth())
+                    Text("Custo: ${item.cost} XP", fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth())
+                    Text(
+                        "Seu XP Total e seu nível não serão alterados. Apenas o Saldo XP será reduzido.",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
             confirmButton = {
                 Button(enabled = !redeeming && (account?.balance ?: 0) >= item.cost, onClick = {
                     redeeming = true; error = ""
@@ -149,7 +172,7 @@ fun XpShopPanel(member: MemberRequest, xpUnlocked: Boolean) {
                             .onFailure { failure -> error = failure.message ?: "Não foi possível concluir o resgate."; xpShopErrorState.value = error }
                         redeeming = false
                     }
-                }) { Text(if (redeeming) "Resgatando..." else "Resgatar por ${item.cost} XP") }
+                }) { Text(if (redeeming) "Comprando..." else "Confirmar compra por ${item.cost} XP") }
             },
             dismissButton = { TextButton(enabled = !redeeming, onClick = { selectedItem = null }) { Text("Cancelar") } }
         )
@@ -174,6 +197,52 @@ private fun openXpShopAsset(scope: CoroutineScope, context: android.content.Cont
                     .onFailure { onError("Não há aplicativo disponível para abrir esta recompensa.") }
             }
             .onFailure { onError(it.message ?: "Não foi possível abrir a recompensa.") }
+    }
+}
+
+@Composable
+private fun XpProfilePurchasePreview(member: MemberRequest, item: XpShopItem) {
+    val context = LocalContext.current
+    val ref = remember(item.imageUrl) { parseXpShopAssetRef(item.imageUrl) }
+    var resolvedUrl by remember(item.imageUrl) { mutableStateOf(if (ref == null) item.imageUrl else "") }
+    LaunchedEffect(item.imageUrl) {
+        resolvedUrl = runCatching { resolveXpShopAssetUrl(context, item.imageUrl) }.getOrDefault(item.imageUrl)
+    }
+
+    val lower = "${item.category} ${item.name} ${item.id}".lowercase()
+    val isFrame = "moldura" in lower || "frame" in lower
+    val isEmblem = "emblema" in lower || "emblem" in lower
+
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+    ) {
+        Box(
+            modifier = Modifier.size(230.dp).padding(10.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            BiblicalAvatarWithBadge(
+                avatar = biblicalAvatarForId(member.avatarId),
+                badge = biblicalBadgeForId(member.equippedBadgeId),
+                ownerMemberId = member.id,
+                modifier = Modifier.fillMaxSize(),
+                contentDescription = "Prévia do perfil com ${item.name}"
+            )
+            if (resolvedUrl.isNotBlank()) {
+                AsyncImage(
+                    model = resolvedUrl,
+                    contentDescription = item.name,
+                    contentScale = ContentScale.Fit,
+                    modifier = when {
+                        isFrame || isEmblem -> Modifier.fillMaxSize()
+                        else -> Modifier
+                            .align(Alignment.BottomCenter)
+                            .offset(y = (-2).dp)
+                            .size(48.dp)
+                    }
+                )
+            }
+        }
     }
 }
 
