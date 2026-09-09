@@ -48,6 +48,16 @@ data class AdminCustomBadge(
     val active: Boolean
 )
 
+data class AdminProfileCosmetic(
+    val id: String,
+    val kind: String,
+    val name: String,
+    val description: String,
+    val challenge: String,
+    val imageRef: String,
+    val active: Boolean
+)
+
 data class GeneratedBadgeChallenge(
     val difficulty: String,
     val text: String,
@@ -65,13 +75,8 @@ object XpShopAdminClient {
     private suspend fun call(action: String, configure: (JSONObject.() -> Unit)? = null): JSONObject = withContext(Dispatchers.IO) {
         val baseUrl = BuildConfig.SUPABASE_URL.trim().trimEnd('/')
         val apiKey = BuildConfig.SUPABASE_ANON_KEY.trim()
-        if (baseUrl.isBlank() || apiKey.isBlank() || baseUrl.contains("your-project")) {
-            throw IllegalStateException("A Loja XP não está configurada nesta versão.")
-        }
-        if (!adminAuthenticatedState.value) {
-            throw IllegalStateException("Abra a Área Administrativa antes de editar a Loja XP.")
-        }
-
+        if (baseUrl.isBlank() || apiKey.isBlank() || baseUrl.contains("your-project")) throw IllegalStateException("A Loja XP não está configurada nesta versão.")
+        if (!adminAuthenticatedState.value) throw IllegalStateException("Abra a Área Administrativa antes de editar a Loja XP.")
         val payload = JSONObject().put("action", action)
         configure?.invoke(payload)
         val request = Request.Builder()
@@ -81,153 +86,109 @@ object XpShopAdminClient {
             .header("Content-Type", "application/json")
             .post(payload.toString().toRequestBody("application/json".toMediaType()))
             .build()
-
         client.newCall(request).execute().use { response ->
             val raw = response.body?.string().orEmpty()
             val json = runCatching { JSONObject(raw) }.getOrElse { JSONObject() }
-            if (!response.isSuccessful) {
-                throw IllegalStateException(
-                    json.optString("error").ifBlank { "Falha na administração da Loja XP (${response.code})." }
-                )
-            }
+            if (!response.isSuccessful) throw IllegalStateException(json.optString("error").ifBlank { "Falha na administração da Loja XP (${response.code})." })
             json
         }
     }
 
     suspend fun loadCatalog(): List<AdminXpShopItem> {
-        val response = call("admin_catalog")
-        val array = response.optJSONArray("items") ?: return emptyList()
+        val array = call("admin_catalog").optJSONArray("items") ?: return emptyList()
         return buildList {
             for (index in 0 until array.length()) {
                 val item = array.optJSONObject(index) ?: continue
-                add(
-                    AdminXpShopItem(
-                        id = item.optString("id"),
-                        name = item.optString("name"),
-                        description = item.optString("description"),
-                        cost = item.optInt("cost", 0),
-                        category = item.optString("category"),
-                        kind = item.optString("kind"),
-                        imageUrl = item.optString("image_url"),
-                        stock = if (item.isNull("stock")) null else item.optInt("stock"),
-                        limitPerMember = item.optInt("limit_per_member", 1).coerceAtLeast(1),
-                        active = item.optBoolean("active", true),
-                        availableFrom = item.optString("available_from"),
-                        availableUntil = item.optString("available_until")
-                    )
-                )
+                add(AdminXpShopItem(
+                    id = item.optString("id"), name = item.optString("name"), description = item.optString("description"),
+                    cost = item.optInt("cost", 0), category = item.optString("category"), kind = item.optString("kind"),
+                    imageUrl = item.optString("image_url"), stock = if (item.isNull("stock")) null else item.optInt("stock"),
+                    limitPerMember = item.optInt("limit_per_member", 1).coerceAtLeast(1), active = item.optBoolean("active", true),
+                    availableFrom = item.optString("available_from"), availableUntil = item.optString("available_until")
+                ))
             }
         }
     }
 
     suspend fun saveItem(item: AdminXpShopItem): AdminXpShopItem {
         val response = call("admin_upsert_item") {
-            put("id", item.id)
-            put("name", item.name)
-            put("description", item.description)
-            put("cost", item.cost)
-            put("category", item.category)
-            put("kind", item.kind)
-            put("imageUrl", item.imageUrl)
+            put("id", item.id); put("name", item.name); put("description", item.description); put("cost", item.cost)
+            put("category", item.category); put("kind", item.kind); put("imageUrl", item.imageUrl)
             if (item.stock == null) put("stock", JSONObject.NULL) else put("stock", item.stock)
-            put("limitPerMember", item.limitPerMember)
-            put("active", item.active)
-            put("availableFrom", item.availableFrom)
-            put("availableUntil", item.availableUntil)
+            put("limitPerMember", item.limitPerMember); put("active", item.active); put("availableFrom", item.availableFrom); put("availableUntil", item.availableUntil)
         }
         val raw = response.optJSONObject("item") ?: throw IllegalStateException("A recompensa não foi salva.")
         return AdminXpShopItem(
-            id = raw.optString("id"),
-            name = raw.optString("name"),
-            description = raw.optString("description"),
-            cost = raw.optInt("cost"),
-            category = raw.optString("category"),
-            kind = raw.optString("kind"),
-            imageUrl = raw.optString("image_url"),
-            stock = if (raw.isNull("stock")) null else raw.optInt("stock"),
-            limitPerMember = raw.optInt("limit_per_member", 1).coerceAtLeast(1),
-            active = raw.optBoolean("active", true),
-            availableFrom = raw.optString("available_from"),
-            availableUntil = raw.optString("available_until")
+            id = raw.optString("id"), name = raw.optString("name"), description = raw.optString("description"), cost = raw.optInt("cost"),
+            category = raw.optString("category"), kind = raw.optString("kind"), imageUrl = raw.optString("image_url"),
+            stock = if (raw.isNull("stock")) null else raw.optInt("stock"), limitPerMember = raw.optInt("limit_per_member", 1).coerceAtLeast(1),
+            active = raw.optBoolean("active", true), availableFrom = raw.optString("available_from"), availableUntil = raw.optString("available_until")
         )
     }
 
     private fun parseBadge(item: JSONObject): AdminCustomBadge = AdminCustomBadge(
-        id = item.optString("id"),
-        sequenceNo = if (item.isNull("sequence_no")) null else item.optInt("sequence_no"),
-        name = item.optString("name"),
-        description = item.optString("description"),
-        challenge = item.optString("challenge"),
-        imageRef = item.optString("image_ref"),
-        special = item.optBoolean("special", false),
-        active = item.optBoolean("active", true)
+        id = item.optString("id"), sequenceNo = if (item.isNull("sequence_no")) null else item.optInt("sequence_no"), name = item.optString("name"),
+        description = item.optString("description"), challenge = item.optString("challenge"), imageRef = item.optString("image_ref"),
+        special = item.optBoolean("special", false), active = item.optBoolean("active", true)
     )
 
     suspend fun loadBadges(): List<AdminCustomBadge> {
         val array = call("admin_badges").optJSONArray("badges") ?: return emptyList()
-        return buildList {
-            for (index in 0 until array.length()) array.optJSONObject(index)?.let { add(parseBadge(it)) }
-        }
+        return buildList { for (index in 0 until array.length()) array.optJSONObject(index)?.let { add(parseBadge(it)) } }
     }
 
     suspend fun generateBadgeChallenge(difficulty: String, exclude: String = ""): GeneratedBadgeChallenge {
-        val normalized = difficulty.trim().lowercase().takeIf { it in setOf("easy", "medium", "hard") }
-            ?: throw IllegalArgumentException("Dificuldade inválida.")
-        val raw = call("admin_generate_badge_challenge") {
-            put("difficulty", normalized)
-            put("exclude", exclude.trim())
-        }.optJSONObject("challenge") ?: throw IllegalStateException("Não foi possível gerar o desafio.")
+        val normalized = difficulty.trim().lowercase().takeIf { it in setOf("easy", "medium", "hard") } ?: throw IllegalArgumentException("Dificuldade inválida.")
+        val raw = call("admin_generate_badge_challenge") { put("difficulty", normalized); put("exclude", exclude.trim()) }
+            .optJSONObject("challenge") ?: throw IllegalStateException("Não foi possível gerar o desafio.")
         return GeneratedBadgeChallenge(
-            difficulty = raw.optString("difficulty", normalized),
-            text = raw.optString("text"),
-            metric = raw.optString("metric"),
-            target = raw.optInt("target", 0)
-        ).also {
-            require(it.text.isNotBlank() && it.metric.isNotBlank() && it.target > 0) { "O servidor retornou um desafio inválido." }
-        }
+            difficulty = raw.optString("difficulty", normalized), text = raw.optString("text"), metric = raw.optString("metric"), target = raw.optInt("target", 0)
+        ).also { require(it.text.isNotBlank() && it.metric.isNotBlank() && it.target > 0) { "O servidor retornou um desafio inválido." } }
     }
 
     suspend fun saveBadge(item: AdminCustomBadge): AdminCustomBadge {
         val response = call("admin_upsert_badge") {
-            put("id", item.id)
-            put("name", item.name)
-            put("description", item.description)
-            put("challenge", item.challenge)
-            put("imageRef", item.imageRef)
-            put("special", item.special)
-            put("active", item.active)
+            put("id", item.id); put("name", item.name); put("description", item.description); put("challenge", item.challenge)
+            put("imageRef", item.imageRef); put("special", item.special); put("active", item.active)
         }
         return parseBadge(response.optJSONObject("badge") ?: throw IllegalStateException("O emblema não foi salvo."))
     }
 
+    private fun parseCosmetic(item: JSONObject): AdminProfileCosmetic = AdminProfileCosmetic(
+        id = item.optString("id"), kind = item.optString("kind"), name = item.optString("name"),
+        description = item.optString("description"), challenge = item.optString("challenge"),
+        imageRef = item.optString("image_ref"), active = item.optBoolean("active", true)
+    )
+
+    suspend fun loadCosmetics(kind: String): List<AdminProfileCosmetic> {
+        require(kind in setOf("distintivo", "moldura")) { "Tipo de personalização inválido." }
+        val array = call("admin_cosmetics") { put("kind", kind) }.optJSONArray("items") ?: return emptyList()
+        return buildList { for (index in 0 until array.length()) array.optJSONObject(index)?.let { add(parseCosmetic(it)) } }
+    }
+
+    suspend fun saveCosmetic(item: AdminProfileCosmetic): AdminProfileCosmetic {
+        val response = call("admin_upsert_cosmetic") {
+            put("id", item.id); put("kind", item.kind); put("name", item.name); put("description", item.description)
+            put("challenge", item.challenge); put("imageRef", item.imageRef); put("active", item.active)
+        }
+        return parseCosmetic(response.optJSONObject("item") ?: throw IllegalStateException("A personalização não foi salva."))
+    }
+
     suspend fun loadRedemptions(status: String = "todos"): List<AdminXpRedemption> {
-        val response = call("admin_redemptions") { put("status", status) }
-        val array = response.optJSONArray("redemptions") ?: return emptyList()
+        val array = call("admin_redemptions") { put("status", status) }.optJSONArray("redemptions") ?: return emptyList()
         return buildList {
             for (index in 0 until array.length()) {
                 val item = array.optJSONObject(index) ?: continue
-                add(
-                    AdminXpRedemption(
-                        id = item.optString("id"),
-                        memberId = item.optString("member_id"),
-                        memberName = item.optString("member_name"),
-                        itemId = item.optString("item_id"),
-                        itemName = item.optString("item_name"),
-                        cost = item.optInt("cost"),
-                        status = item.optString("status"),
-                        code = item.optString("redemption_code"),
-                        createdAt = item.optString("created_at"),
-                        deliveredAt = item.optString("delivered_at")
-                    )
-                )
+                add(AdminXpRedemption(
+                    id = item.optString("id"), memberId = item.optString("member_id"), memberName = item.optString("member_name"),
+                    itemId = item.optString("item_id"), itemName = item.optString("item_name"), cost = item.optInt("cost"), status = item.optString("status"),
+                    code = item.optString("redemption_code"), createdAt = item.optString("created_at"), deliveredAt = item.optString("delivered_at")
+                ))
             }
         }
     }
 
     suspend fun updateRedemptionStatus(redemptionId: String, status: String) {
-        call("admin_set_redemption_status") {
-            put("redemptionId", redemptionId)
-            put("status", status)
-        }
+        call("admin_set_redemption_status") { put("redemptionId", redemptionId); put("status", status) }
     }
 }
