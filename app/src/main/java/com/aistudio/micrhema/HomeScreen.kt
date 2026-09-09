@@ -173,12 +173,12 @@ fun HomeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(scrollState)
-                .padding(bottom = 100.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
+                .padding(bottom = 76.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(10.dp))
         
-        Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp)) {
             if (currentMember != null && currentMember.name.isNotBlank()) {
                 val firstName = currentMember.name.split(" ").firstOrNull() ?: ""
                 Text(
@@ -231,22 +231,22 @@ fun HomeScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
+                    .padding(horizontal = 16.dp)
                     .clickable { selectedService = targetService },
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             ) {
                 Row(
-                    modifier = Modifier.padding(16.dp),
+                    modifier = Modifier.padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.DateRange,
                         contentDescription = "Culto de Hoje",
                         tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(28.dp)
                     )
-                    Spacer(modifier = Modifier.width(16.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(
                             text = if (isFuture) "Hoje tem ${targetService.title}" else "Hoje teve ${targetService.title}",
@@ -268,7 +268,7 @@ fun HomeScreen(
             Column {
                 LazyRow(
                     state = bannerListState,
-                    contentPadding = PaddingValues(horizontal = 20.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(0.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -279,7 +279,7 @@ fun HomeScreen(
                                 .fillParentMaxWidth()
                                 .aspectRatio(16f / 9f)
                                 .clickable(enabled = hasEventInfo) { selectedEventInfo = banner.eventInfo },
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(14.dp),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                         ) {
                             Box(
@@ -299,7 +299,7 @@ fun HomeScreen(
                                             .align(Alignment.BottomCenter)
                                             .fillMaxWidth()
                                             .background(Color.Black.copy(alpha = 0.58f))
-                                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                                            .padding(horizontal = 12.dp, vertical = 8.dp)
                                     ) {
                                         Column {
                                             if (banner.tag.isNotBlank()) {
@@ -338,7 +338,7 @@ fun HomeScreen(
                 }
 
                 if (validBanners.size > 1) {
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.Center
@@ -348,8 +348,8 @@ fun HomeScreen(
                             val selected = index == currentItem
                             Box(
                                 modifier = Modifier
-                                    .padding(horizontal = 4.dp)
-                                    .size(width = if (selected) 22.dp else 8.dp, height = 8.dp)
+                                    .padding(horizontal = 3.dp)
+                                    .size(width = if (selected) 20.dp else 7.dp, height = 7.dp)
                                     .background(
                                         if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.28f),
                                         CircleShape
@@ -376,7 +376,7 @@ fun HomeScreen(
         }
         
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             QuickActionItem(icon = Icons.Outlined.Book, label = "Bíblia", onClick = { onNavigate("bible") })
@@ -387,11 +387,11 @@ fun HomeScreen(
         
         if (todayDevotional != null) {
             Card(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).clickable { onNavigate(Screen.Devotionals.route + "?id=${todayDevotional.id}") },
-                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clickable { onNavigate(Screen.Devotionals.route + "?id=${todayDevotional.id}") },
+                shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(14.dp)) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text("Devocional Diário", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -399,11 +399,11 @@ fun HomeScreen(
                             Icon(Icons.Filled.ChevronRight, contentDescription = "Ler", tint = MaterialTheme.colorScheme.primary)
                         }
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(todayDevotional.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(3.dp))
                     Text(todayDevotional.date, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(todayDevotional.content, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
                 }
             }
@@ -412,26 +412,26 @@ fun HomeScreen(
         if (latestNews.isNotEmpty()) {
             HomeSectionHeader(title = "Notícias Bíblicas", action = "Ver todas", onAction = { onNavigate("news_list") })
             LazyRow(
-                contentPadding = PaddingValues(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(latestNews) { news ->
                     Card(
-                        modifier = Modifier.width(240.dp).clickable { onNavigate("news_detail/${news.id}") },
-                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.width(224.dp).clickable { onNavigate("news_detail/${news.id}") },
+                        shape = RoundedCornerShape(14.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                     ) {
                         Column {
                             BibleNewsImage(
                                 news = news,
                                 contentDescription = news.title,
-                                modifier = Modifier.fillMaxWidth().height(120.dp)
+                                modifier = Modifier.fillMaxWidth().height(112.dp)
                             )
-                            Column(modifier = Modifier.padding(12.dp)) {
+                            Column(modifier = Modifier.padding(10.dp)) {
                                 Text(news.title, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(news.category, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Spacer(modifier = Modifier.height(3.dp))
+                                Text(news.category, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Spacer(modifier = Modifier.height(2.dp))
                                 Text("${news.book} ${news.chapter}:${news.verse} • ${BibleNewsEditorial.intensityLabel(news.intensity)}", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
@@ -443,17 +443,17 @@ fun HomeScreen(
         if (validServices.isNotEmpty()) {
             HomeSectionHeader(title = "Próximos Cultos", action = "Ver", onAction = { onNavigate(Screen.Services.route) })
             LazyRow(
-                contentPadding = PaddingValues(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(validServices) { service ->
                     Card(
-                        modifier = Modifier.width(200.dp).clickable { selectedService = service },
-                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.width(190.dp).clickable { selectedService = service },
+                        shape = RoundedCornerShape(14.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                     ) {
-                        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(end = 12.dp)) {
+                        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(end = 10.dp)) {
                                 Text(service.dayShort, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                                 val dayNum = "🗓"
                                 Text(dayNum, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -484,8 +484,8 @@ fun HomeScreen(
         if (hasMedia) {
             HomeSectionHeader(title = "Mídia", action = "Ver todas", onAction = { onNavigate(Screen.Content.route) })
             LazyRow(
-                contentPadding = PaddingValues(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(recentVideos) { video ->
                     MediaCard(
@@ -524,7 +524,7 @@ fun HomeScreen(
             onDismissRequest = { selectedService = null },
             title = { Text(service.title) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         "${service.day} às ${service.time}",
                         color = MaterialTheme.colorScheme.primary,
@@ -550,11 +550,11 @@ fun HomeScreen(
             onDismissRequest = { showMoodSelector = false }
         ) {
             Column(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp).verticalScroll(rememberScrollState()),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp).verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text("Como está seu coração hoje?", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 
                 val moods = listOf(
                     MoodItem("Feliz", "😊", "Alegria"),
@@ -568,7 +568,7 @@ fun HomeScreen(
                 )
                 
                 moods.chunked(2).forEach { rowMoods ->
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         rowMoods.forEach { mood ->
                             Card(
                                 modifier = Modifier.weight(1f).clickable {
@@ -581,20 +581,20 @@ fun HomeScreen(
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(16.dp),
+                                    modifier = Modifier.padding(12.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.Center
                                 ) {
                                     Text(mood.emoji, style = MaterialTheme.typography.titleMedium)
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
                                     Text(mood.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                             }
                         }
                     }
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(16.dp))
             }
         }
     }
@@ -605,8 +605,8 @@ data class MoodItem(val title: String, val emoji: String, val planCategory: Stri
 @Composable
 fun MoodCard(savedMoodKey: String?, onSelectMood: () -> Unit, onNavigate: (String) -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
     ) {
         Row(
@@ -617,11 +617,11 @@ fun MoodCard(savedMoodKey: String?, onSelectMood: () -> Unit, onNavigate: (Strin
                 modifier = Modifier
                     .weight(1f)
                     .clickable { onSelectMood() }
-                    .padding(16.dp),
+                    .padding(14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Filled.Favorite, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(32.dp))
-                Spacer(modifier = Modifier.width(16.dp))
+                Icon(Icons.Filled.Favorite, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(28.dp))
+                Spacer(modifier = Modifier.width(12.dp))
                 Column {
                     if (savedMoodKey == null) {
                         Text("Como você está se sentindo hoje?", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
@@ -637,7 +637,7 @@ fun MoodCard(savedMoodKey: String?, onSelectMood: () -> Unit, onNavigate: (Strin
                 Row(
                     modifier = Modifier
                         .clickable { onNavigate(Screen.Plans.route + "?theme=" + Uri.encode(mappedPlan)) }
-                        .padding(16.dp),
+                        .padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(horizontalAlignment = Alignment.End) {
@@ -674,7 +674,7 @@ fun getMappedPlan(mood: String): String {
 @Composable
 fun HomeSectionHeader(title: String, action: String, onAction: () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -691,12 +691,12 @@ fun HomeSectionHeader(title: String, action: String, onAction: () -> Unit) {
 @Composable
 fun MediaCard(title: String, type: String, icon: ImageVector, cover: String, videoUrl: String = "", onClick: () -> Unit) {
     Card(
-        modifier = Modifier.width(140.dp).clickable { onClick() },
+        modifier = Modifier.width(132.dp).clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column {
-            Box(modifier = Modifier.fillMaxWidth().height(140.dp)) {
+            Box(modifier = Modifier.fillMaxWidth().height(132.dp)) {
                 if (videoUrl.isNotBlank() && (type == "Vídeo" || isYoutubeUrl(videoUrl))) {
                     YoutubeThumbnailImage(
                         videoUrl = videoUrl,
@@ -712,7 +712,7 @@ fun MediaCard(title: String, type: String, icon: ImageVector, cover: String, vid
                     )
                 }
                 Box(
-                    modifier = Modifier.align(Alignment.BottomStart).padding(8.dp).background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp)
+                    modifier = Modifier.align(Alignment.BottomStart).padding(7.dp).background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
@@ -727,7 +727,7 @@ fun MediaCard(title: String, type: String, icon: ImageVector, cover: String, vid
                 fontWeight = FontWeight.Bold, 
                 maxLines = 2, 
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(8.dp)
+                modifier = Modifier.padding(7.dp)
             )
         }
     }
@@ -737,16 +737,16 @@ fun MediaCard(title: String, type: String, icon: ImageVector, cover: String, vid
 fun QuickActionItem(icon: ImageVector, label: String, onClick: () -> Unit = {}) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.width(72.dp)
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier.width(68.dp)
     ) {
         Surface(
             shape = CircleShape,
             color = MaterialTheme.colorScheme.surfaceVariant,
-            modifier = Modifier.size(56.dp).clickable { onClick() }
+            modifier = Modifier.size(52.dp).clickable { onClick() }
         ) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                Icon(imageVector = icon, contentDescription = label, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
+                Icon(imageVector = icon, contentDescription = label, modifier = Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
             }
         }
         Text(
