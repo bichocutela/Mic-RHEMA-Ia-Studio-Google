@@ -134,9 +134,14 @@ private fun MemberXpAdminDialog(
     var extraXp by remember(member.id) { mutableStateOf("") }
     var isCrediting by remember(member.id) { mutableStateOf(false) }
     var creditError by remember(member.id) { mutableStateOf("") }
+    var showBadgePicker by remember(member.id) { mutableStateOf(false) }
+    var isUnlockingBadge by remember(member.id) { mutableStateOf(false) }
+    var unlockedBadgeIds by remember(member.id) { mutableStateOf(member.unlockedBadgeIds.toSet()) }
+
+    val isBusy = isCrediting || isUnlockingBadge
 
     AlertDialog(
-        onDismissRequest = { if (!isCrediting) onDismiss() },
+        onDismissRequest = { if (!isBusy) onDismiss() },
         title = { Text("XP de ${member.name.ifBlank { "usuário" }}") },
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
@@ -164,7 +169,7 @@ private fun MemberXpAdminDialog(
                 ) {
                     Text("Histórico de XP", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     TextButton(
-                        enabled = !isCrediting,
+                        enabled = !isBusy,
                         onClick = {
                             showExtraInput = !showExtraInput
                             creditError = ""
@@ -173,6 +178,20 @@ private fun MemberXpAdminDialog(
                         Icon(Icons.Default.Add, contentDescription = null)
                         Spacer(Modifier.width(4.dp))
                         Text("XP Extra")
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(
+                        enabled = !isBusy,
+                        onClick = { showBadgePicker = true }
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null)
+                        Spacer(Modifier.width(4.dp))
+                        Text("Liberar emblema")
                     }
                 }
 
@@ -197,7 +216,7 @@ private fun MemberXpAdminDialog(
                                 placeholder = { Text("Ex.: 500") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 singleLine = true,
-                                enabled = !isCrediting
+                                enabled = !isBusy
                             )
                             if (creditError.isNotBlank()) {
                                 Text(
@@ -209,7 +228,7 @@ private fun MemberXpAdminDialog(
                             Spacer(Modifier.height(8.dp))
                             Button(
                                 modifier = Modifier.fillMaxWidth(),
-                                enabled = !isCrediting && (extraXp.toLongOrNull() ?: 0L) in 1L..Int.MAX_VALUE.toLong(),
+                                enabled = !isBusy && (extraXp.toLongOrNull() ?: 0L) in 1L..Int.MAX_VALUE.toLong(),
                                 onClick = {
                                     val amount = extraXp.toIntOrNull() ?: return@Button
                                     isCrediting = true
@@ -304,7 +323,114 @@ private fun MemberXpAdminDialog(
             }
         },
         confirmButton = {
-            TextButton(enabled = !isCrediting, onClick = onDismiss) { Text("Fechar") }
+            TextButton(enabled = !isBusy, onClick = onDismiss) { Text("Fechar") }
+        }
+    )
+
+    if (showBadgePicker) {
+        AdminBadgeUnlockDialog(
+            member = member,
+            unlockedBadgeIds = unlockedBadgeIds,
+            isSaving = isUnlockingBadge,
+            onDismiss = { if (!isUnlockingBadge) showBadgePicker = false },
+            onConfirm = { selected ->
+                if (selected.isEmpty()) return@AdminBadgeUnlockDialog
+                isUnlockingBadge = true
+                scope.launch {
+                    runCatching { MemberXpAdminClient.unlockBadges(member, selected) }
+                        .onSuccess { updated ->
+                            unlockedBadgeIds = updated.toSet()
+                            showBadgePicker = false
+                            val names = profileEmblemBadges
+                                .filter { it.id in selected }
+                                .joinToString { it.name }
+                            onMessage(
+                                if (selected.size == 1) "Emblema $names liberado para ${member.name}."
+                                else "${selected.size} emblemas liberados para ${member.name}."
+                            )
+                        }
+                        .onFailure { onMessage(it.message ?: "Não foi possível liberar o emblema.") }
+                    isUnlockingBadge = false
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun AdminBadgeUnlockDialog(
+    member: MemberRequest,
+    unlockedBadgeIds: Set<String>,
+    isSaving: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: (Set<String>) -> Unit
+) {
+    var selectedIds by remember(member.id, unlockedBadgeIds) { mutableStateOf(emptySet<String>()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Liberar emblema") },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    "Escolha um ou mais emblemas para desbloquear manualmente para ${member.name.ifBlank { "este usuário" }}.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(Modifier.height(10.dp))
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 380.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    items(profileEmblemBadges, key = { it.id }) { badge ->
+                        val alreadyUnlocked = badge.id in unlockedBadgeIds
+                        val selected = badge.id in selectedIds
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(enabled = !alreadyUnlocked && !isSaving) {
+                                    selectedIds = if (selected) selectedIds - badge.id else selectedIds + badge.id
+                                }
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = alreadyUnlocked || selected,
+                                onCheckedChange = if (alreadyUnlocked || isSaving) null else { checked ->
+                                    selectedIds = if (checked) selectedIds + badge.id else selectedIds - badge.id
+                                },
+                                enabled = !alreadyUnlocked && !isSaving
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "Nível ${badge.level} · ${badge.name}",
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    if (alreadyUnlocked) "Já desbloqueado" else badge.rarity?.label.orEmpty(),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (alreadyUnlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(enabled = !isSaving, onClick = onDismiss) { Text("Cancelar") }
+        },
+        confirmButton = {
+            Button(
+                enabled = selectedIds.isNotEmpty() && !isSaving,
+                onClick = { onConfirm(selectedIds) }
+            ) {
+                if (isSaving) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text(if (isSaving) "Liberando…" else "Liberar selecionados")
+            }
         }
     )
 }
