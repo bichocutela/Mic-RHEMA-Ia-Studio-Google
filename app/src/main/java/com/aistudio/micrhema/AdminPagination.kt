@@ -3,6 +3,8 @@ package com.aistudio.micrhema
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -46,8 +48,17 @@ fun <T> AdminPagedList(
                 val from = page * pageSize
                 val to = minOf(from + pageSize, items.size)
                 val pageItems = if (from in 0 until items.size && from < to) items.subList(from, to) else emptyList()
+                val verticalState = rememberScrollState()
+
+                LaunchedEffect(page, pageItems.size) {
+                    verticalState.scrollTo(0)
+                }
+
                 Column(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(verticalState)
+                        .padding(bottom = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(9.dp)
                 ) {
                     pageItems.forEach { item ->
@@ -80,7 +91,7 @@ fun <T> AdminPagedList(
             }
 
             Text(
-                "Deslize para a esquerda ou direita para trocar de página.",
+                "Role para cima/baixo para ver todos os itens e deslize para os lados para trocar de página.",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.align(Alignment.CenterHorizontally)
