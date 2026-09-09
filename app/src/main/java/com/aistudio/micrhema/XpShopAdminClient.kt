@@ -56,8 +56,6 @@ data class GeneratedBadgeChallenge(
 )
 
 object XpShopAdminClient {
-    private const val SIMPLE_ADMIN_PASSWORD = "igreja10"
-
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
@@ -80,7 +78,6 @@ object XpShopAdminClient {
             .url("$baseUrl/functions/v1/xp-shop-admin-simple")
             .header("apikey", apiKey)
             .header("Authorization", "Bearer $apiKey")
-            .header("X-Rhema-Admin-Password", SIMPLE_ADMIN_PASSWORD)
             .header("Content-Type", "application/json")
             .post(payload.toString().toRequestBody("application/json".toMediaType()))
             .build()
