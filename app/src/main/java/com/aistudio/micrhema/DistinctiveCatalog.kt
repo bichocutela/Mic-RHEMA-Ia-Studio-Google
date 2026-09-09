@@ -2,15 +2,14 @@ package com.aistudio.micrhema
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import kotlin.math.*
 
 object DistinctiveCatalog {
     val items = mutableStateOf<List<AdminProfileCosmetic>>(emptyList())
@@ -45,15 +44,32 @@ fun ProfileDistinctives(badgeId: String, memberId: String?, preview: List<AdminP
                 (item.emblemIds.isEmpty() || badgeId in item.emblemIds)
             else badgeId in item.emblemIds
     }
+
+    // Distintivos são acessórios externos: ficam numa coluna à direita do emblema,
+    // sem cobrir a arte, o avatar ou a moldura. Se houver vários, reduzem de tamanho
+    // para permanecer dentro da área disponível.
     BoxWithConstraints(Modifier.fillMaxSize()) {
+        if (selected.isEmpty()) return@BoxWithConstraints
         val side = minOf(maxWidth, maxHeight)
-        val iconSize = side * if (selected.size > 5) .17f else .20f
-        selected.forEachIndexed { index, item ->
-            val angle = PI / 2 + index * 2 * PI / selected.size.coerceAtLeast(1)
-            DistinctiveImage(item, Modifier.offset(
-                x = maxWidth / 2 + side * (.40f * cos(angle).toFloat()) - iconSize / 2,
-                y = maxHeight / 2 + side * (.40f * sin(angle).toFloat()) - iconSize / 2
-            ).size(iconSize))
+        val iconSize = side * when {
+            selected.size <= 2 -> .19f
+            selected.size <= 4 -> .16f
+            else -> .13f
+        }
+        val gap = side * .018f
+        val visible = selected.take(6)
+        val totalHeight = iconSize * visible.size + gap * (visible.size - 1).coerceAtLeast(0)
+        Column(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .offset(x = iconSize * .56f)
+                .height(totalHeight),
+            verticalArrangement = Arrangement.spacedBy(gap),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            visible.forEach { item ->
+                DistinctiveImage(item, Modifier.size(iconSize))
+            }
         }
     }
 }
