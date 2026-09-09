@@ -133,7 +133,7 @@ private fun AdminXpCosmeticsCore(kind: String) {
                     if (item.emblemIds.isNotEmpty()) Text("Aplicado em ${item.emblemIds.size} emblema(s)", style = MaterialTheme.typography.bodySmall)
                     if (item.description.isNotBlank()) Text(item.description, style = MaterialTheme.typography.bodySmall)
                     Text("Desafio: ${item.challenge}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    if (kind == "distintivo") OutlinedButton(onClick = { preview = item }, modifier = Modifier.fillMaxWidth()) { Text("Prévia no emblema") }
+                    OutlinedButton(onClick = { preview = item }, modifier = Modifier.fillMaxWidth()) { Text("Prévia no perfil") }
                     OutlinedButton(onClick = { editing = item; showEditor = true }, modifier = Modifier.fillMaxWidth()) {
                         Text("Editar $label")
                     }
@@ -148,7 +148,7 @@ private fun AdminXpCosmeticsCore(kind: String) {
                 avatar = biblicalAvatarForId(loggedInMemberState.value?.avatarId ?: DEFAULT_BIBLICAL_AVATAR_ID),
                 badge = biblicalBadgeForId(item.emblemIds.firstOrNull() ?: loggedInMemberState.value?.equippedBadgeId ?: DEFAULT_BIBLICAL_BADGE_ID),
                 modifier = Modifier.size(240.dp), previewLightEffects = emptyList(),
-                previewDistinctives = listOf(item), previewReaderBadge = false, previewPromiseFrame = false
+                previewDistinctives = listOf(item), previewPrimaryDistinctive = item.takeIf { it.kind == "distintivo" }, previewReaderBadge = false, previewPromiseFrame = false
             ) }, confirmButton = { TextButton(onClick = { preview = null }) { Text("Fechar") } })
     }
     if (showEditor) {
@@ -176,6 +176,7 @@ private fun AdminXpCosmeticEditor(
     val scope = rememberCoroutineScope()
     val label = if (kind == "moldura") "Moldura" else "Distintivo"
     val assetType = if (kind == "moldura") "frame" else "badge"
+    val builtin = initial?.let { isBuiltinCosmetic(it.id) } == true
     var name by remember(initial?.id) { mutableStateOf(initial?.name.orEmpty()) }
     var description by remember(initial?.id) { mutableStateOf(initial?.description.orEmpty()) }
     var challenge by remember(initial?.id) { mutableStateOf(initial?.challenge.orEmpty()) }
@@ -243,32 +244,37 @@ private fun AdminXpCosmeticEditor(
                 OutlinedTextField(value = name, onValueChange = { name = it; error = "" }, label = { Text("Nome") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Descrição") }, minLines = 2, modifier = Modifier.fillMaxWidth())
 
-                Text("Dificuldade do desafio", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    listOf("easy" to "Fácil", "medium" to "Médio", "hard" to "Difícil").forEach { (key, text) ->
-                        FilterChip(
-                            selected = difficulty == key,
-                            onClick = { requestChallenge(key) },
-                            enabled = !busy,
-                            label = { Text(text) }
-                        )
+                if (!builtin) {
+                    Text("Dificuldade do desafio", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        listOf("easy" to "Fácil", "medium" to "Médio", "hard" to "Difícil").forEach { (key, text) ->
+                            FilterChip(
+                                selected = difficulty == key,
+                                onClick = { requestChallenge(key) },
+                                enabled = !busy,
+                                label = { Text(text) }
+                            )
+                        }
                     }
-                }
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.38f))) {
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Text("Desafio", fontWeight = FontWeight.SemiBold)
-                        Text(challenge.ifBlank { "Buscando desafio…" })
+                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.38f))) {
+                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Text("Desafio", fontWeight = FontWeight.SemiBold)
+                            Text(challenge.ifBlank { "Buscando desafio…" })
+                        }
                     }
-                }
-                OutlinedButton(enabled = !busy, onClick = { requestChallenge(difficulty) }, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Default.Refresh, contentDescription = null)
-                    Spacer(Modifier.width(7.dp))
-                    Text("Buscar outro desafio")
+                    OutlinedButton(enabled = !busy, onClick = { requestChallenge(difficulty) }, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Default.Refresh, contentDescription = null)
+                        Spacer(Modifier.width(7.dp))
+                        Text("Buscar outro desafio")
+                    }
+                } else {
+                    Text("Item original da Loja XP. As compras existentes continuam válidas.", style = MaterialTheme.typography.bodySmall)
                 }
 
                 OutlinedButton(enabled = !busy, onClick = { launcher.launch("image/png") }, modifier = Modifier.fillMaxWidth()) {
                     Text(if (imageRef.isBlank()) "Enviar PNG transparente" else "Trocar PNG")
                 }
+                if (builtin) TextButton(enabled = !busy, onClick = { imageRef = "" }) { Text("Restaurar arte original") }
                 if (uploading) {
                     LinearProgressIndicator(progress = { progress.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
                 } else if (imageRef.isNotBlank()) {
@@ -279,9 +285,9 @@ private fun AdminXpCosmeticEditor(
                     }
                 }
 
-                if (kind == "distintivo") {
-                    initial?.let { DistinctiveImage(it, Modifier.size(96.dp).align(Alignment.CenterHorizontally)) }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                if (kind == "distintivo" || builtin) {
+                    initial?.let { DistinctiveImage(it.copy(imageRef = imageRef), Modifier.size(96.dp).align(Alignment.CenterHorizontally)) }
+                    if (!builtin) Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Vender na Loja XP", Modifier.weight(1f))
                         Switch(purchasable, { purchasable = it }, enabled = !busy)
                     }
@@ -289,17 +295,19 @@ private fun AdminXpCosmeticEditor(
                         label = { Text("Valor em XP") }, singleLine = true,
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth())
-                    Text("Aplicar nos emblemas", fontWeight = FontWeight.SemiBold)
-                    Text(if (purchasable) "Sem vínculo: disponível em qualquer emblema após a compra." else "Selecione os emblemas que receberão o distintivo.", style = MaterialTheme.typography.bodySmall)
-                    currentProfileEmblemBadges().forEach { badge ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(badge.id in emblems, { checked -> emblems = if (checked) emblems + badge.id else emblems - badge.id }, enabled = !busy)
-                            Text(badge.name)
+                    if (!builtin) {
+                        Text("Aplicar nos emblemas", fontWeight = FontWeight.SemiBold)
+                        Text(if (purchasable) "Sem vínculo: disponível em qualquer emblema após a compra." else "Selecione os emblemas que receberão o distintivo.", style = MaterialTheme.typography.bodySmall)
+                        currentProfileEmblemBadges().forEach { badge ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(badge.id in emblems, { checked -> emblems = if (checked) emblems + badge.id else emblems - badge.id }, enabled = !busy)
+                                Text(badge.name)
+                            }
                         }
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Disponível", modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+                    Text(if (builtin) "Disponível na Loja XP" else "Disponível", modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
                     Switch(checked = active, onCheckedChange = { active = it }, enabled = !busy)
                 }
                 if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
@@ -312,7 +320,7 @@ private fun AdminXpCosmeticEditor(
                     purchasable && (cost.toIntOrNull() ?: 0) <= 0 -> error = "Informe um valor em XP maior que zero."
                     name.isBlank() -> error = "Informe o nome."
                     challenge.isBlank() -> error = "Escolha um desafio."
-                    imageRef.isBlank() -> error = "Envie o PNG."
+                    imageRef.isBlank() && !builtin -> error = "Envie o PNG."
                     else -> {
                         saving = true
                         scope.launch {

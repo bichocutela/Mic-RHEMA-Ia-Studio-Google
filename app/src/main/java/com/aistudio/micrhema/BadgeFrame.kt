@@ -39,7 +39,8 @@ fun BiblicalAvatarWithBadge(
     previewReaderBadge: Boolean? = null,
     previewLightEffects: List<AdminLightEffect>? = null,
     ownerMemberId: String? = null,
-    previewDistinctives: List<AdminProfileCosmetic>? = null
+    previewDistinctives: List<AdminProfileCosmetic>? = null,
+    previewPrimaryDistinctive: AdminProfileCosmetic? = null
 ) {
     LaunchedEffect(Unit) {
         while (true) {
@@ -62,8 +63,18 @@ fun BiblicalAvatarWithBadge(
             runCatching { resolveXpShopAssetUrl(context.applicationContext, ref) }.getOrNull()
         }
     }
-    val hasPromiseFrame = previewPromiseFrame ?: XpRewardManager.isActive(context, XpRewardManager.PROMISE_FRAME)
-    val hasReaderBadge = previewReaderBadge ?: XpRewardManager.isActive(context, XpRewardManager.READER_BADGE)
+    XpRewardManager.revision.value
+    val resolvedOwnerId = ownerMemberId ?: loggedInMemberState.value?.id
+    val previewFrame = previewDistinctives?.firstOrNull { it.id == XpRewardManager.PROMISE_FRAME }
+    val promiseFrame = previewFrame ?: DistinctiveCatalog.items.value.firstOrNull { it.id == XpRewardManager.PROMISE_FRAME }
+    val hasPromiseFrame = previewFrame != null || (previewPromiseFrame ?: XpRewardManager.isActive(context, XpRewardManager.PROMISE_FRAME, resolvedOwnerId))
+    val availableDistinctives = activeProfileCosmeticsForMember(context, "distintivo", badge.id, resolvedOwnerId)
+    val primaryDistinctive = previewPrimaryDistinctive ?: when {
+        previewReaderBadge == true -> DistinctiveCatalog.items.value.firstOrNull { it.id == XpRewardManager.READER_BADGE }
+        previewReaderBadge == false || previewDistinctives != null -> null
+        resolvedOwnerId != null -> DistinctiveHighlightsStore.primary(resolvedOwnerId, availableDistinctives)
+        else -> null
+    }
     val clickableModifier = if (onClick != null) modifier.clickable(onClick = onClick) else modifier
     val isProfileEmblem = remoteEmblem != null || badge.frameStyle == BadgeFrameStyle.PROFILE_EMBLEM ||
         (badge.category == BadgeCategory.LEVEL && (badge.level ?: 0) in 1..7)
@@ -77,14 +88,8 @@ fun BiblicalAvatarWithBadge(
 
     Box(modifier = clickableModifier, contentAlignment = Alignment.Center) {
         if (lightPhase != null) AvatarLightLayer(effects, lightPhase, false, portraitFraction)
-        if (hasPromiseFrame) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val c = Offset(size.width / 2f, size.height / 2f)
-                val r = size.minDimension * 0.485f
-                drawCircle(Color(0xFF6D4CFF).copy(alpha = 0.28f), r, c, style = Stroke(size.minDimension * 0.075f))
-                drawCircle(Color(0xFFFFD76A), r, c, style = Stroke(size.minDimension * 0.025f))
-                drawCircle(Color.White.copy(alpha = 0.75f), r * 0.94f, c, style = Stroke(size.minDimension * 0.008f))
-            }
+        if (hasPromiseFrame && promiseFrame != null) {
+            DistinctiveImage(promiseFrame, Modifier.fillMaxSize())
         }
 
         if (isProfileEmblem) {
@@ -125,14 +130,7 @@ fun BiblicalAvatarWithBadge(
 
         ProfileDistinctives(badge.id, ownerMemberId, previewDistinctives)
 
-        if (hasReaderBadge) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val center = Offset(size.width * 0.82f, size.height * 0.80f)
-                val radius = size.minDimension * 0.105f
-                drawCircle(Color(0xFF1B1B1F).copy(alpha = 0.82f), radius * 1.2f, center)
-                drawCrest(center, Color(0xFFFFC107), Color.White, radius, 6)
-            }
-        }
+        primaryDistinctive?.let { PrimaryDistinctiveOverlay(it) }
     }
 }
 
@@ -244,6 +242,6 @@ private fun DrawScope.drawMetalArc(center: Offset, radius: Float, startAngle: Fl
 private fun DrawScope.pointOnCircle(center: Offset, radius: Float, degrees: Float): Offset { val radians = degrees * PI.toFloat() / 180f; return Offset(center.x + cos(radians) * radius, center.y + sin(radians) * radius) }
 private fun DrawScope.drawMetalLeaf(center: Offset, color: Color, highlight: Color, degrees: Float, length: Float) { rotate(degrees, center) { val path = Path().apply { moveTo(center.x, center.y - length); quadraticBezierTo(center.x + length * 1.3f, center.y - length * 0.28f, center.x, center.y + length); quadraticBezierTo(center.x - length * 1.3f, center.y - length * 0.28f, center.x, center.y - length); close() }; drawPath(path, color.copy(alpha = 0.92f), style = Fill); drawLine(highlight.copy(alpha = 0.62f), Offset(center.x, center.y - length * 0.72f), Offset(center.x, center.y + length * 0.68f), length * 0.13f) } }
 private fun DrawScope.drawMedallion(center: Offset, color: Color, highlight: Color, shadow: Color, radius: Float, level: Int) { drawCircle(shadow, radius * 1.35f, center); drawCrest(center, color, highlight, radius, if (level >= 5) 6 else 4) }
-private fun DrawScope.drawCrest(center: Offset, color: Color, highlight: Color, radius: Float, points: Int) { val path = Path(); repeat(points * 2) { index -> val angle = -PI.toFloat() / 2f + index * PI.toFloat() / points; val rr = if (index % 2 == 0) radius else radius * 0.48f; val p = Offset(center.x + cos(angle) * rr, center.y + sin(angle) * rr); if (index == 0) path.moveTo(p.x, p.y) else path.lineTo(p.x, p.y) }; path.close(); drawPath(path, color.copy(alpha = 0.94f), style = Fill); drawPath(path, highlight.copy(alpha = 0.68f), style = Stroke(radius * 0.12f)) }
+internal fun DrawScope.drawCrest(center: Offset, color: Color, highlight: Color, radius: Float, points: Int) { val path = Path(); repeat(points * 2) { index -> val angle = -PI.toFloat() / 2f + index * PI.toFloat() / points; val rr = if (index % 2 == 0) radius else radius * 0.48f; val p = Offset(center.x + cos(angle) * rr, center.y + sin(angle) * rr); if (index == 0) path.moveTo(p.x, p.y) else path.lineTo(p.x, p.y) }; path.close(); drawPath(path, color.copy(alpha = 0.94f), style = Fill); drawPath(path, highlight.copy(alpha = 0.68f), style = Stroke(radius * 0.12f)) }
 private fun DrawScope.drawBook(center: Offset, color: Color, highlight: Color, size: Float) { val left = Path().apply { moveTo(center.x, center.y - size * .62f); quadraticBezierTo(center.x - size * .78f, center.y - size * .78f, center.x - size, center.y - size * .25f); lineTo(center.x - size, center.y + size * .62f); quadraticBezierTo(center.x - size * .46f, center.y + size * .42f, center.x, center.y + size * .76f); close() }; val right = Path().apply { moveTo(center.x, center.y - size * .62f); quadraticBezierTo(center.x + size * .78f, center.y - size * .78f, center.x + size, center.y - size * .25f); lineTo(center.x + size, center.y + size * .62f); quadraticBezierTo(center.x + size * .46f, center.y + size * .42f, center.x, center.y + size * .76f); close() }; drawPath(left, color, style = Fill); drawPath(right, color, style = Fill); drawLine(highlight, Offset(center.x, center.y - size * .58f), Offset(center.x, center.y + size * .62f), size * .10f) }
 private fun DrawScope.drawShield(center: Offset, color: Color, highlight: Color, shadow: Color, size: Float) { val path = Path().apply { moveTo(center.x, center.y - size); lineTo(center.x + size * .82f, center.y - size * .46f); lineTo(center.x + size * .64f, center.y + size * .62f); lineTo(center.x, center.y + size); lineTo(center.x - size * .64f, center.y + size * .62f); lineTo(center.x - size * .82f, center.y - size * .46f); close() }; drawPath(path, shadow, style = Fill); drawPath(path, color, style = Stroke(size * .20f)); drawLine(highlight, Offset(center.x, center.y - size * .48f), Offset(center.x, center.y + size * .48f), size * .13f); drawLine(highlight, Offset(center.x - size * .36f, center.y - size * .02f), Offset(center.x + size * .36f, center.y - size * .02f), size * .13f) }

@@ -98,14 +98,14 @@ fun XpShopPanel(member: MemberRequest, xpUnlocked: Boolean) {
                 val soldOut = item.stock != null && item.stock <= 0
                 val enoughBalance = (account?.balance ?: 0) >= item.cost
                 val hasAsset = item.kind != "physical" && item.imageUrl.isNotBlank()
-                val cosmetic = DistinctiveCatalog.items.value.firstOrNull { "cosmetic:${it.id}" == item.id }
+                val cosmetic = DistinctiveCatalog.items.value.firstOrNull { cosmeticRewardId(it) == item.id }
                 val isDistinctive = item.kind == "profile" &&
                     (cosmetic?.kind == "distintivo" ||
                         (cosmetic == null && item.category.equals("Distintivos", ignoreCase = true)))
                 val ownedLabel = when (item.id) {
                     XpRewardManager.GOLD_PLUS_THEME -> if (currentSettingsState.value.accentColor == AccentColor.GOLD) "Dourado Plus ativo" else "Ativar Dourado Plus"
                     XpRewardManager.PROMISE_FRAME -> "Moldura ativa no avatar"
-                    XpRewardManager.READER_BADGE -> "Distintivo ativo no avatar"
+                    XpRewardManager.READER_BADGE -> "Escolher destaque principal"
                     else -> if (hasAsset) "Abrir recompensa" else "Já resgatado"
                 }
                 val onOwnedAction: (() -> Unit)? = when {
