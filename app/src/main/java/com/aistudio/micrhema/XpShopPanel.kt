@@ -16,6 +16,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 @Composable
@@ -90,15 +91,16 @@ fun XpShopPanel(member: MemberRequest, xpUnlocked: Boolean) {
                 val limitReached = redeemedCount >= item.limitPerMember
                 val soldOut = item.stock != null && item.stock <= 0
                 val enoughBalance = (account?.balance ?: 0) >= item.cost
+                val hasAsset = item.kind != "physical" && item.imageUrl.isNotBlank()
                 val ownedLabel = when (item.id) {
                     XpRewardManager.GOLD_PLUS_THEME -> if (currentSettingsState.value.accentColor == AccentColor.GOLD) "Dourado Plus ativo" else "Ativar Dourado Plus"
                     XpRewardManager.PROMISE_FRAME -> "Moldura ativa no avatar"
                     XpRewardManager.READER_BADGE -> "Distintivo ativo no avatar"
-                    else -> if (item.kind == "digital" && item.imageUrl.isNotBlank()) "Abrir recompensa" else "Já resgatado"
+                    else -> if (hasAsset) "Abrir recompensa" else "Já resgatado"
                 }
                 val onOwnedAction: (() -> Unit)? = when {
                     item.id == XpRewardManager.GOLD_PLUS_THEME && currentSettingsState.value.accentColor != AccentColor.GOLD -> ({ XpRewardManager.activateGoldenPlusTheme(context, member.id) })
-                    item.kind == "digital" && item.imageUrl.isNotBlank() -> ({ runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(item.imageUrl))) } })
+                    hasAsset -> ({ openXpShopAsset(scope, context, item.imageUrl) { message -> error = message } })
                     else -> null
                 }
                 XpShopItemCard(item, redeemedCount, limitReached, soldOut, enoughBalance, ownedLabel, onOwnedAction) { selectedItem = item }
@@ -155,11 +157,71 @@ fun XpShopPanel(member: MemberRequest, xpUnlocked: Boolean) {
     }
 }
 
+private fun openXpShopAsset(scope: CoroutineScope, context: android.content.Context, raw: String, onError: (String) -> Unit) {
+    scope.launch {
+        runCatching { resolveXpShopAssetUrl(context, raw) }
+            .onSuccess { url ->
+                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                    .onFailure { onError("Não há aplicativo disponível para abrir esta recompensa.") }
+            }
+            .onFailure { onError(it.message ?: "Não foi possível abrir a recompensa.") }
+    }
+}
+
+@Composable
+private fun XpShopAssetPreview(item: XpShopItem) {
+    val context = LocalContext.current
+    val ref = remember(item.imageUrl) { parseXpShopAssetRef(item.imageUrl) }
+    var resolvedUrl by remember(item.imageUrl) { mutableStateOf(if (ref == null) item.imageUrl else "") }
+
+    LaunchedEffect(item.imageUrl) {
+        if (ref != null && ref.type in setOf("image", "emblem")) {
+            resolvedUrl = runCatching { resolveXpShopAssetUrl(context, item.imageUrl) }.getOrDefault("")
+        }
+    }
+
+    when {
+        item.imageUrl.isBlank() -> Unit
+        ref == null || ref.type in setOf("image", "emblem") -> {
+            if (resolvedUrl.isNotBlank()) {
+                AsyncImage(
+                    model = resolvedUrl,
+                    contentDescription = item.name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxWidth().height(128.dp).clip(RoundedCornerShape(13.dp))
+                )
+            }
+        }
+        else -> {
+            Surface(
+                modifier = Modifier.fillMaxWidth().height(96.dp),
+                shape = RoundedCornerShape(13.dp),
+                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f)
+            ) {
+                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                    Icon(
+                        when (ref.type) {
+                            "video" -> Icons.Default.VideoFile
+                            "audio" -> Icons.Default.AudioFile
+                            "pdf" -> Icons.Default.PictureAsPdf
+                            else -> Icons.Default.InsertDriveFile
+                        },
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(Modifier.size(8.dp))
+                    Text(xpShopAssetLabel(item.imageUrl), fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun XpShopItemCard(item: XpShopItem, redeemedCount: Int, limitReached: Boolean, soldOut: Boolean, enoughBalance: Boolean, ownedLabel: String, onOwnedAction: (() -> Unit)?, onRedeem: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f))) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (item.imageUrl.isNotBlank()) AsyncImage(model = item.imageUrl, contentDescription = item.name, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxWidth().height(128.dp).clip(RoundedCornerShape(13.dp)))
+            XpShopAssetPreview(item)
             Row(verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) { Text(item.name, fontWeight = FontWeight.Bold); if (item.description.isNotBlank()) Text(item.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 Spacer(Modifier.size(8.dp)); Text("${item.cost} XP", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
@@ -167,7 +229,7 @@ private fun XpShopItemCard(item: XpShopItem, redeemedCount: Int, limitReached: B
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Inventory2, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant); Spacer(Modifier.size(5.dp))
                 Text(when { item.stock == null -> "Disponível"; item.stock == 1 -> "Resta 1"; else -> "Restam ${item.stock}" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.weight(1f)); Text(if (item.kind == "physical") "Física" else "Digital", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.weight(1f)); Text(if (item.kind == "physical") "Física" else if (item.kind == "profile") "Perfil" else "Digital", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             if (redeemedCount > 0) Text("Resgates: ${redeemedCount.coerceAtMost(item.limitPerMember)}/${item.limitPerMember}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             when {
