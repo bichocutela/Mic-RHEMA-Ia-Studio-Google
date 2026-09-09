@@ -150,6 +150,7 @@ object XpShopAdminClient {
         val response = call("admin_upsert_badge") {
             put("id", item.id); put("name", item.name); put("description", item.description); put("challenge", item.challenge)
             put("imageRef", item.imageRef); put("special", item.special); put("active", item.active)
+            item.sequenceNo?.let { put("sequenceNo", it) }
         }
         return parseBadge(response.optJSONObject("badge") ?: throw IllegalStateException("O emblema não foi salvo."))
     }
