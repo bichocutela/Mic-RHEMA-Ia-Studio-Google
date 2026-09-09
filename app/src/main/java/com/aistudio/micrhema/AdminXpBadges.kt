@@ -21,10 +21,23 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
+private fun nativeAdminBadges(): List<AdminCustomBadge> = biblicalLevelBadges.map { badge ->
+    AdminCustomBadge(
+        id = badge.id,
+        sequenceNo = badge.level,
+        name = badge.name,
+        description = badge.description,
+        challenge = badge.requirement,
+        imageRef = buildBuiltinEmblemRef(badge.id),
+        special = false,
+        active = true
+    )
+}
+
 @Composable
 fun AdminXpBadgesSection() {
     val scope = rememberCoroutineScope()
-    var badges by remember { mutableStateOf<List<AdminCustomBadge>>(emptyList()) }
+    var badges by remember { mutableStateOf<List<AdminCustomBadge>>(nativeAdminBadges()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
     var showEditor by remember { mutableStateOf(false) }
@@ -36,7 +49,17 @@ fun AdminXpBadgesSection() {
         error = ""
         scope.launch {
             runCatching { XpShopAdminClient.loadBadges() }
-                .onSuccess { badges = it }
+                .onSuccess { remote ->
+                    val remoteById = remote.associateBy { it.id }
+                    val mergedNative = nativeAdminBadges().map { remoteById[it.id] ?: it }
+                    val nativeIds = mergedNative.map { it.id }.toSet()
+                    val extras = remote.filterNot { it.id in nativeIds }
+                    badges = (mergedNative + extras).sortedWith(
+                        compareBy<AdminCustomBadge> { it.special }
+                            .thenBy { it.sequenceNo ?: Int.MAX_VALUE }
+                            .thenBy { it.name.lowercase() }
+                    )
+                }
                 .onFailure { error = it.message ?: "Não foi possível carregar os emblemas." }
             loading = false
         }
@@ -52,7 +75,7 @@ fun AdminXpBadgesSection() {
         }
 
         Text(
-            "Crie quantos emblemas quiser. Os normais continuam automaticamente como 23, 24, 25…; emblemas especiais ficam fora da numeração.",
+            "Todos os emblemas do app aparecem aqui para edição. Os níveis 1–22 preservam a arte atual até você trocar o PNG; novos emblemas continuam em 23, 24, 25… ou podem ser especiais.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -69,39 +92,50 @@ fun AdminXpBadgesSection() {
             }
         }
 
-        Column(
-            modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(9.dp)
-        ) {
-            badges.forEach { badge ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f))
-                ) {
-                    Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.MilitaryTech, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            Spacer(Modifier.width(7.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(
-                                    if (badge.special) badge.name else "Emblema ${badge.sequenceNo ?: "?"} · ${badge.name}",
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(if (badge.special) "Especial" else "Catálogo numerado", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                            }
-                            Text(if (badge.active) "Ativo" else "Inativo", style = MaterialTheme.typography.labelMedium)
+        AdminPagedList(
+            items = badges,
+            modifier = Modifier.weight(1f),
+            key = { it.id },
+            emptyContent = {
+                if (!loading) Text("Nenhum emblema disponível.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        ) { badge ->
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f))
+            ) {
+                Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.MilitaryTech, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(7.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                when {
+                                    badge.special -> badge.name
+                                    badge.sequenceNo != null -> "Emblema ${badge.sequenceNo} · ${badge.name}"
+                                    else -> badge.name
+                                },
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                when {
+                                    badge.special -> "Especial"
+                                    (badge.sequenceNo ?: 0) in 1..22 -> "Emblema nativo do app"
+                                    else -> "Catálogo numerado"
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
                         }
-                        if (badge.description.isNotBlank()) Text(badge.description, style = MaterialTheme.typography.bodySmall)
-                        Text("Desafio: ${badge.challenge}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        OutlinedButton(onClick = { editing = badge; showEditor = true }, modifier = Modifier.fillMaxWidth()) {
-                            Text("Editar emblema")
-                        }
+                        Text(if (badge.active) "Ativo" else "Inativo", style = MaterialTheme.typography.labelMedium)
+                    }
+                    if (badge.description.isNotBlank()) Text(badge.description, style = MaterialTheme.typography.bodySmall)
+                    Text("Desafio: ${badge.challenge}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    OutlinedButton(onClick = { editing = badge; showEditor = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Editar emblema")
                     }
                 }
-            }
-            if (!loading && badges.isEmpty()) {
-                Text("Nenhum emblema personalizado criado ainda.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -127,6 +161,7 @@ private fun AdminXpBadgeEditor(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val isNative = (initial?.sequenceNo ?: 0) in 1..22 && initial?.special != true
     var name by remember(initial?.id) { mutableStateOf(initial?.name.orEmpty()) }
     var description by remember(initial?.id) { mutableStateOf(initial?.description.orEmpty()) }
     var challenge by remember(initial?.id) { mutableStateOf(initial?.challenge.orEmpty()) }
@@ -152,11 +187,8 @@ private fun AdminXpBadgeEditor(
                     difficulty = difficulty,
                     exclude = if (excludeCurrent) generatedChallenge?.text.orEmpty() else ""
                 )
-            }.onSuccess { generated ->
-                generatedChallenge = generated
-            }.onFailure {
-                error = it.message ?: "Não foi possível buscar um desafio agora."
-            }
+            }.onSuccess { generatedChallenge = it }
+                .onFailure { error = it.message ?: "Não foi possível buscar um desafio agora." }
             loadingChallenge = false
         }
     }
@@ -180,9 +212,8 @@ private fun AdminXpBadgeEditor(
                     onProgress = { progress = it },
                     mimeTypeHint = "image/png"
                 )
-            }.onSuccess { result ->
-                imageRef = buildXpShopAssetRef("emblem", result)
-            }.onFailure { error = it.message ?: "Não foi possível enviar o PNG." }
+            }.onSuccess { result -> imageRef = buildXpShopAssetRef("emblem", result) }
+                .onFailure { error = it.message ?: "Não foi possível enviar o PNG." }
             uploading = false
         }
     }
@@ -200,6 +231,13 @@ private fun AdminXpBadgeEditor(
                 modifier = Modifier.heightIn(max = 620.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(9.dp)
             ) {
+                if (isNative) {
+                    Text(
+                        "Emblema nativo · nível ${initial?.sequenceNo}. A arte original continua sendo usada até você enviar outro PNG.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
                 OutlinedTextField(value = name, onValueChange = { name = it; error = "" }, label = { Text("Nome do emblema") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Descrição") }, minLines = 2, modifier = Modifier.fillMaxWidth())
 
@@ -224,16 +262,9 @@ private fun AdminXpBadgeEditor(
                         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                             Text("Sugestão de desafio", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                             Text(generated.text, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                            Text(
-                                "Detecção automática pronta · meta ${generated.target}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Text("Detecção automática pronta · meta ${generated.target}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Button(
-                                onClick = {
-                                    challenge = generated.text
-                                    error = ""
-                                },
+                                onClick = { challenge = generated.text; error = "" },
                                 enabled = !busy && !candidateAccepted,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
@@ -245,47 +276,22 @@ private fun AdminXpBadgeEditor(
                             }
                         }
                     }
-                } ?: Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-                ) {
-                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                        if (loadingChallenge) {
-                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                            Spacer(Modifier.width(8.dp))
-                        }
-                        Text(if (loadingChallenge) "Buscando um desafio verificável…" else "Escolha uma dificuldade para buscar um desafio.")
-                    }
                 }
 
-                OutlinedButton(
-                    enabled = !busy,
-                    onClick = { requestChallenge(challengeDifficulty, excludeCurrent = true) },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
+                OutlinedButton(enabled = !busy, onClick = { requestChallenge(challengeDifficulty, excludeCurrent = true) }, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.Refresh, contentDescription = null)
                     Spacer(Modifier.width(7.dp))
                     Text("Buscar outro desafio")
                 }
 
                 if (challenge.isNotBlank()) {
-                    Text(
-                        "Desafio que será salvo: $challenge",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    Text("Desafio que será salvo: $challenge", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
                 }
-                Text(
-                    "Os desafios são escolhidos apenas entre atividades que o MIC Rhema consegue verificar no servidor. Assim o desbloqueio não depende de interpretação de texto.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
 
                 OutlinedButton(enabled = !busy, onClick = { launcher.launch("image/png") }, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.MilitaryTech, contentDescription = null)
                     Spacer(Modifier.width(7.dp))
-                    Text(if (imageRef.isBlank()) "Enviar emblema PNG transparente" else "Trocar emblema PNG")
+                    Text(if (imageRef.startsWith("builtin-emblem://")) "Trocar PNG do emblema" else if (imageRef.isBlank()) "Enviar emblema PNG transparente" else "Trocar emblema PNG")
                 }
                 if (uploading) {
                     LinearProgressIndicator(progress = { progress.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
@@ -294,7 +300,11 @@ private fun AdminXpBadgeEditor(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("PNG enviado", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            if (imageRef.startsWith("builtin-emblem://")) "PNG original do app preservado" else "PNG enviado",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
                 }
 
@@ -302,12 +312,16 @@ private fun AdminXpBadgeEditor(
                     Column(Modifier.weight(1f)) {
                         Text("Emblema especial", fontWeight = FontWeight.SemiBold)
                         Text(
-                            if (special) "Não usa número de nível." else "Receberá automaticamente o próximo número a partir do 23.",
+                            when {
+                                isNative -> "Emblemas nativos mantêm a numeração original."
+                                special -> "Não usa número de nível."
+                                else -> "Receberá automaticamente o próximo número a partir do 23."
+                            },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    Switch(checked = special, onCheckedChange = { special = it }, enabled = !busy)
+                    Switch(checked = special, onCheckedChange = { special = it }, enabled = !busy && !isNative)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Disponível no catálogo", modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
@@ -321,7 +335,7 @@ private fun AdminXpBadgeEditor(
             Button(enabled = !busy, onClick = {
                 when {
                     name.isBlank() -> error = "Informe o nome do emblema."
-                    challenge.isBlank() -> error = "Escolha e confirme um desafio para o emblema."
+                    challenge.isBlank() -> error = "Escolha um desafio para o emblema."
                     imageRef.isBlank() -> error = "Envie o arquivo PNG do emblema."
                     else -> {
                         saving = true
@@ -336,7 +350,7 @@ private fun AdminXpBadgeEditor(
                                         description = description.trim(),
                                         challenge = challenge.trim(),
                                         imageRef = imageRef,
-                                        special = special,
+                                        special = if (isNative) false else special,
                                         active = active
                                     )
                                 )
