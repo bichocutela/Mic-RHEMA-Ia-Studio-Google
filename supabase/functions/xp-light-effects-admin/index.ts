@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 
 const TONES = new Set(["suave", "medio", "forte"]);
+const SHOP_CATEGORY = "Efeitos de Luz";
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
@@ -11,6 +12,53 @@ const cors = {
 };
 const json = (body: Record<string, unknown>, status = 200) => new Response(JSON.stringify(body), { status, headers: cors });
 const clean = (value: unknown, max = 1000) => String(value ?? "").trim().slice(0, max);
+
+type LightEffectRow = {
+  id: string;
+  name: string;
+  description: string;
+  effect_type: string;
+  tone: string;
+  color_hex: string;
+  purchasable: boolean;
+  xp_cost: number;
+  emblem_ids: string[];
+  active: boolean;
+};
+
+async function syncEffectToShop(sb: any, item: LightEffectRow) {
+  const shouldSell = item.active === true && item.purchasable === true && Number(item.xp_cost) > 0;
+  if (!shouldSell) {
+    const { error } = await sb.from("xp_shop_items")
+      .update({ active: false, updated_at: new Date().toISOString() })
+      .eq("id", item.id)
+      .eq("category", SHOP_CATEGORY);
+    if (error) throw error;
+    return;
+  }
+
+  const row = {
+    id: item.id,
+    name: item.name,
+    description: item.description,
+    cost: Math.floor(Number(item.xp_cost)),
+    category: SHOP_CATEGORY,
+    kind: "profile",
+    image_url: "",
+    stock: null,
+    limit_per_member: 1,
+    active: true,
+    available_from: null,
+    available_until: null,
+    updated_at: new Date().toISOString(),
+  };
+  const { error } = await sb.from("xp_shop_items").upsert(row, { onConflict: "id" });
+  if (error) throw error;
+}
+
+async function syncCatalogToShop(sb: any, items: LightEffectRow[]) {
+  await Promise.all(items.map((item) => syncEffectToShop(sb, item)));
+}
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -29,7 +77,9 @@ Deno.serve(async (request) => {
         .select("id,name,description,effect_type,tone,color_hex,purchasable,xp_cost,emblem_ids,active,created_at,updated_at")
         .order("created_at", { ascending: true });
       if (error) throw error;
-      return json({ ok: true, items: data ?? [] });
+      const items = (data ?? []) as LightEffectRow[];
+      await syncCatalogToShop(sb, items);
+      return json({ ok: true, items });
     }
 
     if (action === "upsert") {
@@ -68,6 +118,7 @@ Deno.serve(async (request) => {
       };
       const { data, error } = await sb.from("profile_light_effects").upsert(row, { onConflict: "id" }).select().single();
       if (error) throw error;
+      await syncEffectToShop(sb, data as LightEffectRow);
       return json({ ok: true, item: data });
     }
 
@@ -76,6 +127,11 @@ Deno.serve(async (request) => {
       if (!id) return json({ error: "Identificador inválido." }, 400);
       const { error } = await sb.from("profile_light_effects").delete().eq("id", id);
       if (error) throw error;
+      const { error: shopError } = await sb.from("xp_shop_items")
+        .update({ active: false, updated_at: new Date().toISOString() })
+        .eq("id", id)
+        .eq("category", SHOP_CATEGORY);
+      if (shopError) throw shopError;
       return json({ ok: true });
     }
 
