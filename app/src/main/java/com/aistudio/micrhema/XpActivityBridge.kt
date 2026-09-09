@@ -131,6 +131,9 @@ object XpActivityBridge {
                 contentId = contentId
             ) {
                 removePendingActiveReceipt(prefs, pendingKey, contentId)
+                loggedInMemberState.value?.let { live ->
+                    RemoteBadgeEngineClient.reconcile(context.applicationContext, live)
+                }
             }
         }
     }
@@ -159,6 +162,10 @@ object XpActivityBridge {
             contentId = cleanId,
             variant = variant,
             selectedOptionIndex = selectedOptionIndex
-        )
+        ) {
+            loggedInMemberState.value?.let { live ->
+                RemoteBadgeEngineClient.reconcile(context.applicationContext, live)
+            }
+        }
     }
 }
