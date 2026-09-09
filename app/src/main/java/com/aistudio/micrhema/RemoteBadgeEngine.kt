@@ -47,29 +47,50 @@ data class RemoteProfileBadge(
     }
 }
 
+/**
+ * Mantém somente os metadados remotos (imagem/sequence/special).
+ * A fonte única usada pela UI continua sendo os catálogos antigos
+ * allBiblicalBadges/profileEmblemBadges, agora enriquecidos com os personalizados.
+ */
 val remoteProfileBadgesState = mutableStateOf<List<RemoteProfileBadge>>(emptyList())
 
 fun remoteProfileBadgeForId(id: String): RemoteProfileBadge? =
     remoteProfileBadgesState.value.firstOrNull { it.id == id }
 
-fun currentAllBiblicalBadges(): List<BiblicalBadge> =
-    (remoteProfileBadgesState.value.map { it.asBiblicalBadge() } + allBiblicalBadges).distinctBy { it.id }
+fun currentAllBiblicalBadges(): List<BiblicalBadge> {
+    // A leitura do State garante recomposição quando o catálogo remoto termina de sincronizar.
+    remoteProfileBadgesState.value
+    RemoteBadgeEngineClient.ensureCatalogLoaded()
+    return allBiblicalBadges
+}
 
-fun currentProfileEmblemBadges(): List<BiblicalBadge> =
-    (remoteProfileBadgesState.value.map { it.asBiblicalBadge() } + biblicalLevelBadges).distinctBy { it.id }
+fun currentProfileEmblemBadges(): List<BiblicalBadge> {
+    remoteProfileBadgesState.value
+    RemoteBadgeEngineClient.ensureCatalogLoaded()
+    return profileEmblemBadges
+}
 
 private fun publishCatalogIntoLegacySelectors(catalog: List<RemoteProfileBadge>) {
-    val remoteIds = remoteProfileBadgesState.value.map { it.id }.toSet() + catalog.map { it.id }.toSet()
+    val previousRemoteIds = remoteProfileBadgesState.value.map { it.id }.toSet()
+    val currentRemoteIds = catalog.map { it.id }.toSet()
+    val remoteIds = previousRemoteIds + currentRemoteIds
     val mapped = catalog.map { it.asBiblicalBadge() }
-    (allBiblicalBadges as? MutableList<BiblicalBadge>)?.let { list ->
-        list.removeAll { it.id in remoteIds }
-        list.addAll(mapped)
+
+    val allList = allBiblicalBadges as? MutableList<BiblicalBadge>
+    val profileList = profileEmblemBadges as? MutableList<BiblicalBadge>
+    if (allList == null || profileList == null) {
+        Log.e("RemoteBadgeEngine", "Catálogos bíblicos não são mutáveis; personalizados não puderam ser publicados.")
+        return
     }
-    (profileEmblemBadges as? MutableList<BiblicalBadge>)?.let { list ->
-        list.clear()
-        list.addAll(mapped)
-        list.addAll(biblicalLevelBadges.filter { native -> mapped.none { it.id == native.id } })
-    }
+
+    // Catálogo principal: preserva todos os nativos e acrescenta/atualiza personalizados.
+    allList.removeAll { it.id in remoteIds }
+    allList.addAll(mapped)
+
+    // Catálogo específico de emblemas do perfil: mantém níveis 8–22 + personalizados.
+    profileList.clear()
+    profileList.addAll(biblicalLevelBadges.filter { (it.level ?: 0) in 8..22 })
+    profileList.addAll(mapped.filter { remote -> profileList.none { it.id == remote.id } })
 }
 
 object RemoteBadgeEngineClient {
@@ -82,6 +103,7 @@ object RemoteBadgeEngineClient {
 
     @Volatile private var lastCatalogRefreshAt = 0L
     @Volatile private var reconcileInFlight = false
+    @Volatile private var catalogRefreshInFlight = false
     private const val CATALOG_TTL_MS = 5 * 60 * 1000L
 
     private suspend fun call(action: String, memberId: String? = null): JSONObject = withContext(Dispatchers.IO) {
@@ -136,7 +158,7 @@ object RemoteBadgeEngineClient {
 
     suspend fun loadCatalog(force: Boolean = false): List<RemoteProfileBadge> {
         val now = System.currentTimeMillis()
-        if (!force && remoteProfileBadgesState.value.isNotEmpty() && now - lastCatalogRefreshAt < CATALOG_TTL_MS) {
+        if (!force && lastCatalogRefreshAt > 0L && now - lastCatalogRefreshAt < CATALOG_TTL_MS) {
             return remoteProfileBadgesState.value
         }
         val catalog = parseCatalog(call("catalog"))
@@ -146,6 +168,26 @@ object RemoteBadgeEngineClient {
         }
         lastCatalogRefreshAt = now
         return catalog
+    }
+
+    /**
+     * Carrega o catálogo automaticamente na primeira consulta feita pela UI.
+     * O TTL evita chamadas repetidas e o lock evita várias requisições concorrentes.
+     */
+    fun ensureCatalogLoaded() {
+        val now = System.currentTimeMillis()
+        if (lastCatalogRefreshAt > 0L && now - lastCatalogRefreshAt < CATALOG_TTL_MS) return
+        if (catalogRefreshInFlight) return
+        catalogRefreshInFlight = true
+        scope.launch {
+            try {
+                loadCatalog()
+            } catch (error: Exception) {
+                Log.w("RemoteBadgeEngine", "Não foi possível carregar o catálogo remoto automaticamente", error)
+            } finally {
+                catalogRefreshInFlight = false
+            }
+        }
     }
 
     fun refreshCatalog(force: Boolean = false) {
