@@ -10,11 +10,14 @@ data class XpShopAssetRef(
 )
 
 private const val XP_ASSET_SCHEME = "micrhema-xp://"
+private const val BUILTIN_EMBLEM_SCHEME = "builtin-emblem://"
 
 fun buildXpShopAssetRef(type: String, upload: StorageUploadResult): String {
     val safeType = type.lowercase().trim().ifBlank { "file" }
     return "$XP_ASSET_SCHEME$safeType/${upload.bucket}/${upload.storagePath}"
 }
+
+fun buildBuiltinEmblemRef(id: String): String = "$BUILTIN_EMBLEM_SCHEME${id.trim()}"
 
 fun parseXpShopAssetRef(value: String): XpShopAssetRef? {
     val raw = value.trim()
@@ -30,7 +33,18 @@ fun parseXpShopAssetRef(value: String): XpShopAssetRef? {
 }
 
 suspend fun resolveXpShopAssetUrl(context: Context, value: String): String {
-    val ref = parseXpShopAssetRef(value) ?: return value
+    val raw = value.trim()
+    if (raw.startsWith(BUILTIN_EMBLEM_SCHEME, ignoreCase = true)) {
+        val id = raw.substringAfter(BUILTIN_EMBLEM_SCHEME).trim()
+        val level = biblicalLevelBadges.firstOrNull { it.id == id }?.level
+            ?: throw IllegalArgumentException("Emblema interno não encontrado.")
+        val resourceName = "profile_emblem_level_${level.toString().padStart(2, '0')}"
+        val resourceId = context.resources.getIdentifier(resourceName, "drawable", context.packageName)
+        if (resourceId == 0) throw IllegalArgumentException("PNG interno do emblema não encontrado.")
+        return "android.resource://${context.packageName}/$resourceId"
+    }
+
+    val ref = parseXpShopAssetRef(raw) ?: return raw
     return StorageManager.getSignedUrl(
         bucket = ref.bucket,
         storagePath = ref.storagePath,
@@ -39,11 +53,16 @@ suspend fun resolveXpShopAssetUrl(context: Context, value: String): String {
     )
 }
 
-fun xpShopAssetLabel(value: String): String = when (parseXpShopAssetRef(value)?.type) {
-    "image" -> "Imagem"
-    "video" -> "Vídeo"
-    "audio" -> "Áudio"
-    "emblem" -> "Emblema PNG"
-    "pdf" -> "PDF"
-    else -> "Arquivo"
+fun xpShopAssetLabel(value: String): String {
+    if (value.trim().startsWith(BUILTIN_EMBLEM_SCHEME, ignoreCase = true)) return "Emblema interno"
+    return when (parseXpShopAssetRef(value)?.type) {
+        "image" -> "Imagem"
+        "video" -> "Vídeo"
+        "audio" -> "Áudio"
+        "emblem" -> "Emblema PNG"
+        "pdf" -> "PDF"
+        "frame" -> "Moldura PNG"
+        "badge" -> "Distintivo PNG"
+        else -> "Arquivo"
+    }
 }
