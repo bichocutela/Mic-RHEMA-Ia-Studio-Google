@@ -32,6 +32,51 @@ import kotlinx.coroutines.launch
 
 private const val XP_PURCHASES_PAGE_SIZE = 10
 
+private enum class XpOwnedOrigin(val title: String) {
+    PURCHASED("Comprados na Loja XP"),
+    ADMIN("Recebidos do ADM")
+}
+
+private data class XpOwnedDisplayItem(
+    val item: XpShopItem,
+    val origin: XpOwnedOrigin,
+    val categoryLabel: String
+)
+
+private fun categoryLabel(item: XpShopItem): String {
+    val explicit = item.category.trim()
+    if (explicit.isNotBlank() && !explicit.equals("Compras", ignoreCase = true)) return explicit
+
+    return when {
+        item.id == XpRewardManager.PROMISE_FRAME -> "Molduras"
+        item.id == XpRewardManager.READER_BADGE -> "Distintivos"
+        item.id == XpRewardManager.GOLD_PLUS_THEME -> "Temas"
+        item.id.startsWith("cosmetic:") -> when {
+            item.id.contains("frame", ignoreCase = true) || item.id.contains("moldura", ignoreCase = true) -> "Molduras"
+            item.id.contains("light", ignoreCase = true) || item.id.contains("efeito", ignoreCase = true) -> "Efeitos de Luz"
+            item.id.contains("badge", ignoreCase = true) || item.id.contains("distintivo", ignoreCase = true) -> "Distintivos"
+            else -> "Itens de Perfil"
+        }
+        item.kind == "physical" -> "Itens Físicos"
+        item.kind == "profile" -> "Itens de Perfil"
+        item.kind == "digital" -> "Itens Digitais"
+        else -> "Outros"
+    }
+}
+
+private fun categoryOrder(label: String): Int = when (label.lowercase()) {
+    "distintivos" -> 0
+    "molduras" -> 1
+    "efeitos de luz" -> 2
+    "emblemas" -> 3
+    "temas" -> 4
+    "certificados" -> 5
+    "itens de perfil" -> 6
+    "itens digitais" -> 7
+    "itens físicos" -> 8
+    else -> 20
+}
+
 private fun downloadXpDigitalReward(context: Context, item: XpShopItem) {
     if (item.imageUrl.isBlank()) return
     runCatching {
@@ -85,63 +130,72 @@ fun XpPurchasesDialog(
         runCatching {
             XpShopClient.loadCatalog(member)
             XpShopClient.loadRedemptions(member, context)
-        }.onFailure { error = it.message ?: "Não foi possível carregar suas compras XP." }
+        }.onFailure { error = it.message ?: "Não foi possível carregar seus itens XP." }
         loading = false
     }
 
-    val purchasedIds = remember(redemptions, entitlements) {
-        buildSet {
-            redemptions.filter { it.status != "cancelado" }.forEach { add(it.itemId) }
-            entitlements.forEach { add(it.itemId) }
+    val purchaseIds = remember(redemptions) {
+        redemptions.filter { it.status != "cancelado" }.mapTo(linkedSetOf()) { it.itemId }
+    }
+    val entitlementIds = remember(entitlements) { entitlements.mapTo(linkedSetOf()) { it.itemId } }
+    val ownedIds = remember(purchaseIds, entitlementIds) {
+        linkedSetOf<String>().apply {
+            addAll(purchaseIds)
+            addAll(entitlementIds)
         }
     }
-    val purchasedItems = remember(catalog, purchasedIds) {
-        catalog.filter { it.id in purchasedIds }
+
+    val catalogById = remember(catalog) { catalog.associateBy { it.id } }
+    val redemptionByItem = remember(redemptions) {
+        redemptions.filter { it.status != "cancelado" }.associateBy { it.itemId }
     }
-    val missingPurchases = remember(redemptions, entitlements, catalog) {
-        val knownIds = catalog.map { it.id }.toSet()
-        buildList {
-            redemptions.filter { it.status != "cancelado" && it.itemId !in knownIds }
-                .distinctBy { it.itemId }
-                .forEach { redemption ->
-                    add(
-                        XpShopItem(
-                            id = redemption.itemId,
-                            name = redemption.itemName,
-                            description = "Recompensa adquirida na Loja XP.",
-                            cost = redemption.cost,
-                            category = "Compras",
-                            kind = entitlements.firstOrNull { it.itemId == redemption.itemId }?.kind ?: "digital",
-                            imageUrl = "",
-                            stock = null,
-                            limitPerMember = 1,
-                            active = true
-                        )
-                    )
-                }
-            entitlements.filter { it.itemId !in knownIds && redemptions.none { redemption -> redemption.itemId == it.itemId && redemption.status != "cancelado" } }
-                .distinctBy { it.itemId }
-                .forEach { entitlement ->
-                    add(
-                        XpShopItem(
-                            id = entitlement.itemId,
-                            name = entitlement.itemName,
-                            description = "Recompensa adquirida na Loja XP.",
-                            cost = 0,
-                            category = "Compras",
-                            kind = entitlement.kind,
-                            imageUrl = "",
-                            stock = null,
-                            limitPerMember = 1,
-                            active = true
-                        )
-                    )
-                }
-        }
+    val entitlementByItem = remember(entitlements) { entitlements.associateBy { it.itemId } }
+
+    val ownedItems = remember(ownedIds, catalogById, redemptionByItem, entitlementByItem, purchaseIds) {
+        ownedIds.mapNotNull { itemId ->
+            val item = catalogById[itemId] ?: redemptionByItem[itemId]?.let { redemption ->
+                XpShopItem(
+                    id = redemption.itemId,
+                    name = redemption.itemName,
+                    description = "Recompensa adquirida na Loja XP.",
+                    cost = redemption.cost,
+                    category = "Compras",
+                    kind = entitlementByItem[itemId]?.kind ?: "digital",
+                    imageUrl = "",
+                    stock = null,
+                    limitPerMember = 1,
+                    active = true
+                )
+            } ?: entitlementByItem[itemId]?.let { entitlement ->
+                XpShopItem(
+                    id = entitlement.itemId,
+                    name = entitlement.itemName,
+                    description = "Recompensa liberada para você pelo administrador.",
+                    cost = 0,
+                    category = "",
+                    kind = entitlement.kind,
+                    imageUrl = "",
+                    stock = null,
+                    limitPerMember = 1,
+                    active = true
+                )
+            } ?: return@mapNotNull null
+
+            XpOwnedDisplayItem(
+                item = item,
+                origin = if (itemId in purchaseIds) XpOwnedOrigin.PURCHASED else XpOwnedOrigin.ADMIN,
+                categoryLabel = categoryLabel(item)
+            )
+        }.sortedWith(
+            compareBy<XpOwnedDisplayItem> { it.origin.ordinal }
+                .thenBy { categoryOrder(it.categoryLabel) }
+                .thenBy { it.categoryLabel.lowercase() }
+                .thenBy { it.item.name.lowercase() }
+        )
     }
-    val allPurchased = remember(purchasedItems, missingPurchases) { purchasedItems + missingPurchases }
-    val pages = remember(allPurchased) {
-        allPurchased.chunked(XP_PURCHASES_PAGE_SIZE).ifEmpty { listOf(emptyList()) }
+
+    val pages = remember(ownedItems) {
+        ownedItems.chunked(XP_PURCHASES_PAGE_SIZE).ifEmpty { listOf(emptyList()) }
     }
     val pagerState = rememberPagerState(pageCount = { pages.size })
 
@@ -152,34 +206,45 @@ fun XpPurchasesDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Minhas Compras XP") },
+        title = {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("Meus Itens XP")
+                Text(
+                    "Compras e recompensas recebidas, organizadas por categoria.",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Normal,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
         text = {
             when {
-                loading && allPurchased.isEmpty() -> Box(
-                    Modifier.fillMaxWidth().height(180.dp),
+                loading && ownedItems.isEmpty() -> Box(
+                    Modifier.fillMaxWidth().height(150.dp),
                     contentAlignment = Alignment.Center
                 ) { CircularProgressIndicator() }
 
-                error.isNotBlank() && allPurchased.isEmpty() -> Column(
+                error.isNotBlank() && ownedItems.isEmpty() -> Column(
                     Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(error, textAlign = TextAlign.Center)
                     TextButton(onClick = { refreshKey++ }) { Text("Tentar novamente") }
                 }
 
-                allPurchased.isEmpty() -> Column(
-                    Modifier.fillMaxWidth().padding(vertical = 24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                ownedItems.isEmpty() -> Column(
+                    Modifier.fillMaxWidth().padding(vertical = 14.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Icon(Icons.Default.Inventory2, contentDescription = null, modifier = Modifier.size(42.dp))
-                    Spacer(Modifier.height(10.dp))
-                    Text("Você ainda não comprou recompensas na Loja XP.", textAlign = TextAlign.Center)
+                    Icon(Icons.Default.Inventory2, contentDescription = null, modifier = Modifier.size(38.dp))
+                    Text("Você ainda não possui itens da Loja XP nem recompensas liberadas pelo ADM.", textAlign = TextAlign.Center)
                 }
 
                 else -> Column(
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 540.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     HorizontalPager(
                         state = pagerState,
@@ -187,17 +252,44 @@ fun XpPurchasesDialog(
                         beyondViewportPageCount = 0,
                         verticalAlignment = Alignment.Top
                     ) { page ->
+                        val pageItems = pages.getOrElse(page) { emptyList() }
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                            contentPadding = PaddingValues(bottom = 2.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            items(pages.getOrElse(page) { emptyList() }, key = { it.id }) { item ->
-                                XpPurchasedItemCard(
-                                    member = member,
-                                    item = item,
-                                    onPreview = { previewItem = item },
-                                    onDownload = { downloadXpDigitalReward(context, item) }
-                                )
+                            XpOwnedOrigin.entries.forEach { origin ->
+                                val originItems = pageItems.filter { it.origin == origin }
+                                if (originItems.isNotEmpty()) {
+                                    item(key = "origin:${origin.name}:$page") {
+                                        Text(
+                                            origin.title,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.padding(top = 2.dp, bottom = 1.dp)
+                                        )
+                                    }
+                                    originItems.groupBy { it.categoryLabel }.forEach { (category, entries) ->
+                                        item(key = "category:${origin.name}:$category:$page") {
+                                            Text(
+                                                category,
+                                                style = MaterialTheme.typography.labelLarge,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.padding(top = 2.dp)
+                                            )
+                                        }
+                                        items(entries, key = { "${origin.name}:${it.item.id}" }) { owned ->
+                                            XpPurchasedItemCard(
+                                                member = member,
+                                                item = owned.item,
+                                                onPreview = { previewItem = owned.item },
+                                                onDownload = { downloadXpDigitalReward(context, owned.item) }
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -212,12 +304,13 @@ fun XpPurchasesDialog(
             }
         },
         confirmButton = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                if (allPurchased.isNotEmpty()) {
+            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                if (ownedItems.isNotEmpty()) {
                     Text(
-                        "Página ${pagerState.currentPage + 1} de ${pages.size} · Até 10 por página",
+                        "Página ${pagerState.currentPage + 1} de ${pages.size} · Até 10 itens",
                         modifier = Modifier.align(Alignment.CenterHorizontally),
-                        style = MaterialTheme.typography.labelMedium
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -235,8 +328,9 @@ fun XpPurchasesDialog(
                     if (pages.size > 1) {
                         Text(
                             "Deslize para os lados para trocar de página.",
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.align(Alignment.CenterHorizontally)
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.align(Alignment.CenterHorizontally),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -256,7 +350,7 @@ fun XpPurchasesDialog(
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     when (item.id) {
                         XpRewardManager.PROMISE_FRAME -> {
@@ -264,7 +358,7 @@ fun XpPurchasesDialog(
                             BiblicalAvatarWithBadge(
                                 avatar = previewAvatar,
                                 badge = previewBadge,
-                                modifier = Modifier.size(260.dp),
+                                modifier = Modifier.size(240.dp),
                                 previewPromiseFrame = true
                             )
                         }
@@ -273,7 +367,7 @@ fun XpPurchasesDialog(
                             BiblicalAvatarWithBadge(
                                 avatar = previewAvatar,
                                 badge = previewBadge,
-                                modifier = Modifier.size(260.dp),
+                                modifier = Modifier.size(240.dp),
                                 previewReaderBadge = true
                             )
                         }
@@ -281,16 +375,16 @@ fun XpPurchasesDialog(
                             GoldPlusPreviewTheme {
                                 Surface(
                                     modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(20.dp),
+                                    shape = RoundedCornerShape(16.dp),
                                     color = MaterialTheme.colorScheme.background
                                 ) {
                                     Column(
-                                        Modifier.padding(16.dp),
-                                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                                        Modifier.padding(12.dp),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
                                         Text("Dourado Plus", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
                                         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                                            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                                                 Text("Prévia fiel do tema", fontWeight = FontWeight.Bold)
                                                 Text("Superfícies, botões, destaques e contraste usam exatamente as cores do Dourado Plus.", style = MaterialTheme.typography.bodySmall)
                                                 Button(onClick = {}, modifier = Modifier.fillMaxWidth()) { Text("Botão Dourado Plus") }
@@ -306,22 +400,22 @@ fun XpPurchasesDialog(
                                     model = item.imageUrl,
                                     contentDescription = "Prévia de ${item.name}",
                                     contentScale = ContentScale.Fit,
-                                    modifier = Modifier.fillMaxWidth().heightIn(max = 360.dp).clip(RoundedCornerShape(18.dp))
+                                    modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp).clip(RoundedCornerShape(16.dp))
                                 )
                             } else {
                                 Surface(
-                                    modifier = Modifier.fillMaxWidth().height(150.dp),
-                                    shape = RoundedCornerShape(18.dp),
+                                    modifier = Modifier.fillMaxWidth().height(130.dp),
+                                    shape = RoundedCornerShape(16.dp),
                                     color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
-                                        Icon(Icons.Default.Visibility, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
+                                        Icon(Icons.Default.Visibility, contentDescription = null, modifier = Modifier.size(44.dp), tint = MaterialTheme.colorScheme.primary)
                                     }
                                 }
                             }
                         }
                     }
-                    Text(item.description.ifBlank { "Recompensa adquirida na Loja XP." })
+                    Text(item.description.ifBlank { "Recompensa disponível na sua conta XP." })
                 }
             },
             confirmButton = {
@@ -331,7 +425,7 @@ fun XpPurchasesDialog(
                 {
                     TextButton(onClick = { downloadXpDigitalReward(context, item) }) {
                         Icon(Icons.Default.Download, contentDescription = null)
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(4.dp))
                         Text("Baixar")
                     }
                 }
@@ -358,30 +452,30 @@ private fun XpPurchasedItemCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
     ) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+        Column(Modifier.padding(horizontal = 10.dp, vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                     Text(item.name, fontWeight = FontWeight.Bold)
                     Text(
-                        item.category.ifBlank { if (item.kind == "physical") "Recompensa física" else "Recompensa digital" },
-                        style = MaterialTheme.typography.bodySmall,
+                        categoryLabel(item),
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 if (isActive) {
-                    Icon(Icons.Default.CheckCircle, contentDescription = "Ativo", tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Default.CheckCircle, contentDescription = "Ativo", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
                 }
             }
             if (item.description.isNotBlank()) {
                 Text(item.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onPreview, modifier = Modifier.weight(1f)) {
-                    Icon(Icons.Default.Visibility, contentDescription = null)
-                    Spacer(Modifier.width(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                OutlinedButton(onClick = onPreview, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)) {
+                    Icon(Icons.Default.Visibility, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
                     Text("Prévia")
                 }
                 if (isActivatable) {
@@ -390,16 +484,21 @@ private fun XpPurchasedItemCard(
                             XpRewardManager.setActive(context, member.id, item.id, !isActive)
                             localToggle++
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
                     ) {
                         Text(if (isActive) "Desativar" else "Ativar")
                     }
                 }
             }
             if (downloadable) {
-                OutlinedButton(onClick = onDownload, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Default.Download, contentDescription = null)
-                    Spacer(Modifier.width(6.dp))
+                OutlinedButton(
+                    onClick = onDownload,
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                ) {
+                    Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
                     Text("Baixar no celular")
                 }
             }
