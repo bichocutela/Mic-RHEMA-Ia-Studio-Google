@@ -141,7 +141,7 @@ fun MainPlansScreen(onCategoryClick: (PlanCategory) -> Unit, onThemeClick: (Plan
                 text = "Planos",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(20.dp, 24.dp, 20.dp, 12.dp)
+                modifier = Modifier.padding(16.dp, 18.dp, 16.dp, 8.dp)
             )
 
             if (randomThemes.isNotEmpty()) {
@@ -149,10 +149,10 @@ fun MainPlansScreen(onCategoryClick: (PlanCategory) -> Unit, onThemeClick: (Plan
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(200.dp)
-                        .padding(horizontal = 20.dp)
+                        .height(184.dp)
+                        .padding(horizontal = 16.dp)
                         .clickable { onThemeClick(theme) },
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(14.dp),
                     elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                 ) {
                     Box(modifier = Modifier.fillMaxSize()) {
@@ -170,7 +170,7 @@ fun MainPlansScreen(onCategoryClick: (PlanCategory) -> Unit, onThemeClick: (Plan
                         Column(
                             modifier = Modifier
                                 .align(Alignment.BottomStart)
-                                .padding(16.dp)
+                                .padding(14.dp)
                         ) {
                             Text(
                                 text = theme.title,
@@ -188,20 +188,20 @@ fun MainPlansScreen(onCategoryClick: (PlanCategory) -> Unit, onThemeClick: (Plan
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(18.dp))
             Text(
                 text = "Explorar por Emoções",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 20.dp)
+                modifier = Modifier.padding(horizontal = 16.dp)
             )
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             LazyVerticalGrid(
                 columns = GridCells.Fixed(3),
-                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.weight(1f)
             ) {
                 items(if (biblePlansState.isEmpty()) PlansData.categories else biblePlansState) { category ->
@@ -210,7 +210,7 @@ fun MainPlansScreen(onCategoryClick: (PlanCategory) -> Unit, onThemeClick: (Plan
                             .fillMaxWidth()
                             .aspectRatio(1f)
                             .clickable { onCategoryClick(category) },
-                        shape = RoundedCornerShape(16.dp),
+                        shape = RoundedCornerShape(14.dp),
                         colors = CardDefaults.cardColors(containerColor = category.color)
                     ) {
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
@@ -219,13 +219,13 @@ fun MainPlansScreen(onCategoryClick: (PlanCategory) -> Unit, onThemeClick: (Plan
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold,
                                 textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(8.dp),
+                                modifier = Modifier.padding(7.dp),
                                 fontSize = 12.sp
                             )
                         }
                     }
                 }
-                item { Spacer(modifier = Modifier.height(80.dp)) }
+                item { Spacer(modifier = Modifier.height(64.dp)) }
             }
         }
     }
@@ -251,15 +251,15 @@ fun CategoryScreen(category: PlanCategory, onBack: () -> Unit, onThemeClick: (Pl
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues),
-            contentPadding = PaddingValues(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             items(category.themes) { theme ->
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onThemeClick(theme) },
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Row(
@@ -270,17 +270,17 @@ fun CategoryScreen(category: PlanCategory, onBack: () -> Unit, onThemeClick: (Pl
                             model = theme.imageUrl,
                             contentDescription = theme.title,
                             modifier = Modifier
-                                .size(80.dp)
-                                .clip(RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp)),
+                                .size(72.dp)
+                                .clip(RoundedCornerShape(topStart = 14.dp, bottomStart = 14.dp)),
                             contentScale = ContentScale.Crop
                         )
-                        Column(modifier = Modifier.padding(16.dp).weight(1f)) {
+                        Column(modifier = Modifier.padding(12.dp).weight(1f)) {
                             Text(
                                 text = theme.title,
                                 fontWeight = FontWeight.Bold,
                                 style = MaterialTheme.typography.titleMedium
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(3.dp))
                             Text(
                                 text = theme.verses.firstOrNull() ?: "",
                                 color = MaterialTheme.colorScheme.primary,
@@ -343,13 +343,13 @@ fun ThemeDetailScreen(
                 contentDescription = theme.title,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(250.dp),
+                    .height(220.dp),
                 contentScale = ContentScale.Crop
             )
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(20.dp)
+                    .padding(16.dp)
             ) {
                 Text(
                     text = theme.title,
@@ -357,21 +357,21 @@ fun ThemeDetailScreen(
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
                 )
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
+                    Column(modifier = Modifier.padding(14.dp)) {
                         Text(
                             text = "Versículos Base:",
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onPrimaryContainer,
                             fontWeight = FontWeight.Bold
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
                         theme.verses.forEach { verse ->
                             Text(
                                 text = "📖 $verse",
@@ -382,16 +382,16 @@ fun ThemeDetailScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
                 Text(
                     text = theme.content,
                     style = MaterialTheme.typography.bodyLarge,
-                    lineHeight = 28.sp,
+                    lineHeight = 26.sp,
                     color = MaterialTheme.colorScheme.onBackground
                 )
 
-                Spacer(modifier = Modifier.height(40.dp))
+                Spacer(modifier = Modifier.height(28.dp))
 
                 Button(
                     enabled = readingReady,
@@ -415,8 +415,8 @@ fun ThemeDetailScreen(
                         }
                         onBack()
                     },
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                    shape = RoundedCornerShape(28.dp)
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    shape = RoundedCornerShape(26.dp)
                 ) {
                     Text(
                         if (readingReady) "Concluir Leitura" else "Continue lendo para concluir",
@@ -425,17 +425,17 @@ fun ThemeDetailScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 OutlinedButton(
                     onClick = { onGoToVerse(theme.verses.firstOrNull() ?: "") },
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                    shape = RoundedCornerShape(28.dp)
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    shape = RoundedCornerShape(26.dp)
                 ) {
                     Text("Ir para Versículo", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
 
-                Spacer(modifier = Modifier.height(80.dp))
+                Spacer(modifier = Modifier.height(64.dp))
             }
         }
     }

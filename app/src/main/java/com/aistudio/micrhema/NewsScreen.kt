@@ -132,8 +132,8 @@ fun NewsListScreen(onNavigateToDetail: (Int) -> Unit, onBack: () -> Unit) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 item {
                     Text(
@@ -141,7 +141,7 @@ fun NewsListScreen(onNavigateToDetail: (Int) -> Unit, onBack: () -> Unit) {
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(3.dp))
                     Text(
                         "Pesquise por personagem, livro, tema ou escolha a intensidade narrativa.",
                         style = MaterialTheme.typography.bodyMedium,
@@ -163,8 +163,8 @@ fun NewsListScreen(onNavigateToDetail: (Int) -> Unit, onBack: () -> Unit) {
                 }
                 item {
                     LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = PaddingValues(vertical = 2.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        contentPadding = PaddingValues(vertical = 1.dp)
                     ) {
                         items(availableFilters, key = { it }) { filter ->
                             val count = if (filter == "Tudo" || filter == "Mais recentes") {
@@ -193,7 +193,7 @@ fun NewsListScreen(onNavigateToDetail: (Int) -> Unit, onBack: () -> Unit) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 48.dp),
+                                .padding(vertical = 36.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
@@ -275,16 +275,16 @@ fun BibleNewsImage(
         }
         if (imageFailed) {
             Column(
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier.padding(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Icon(
                     Icons.Default.MenuBook,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.height(38.dp)
+                    modifier = Modifier.height(36.dp)
                 )
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     "${news.book} • ${news.category}",
                     style = MaterialTheme.typography.labelMedium,
@@ -305,7 +305,7 @@ private fun NewsMetaLabel(text: String) {
     ) {
         Text(
             text = text,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSecondaryContainer,
             maxLines = 1,
@@ -320,7 +320,7 @@ private fun NewsCard(news: BibleNews, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column {
@@ -329,25 +329,25 @@ private fun NewsCard(news: BibleNews, onClick: () -> Unit) {
                 contentDescription = news.title,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(180.dp)
-                    .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+                    .height(168.dp)
+                    .clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp))
             )
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(modifier = Modifier.padding(14.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     NewsMetaLabel(news.category)
                     NewsMetaLabel(BibleNewsEditorial.intensityLabel(news.intensity))
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = news.title,
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                Spacer(modifier = Modifier.height(5.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = news.summary,
                     maxLines = 3,
@@ -355,7 +355,7 @@ private fun NewsCard(news: BibleNews, onClick: () -> Unit) {
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -431,25 +431,25 @@ fun NewsDetailScreen(
                 contentDescription = news.title,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(280.dp)
+                    .height(240.dp)
             )
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(20.dp)
+                    .padding(16.dp)
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     NewsMetaLabel(news.category)
                     NewsMetaLabel(BibleNewsEditorial.intensityLabel(news.intensity))
                 }
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 Text(
                     text = news.title,
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = "${news.book} ${news.chapter}:${news.verse} (NTLH)",
                     color = MaterialTheme.colorScheme.primary,
@@ -457,21 +457,21 @@ fun NewsDetailScreen(
                     fontWeight = FontWeight.Bold
                 )
                 if (news.contentWarning.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
                     Text(
                         "Aviso: ${news.contentWarning}",
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.error
                     )
                 }
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(18.dp))
                 Text(
                     text = news.content,
                     style = MaterialTheme.typography.bodyLarge,
-                    lineHeight = 28.sp,
+                    lineHeight = 26.sp,
                     color = MaterialTheme.colorScheme.onBackground
                 )
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(28.dp))
                 Text(
                     text = "Ir Para a História",
                     style = MaterialTheme.typography.titleMedium,
@@ -483,9 +483,9 @@ fun NewsDetailScreen(
                             BibleNewsPendingNavigation.remember(news.book, news.chapter, news.verse)
                             onNavigateToBible(news.book, news.chapter, "NTLH")
                         }
-                        .padding(vertical = 8.dp)
+                        .padding(vertical = 6.dp)
                 )
-                Spacer(modifier = Modifier.height(60.dp))
+                Spacer(modifier = Modifier.height(48.dp))
             }
         }
     }
