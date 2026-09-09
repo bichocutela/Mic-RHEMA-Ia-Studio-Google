@@ -43,6 +43,7 @@ fun MemberProfileShowcaseDialog(
     var previewFrameId by remember(member.id, badge.id) { mutableStateOf<String?>(null) }
     var applying by remember(member.id) { mutableStateOf(false) }
     var applyError by remember(member.id) { mutableStateOf("") }
+    var applyMessage by remember(member.id) { mutableStateOf("") }
 
     LaunchedEffect(showAll) {
         if (!showAll) previewDistinctiveId = null
@@ -52,9 +53,15 @@ fun MemberProfileShowcaseDialog(
         if (applying) return
         applying = true
         applyError = ""
+        applyMessage = ""
         scope.launch {
             try {
                 DistinctiveHighlightsStore.choose(context.applicationContext, member.id, item, badge.id)
+                when (item.kind) {
+                    "distintivo" -> previewDistinctiveId = null
+                    "moldura" -> previewFrameId = null
+                }
+                applyMessage = "Escolha salva e sincronizada."
             } catch (cancelled: kotlinx.coroutines.CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
@@ -64,21 +71,28 @@ fun MemberProfileShowcaseDialog(
             }
         }
     }
-    fun remove(kind: String) {
-        if (applying) return
+
+    fun saveClears(kinds: Set<String>) {
+        if (applying || kinds.isEmpty()) return
         applying = true
         applyError = ""
+        applyMessage = ""
         scope.launch {
             try {
-                DistinctiveHighlightsStore.clear(context.applicationContext, member.id, kind)
-                when (kind) {
-                    "distintivo" -> previewDistinctiveId = ""
-                    "moldura" -> previewFrameId = ""
-                    "efeito" -> previewEffectId = ""
-                }
-            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
-            catch (error: Exception) { applyError = error.message ?: "Não foi possível remover. Tente novamente." }
-            finally { applying = false }
+                if ("distintivo" in kinds) DistinctiveHighlightsStore.clear(context.applicationContext, member.id, "distintivo")
+                if ("moldura" in kinds) DistinctiveHighlightsStore.clear(context.applicationContext, member.id, "moldura")
+                if ("efeito" in kinds) DistinctiveHighlightsStore.clear(context.applicationContext, member.id, "efeito")
+                if ("distintivo" in kinds) previewDistinctiveId = null
+                if ("moldura" in kinds) previewFrameId = null
+                if ("efeito" in kinds) previewEffectId = null
+                applyMessage = "Preferências salvas e sincronizadas com sua conta."
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                applyError = error.message ?: "Não foi possível salvar. Tente novamente."
+            } finally {
+                applying = false
+            }
         }
     }
 
@@ -86,9 +100,12 @@ fun MemberProfileShowcaseDialog(
         if (applying) return
         applying = true
         applyError = ""
+        applyMessage = ""
         scope.launch {
             try {
                 DistinctiveHighlightsStore.chooseEffect(context.applicationContext, member.id, item, badge.id)
+                previewEffectId = null
+                applyMessage = "Efeito salvo e sincronizado."
             } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
             catch (error: Exception) { applyError = error.message ?: "Não foi possível ativar o efeito." }
             finally { applying = false }
@@ -108,6 +125,11 @@ fun MemberProfileShowcaseDialog(
     val previewDistinctive = if (previewDistinctiveId == null) primaryDistinctive else byId[previewDistinctiveId]
     val previewFrame = if (previewFrameId == null) selectedFrame else frames.firstOrNull { it.id == previewFrameId }
     val previewEffects = if (previewEffectId == null) selectedEffects else availableEffects.filter { it.id == previewEffectId }.take(1)
+    val pendingClearKinds = buildSet {
+        if (previewDistinctiveId == "" && primaryDistinctive != null) add("distintivo")
+        if (previewFrameId == "" && selectedFrame != null) add("moldura")
+        if (previewEffectId == "" && selectedEffects.isNotEmpty()) add("efeito")
+    }
 
     if (!openDistinctivesDirectly) {
         AlertDialog(
@@ -137,21 +159,26 @@ fun MemberProfileShowcaseDialog(
                     ) {
                         if (ordered.isNotEmpty()) {
                             Text("Distintivos", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                            ProfileCosmeticCarousel(ordered, previewDistinctive?.id, !applying, "Sem distintivo", { previewDistinctiveId = "" }) {
+                            ProfileCosmeticCarousel(ordered, previewDistinctive?.id, !applying, "Sem distintivo", {
+                                previewDistinctiveId = ""
+                                applyError = ""
+                                applyMessage = ""
+                            }) {
                                 previewDistinctiveId = if (it.id == previewDistinctive?.id) "" else it.id
                                 applyError = ""
+                                applyMessage = ""
                             }
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                                 TextButton(enabled = !applying, onClick = { showAll = true }, modifier = Modifier.weight(1f)) {
                                     Text("Escolher destaques")
                                 }
                                 val candidate = byId[previewDistinctiveId]
-                                if (previewDistinctiveId != null) {
+                                if (!previewDistinctiveId.isNullOrEmpty() && candidate != null) {
                                     Button(
                                         enabled = !applying,
-                                        onClick = { if (candidate == null || candidate.id == primaryDistinctive?.id) remove("distintivo") else choose(candidate) },
+                                        onClick = { choose(candidate) },
                                         modifier = Modifier.weight(1f)
-                                    ) { Text(if (candidate == null || candidate.id == primaryDistinctive?.id) "Desmarcar" else "Escolher esse") }
+                                    ) { Text("Escolher esse") }
                                 }
                             }
                         }
@@ -159,23 +186,32 @@ fun MemberProfileShowcaseDialog(
                         if (frames.isEmpty()) {
                             Text("Você ainda não tem molduras disponíveis para este emblema.", style = MaterialTheme.typography.bodySmall)
                         } else {
-                            ProfileCosmeticCarousel(frames, previewFrame?.id, !applying, "Sem moldura", { previewFrameId = "" }) {
+                            ProfileCosmeticCarousel(frames, previewFrame?.id, !applying, "Sem moldura", {
+                                previewFrameId = ""
+                                applyError = ""
+                                applyMessage = ""
+                            }) {
                                 previewFrameId = if (it.id == previewFrame?.id) "" else it.id
                                 applyError = ""
+                                applyMessage = ""
                             }
                             val candidate = frames.firstOrNull { it.id == previewFrameId }
-                            if (previewFrameId != null) {
+                            if (!previewFrameId.isNullOrEmpty() && candidate != null) {
                                 Button(
                                     enabled = !applying,
-                                    onClick = { if (candidate == null || candidate.id == selectedFrame?.id) remove("moldura") else choose(candidate) },
+                                    onClick = { choose(candidate) },
                                     modifier = Modifier.align(Alignment.End)
-                                ) { Text(if (candidate == null || candidate.id == selectedFrame?.id) "Desmarcar" else "Escolher esse") }
+                                ) { Text("Escolher esse") }
                             }
                         }
                         Text("Efeitos de luz", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                             item(key = "none") {
-                                Surface(onClick = { previewEffectId = "" }, enabled = !applying,
+                                Surface(onClick = {
+                                    previewEffectId = ""
+                                    applyError = ""
+                                    applyMessage = ""
+                                }, enabled = !applying,
                                     shape = RoundedCornerShape(12.dp),
                                     color = if (previewEffects.isEmpty()) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
                                 ) { Text("Sem efeito", Modifier.padding(16.dp)) }
@@ -185,7 +221,11 @@ fun MemberProfileShowcaseDialog(
                                     runCatching { Color(android.graphics.Color.parseColor(effect.colorHex)) }.getOrDefault(Color(0xFFFFD76A))
                                 }
                                 Surface(
-                                    onClick = { previewEffectId = if (previewEffects.singleOrNull()?.id == effect.id) "" else effect.id },
+                                    onClick = {
+                                        previewEffectId = if (previewEffects.singleOrNull()?.id == effect.id) "" else effect.id
+                                        applyError = ""
+                                        applyMessage = ""
+                                    },
                                     enabled = !applying, modifier = Modifier.width(96.dp), shape = RoundedCornerShape(12.dp),
                                     color = if (previewEffects.any { it.id == effect.id }) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
                                 ) {
@@ -197,21 +237,35 @@ fun MemberProfileShowcaseDialog(
                             }
                         }
                         if (availableEffects.isEmpty()) Text("Nenhum efeito disponível para este emblema.", style = MaterialTheme.typography.bodySmall)
-                        if (previewEffectId != null) {
+                        if (!previewEffectId.isNullOrEmpty()) {
                             val candidate = availableEffects.firstOrNull { it.id == previewEffectId }
-                            val removeEffect = candidate == null || selectedEffects.singleOrNull()?.id == candidate.id
-                            Button(enabled = !applying,
-                                onClick = { if (removeEffect) remove("efeito") else candidate?.let { chooseEffect(it) } },
-                                modifier = Modifier.align(Alignment.End)
-                            ) { Text(if (removeEffect) "Desmarcar" else "Escolher esse") }
+                            if (candidate != null) {
+                                Button(enabled = !applying,
+                                    onClick = { chooseEffect(candidate) },
+                                    modifier = Modifier.align(Alignment.End)
+                                ) { Text("Escolher esse") }
+                            }
                         }
-                        Text("Toque para testar. Toque novamente no item para tirar da prévia e confirme em Desmarcar para ficar sem ele.", style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            "Toque para testar. Ao escolher Sem distintivo, Sem moldura ou Sem efeito, toque em Salvar para sincronizar a preferência com sua conta.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
                         if (applying) LinearProgressIndicator(Modifier.fillMaxWidth())
+                        if (applyMessage.isNotBlank()) Text(applyMessage, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
                         if (applyError.isNotBlank()) Text(applyError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     }
                 }
             },
-            confirmButton = { TextButton(enabled = !applying, onClick = onDismiss) { Text("Fechar") } }
+            confirmButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (pendingClearKinds.isNotEmpty()) {
+                        Button(enabled = !applying, onClick = { saveClears(pendingClearKinds) }) {
+                            Text(if (applying) "Salvando…" else "Salvar")
+                        }
+                    }
+                    TextButton(enabled = !applying, onClick = onDismiss) { Text("Fechar") }
+                }
+            }
         )
     }
 
