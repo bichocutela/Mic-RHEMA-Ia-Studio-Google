@@ -32,12 +32,16 @@ fun XpShopPanel(member: MemberRequest, xpUnlocked: Boolean) {
     var selectedItem by remember { mutableStateOf<XpShopItem?>(null) }
     var successRedemption by remember { mutableStateOf<XpRedemption?>(null) }
 
+    suspend fun synchronizedMember(): MemberRequest =
+        XpSessionSynchronizer.synchronize(context.applicationContext, member)
+
     suspend fun refresh() {
         loading = true
         error = ""
         runCatching {
-            XpShopClient.loadCatalog(member)
-            XpShopClient.loadRedemptions(member, context)
+            val activeMember = synchronizedMember()
+            XpShopClient.loadCatalog(activeMember)
+            XpShopClient.loadRedemptions(activeMember, context)
         }.onFailure {
             error = it.message ?: "Não foi possível carregar a Loja XP."
             xpShopErrorState.value = error
@@ -130,12 +134,16 @@ fun XpShopPanel(member: MemberRequest, xpUnlocked: Boolean) {
                 Button(enabled = !redeeming && (account?.balance ?: 0) >= item.cost, onClick = {
                     redeeming = true; error = ""
                     scope.launch {
-                        runCatching { XpShopClient.redeem(member, item, context) }
+                        runCatching {
+                            val activeMember = synchronizedMember()
+                            XpShopClient.redeem(activeMember, item, context)
+                        }
                             .onSuccess { result ->
                                 successRedemption = result.redemption; selectedItem = null
-                                runCatching { XpShopClient.loadCatalog(member) }
-                                runCatching { XpShopClient.loadRedemptions(member, context) }
-                                runCatching { XpEngineClient.loadHistoryNow(member, 100) }
+                                val activeMember = loggedInMemberState.value?.takeIf { it.id == member.id } ?: member
+                                runCatching { XpShopClient.loadCatalog(activeMember) }
+                                runCatching { XpShopClient.loadRedemptions(activeMember, context) }
+                                runCatching { XpEngineClient.loadHistoryNow(activeMember, 100) }
                             }
                             .onFailure { failure -> error = failure.message ?: "Não foi possível concluir o resgate."; xpShopErrorState.value = error }
                         redeeming = false
