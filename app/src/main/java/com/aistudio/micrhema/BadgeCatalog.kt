@@ -83,4 +83,4 @@ val profileEmblemBadges: List<BiblicalBadge> = biblicalLevelBadges.filter { (it.
 const val DEFAULT_BIBLICAL_BADGE_ID = "caminhante"
 
 fun biblicalBadgeForId(id: String): BiblicalBadge =
-    allBiblicalBadges.firstOrNull { it.id == id } ?: biblicalLevelBadges.first()
+    currentAllBiblicalBadges().firstOrNull { it.id == id } ?: biblicalLevelBadges.first()
