@@ -299,11 +299,11 @@ private fun LightEffectEmblemDialog(item: AdminLightEffect, badges: List<AdminCu
         title = { Text("Adicionar ao emblema") },
         text = {
             Column(Modifier.heightIn(max = 430.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (badges.isEmpty()) Text("Nenhum emblema disponível ou não foi possível carregar o catálogo.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                badges.forEach { badge ->
+                val choices = (badges.map { it.id to it.name } + currentProfileEmblemBadges().map { it.id to it.name }).distinctBy { it.first }
+                choices.forEach { (badgeId, badgeName) ->
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                        Checkbox(checked = badge.id in selected, onCheckedChange = { checked -> selected = if (checked) selected + badge.id else selected - badge.id })
-                        Text(badge.name, modifier = Modifier.weight(1f))
+                        Checkbox(checked = badgeId in selected, onCheckedChange = { checked -> selected = if (checked) selected + badgeId else selected - badgeId })
+                        Text(badgeName, modifier = Modifier.weight(1f))
                     }
                 }
             }
@@ -324,10 +324,14 @@ private fun LightEffectPreviewDialog(item: AdminLightEffect, testMode: Boolean, 
         title = { Text(if (testMode) "Testar • ${item.name}" else "Prévia • ${item.name}") },
         text = {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                LightEffectVisual(
-                    item = item,
+                BiblicalAvatarWithBadge(
+                    avatar = biblicalAvatarForId(loggedInMemberState.value?.avatarId ?: DEFAULT_BIBLICAL_AVATAR_ID),
+                    badge = currentProfileEmblemBadges().firstOrNull { it.id in item.emblemIds }
+                        ?: biblicalLevelBadges.last(),
                     modifier = Modifier.size(220.dp),
-                    showAvatarLabel = true
+                    previewPromiseFrame = false,
+                    previewReaderBadge = false,
+                    previewLightEffects = listOf(item)
                 )
                 Text(toneLabel(item.tone), color = color, fontWeight = FontWeight.Bold)
                 Text(

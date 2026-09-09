@@ -5,6 +5,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
@@ -33,8 +36,20 @@ fun BiblicalAvatarWithBadge(
     onClick: (() -> Unit)? = null,
     contentDescription: String? = avatar.displayName,
     previewPromiseFrame: Boolean? = null,
-    previewReaderBadge: Boolean? = null
+    previewReaderBadge: Boolean? = null,
+    previewLightEffects: List<AdminLightEffect>? = null
 ) {
+    LaunchedEffect(Unit) {
+        while (true) {
+            try { XpLightEffectsAdminClient.refreshPublicCatalog() }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (error: Exception) { android.util.Log.w("AvatarLight", "Não foi possível atualizar efeitos", error) }
+            delay(60_000L)
+        }
+    }
+    val effects = previewLightEffects ?: XpLightEffectsAdminClient.catalog.value.filter {
+        it.active && !it.purchasable && badge.id in it.emblemIds
+    }
     val context = LocalContext.current
     val remoteEmblem = remoteProfileBadgeForId(badge.id)
     val remoteEmblemUrl by produceState<String?>(initialValue = null, remoteEmblem?.imageRef) {
@@ -92,6 +107,12 @@ fun BiblicalAvatarWithBadge(
                 modifier = Modifier.fillMaxSize(if (hasPromiseFrame) 0.66f else 0.72f).clip(CircleShape),
                 contentDescription = contentDescription
             )
+        }
+
+        effects.forEach { effect ->
+            androidx.compose.runtime.key(effect.id) {
+                LightEffectVisual(effect, Modifier.fillMaxSize(), showAvatarLabel = false)
+            }
         }
 
         if (hasReaderBadge) {
