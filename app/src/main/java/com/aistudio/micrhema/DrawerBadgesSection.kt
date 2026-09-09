@@ -74,6 +74,7 @@ fun DrawerBadgesSection(member: MemberRequest?) {
                         BiblicalAvatarWithBadge(
                             avatar = avatar,
                             badge = badge,
+                            previewDistinctives = emptyList(),
                             modifier = Modifier.size(64.dp).alpha(if (unlocked) 1f else 0.28f),
                             contentDescription = badge.name
                         )
@@ -109,6 +110,7 @@ fun DrawerBadgesSection(member: MemberRequest?) {
                     BiblicalAvatarWithBadge(
                         avatar = avatar,
                         badge = badge,
+                        previewDistinctives = emptyList(),
                         modifier = Modifier.size(190.dp).alpha(if (unlocked) 1f else 0.35f),
                         contentDescription = badge.name
                     )
