@@ -11,7 +11,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.LocalMall
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Visibility
@@ -33,7 +32,6 @@ fun AdminXpLightEffectsSection() {
     var editor by remember { mutableStateOf<AdminLightEffect?>(null) }
     var showNew by remember { mutableStateOf(false) }
     var preview by remember { mutableStateOf<Pair<AdminLightEffect, Boolean>?>(null) }
-    var pricing by remember { mutableStateOf<AdminLightEffect?>(null) }
     var attach by remember { mutableStateOf<AdminLightEffect?>(null) }
     var deleting by remember { mutableStateOf<AdminLightEffect?>(null) }
     var loading by remember { mutableStateOf(false) }
@@ -89,7 +87,7 @@ fun AdminXpLightEffectsSection() {
         }
 
         Text(
-            "Efeitos animados do avatar sincronizados com o Supabase. Tonalidade: Suave, Médio ou Luz forte.",
+            "Efeitos animados do avatar sincronizados com o Supabase. Cada efeito pode ser vendido, gratuito para todos ou vinculado a emblemas.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -125,10 +123,19 @@ fun AdminXpLightEffectsSection() {
                             Text(item.name, fontWeight = FontWeight.Bold)
                             Text("${toneLabel(item.tone)} • ${if (item.active) "Ativo" else "Inativo"}", style = MaterialTheme.typography.labelSmall)
                         }
-                        if (item.purchasable) Text("${item.xpCost} XP", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     }
+                    Text(
+                        when {
+                            item.purchasable -> "Venda na Loja XP • ${item.xpCost} XP"
+                            item.freeForAll -> "Gratuito p/ Todos"
+                            item.emblemIds.isNotEmpty() -> "Vinculado a ${item.emblemIds.size} emblema(s)"
+                            else -> "Sem liberação configurada"
+                        },
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                     if (item.description.isNotBlank()) Text(item.description, style = MaterialTheme.typography.bodySmall)
-                    if (item.emblemIds.isNotEmpty()) Text("Emblemas: ${item.emblemIds.size}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
                     Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.fillMaxWidth()) {
                         OutlinedButton(onClick = { preview = item to false }, modifier = Modifier.weight(1f)) {
@@ -138,10 +145,8 @@ fun AdminXpLightEffectsSection() {
                             Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Testar")
                         }
                     }
-                    OutlinedButton(onClick = { attach = item }, modifier = Modifier.fillMaxWidth()) { Text("Adicionar ao emblema") }
-                    OutlinedButton(onClick = { pricing = item }, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Default.LocalMall, null, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(5.dp))
-                        Text(if (item.purchasable) "Editar cobrança na Loja XP" else "Cobrar na Loja XP")
+                    if (!item.freeForAll) {
+                        OutlinedButton(onClick = { attach = item }, modifier = Modifier.fillMaxWidth()) { Text("Ajustar emblemas") }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.fillMaxWidth()) {
                         OutlinedButton(onClick = { editor = item }, modifier = Modifier.weight(1f)) {
@@ -158,7 +163,7 @@ fun AdminXpLightEffectsSection() {
 
     if (showNew || editor != null) {
         val editingItem = editor
-        LightEffectEditor(initial = editingItem, onDismiss = { showNew = false; editor = null }) { saved ->
+        LightEffectEditor(initial = editingItem, badges = badges, onDismiss = { showNew = false; editor = null }) { saved ->
             saveRemote(saved) {
                 showNew = false
                 editor = null
@@ -168,12 +173,6 @@ fun AdminXpLightEffectsSection() {
 
     preview?.let { (item, testMode) ->
         LightEffectPreviewDialog(item, testMode) { preview = null }
-    }
-
-    pricing?.let { item ->
-        LightEffectPriceDialog(item, onDismiss = { pricing = null }) { enabled, cost ->
-            saveRemote(item.copy(purchasable = enabled, xpCost = if (enabled) cost else 0)) { pricing = null }
-        }
     }
 
     attach?.let { item ->
@@ -209,20 +208,42 @@ fun AdminXpLightEffectsSection() {
 }
 
 @Composable
-private fun LightEffectEditor(initial: AdminLightEffect?, onDismiss: () -> Unit, onSave: (AdminLightEffect) -> Unit) {
+private fun LightEffectEditor(
+    initial: AdminLightEffect?,
+    badges: List<AdminCustomBadge>,
+    onDismiss: () -> Unit,
+    onSave: (AdminLightEffect) -> Unit
+) {
     var name by remember(initial?.id) { mutableStateOf(initial?.name.orEmpty()) }
     var description by remember(initial?.id) { mutableStateOf(initial?.description.orEmpty()) }
     var effectType by remember(initial?.id) { mutableStateOf(initial?.effectType ?: "orbit") }
     var tone by remember(initial?.id) { mutableStateOf(initial?.tone ?: "medio") }
     var colorHex by remember(initial?.id) { mutableStateOf(initial?.colorHex ?: "#FFD54F") }
     var active by remember(initial?.id) { mutableStateOf(initial?.active ?: true) }
+    var releaseMode by remember(initial?.id) {
+        mutableStateOf(
+            when {
+                initial?.purchasable == true -> "shop"
+                initial?.freeForAll == true -> "free"
+                else -> "emblem"
+            }
+        )
+    }
+    var cost by remember(initial?.id) { mutableStateOf(initial?.xpCost?.takeIf { it > 0 }?.toString().orEmpty()) }
+    var emblems by remember(initial?.id) { mutableStateOf(initial?.emblemIds?.toSet() ?: emptySet<String>()) }
     var error by remember(initial?.id) { mutableStateOf("") }
+
+    val purchasable = releaseMode == "shop"
+    val freeForAll = releaseMode == "free"
+    val choices = remember(badges) {
+        (badges.map { it.id to it.name } + currentProfileEmblemBadges().map { it.id to it.name }).distinctBy { it.first }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (initial == null) "Adicionar efeito" else "Editar efeito") },
         text = {
-            Column(Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            Column(Modifier.heightIn(max = 610.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                 OutlinedTextField(name, { name = it; error = "" }, label = { Text("Nome") }, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(description, { description = it }, label = { Text("Descrição") }, minLines = 2, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(effectType, { effectType = it }, label = { Text("Tipo do efeito") }, supportingText = { Text("Ex.: orbit, stars, flame, pulse, rays") }, modifier = Modifier.fillMaxWidth())
@@ -233,6 +254,65 @@ private fun LightEffectEditor(initial: AdminLightEffect?, onDismiss: () -> Unit,
                     }
                 }
                 OutlinedTextField(colorHex, { colorHex = it.uppercase() }, label = { Text("Cor (#RRGGBB)") }, modifier = Modifier.fillMaxWidth())
+
+                Text("Forma de liberação", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
+                    FilterChip(
+                        selected = releaseMode == "shop",
+                        onClick = { releaseMode = "shop"; error = "" },
+                        label = { Text("Venda na Loja XP") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    FilterChip(
+                        selected = releaseMode == "free",
+                        onClick = { releaseMode = "free"; error = "" },
+                        label = { Text("Gratuito p/ Todos") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    FilterChip(
+                        selected = releaseMode == "emblem",
+                        onClick = { releaseMode = "emblem"; error = "" },
+                        label = { Text("Vinculado a emblema / ADM") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                Text(
+                    when (releaseMode) {
+                        "shop" -> "Só recebe quem comprar na Loja XP."
+                        "free" -> "Qualquer usuário recebe acesso, inclusive contas novas, sem XP e sem missão."
+                        else -> "O efeito fica disponível somente nos emblemas selecionados abaixo."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                if (purchasable) {
+                    OutlinedTextField(
+                        value = cost,
+                        onValueChange = { cost = it.filter(Char::isDigit); error = "" },
+                        label = { Text("Valor em XP") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                if (!freeForAll) {
+                    Text("Aplicar nos emblemas", fontWeight = FontWeight.SemiBold)
+                    Text(
+                        if (purchasable) "Opcional: sem vínculo, a compra funciona em qualquer emblema." else "Selecione pelo menos um emblema para esta forma de liberação.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    choices.forEach { (badgeId, badgeName) ->
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            Checkbox(
+                                checked = badgeId in emblems,
+                                onCheckedChange = { checked -> emblems = if (checked) emblems + badgeId else emblems - badgeId }
+                            )
+                            Text(badgeName, modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Ativo", modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
                     Switch(active, { active = it })
@@ -242,51 +322,29 @@ private fun LightEffectEditor(initial: AdminLightEffect?, onDismiss: () -> Unit,
         },
         confirmButton = {
             Button(onClick = {
+                val parsedCost = cost.toIntOrNull() ?: 0
                 when {
                     name.isBlank() -> error = "Informe o nome do efeito."
                     effectType.isBlank() -> error = "Informe o tipo do efeito."
                     !Regex("#[0-9A-Fa-f]{6}").matches(colorHex) -> error = "Use uma cor no formato #RRGGBB."
+                    purchasable && parsedCost <= 0 -> error = "Informe um valor maior que zero."
+                    releaseMode == "emblem" && emblems.isEmpty() -> error = "Selecione pelo menos um emblema para liberar este efeito."
                     else -> onSave(AdminLightEffect(
                         id = initial?.id ?: "light_${System.currentTimeMillis()}",
-                        name = name.trim(), description = description.trim(), effectType = effectType.trim(), tone = tone,
-                        colorHex = colorHex.uppercase(), purchasable = initial?.purchasable ?: false,
-                        xpCost = initial?.xpCost ?: 0, emblemIds = initial?.emblemIds ?: emptyList(), active = active
+                        name = name.trim(),
+                        description = description.trim(),
+                        effectType = effectType.trim(),
+                        tone = tone,
+                        colorHex = colorHex.uppercase(),
+                        purchasable = purchasable,
+                        xpCost = if (purchasable) parsedCost else 0,
+                        emblemIds = if (freeForAll) emptyList() else emblems.toList(),
+                        active = active,
+                        freeForAll = freeForAll
                     ))
                 }
             }) { Text("Salvar") }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
-    )
-}
-
-@Composable
-private fun LightEffectPriceDialog(item: AdminLightEffect, onDismiss: () -> Unit, onSave: (Boolean, Int) -> Unit) {
-    var enabled by remember(item.id) { mutableStateOf(item.purchasable) }
-    var cost by remember(item.id) { mutableStateOf(item.xpCost.takeIf { it > 0 }?.toString().orEmpty()) }
-    var error by remember(item.id) { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Cobrar na Loja XP") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Disponível para compra", modifier = Modifier.weight(1f))
-                    Switch(enabled, { enabled = it })
-                }
-                if (enabled) OutlinedTextField(
-                    value = cost,
-                    onValueChange = { cost = it.filter(Char::isDigit); error = "" },
-                    label = { Text("Valor em XP") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error)
-            }
-        },
-        confirmButton = { Button(onClick = {
-            val parsed = cost.toIntOrNull() ?: 0
-            if (enabled && parsed <= 0) error = "Informe um valor maior que zero." else onSave(enabled, parsed)
-        }) { Text("Salvar") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
     )
 }

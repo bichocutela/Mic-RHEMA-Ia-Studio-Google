@@ -14,7 +14,7 @@ function builtinCosmetic(row: Record<string, unknown>) {
     id: row.id, kind: BUILTIN_COSMETICS[String(row.id)], name: row.name,
     description: row.description, challenge: "Adquira na Loja XP.",
     image_ref: row.image_url || "", active: row.active,
-    purchasable: true, xp_cost: row.cost, emblem_ids: [],
+    purchasable: true, xp_cost: row.cost, emblem_ids: [], free_for_all: false,
   };
 }
 const BUILTIN_ACHIEVEMENT_IDS = new Set([
@@ -203,7 +203,7 @@ Deno.serve(async (request) => {
       const kind = clean(input.kind, 20).toLowerCase();
       if (!COSMETIC_KINDS.has(kind)) return json({ error: "Tipo de personalização inválido." }, 400);
       const { data, error } = await sb.from("profile_cosmetics")
-        .select("id,kind,name,description,challenge,challenge_metric,challenge_target,image_ref,active,purchasable,xp_cost,emblem_ids,created_at,updated_at")
+        .select("id,kind,name,description,challenge,challenge_metric,challenge_target,image_ref,active,purchasable,xp_cost,emblem_ids,free_for_all,created_at,updated_at")
         .eq("kind", kind).order("created_at", { ascending: true });
       if (error) throw error;
       // Opt-in keeps older Android/PWA clients unchanged. Original shop rows
@@ -250,11 +250,18 @@ Deno.serve(async (request) => {
       const suppliedId = clean(input.id, 90).toLowerCase().replace(/[^a-z0-9_:-]+/g, "_").replace(/^_+|_+$/g, "");
       const id = suppliedId || `${kind}_${slug(name)}_${Date.now()}`;
       const commercial: Record<string, unknown> = {};
-      if ("purchasable" in input) commercial.purchasable = input.purchasable === true;
+      const requestedPurchasable = "purchasable" in input ? input.purchasable === true : undefined;
+      const requestedFreeForAll = "freeForAll" in input ? input.freeForAll === true : undefined;
+      if (requestedPurchasable === true && requestedFreeForAll === true) return json({ error: "Escolha apenas uma forma de liberação." }, 400);
+      if (requestedPurchasable !== undefined) commercial.purchasable = requestedPurchasable;
+      if (requestedFreeForAll !== undefined) commercial.free_for_all = requestedFreeForAll;
+      if (requestedPurchasable === true) commercial.free_for_all = false;
+      if (requestedFreeForAll === true) commercial.purchasable = false;
       if ("xpCost" in input) {
         const cost = Number(input.xpCost);
         if (!Number.isSafeInteger(cost) || cost < 0 || cost > 2147483647) return json({ error: "Valor em XP inválido." }, 400);
-        commercial.xp_cost = cost;
+        if (requestedPurchasable === true && cost <= 0) return json({ error: "Informe um valor em XP maior que zero." }, 400);
+        commercial.xp_cost = requestedPurchasable === true ? cost : 0;
       }
       if ("emblemIds" in input) {
         if (!Array.isArray(input.emblemIds) || input.emblemIds.length > 300) return json({ error: "Lista de emblemas inválida." }, 400);

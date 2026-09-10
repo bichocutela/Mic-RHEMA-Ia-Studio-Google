@@ -23,7 +23,8 @@ data class AdminLightEffect(
     val purchasable: Boolean = false,
     val xpCost: Int = 0,
     val emblemIds: List<String> = emptyList(),
-    val active: Boolean = true
+    val active: Boolean = true,
+    val freeForAll: Boolean = false
 )
 
 object XpLightEffectsAdminClient {
@@ -90,7 +91,8 @@ object XpLightEffectsAdminClient {
                     emblems.optString(index).takeIf { it.isNotBlank() }?.let(::add)
                 }
             },
-            active = item.optBoolean("active", true)
+            active = item.optBoolean("active", true),
+            freeForAll = item.optBoolean("free_for_all", false)
         )
     }
 
@@ -121,6 +123,7 @@ object XpLightEffectsAdminClient {
             put("xpCost", item.xpCost)
             put("emblemIds", JSONArray(item.emblemIds))
             put("active", item.active)
+            put("freeForAll", item.freeForAll)
         }
         val saved = parse(response.optJSONObject("item") ?: throw IllegalStateException("O efeito não foi salvo."))
         withContext(Dispatchers.Main) { catalog.value = catalog.value.filterNot { it.id == saved.id } + saved }
@@ -133,11 +136,14 @@ object XpLightEffectsAdminClient {
     }
 }
 
-/** Only effects granted to this emblem or confirmed in the purchase ledger. */
+/** Efeitos disponíveis por compra, gratuidade global ou vínculo explícito ao emblema. */
 fun availableProfileLightEffects(context: android.content.Context, memberId: String?, badgeId: String): List<AdminLightEffect> =
     XpLightEffectsAdminClient.catalog.value.filter { item ->
-        item.active && if (item.purchasable) {
-            memberId != null && XpRewardManager.isOwned(context, item.id, memberId) &&
-                (item.emblemIds.isEmpty() || badgeId in item.emblemIds)
-        } else badgeId in item.emblemIds
+        item.active && when {
+            item.purchasable ->
+                memberId != null && XpRewardManager.isOwned(context, item.id, memberId) &&
+                    (item.emblemIds.isEmpty() || badgeId in item.emblemIds)
+            item.freeForAll -> true
+            else -> badgeId in item.emblemIds
+        }
     }

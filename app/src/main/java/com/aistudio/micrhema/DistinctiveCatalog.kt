@@ -56,12 +56,14 @@ fun activeProfileCosmeticsForMember(
     includeInactiveOwned: Boolean = false
 ): List<AdminProfileCosmetic> = DistinctiveCatalog.items.value.filter { item ->
     (item.active || isBuiltinCosmetic(item.id)) && item.kind == kind &&
-        if (item.purchasable) {
-            memberId != null && (if (includeInactiveOwned) XpRewardManager.isOwned(context, cosmeticRewardId(item), memberId) else XpRewardManager.isActive(context, cosmeticRewardId(item), memberId)) &&
-                (item.emblemIds.isEmpty() || badgeId in item.emblemIds)
-        } else {
-            // Não vendável não significa gratuito: só libera quando o ADM vincula ao emblema atual.
-            badgeId in item.emblemIds
+        when {
+            item.purchasable ->
+                memberId != null &&
+                    (if (includeInactiveOwned) XpRewardManager.isOwned(context, cosmeticRewardId(item), memberId)
+                    else XpRewardManager.isActive(context, cosmeticRewardId(item), memberId)) &&
+                    (item.emblemIds.isEmpty() || badgeId in item.emblemIds)
+            item.freeForAll -> true
+            else -> badgeId in item.emblemIds
         }
 }
 
@@ -82,13 +84,12 @@ object DistinctiveHighlightsStore {
     }
 
     fun frame(memberId: String, available: List<AdminProfileCosmetic>): AdminProfileCosmetic? {
-        val id = frameValues[memberId]
-        return if (id != null) available.firstOrNull { it.id == id }
-        else available.firstOrNull { it.id != XpRewardManager.PROMISE_FRAME } ?: available.firstOrNull()
+        val id = frameValues[memberId] ?: return null
+        return available.firstOrNull { it.id == id }
     }
 
     fun effects(memberId: String?, available: List<AdminLightEffect>): List<AdminLightEffect> {
-        val id = memberId?.let { effectValues[it] } ?: return available.filterNot { it.purchasable }
+        val id = memberId?.let { effectValues[it] } ?: return emptyList()
         return available.filter { it.id == id }.take(1)
     }
 
@@ -144,7 +145,7 @@ object DistinctiveHighlightsStore {
         if (memberId.isBlank()) return@withLock
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         var ids = prefs.getString(memberId, null)?.split('|')
-            ?.filter { it.isNotBlank() }?.distinct()?.take(4) ?: availableIds.take(4)
+            ?.filter { it.isNotBlank() }?.distinct()?.take(4) ?: emptyList()
         var primary = prefs.getString("primary:$memberId", null)
         var frame = prefs.getString("frame:$memberId", null)
         var effect = prefs.getString("effect:$memberId", null)
@@ -164,6 +165,8 @@ object DistinctiveHighlightsStore {
                 // Keep the cached choice and retry on the next load.
             }
         }
+        ids = ids.filter { it in availableIds }
+        if (primary != null && primary !in availableIds) primary = ""
         prefs.edit().putString(memberId, ids.joinToString("|"))
             .apply {
                 if (primary != null) putString("primary:$memberId", primary)

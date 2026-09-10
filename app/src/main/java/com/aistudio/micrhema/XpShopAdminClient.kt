@@ -58,7 +58,8 @@ data class AdminProfileCosmetic(
     val active: Boolean,
     val purchasable: Boolean = false,
     val xpCost: Int = 0,
-    val emblemIds: List<String> = emptyList()
+    val emblemIds: List<String> = emptyList(),
+    val freeForAll: Boolean = false
 )
 
 data class GeneratedBadgeChallenge(
@@ -163,7 +164,8 @@ object XpShopAdminClient {
         description = item.optString("description"), challenge = item.optString("challenge"),
         imageRef = item.optString("image_ref"), active = item.optBoolean("active", true),
         purchasable = item.optBoolean("purchasable", false), xpCost = item.optInt("xp_cost", 0),
-        emblemIds = item.optJSONArray("emblem_ids")?.let { a -> List(a.length()) { a.optString(it) } } ?: emptyList()
+        emblemIds = item.optJSONArray("emblem_ids")?.let { a -> List(a.length()) { a.optString(it) } } ?: emptyList(),
+        freeForAll = item.optBoolean("free_for_all", false)
     )
 
     suspend fun loadCosmetics(kind: String): List<AdminProfileCosmetic> {
@@ -186,7 +188,7 @@ object XpShopAdminClient {
         val response = call("admin_upsert_cosmetic") {
             put("id", item.id); put("kind", item.kind); put("name", item.name); put("description", item.description)
             put("challenge", item.challenge); put("imageRef", item.imageRef); put("active", item.active)
-            put("purchasable", item.purchasable); put("xpCost", item.xpCost)
+            put("purchasable", item.purchasable); put("xpCost", item.xpCost); put("freeForAll", item.freeForAll)
             put("emblemIds", org.json.JSONArray(item.emblemIds))
         }
         val saved = parseCosmetic(response.optJSONObject("item") ?: throw IllegalStateException("A personalização não foi salva."))
