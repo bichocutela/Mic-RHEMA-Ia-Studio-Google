@@ -60,7 +60,8 @@ fun activeProfileCosmeticsForMember(
             memberId != null && (if (includeInactiveOwned) XpRewardManager.isOwned(context, cosmeticRewardId(item), memberId) else XpRewardManager.isActive(context, cosmeticRewardId(item), memberId)) &&
                 (item.emblemIds.isEmpty() || badgeId in item.emblemIds)
         } else {
-            item.emblemIds.isEmpty() || badgeId in item.emblemIds
+            // Não vendável não significa gratuito: só libera quando o ADM vincula ao emblema atual.
+            badgeId in item.emblemIds
         }
 }
 
