@@ -76,7 +76,7 @@ object UpdateChecker {
     /**
      * A API do GitHub devolve JSON null quando uma Release foi publicada sem descrição.
      * JSONObject.optString transforma esse valor na palavra literal "null", que acabava
-     * aparecendo para o usuário na tela Sobre. Aqui o valor é tratado como ausente.
+     * aparecendo para o usuário na tela Sobre. Valores sentinela nunca chegam à interface.
      */
     private fun sanitizeReleaseNotes(json: JSONObject): String {
         val body = json.opt("body")
