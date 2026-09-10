@@ -3,6 +3,7 @@ package com.aistudio.micrhema
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,6 +17,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -36,6 +38,45 @@ private fun nativeAdminBadges(): List<AdminCustomBadge> =
     }
 
 @Composable
+private fun AdminBadgeArtwork(
+    badge: AdminCustomBadge,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
+) {
+    val context = LocalContext.current
+    val resolvedUrl by produceState<String?>(initialValue = null, badge.imageRef) {
+        value = runCatching {
+            resolveXpShopAssetUrl(context.applicationContext, badge.imageRef)
+        }.getOrNull()
+    }
+    val imageModifier = if (onClick != null) modifier.clickable(onClick = onClick) else modifier
+
+    Surface(
+        modifier = imageModifier,
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.32f)
+    ) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            if (!resolvedUrl.isNullOrBlank()) {
+                coil.compose.AsyncImage(
+                    model = resolvedUrl,
+                    contentDescription = "Imagem do emblema ${badge.name}",
+                    modifier = Modifier.fillMaxSize().padding(4.dp),
+                    contentScale = ContentScale.Fit
+                )
+            } else {
+                Icon(
+                    Icons.Default.MilitaryTech,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.fillMaxSize(0.46f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
 fun AdminXpBadgesSection() {
     val scope = rememberCoroutineScope()
     var badges by remember { mutableStateOf<List<AdminCustomBadge>>(nativeAdminBadges()) }
@@ -43,6 +84,8 @@ fun AdminXpBadgesSection() {
     var error by remember { mutableStateOf("") }
     var showEditor by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<AdminCustomBadge?>(null) }
+    var preview by remember { mutableStateOf<AdminCustomBadge?>(null) }
+    var savingId by remember { mutableStateOf<String?>(null) }
 
     fun refresh() {
         if (loading) return
@@ -76,7 +119,7 @@ fun AdminXpBadgesSection() {
         }
 
         Text(
-            "Todos os emblemas do app aparecem aqui para edição. Os níveis 1–22 e as conquistas nativas preservam a arte atual até você trocar o PNG; novos emblemas continuam em 23, 24, 25… ou podem ser especiais.",
+            "Todos os emblemas do app aparecem aqui para edição. Toque na imagem para ampliar. Os níveis 1–22 e as conquistas nativas preservam a arte atual até você trocar o PNG; novos emblemas continuam em 23, 24, 25… ou podem ser especiais.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -109,8 +152,12 @@ fun AdminXpBadgesSection() {
             ) {
                 Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.MilitaryTech, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        Spacer(Modifier.width(7.dp))
+                        AdminBadgeArtwork(
+                            badge = badge,
+                            modifier = Modifier.size(58.dp),
+                            onClick = { preview = badge }
+                        )
+                        Spacer(Modifier.width(9.dp))
                         Column(Modifier.weight(1f)) {
                             Text(
                                 when {
@@ -121,6 +168,11 @@ fun AdminXpBadgesSection() {
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
+                                if (badge.active) "Ativo" else "Inativo",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
                                 when {
                                     badge.special -> "Especial"
                                     nativeAchievement -> "Conquista nativa do app"
@@ -128,10 +180,28 @@ fun AdminXpBadgesSection() {
                                     else -> "Catálogo numerado"
                                 },
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        Text(if (badge.active) "Ativo" else "Inativo", style = MaterialTheme.typography.labelMedium)
+                        Switch(
+                            checked = badge.active,
+                            onCheckedChange = { enabled ->
+                                savingId = badge.id
+                                error = ""
+                                scope.launch {
+                                    runCatching {
+                                        XpShopAdminClient.saveBadge(badge.copy(active = enabled))
+                                    }.onSuccess { saved ->
+                                        badges = badges.map { if (it.id == saved.id) saved else it }
+                                        RemoteBadgeEngineClient.refreshCatalog(force = true)
+                                    }.onFailure {
+                                        error = it.message ?: "Não foi possível alterar a disponibilidade do emblema."
+                                    }
+                                    savingId = null
+                                }
+                            },
+                            enabled = savingId == null
+                        )
                     }
                     if (badge.description.isNotBlank()) Text(badge.description, style = MaterialTheme.typography.bodySmall)
                     Text("Desafio: ${badge.challenge}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -141,6 +211,33 @@ fun AdminXpBadgesSection() {
                 }
             }
         }
+    }
+
+    preview?.let { badge ->
+        AlertDialog(
+            onDismissRequest = { preview = null },
+            title = { Text(badge.name) },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    AdminBadgeArtwork(
+                        badge = badge,
+                        modifier = Modifier.size(280.dp)
+                    )
+                    Text(
+                        "Prévia da arte em proporção original, sem cortar nem esticar.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { preview = null }) { Text("Fechar") }
+            }
+        )
     }
 
     if (showEditor) {
