@@ -15,12 +15,16 @@ class AppUpdateWorker(
         // ADM logado recebe o aviso imediato da Release via FCM. Não repetimos o mesmo
         // fluxo no verificador silencioso usado pelos usuários comuns.
         val hasAdminSession = adminAuthenticatedState.value || loggedInMemberState.value?.isAdmin == true
-        if (hasAdminSession) return Result.success()
 
         return when (val result = UpdateChecker.checkForUpdates(BuildConfig.VERSION_NAME)) {
             is UpdateResult.Success -> {
                 val info = result.info
+                AppUpdateStatusStore.persist(applicationContext, info)
                 if (!info.updateAvailable) return Result.success()
+
+                // O ADM continua recebendo aviso imediato via FCM; o ciclo de 12h apenas
+                // atualiza o estado visual do drawer para qualquer sessão.
+                if (hasAdminSession) return Result.success()
 
                 val prefs = applicationContext.getSharedPreferences(
                     PREFS_NAME,

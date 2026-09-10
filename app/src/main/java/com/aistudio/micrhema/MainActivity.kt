@@ -591,6 +591,16 @@ LaunchedEffect(loggedInMemberState.value?.id, currentRoute) {
                     }
                     HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
                 }
+
+                DrawerVersionFooter(
+                    onOpenUpdate = {
+                        navController.navigate(Screen.About.route) {
+                            popUpTo(navController.graph.startDestinationId)
+                            launchSingleTop = true
+                        }
+                        scope.launch { drawerState.close() }
+                    }
+                )
             }
         }
     ) {
