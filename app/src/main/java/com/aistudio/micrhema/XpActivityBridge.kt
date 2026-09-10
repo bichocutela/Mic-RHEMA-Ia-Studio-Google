@@ -132,6 +132,7 @@ object XpActivityBridge {
             ) {
                 removePendingActiveReceipt(prefs, pendingKey, contentId)
                 loggedInMemberState.value?.let { live ->
+                    BibleJourneyProgressTracker.reconcileMissionRewards(context.applicationContext, live)
                     RemoteBadgeEngineClient.reconcile(context.applicationContext, live)
                 }
             }
@@ -164,6 +165,7 @@ object XpActivityBridge {
             selectedOptionIndex = selectedOptionIndex
         ) {
             loggedInMemberState.value?.let { live ->
+                BibleJourneyProgressTracker.reconcileMissionRewards(context.applicationContext, live)
                 RemoteBadgeEngineClient.reconcile(context.applicationContext, live)
             }
         }
