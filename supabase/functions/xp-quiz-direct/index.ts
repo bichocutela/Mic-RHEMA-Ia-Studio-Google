@@ -226,6 +226,32 @@ Deno.serve(async (request) => {
       });
     }
 
+    // Missões não carregam questionId. Trate o resgate antes da validação de pergunta
+    // para não bloquear uma missão válida com o erro "Pergunta não pertence ao catálogo".
+    if (action === "claim_mission") {
+      const missionId = clean(input.missionId, 200);
+      const activity = missionId.startsWith("easy_") ? "journey_mission_easy" : missionId.startsWith("medium_") ? "journey_mission_medium" : missionId.startsWith("hard_") ? "journey_mission_hard" : "";
+      const amount = activity === "journey_mission_easy" ? 15 : activity === "journey_mission_medium" ? 35 : activity === "journey_mission_hard" ? 70 : 0;
+      if (!activity || !amount) return json({ error: "Missão da Jornada inválida." }, 400);
+      const { data, error } = await sb.rpc("xp_award", {
+        p_member_id: memberId,
+        p_activity: activity,
+        p_content_id: missionId,
+        p_variant: "",
+        p_receipt_id: `mission:${missionId}`,
+        p_amount: amount,
+        p_description: "Missão da Jornada concluída",
+        p_daily_cap: 0,
+      });
+      if (error) {
+        const message = String(error.message ?? "");
+        if (message.includes("ainda não foi concluída")) return json({ ok: true, granted: 0, reason: "mission_incomplete" }, 409);
+        throw error;
+      }
+      const result = Array.isArray(data) ? data[0] : data;
+      return json({ ok: true, granted: Number(result?.granted ?? 0), duplicate: Boolean(result?.duplicate), reason: "", account: result });
+    }
+
     const questionId = clean(input.questionId, 200);
     const question = questions.get(questionId);
     if (!question) return json({ error: "Pergunta não pertence ao catálogo oficial do Quiz." }, 400);
@@ -247,6 +273,11 @@ Deno.serve(async (request) => {
     }
 
     if (action === "answer") {
+      // O Android cria o ponto zero antes de incluir a nova resposta localmente.
+      // Faça o mesmo no ledger central para que o primeiro acerto conte como progresso.
+      const { error: baselineError } = await sb.rpc("xp_capture_journey_baseline", { p_member_id: memberId });
+      if (baselineError) throw baselineError;
+
       const selected = Number(input.selectedOptionIndex);
       if (!Number.isInteger(selected) || selected < 0 || selected > 3) return json({ error: "Alternativa inválida." }, 400);
       const correct = selected === question.correctOptionIndex;
@@ -299,30 +330,6 @@ Deno.serve(async (request) => {
           balance: Number(result?.balance ?? account?.balance ?? 0),
         },
       });
-    }
-
-    if (action === "claim_mission") {
-      const missionId = clean(input.missionId, 200);
-      const activity = missionId.startsWith("easy_") ? "journey_mission_easy" : missionId.startsWith("medium_") ? "journey_mission_medium" : missionId.startsWith("hard_") ? "journey_mission_hard" : "";
-      const amount = activity === "journey_mission_easy" ? 15 : activity === "journey_mission_medium" ? 35 : activity === "journey_mission_hard" ? 70 : 0;
-      if (!activity || !amount) return json({ error: "Missão da Jornada inválida." }, 400);
-      const { data, error } = await sb.rpc("xp_award", {
-        p_member_id: memberId,
-        p_activity: activity,
-        p_content_id: missionId,
-        p_variant: "",
-        p_receipt_id: `mission:${missionId}`,
-        p_amount: amount,
-        p_description: "Missão da Jornada concluída",
-        p_daily_cap: 0,
-      });
-      if (error) {
-        const message = String(error.message ?? "");
-        if (message.includes("ainda não foi concluída")) return json({ ok: true, granted: 0, reason: "mission_incomplete" }, 409);
-        throw error;
-      }
-      const result = Array.isArray(data) ? data[0] : data;
-      return json({ ok: true, granted: Number(result?.granted ?? 0), duplicate: Boolean(result?.duplicate), reason: "", account: result });
     }
 
     return json({ error: "Ação inválida." }, 400);
