@@ -148,9 +148,9 @@ object BibleMissionCatalog {
         BibleMissionDefinition(
             id = "easy_five_minutes",
             title = "Cinco minutos com propósito",
-            description = "Permaneça cinco minutos ativos estudando no aplicativo.",
+            description = "Permaneça cinco minutos ativos no MIC Rhema.",
             difficulty = BibleMissionDifficulty.EASY,
-            objectives = listOf(BibleMissionObjective(BibleMissionMetric.ACTIVE_MINUTES, 5, "minutos", "Tempo ativo"))
+            objectives = listOf(BibleMissionObjective(BibleMissionMetric.ACTIVE_MINUTES, 5, "minutos", "Tempo ativo no app"))
         ),
         BibleMissionDefinition(
             id = "easy_three_activities",
@@ -195,10 +195,10 @@ object BibleMissionCatalog {
         BibleMissionDefinition(
             id = "medium_active_student",
             title = "Estudo com constância",
-            description = "Acumule quinze minutos ativos e cinco atividades válidas.",
+            description = "Acumule quinze minutos ativos no MIC Rhema e cinco atividades válidas.",
             difficulty = BibleMissionDifficulty.MEDIUM,
             objectives = listOf(
-                BibleMissionObjective(BibleMissionMetric.ACTIVE_MINUTES, 15, "minutos", "Tempo ativo"),
+                BibleMissionObjective(BibleMissionMetric.ACTIVE_MINUTES, 15, "minutos", "Tempo ativo no app"),
                 BibleMissionObjective(BibleMissionMetric.TOTAL_ACTIVITIES, 5, "atividades", "Atividades válidas")
             )
         ),
@@ -248,10 +248,10 @@ object BibleMissionCatalog {
         BibleMissionDefinition(
             id = "hard_hour_of_study",
             title = "Uma hora de dedicação",
-            description = "Acumule sessenta minutos ativos e quinze atividades válidas.",
+            description = "Acumule sessenta minutos ativos no MIC Rhema e quinze atividades válidas.",
             difficulty = BibleMissionDifficulty.HARD,
             objectives = listOf(
-                BibleMissionObjective(BibleMissionMetric.ACTIVE_MINUTES, 60, "minutos", "Tempo ativo"),
+                BibleMissionObjective(BibleMissionMetric.ACTIVE_MINUTES, 60, "minutos", "Tempo ativo no app"),
                 BibleMissionObjective(BibleMissionMetric.TOTAL_ACTIVITIES, 15, "atividades", "Atividades válidas")
             )
         ),
@@ -280,7 +280,7 @@ object BibleMissionCatalog {
         BibleMissionDefinition(
             id = "hard_full_journey",
             title = "Jornada completa",
-            description = "Use todas as principais áreas de estudo e mantenha constância de tempo.",
+            description = "Use todas as principais áreas de estudo e acumule noventa minutos ativos no MIC Rhema.",
             difficulty = BibleMissionDifficulty.HARD,
             objectives = listOf(
                 BibleMissionObjective(BibleMissionMetric.BIBLE_CHAPTERS, 10, "capítulos", "Ler capítulos da Bíblia"),
@@ -290,7 +290,7 @@ object BibleMissionCatalog {
                 BibleMissionObjective(BibleMissionMetric.VIDEOS, 1, "vídeo", "Assistir vídeo"),
                 BibleMissionObjective(BibleMissionMetric.AUDIOS, 1, "áudio", "Ouvir áudio"),
                 BibleMissionObjective(BibleMissionMetric.BIBLE_NEWS, 1, "notícia", "Ler notícia bíblica"),
-                BibleMissionObjective(BibleMissionMetric.ACTIVE_MINUTES, 90, "minutos", "Tempo ativo")
+                BibleMissionObjective(BibleMissionMetric.ACTIVE_MINUTES, 90, "minutos", "Tempo ativo no app")
             )
         ),
         BibleMissionDefinition(

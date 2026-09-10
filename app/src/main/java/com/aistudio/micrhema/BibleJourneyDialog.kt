@@ -88,6 +88,11 @@ fun BibleJourneyDialog(
     val liveMember = loggedInMemberState.value?.takeIf { current ->
         current.id == member.id || current.phone.filter(Char::isDigit) == member.phone.filter(Char::isDigit)
     } ?: member
+
+    LaunchedEffect(liveMember.id) {
+        BibleJourneyProgressTracker.reconcileMissionRewards(context, liveMember)
+    }
+
     val stats = BibleJourneyProgressTracker.stats(liveMember)
     val badgeProgress = calculateBadgeProgress(liveMember)
     val missionProgress = calculateBibleMissionProgress(liveMember)
