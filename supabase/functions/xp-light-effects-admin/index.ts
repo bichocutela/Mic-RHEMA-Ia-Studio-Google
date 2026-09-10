@@ -24,6 +24,7 @@ type LightEffectRow = {
   xp_cost: number;
   emblem_ids: string[];
   active: boolean;
+  free_for_all: boolean;
 };
 
 async function syncEffectToShop(sb: any, item: LightEffectRow) {
@@ -74,7 +75,7 @@ Deno.serve(async (request) => {
 
     if (action === "list") {
       const { data, error } = await sb.from("profile_light_effects")
-        .select("id,name,description,effect_type,tone,color_hex,purchasable,xp_cost,emblem_ids,active,created_at,updated_at")
+        .select("id,name,description,effect_type,tone,color_hex,purchasable,xp_cost,emblem_ids,active,free_for_all,created_at,updated_at")
         .order("created_at", { ascending: true });
       if (error) throw error;
       const items = (data ?? []) as LightEffectRow[];
@@ -90,6 +91,7 @@ Deno.serve(async (request) => {
       const tone = clean(input.tone, 20).toLowerCase();
       const colorHex = clean(input.colorHex, 20).toUpperCase();
       const purchasable = input.purchasable === true;
+      const freeForAll = input.freeForAll === true;
       const xpCost = Math.max(0, Math.floor(Number(input.xpCost ?? 0)));
       const active = input.active !== false;
       const emblemIds = Array.isArray(input.emblemIds)
@@ -101,6 +103,7 @@ Deno.serve(async (request) => {
       if (!effectType) return json({ error: "Informe o tipo do efeito." }, 400);
       if (!TONES.has(tone)) return json({ error: "Tonalidade inválida." }, 400);
       if (!/^#[0-9A-F]{6}$/.test(colorHex)) return json({ error: "Cor inválida. Use #RRGGBB." }, 400);
+      if (purchasable && freeForAll) return json({ error: "Escolha apenas uma forma de liberação." }, 400);
       if (purchasable && xpCost <= 0) return json({ error: "Informe um valor em XP maior que zero." }, 400);
 
       const row = {
@@ -114,6 +117,7 @@ Deno.serve(async (request) => {
         xp_cost: purchasable ? xpCost : 0,
         emblem_ids: emblemIds,
         active,
+        free_for_all: freeForAll,
         updated_at: new Date().toISOString(),
       };
       const { data, error } = await sb.from("profile_light_effects").upsert(row, { onConflict: "id" }).select().single();
