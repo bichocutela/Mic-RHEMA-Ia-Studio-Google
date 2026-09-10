@@ -1,0 +1,45 @@
+name: Validar PWA MIC Rhema
+
+on:
+  pull_request:
+    paths:
+      - "pwa/**"
+      - "app/src/main/java/com/aistudio/micrhema/PlansData.kt"
+      - ".github/workflows/pwa-pr-check.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: pwa
+    env:
+      BASE_PATH: /${{ github.event.repository.name }}/
+      VITE_SUPABASE_URL: https://cwphbkdtorfpgmnlafqb.supabase.co
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v4
+
+      - name: Configurar pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pwa/pnpm-lock.yaml
+
+      - name: Instalar dependências
+        run: pnpm install --frozen-lockfile
+
+      - name: Validar tipagem
+        run: pnpm check
+
+      - name: Gerar build da PWA
+        run: pnpm build
