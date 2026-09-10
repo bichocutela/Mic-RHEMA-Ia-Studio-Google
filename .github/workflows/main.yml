@@ -28,10 +28,12 @@ jobs:
   build:
     name: Gerar APK
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout do código
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Restaurar google-services.json
         env:
@@ -104,11 +106,87 @@ jobs:
           cp "$APK_PATH" "$NEW_APK_NAME"
           echo "APK_PATH=$NEW_APK_NAME" >> $GITHUB_ENV
 
+      - name: Gerar novidades da versão em português
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+          PREVIOUS_TAG="$(git tag --sort=-creatordate | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1 || true)"
+          if [ -n "$PREVIOUS_TAG" ]; then
+            RELEASE_RANGE="${PREVIOUS_TAG}..HEAD"
+          else
+            RELEASE_RANGE="HEAD"
+          fi
+          export RELEASE_RANGE
+
+          python3 <<'PY'
+          import os
+          import re
+          import subprocess
+          from pathlib import Path
+
+          release_range = os.environ["RELEASE_RANGE"]
+          raw = subprocess.check_output(
+              ["git", "log", "--first-parent", "--pretty=format:%B%x1e", release_range],
+              text=True,
+          )
+
+          ignored_prefixes = ("chore:", "ci:", "build:", "test:", "docs:")
+          conventional_prefix = re.compile(r"^(feat|fix|perf|ui|refactor)(\([^)]*\))?:\s*", re.I)
+          items = []
+
+          for block in raw.split("\x1e"):
+              lines = [line.strip() for line in block.splitlines() if line.strip()]
+              if not lines:
+                  continue
+
+              first = lines[0]
+              if first.lower().startswith("merge pull request"):
+                  text = lines[1] if len(lines) > 1 else re.sub(
+                      r"^Merge pull request #\d+.*$",
+                      "Atualizações do aplicativo",
+                      first,
+                      flags=re.I,
+                  )
+              else:
+                  text = first
+
+              lowered = text.lower()
+              if lowered.startswith(ignored_prefixes):
+                  continue
+
+              text = conventional_prefix.sub("", text).strip()
+              text = re.sub(r"\s+", " ", text)
+              if not text:
+                  continue
+
+              if text[-1] not in ".!?":
+                  text += "."
+              text = text[0].upper() + text[1:]
+
+              normalized = text.casefold()
+              if normalized not in {item.casefold() for item in items}:
+                  items.append(text)
+
+              if len(items) >= 12:
+                  break
+
+          if not items:
+              items = ["Melhorias de estabilidade, desempenho e correções gerais no aplicativo."]
+
+          Path("release-notes-pt.txt").write_text(
+              "\n".join(f"• {item}" for item in items) + "\n",
+              encoding="utf-8",
+          )
+          print(Path("release-notes-pt.txt").read_text(encoding="utf-8"))
+          PY
+
       - name: Criar GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ env.VERSION_NAME }}
           name: MicRhema ${{ env.VERSION_NAME }}
+          body_path: release-notes-pt.txt
           files: ${{ env.APK_PATH }}
           make_latest: true
 
