@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - feat/drawer-version-update-status
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -16,6 +19,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: feat/drawer-version-update-status
 
       - name: Apply patch
         shell: bash
