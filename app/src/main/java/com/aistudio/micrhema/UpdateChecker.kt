@@ -41,9 +41,9 @@ object UpdateChecker {
             val json = JSONObject(responseBody)
 
             val tagName = json.optString("tag_name", "")
-            val releaseNotes = json.optString("body", "")
+            val releaseNotes = sanitizeReleaseNotes(json)
             val assets = json.optJSONArray("assets")
-            
+
             var downloadUrl: String? = null
             if (assets != null) {
                 for (i in 0 until assets.length()) {
@@ -71,6 +71,22 @@ object UpdateChecker {
             e.printStackTrace()
             UpdateResult.Error("Erro ao verificar atualizações: ${e.message}")
         }
+    }
+
+    /**
+     * A API do GitHub devolve JSON null quando uma Release foi publicada sem descrição.
+     * JSONObject.optString transforma esse valor na palavra literal "null", que acabava
+     * aparecendo para o usuário na tela Sobre. Aqui o valor é tratado como ausente.
+     */
+    private fun sanitizeReleaseNotes(json: JSONObject): String {
+        val body = json.opt("body")
+        if (body == null || body == JSONObject.NULL) return ""
+
+        val notes = body.toString().trim()
+        return notes.takeUnless {
+            it.equals("null", ignoreCase = true) ||
+                it.equals("undefined", ignoreCase = true)
+        }.orEmpty()
     }
 
     private fun isNewerVersion(current: String, latest: String): Boolean {
