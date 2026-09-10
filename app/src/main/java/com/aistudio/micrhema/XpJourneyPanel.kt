@@ -92,7 +92,7 @@ fun XpJourneyPanel(member: MemberRequest) {
         ),
         XpDailyMission(
             title = "Constância",
-            description = "Complete 10 minutos realmente ativos",
+            description = "Complete 10 minutos ativos no MIC Rhema",
             current = daily.activeBlocks,
             target = daily.activeBlocksTarget
         )
