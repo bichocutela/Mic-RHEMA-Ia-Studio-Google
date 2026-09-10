@@ -239,13 +239,15 @@ fun MainScreen() {
         UserSettingsManager.loadSettings(context)
     }
 
-    LaunchedEffect(loggedInMemberState.value, currentSettingsState.value.syncFavorites) {
+    LaunchedEffect(loggedInMemberState.value?.id, currentSettingsState.value.syncFavorites) {
         favoriteItemsState.clear()
         BibleReadingPreferences.loadLocalFavoritesIntoState(context)
         if (loggedInMemberState.value != null && currentSettingsState.value.syncFavorites) {
             loadFavoritesFromFirestore()
         }
+    }
 
+    LaunchedEffect(loggedInMemberState.value?.id, loggedInMemberState.value?.isIbr) {
         // Conteúdos gerais chegam a todos; conteúdos segmentados só chegam
         // aos usuários autenticados no grupo correspondente.
         runCatching {
@@ -351,21 +353,8 @@ fun MainScreen() {
     }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
-        var currentRoute by remember { mutableStateOf(Screen.Home.route) }
+    var currentRoute by remember { mutableStateOf(Screen.Home.route) }
     var topBarTitle by remember { mutableStateOf(Screen.Home.title) }
-    var showInitialLoading by remember { mutableStateOf(true) }
-    var showPageLoading by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(1100)
-        showInitialLoading = false
-    }
-
-    LaunchedEffect(currentRoute) {
-        showPageLoading = true
-        kotlinx.coroutines.delay(420)
-        showPageLoading = false
-    }
 
     LaunchedEffect(adminAppSettingsState.value.notificationsEnabled) {
         NotificationHelper.applyAdminNotificationPolicy(
@@ -695,16 +684,16 @@ LaunchedEffect(loggedInMemberState.value?.id, currentRoute) {
                 startDestination = Screen.Home.route,
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 enterTransition = {
-                    slideIntoContainer(androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Left, animationSpec = spring(stiffness = Spring.StiffnessLow)) + fadeIn(animationSpec = tween(300))
+                    slideIntoContainer(androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Left, animationSpec = tween(180)) + fadeIn(animationSpec = tween(160))
                 },
                 exitTransition = {
-                    slideOutOfContainer(androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Left, animationSpec = spring(stiffness = Spring.StiffnessLow)) + fadeOut(animationSpec = tween(300))
+                    slideOutOfContainer(androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Left, animationSpec = tween(180)) + fadeOut(animationSpec = tween(160))
                 },
                 popEnterTransition = {
-                    slideIntoContainer(androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Right, animationSpec = spring(stiffness = Spring.StiffnessLow)) + fadeIn(animationSpec = tween(300))
+                    slideIntoContainer(androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Right, animationSpec = tween(180)) + fadeIn(animationSpec = tween(160))
                 },
                 popExitTransition = {
-                    slideOutOfContainer(androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Right, animationSpec = spring(stiffness = Spring.StiffnessLow)) + fadeOut(animationSpec = tween(300))
+                    slideOutOfContainer(androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Right, animationSpec = tween(180)) + fadeOut(animationSpec = tween(160))
                 }
             ) {
                 composable(Screen.Home.route) { HomeScreenWithLive(onNavigate = { route -> navController.navigate(route) { launchSingleTop = true } }) }
@@ -895,12 +884,6 @@ LaunchedEffect(loggedInMemberState.value?.id, currentRoute) {
         
         if (GlobalAudioPlayer.isExpanded.value) {
             ExpandedAudioPlayerModal()
-        }
-        if (showInitialLoading || showPageLoading) {
-            RhemaLoadingIndicator(
-                message = if (showInitialLoading) "Carregando MIC Rhema…" else "Abrindo página…",
-                modifier = Modifier.zIndex(10f)
-            )
         }
 
         badgeAwardNotificationState.value?.let { notification ->
