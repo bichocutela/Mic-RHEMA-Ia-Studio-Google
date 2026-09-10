@@ -244,7 +244,7 @@ Deno.serve(async (request) => {
     const consumedMs = Number(result.consumed_ms ?? 0);
     const maxFraction = Number(result.max_fraction ?? 0);
     const qualified = mediaType === "book"
-      ? maxFraction >= 0.10 && activeMs >= 30_000
+      ? maxFraction >= 0.95 && activeMs >= 120_000
       : consumedMs >= 600_000 || (maxFraction >= 0.90 && activeMs >= 120_000);
 
     return json({
