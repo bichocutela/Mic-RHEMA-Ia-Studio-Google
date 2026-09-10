@@ -42,8 +42,12 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun DrawerBadgesSection(member: MemberRequest?) {
     var selectedBadge by remember { mutableStateOf<BiblicalBadge?>(null) }
-    val unlockedIds = member?.let { calculateBadgeProgress(it).unlockedIds.orEmpty().toSet() }.orEmpty()
-    val avatar = biblicalAvatarForId(member?.avatarId ?: DEFAULT_BIBLICAL_AVATAR_ID)
+    val unlockedIds = remember(member) {
+        member?.let { calculateBadgeProgress(it).unlockedIds.orEmpty().toSet() }.orEmpty()
+    }
+    val avatar = remember(member?.avatarId) {
+        biblicalAvatarForId(member?.avatarId ?: DEFAULT_BIBLICAL_AVATAR_ID)
+    }
 
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
         Row(

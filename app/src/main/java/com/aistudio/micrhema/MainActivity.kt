@@ -219,11 +219,15 @@ fun MainScreen() {
     val isCompact = configuration.screenWidthDp < 600
     val density = androidx.compose.ui.platform.LocalDensity.current
     val isImeVisible = WindowInsets.ime.getBottom(density) > 0
-    val visibleTabs = appTabsState
-        .filter { it.isVisible && (it.id != "10" || adminAppSettingsState.value.showDonationsTab) }
-        .sortedBy { it.order }
-    val bottomBarItems = visibleTabs.filter { it.showInBottomBar }
-    val drawerItems = visibleTabs.filter { !it.showInBottomBar }
+    val visibleTabs by remember {
+        derivedStateOf {
+            appTabsState
+                .filter { it.isVisible && (it.id != "10" || adminAppSettingsState.value.showDonationsTab) }
+                .sortedBy { it.order }
+        }
+    }
+    val bottomBarItems = remember(visibleTabs) { visibleTabs.filter { it.showInBottomBar } }
+    val drawerItems = remember(visibleTabs) { visibleTabs.filter { !it.showInBottomBar } }
     
     val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
@@ -472,20 +476,24 @@ LaunchedEffect(loggedInMemberState.value?.id, currentRoute) {
                 DrawerBadgesSection(member = member)
                 HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
                 
-                val groupsMapping = listOf(
-                    "CONTEÚDO" to listOf("Início", "Bíblia", "Devocionais", "Cursos IBR", "Mídia", "Planos"),
-                    "Comunidade" to listOf("Pedidos de Oração", "Membros", "Equipe"),
-                    "Igreja" to listOf("Cultos", "Dízimos e Ofertas"),
-                    "Sistema" to listOf("Configurações", "Sobre"),
-                    "Administração" to listOf("Área ADM")
-                )
+                val groupsMapping = remember {
+                    listOf(
+                        "CONTEÚDO" to listOf("Início", "Bíblia", "Devocionais", "Cursos IBR", "Mídia", "Planos"),
+                        "Comunidade" to listOf("Pedidos de Oração", "Membros", "Equipe"),
+                        "Igreja" to listOf("Cultos", "Dízimos e Ofertas"),
+                        "Sistema" to listOf("Configurações", "Sobre"),
+                        "Administração" to listOf("Área ADM")
+                    )
+                }
                 var expandedGroups by remember { mutableStateOf(setOf("CONTEÚDO")) }
                 
-                val groupedItems = drawerItems.groupBy { item ->
-                    groupsMapping.find { it.second.contains(item.title) }?.first ?: "CONTEÚDO"
-                }.toSortedMap(compareBy { key -> 
-                    groupsMapping.indexOfFirst { it.first == key }
-                })
+                val groupedItems = remember(drawerItems, groupsMapping) {
+                    drawerItems.groupBy { item ->
+                        groupsMapping.find { it.second.contains(item.title) }?.first ?: "CONTEÚDO"
+                    }.toSortedMap(compareBy { key -> 
+                        groupsMapping.indexOfFirst { it.first == key }
+                    })
+                }
                 
                 groupedItems.forEach { (groupName, items) ->
                     val isExpanded = expandedGroups.contains(groupName)
@@ -534,8 +542,8 @@ LaunchedEffect(loggedInMemberState.value?.id, currentRoute) {
                     
                     androidx.compose.animation.AnimatedVisibility(
                         visible = isExpanded,
-                        enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
-                        exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut()
+                        enter = androidx.compose.animation.expandVertically(animationSpec = tween(140)) + androidx.compose.animation.fadeIn(animationSpec = tween(100)),
+                        exit = androidx.compose.animation.shrinkVertically(animationSpec = tween(120)) + androidx.compose.animation.fadeOut(animationSpec = tween(90))
                     ) {
                         Column {
                             items.forEach { item ->
