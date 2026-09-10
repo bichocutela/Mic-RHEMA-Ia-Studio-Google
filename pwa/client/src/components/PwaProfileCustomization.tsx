@@ -131,7 +131,7 @@ export function PwaProfileCustomizationPanel({ memberId, avatarId, badgeId }: { 
 
   const selectedFrame = data?.frames.find((item) => item.id === draft.selectedProfileFrameId) || null;
   const selectedEffect = data?.effects.find((item) => item.id === draft.selectedProfileEffectId) || null;
-  const dirty = Boolean(data) && JSON.stringify(draft) !== JSON.stringify(data.selections);
+  const dirty = data ? JSON.stringify(draft) !== JSON.stringify(data.selections) : false;
 
   const save = async () => {
     if (!data || saving) return;
