@@ -2,6 +2,7 @@ package com.aistudio.micrhema
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import com.google.firebase.Firebase
@@ -12,6 +13,52 @@ import kotlinx.coroutines.tasks.await
 fun saveIbrCourseSilently(item: IbrCourse) {
     if (BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
         Firebase.firestore.collection("ibr_courses").document(item.id).set(item)
+    }
+}
+
+
+private val defaultIbrCourseCategories = listOf("Teologia", "História Bíblica", "Vida Cristã")
+val ibrCourseCategoriesState = mutableStateListOf<String>().apply { addAll(defaultIbrCourseCategories) }
+
+fun loadIbrCourseCategories() {
+    val localCategories = (defaultIbrCourseCategories + ibrCoursesState.map { it.theme })
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .distinctBy { it.lowercase() }
+    ibrCourseCategoriesState.clear()
+    ibrCourseCategoriesState.addAll(localCategories)
+    if (BuildConfig.FIREBASE_PROJECT_ID.isEmpty()) return
+    Firebase.firestore.collection("settings").document("ibr").get()
+        .addOnSuccessListener { document ->
+            val saved = (document.get("courseThemes") as? List<*>)
+                ?.mapNotNull { it?.toString()?.trim() }
+                .orEmpty()
+                .filter { it.isNotBlank() }
+            val merged = (defaultIbrCourseCategories + saved + ibrCoursesState.map { it.theme })
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+                .distinctBy { it.lowercase() }
+                .sortedBy { it.lowercase() }
+            ibrCourseCategoriesState.clear()
+            ibrCourseCategoriesState.addAll(merged)
+        }
+}
+
+fun saveIbrCourseCategory(name: String) {
+    val category = name.trim()
+    if (category.isBlank()) return
+    val merged = (ibrCourseCategoriesState + category)
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .distinctBy { it.lowercase() }
+        .sortedBy { it.lowercase() }
+    ibrCourseCategoriesState.clear()
+    ibrCourseCategoriesState.addAll(merged)
+    if (BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
+        Firebase.firestore.collection("settings").document("ibr").set(
+            mapOf("courseThemes" to merged),
+            com.google.firebase.firestore.SetOptions.merge()
+        )
     }
 }
 

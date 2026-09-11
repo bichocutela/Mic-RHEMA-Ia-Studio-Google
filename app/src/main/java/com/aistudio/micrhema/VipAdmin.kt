@@ -931,6 +931,8 @@ fun EditVipIbrSection() {
     var courseTitle by remember { mutableStateOf("") }
     var courseDescription by remember { mutableStateOf("") }
     var courseImageUrl by remember { mutableStateOf("") }
+    var showNewCourseCategory by remember { mutableStateOf(false) }
+    var newCourseCategory by remember { mutableStateOf("") }
     var showCreateCourseForm by remember { mutableStateOf(false) }
     var showAddChapterForm by remember { mutableStateOf(false) }
     var expandedCourseIds by remember { mutableStateOf(setOf<String>()) }
@@ -956,7 +958,11 @@ fun EditVipIbrSection() {
     
     var courseSearch by remember { mutableStateOf("") }
     var courseThemeFilter by remember { mutableStateOf("Todos") }
-    val courseThemes = listOf("Todos") + ibrCoursesState.map { it.theme }.filter { it.isNotBlank() }.distinct().sorted()
+    val courseThemes = listOf("Todos") + (ibrCourseCategoriesState + ibrCoursesState.map { it.theme })
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .distinctBy { it.lowercase() }
+        .sortedBy { it.lowercase() }
     val visibleCourses = ibrCoursesState
         .filter { course ->
             val query = courseSearch.trim()
@@ -964,6 +970,10 @@ fun EditVipIbrSection() {
                 (courseThemeFilter == "Todos" || course.theme == courseThemeFilter)
         }
         .sortedBy { it.title.lowercase() }
+
+    LaunchedEffect(Unit) {
+        loadIbrCourseCategories()
+    }
 
     LaunchedEffect(ibrCoursesState.size) {
         if (selectedCourseForChapter == null || ibrCoursesState.none { it.id == selectedCourseForChapter?.id }) {
@@ -1048,13 +1058,36 @@ fun EditVipIbrSection() {
                             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            val themes = listOf("Teologia", "História Bíblica", "Vida Cristã")
-                            themes.forEach { theme ->
+                            ibrCourseCategoriesState.forEach { theme ->
                                 FilterChip(
                                     selected = courseTheme == theme,
                                     onClick = { courseTheme = theme },
                                     label = { Text(theme) }
                                 )
+                            }
+                            AssistChip(onClick = { showNewCourseCategory = !showNewCourseCategory }, label = { Text("+") })
+                        }
+                        if (showNewCourseCategory) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                GlassTextField(
+                                    value = newCourseCategory,
+                                    onValueChange = { newCourseCategory = it },
+                                    label = { Text("Nova categoria") },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Button(onClick = {
+                                    val name = newCourseCategory.trim()
+                                    if (name.isNotBlank()) {
+                                        saveIbrCourseCategory(name)
+                                        courseTheme = name
+                                        newCourseCategory = ""
+                                        showNewCourseCategory = false
+                                    }
+                                }) { Text("Salvar") }
                             }
                         }
                     }
@@ -1471,6 +1504,8 @@ fun EditVipIbrSection() {
         var editDescription by remember(editingCourse) { mutableStateOf(editingCourse!!.description) }
         var editTheme by remember(editingCourse) { mutableStateOf(editingCourse!!.theme) }
         var editImageUrl by remember(editingCourse) { mutableStateOf(editingCourse!!.imageUrl) }
+        var showNewEditCategory by remember(editingCourse) { mutableStateOf(false) }
+        var newEditCategory by remember(editingCourse) { mutableStateOf("") }
         
         AlertDialog(
             onDismissRequest = { editingCourse = null },
@@ -1479,7 +1514,27 @@ fun EditVipIbrSection() {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     GlassTextField(value = editTitle, onValueChange = { editTitle = it }, label = { Text("Título") })
                     GlassTextField(value = editDescription, onValueChange = { editDescription = it }, label = { Text("Descrição") })
-                    GlassTextField(value = editTheme, onValueChange = { editTheme = it }, label = { Text("Tema") })
+                    Text("Tema / Categoria", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        (ibrCourseCategoriesState + listOf(editTheme)).filter { it.isNotBlank() }.distinctBy { it.lowercase() }.forEach { theme ->
+                            FilterChip(selected = editTheme == theme, onClick = { editTheme = theme }, label = { Text(theme) })
+                        }
+                        AssistChip(onClick = { showNewEditCategory = !showNewEditCategory }, label = { Text("+") })
+                    }
+                    if (showNewEditCategory) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            GlassTextField(value = newEditCategory, onValueChange = { newEditCategory = it }, label = { Text("Nova categoria") }, modifier = Modifier.weight(1f))
+                            Button(onClick = {
+                                val name = newEditCategory.trim()
+                                if (name.isNotBlank()) {
+                                    saveIbrCourseCategory(name)
+                                    editTheme = name
+                                    newEditCategory = ""
+                                    showNewEditCategory = false
+                                }
+                            }) { Text("Salvar") }
+                        }
+                    }
                     LocalUploadField(value = editImageUrl, onValueChange = { editImageUrl = it }, label = "Capa do curso (opcional)", mimeType = "image/*")
                 }
             },
