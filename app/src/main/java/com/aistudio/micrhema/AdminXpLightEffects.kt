@@ -137,25 +137,25 @@ fun AdminXpLightEffectsSection() {
                     )
                     if (item.description.isNotBlank()) Text(item.description, style = MaterialTheme.typography.bodySmall)
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.fillMaxWidth()) {
-                        OutlinedButton(onClick = { preview = item to false }, modifier = Modifier.weight(1f)) {
+                    AdminAdaptivePair(
+                        first = { modifier -> OutlinedButton(onClick = { preview = item to false }, modifier = modifier) {
                             Icon(Icons.Default.Visibility, null, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Prévia")
-                        }
-                        OutlinedButton(onClick = { preview = item to true }, modifier = Modifier.weight(1f)) {
+                        } },
+                        second = { modifier -> OutlinedButton(onClick = { preview = item to true }, modifier = modifier) {
                             Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Testar")
-                        }
-                    }
+                        } }
+                    )
                     if (!item.freeForAll) {
                         OutlinedButton(onClick = { attach = item }, modifier = Modifier.fillMaxWidth()) { Text("Ajustar emblemas") }
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.fillMaxWidth()) {
-                        OutlinedButton(onClick = { editor = item }, modifier = Modifier.weight(1f)) {
+                    AdminAdaptivePair(
+                        first = { modifier -> OutlinedButton(onClick = { editor = item }, modifier = modifier) {
                             Icon(Icons.Default.Edit, null, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Editar")
-                        }
-                        OutlinedButton(onClick = { deleting = item }, modifier = Modifier.weight(1f)) {
+                        } },
+                        second = { modifier -> OutlinedButton(onClick = { deleting = item }, modifier = modifier) {
                             Icon(Icons.Default.Delete, null, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Excluir")
-                        }
-                    }
+                        } }
+                    )
                 }
             }
         }
@@ -248,7 +248,7 @@ private fun LightEffectEditor(
                 OutlinedTextField(description, { description = it }, label = { Text("Descrição") }, minLines = 2, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(effectType, { effectType = it }, label = { Text("Tipo do efeito") }, supportingText = { Text("Ex.: orbit, stars, flame, pulse, rays") }, modifier = Modifier.fillMaxWidth())
                 Text("Tonalidade", fontWeight = FontWeight.SemiBold)
-                Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.fillMaxWidth()) {
+                AdminSafeHorizontalRow {
                     listOf("suave" to "Suave", "medio" to "Médio", "forte" to "Luz forte").forEach { (key, label) ->
                         FilterChip(selected = tone == key, onClick = { tone = key }, label = { Text(label) })
                     }

@@ -348,7 +348,7 @@ private fun AdminXpBadgeEditor(
                 OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Descrição") }, minLines = 2, modifier = Modifier.fillMaxWidth())
 
                 Text("Dificuldade do desafio", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AdminSafeHorizontalRow {
                     listOf("easy" to "Fácil", "medium" to "Médio", "hard" to "Difícil").forEach { (key, label) ->
                         FilterChip(
                             selected = challengeDifficulty == key,

@@ -201,16 +201,11 @@ fun EditTeamSection() {
             .fillMaxSize()
             .padding(12.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("Gerenciar Equipe", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Button(onClick = { showAddDialog = true }) {
-                Text("Adicionar Membro")
-            }
-        }
+        AdminActionHeader(
+            title = "Gerenciar Equipe",
+            actionText = "Adicionar Membro",
+            onAction = { showAddDialog = true }
+        )
 
         Spacer(modifier = Modifier.height(10.dp))
 

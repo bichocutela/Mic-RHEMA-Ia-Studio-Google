@@ -58,29 +58,17 @@ fun EditMembersSection() {
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Gerenciar Membros", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Text(
-                    "Aprovações, permissões e dados de cadastro sincronizados.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Button(onClick = {
+        AdminActionHeader(
+            title = "Gerenciar Membros",
+            subtitle = "Aprovações, permissões e dados de cadastro sincronizados.",
+            actionText = "Adicionar",
+            actionIcon = Icons.Default.Person,
+            onAction = {
                 newMemberName = ""
                 newMemberPhone = ""
                 showAddMemberDialog = true
-            }) {
-                Icon(Icons.Default.Person, contentDescription = null)
-                Spacer(Modifier.width(6.dp))
-                Text("Adicionar")
             }
-        }
+        )
 
         Spacer(Modifier.height(12.dp))
         OutlinedTextField(
@@ -92,7 +80,7 @@ fun EditMembersSection() {
             label = { Text("Buscar por nome ou telefone") }
         )
         Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        AdminSafeHorizontalRow {
             listOf("Todos", "Pendentes", "Aprovados", "IBR").forEach { filter ->
                 FilterChip(
                     selected = statusFilter == filter,
@@ -139,7 +127,7 @@ fun EditMembersSection() {
                             }
 
                             Spacer(modifier = Modifier.height(8.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            AdminSafeHorizontalRow {
                                 Checkbox(
                                     checked = member.isApproved,
                                     onCheckedChange = { checked ->

@@ -135,7 +135,7 @@ fun AdminXpShopScreen() {
                 }
             }
             1 -> {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                AdminSafeHorizontalRow {
                     listOf("todos" to "Todos", "pendente" to "Pendentes", "entregue" to "Entregues", "cancelado" to "Cancelados").forEach { (value, label) ->
                         FilterChip(selected = redemptionFilter == value, onClick = { redemptionFilter = value }, label = { Text(label) })
                     }
@@ -296,14 +296,16 @@ private fun AdminXpRedemptionCard(redemption: AdminXpRedemption, onDeliver: () -
 
             if (redemption.status == "pendente") {
                 HorizontalDivider()
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    Button(onClick = onDeliver, modifier = Modifier.weight(1f)) {
-                        Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(17.dp))
-                        Spacer(Modifier.size(5.dp))
-                        Text("Entregue")
-                    }
-                    OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f)) { Text("Cancelar") }
-                }
+                AdminAdaptivePair(
+                    first = { modifier ->
+                        Button(onClick = onDeliver, modifier = modifier) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(17.dp))
+                            Spacer(Modifier.size(5.dp))
+                            Text("Entregue")
+                        }
+                    },
+                    second = { modifier -> OutlinedButton(onClick = onCancel, modifier = modifier) { Text("Cancelar") } }
+                )
             }
         }
     }
@@ -403,7 +405,7 @@ private fun AdminXpRewardEditor(
                 OutlinedTextField(value = category, onValueChange = { category = it }, label = { Text("Categoria") }, modifier = Modifier.fillMaxWidth())
 
                 Text("Tipo", style = MaterialTheme.typography.labelLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                AdminSafeHorizontalRow {
                     FilterChip(selected = kind == "digital", onClick = { kind = "digital" }, label = { Text("Digital") })
                     FilterChip(selected = kind == "profile", onClick = { kind = "profile" }, label = { Text("Perfil") })
                     FilterChip(selected = kind == "physical", onClick = { kind = "physical" }, label = { Text("Física") })

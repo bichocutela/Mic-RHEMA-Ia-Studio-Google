@@ -68,26 +68,49 @@ fun <T> AdminPagedList(
                 }
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                OutlinedButton(
-                    enabled = pagerState.currentPage > 0,
-                    onClick = { scope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) } }
-                ) { Text("Anterior") }
-
-                Text(
-                    "Página ${pagerState.currentPage + 1} de $totalPages",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                OutlinedButton(
-                    enabled = pagerState.currentPage < totalPages - 1,
-                    onClick = { scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } }
-                ) { Text("Próxima") }
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                if (maxWidth < 380.dp) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            "Página ${pagerState.currentPage + 1} de $totalPages",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.align(Alignment.CenterHorizontally)
+                        )
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                enabled = pagerState.currentPage > 0,
+                                onClick = { scope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) } },
+                                modifier = Modifier.weight(1f)
+                            ) { Text("Anterior") }
+                            OutlinedButton(
+                                enabled = pagerState.currentPage < totalPages - 1,
+                                onClick = { scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } },
+                                modifier = Modifier.weight(1f)
+                            ) { Text("Próxima") }
+                        }
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        OutlinedButton(
+                            enabled = pagerState.currentPage > 0,
+                            onClick = { scope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) } }
+                        ) { Text("Anterior") }
+                        Text(
+                            "Página ${pagerState.currentPage + 1} de $totalPages",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        OutlinedButton(
+                            enabled = pagerState.currentPage < totalPages - 1,
+                            onClick = { scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } }
+                        ) { Text("Próxima") }
+                    }
+                }
             }
 
             Text(

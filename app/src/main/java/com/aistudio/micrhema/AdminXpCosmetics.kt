@@ -267,7 +267,7 @@ private fun AdminXpCosmeticEditor(
 
                 if (!builtin && releaseMode == "emblem") {
                     Text("Dificuldade do desafio", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    AdminSafeHorizontalRow {
                         listOf("easy" to "Fácil", "medium" to "Médio", "hard" to "Difícil").forEach { (key, text) ->
                             FilterChip(
                                 selected = difficulty == key,

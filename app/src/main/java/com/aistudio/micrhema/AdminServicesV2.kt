@@ -44,10 +44,12 @@ fun EditServicesSectionV2() {
         Spacer(Modifier.height(12.dp))
 
         if (selectedTab == 0) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) { Text("Cultos Fixos", fontWeight = FontWeight.Bold); Text("Sem data de início ou término", style = MaterialTheme.typography.bodySmall) }
-                Button(onClick = { editingService = null; showServiceDialog = true }) { Icon(Icons.Default.Add, null); Spacer(Modifier.width(4.dp)); Text("Novo") }
-            }
+            AdminActionHeader(
+                title = "Cultos Fixos",
+                subtitle = "Sem data de início ou término",
+                actionText = "Novo",
+                onAction = { editingService = null; showServiceDialog = true }
+            )
             Spacer(Modifier.height(8.dp))
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
                 items(weeklyServicesState, key = { it.id.ifBlank { "${it.day}-${it.time}-${it.title}" } }) { service ->
@@ -61,10 +63,12 @@ fun EditServicesSectionV2() {
                 }
             }
         } else {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) { Text("Eventos", fontWeight = FontWeight.Bold); Text("Com início, término, banner e publicação", style = MaterialTheme.typography.bodySmall) }
-                Button(onClick = { editingEvent = null; showEventDialog = true }) { Icon(Icons.Default.Add, null); Spacer(Modifier.width(4.dp)); Text("Novo") }
-            }
+            AdminActionHeader(
+                title = "Eventos",
+                subtitle = "Com início, término, banner e publicação",
+                actionText = "Novo",
+                onAction = { editingEvent = null; showEventDialog = true }
+            )
             Spacer(Modifier.height(8.dp))
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
                 items(churchEventsState, key = { it.id.ifBlank { "${it.startDate}-${it.title}" } }) { event ->

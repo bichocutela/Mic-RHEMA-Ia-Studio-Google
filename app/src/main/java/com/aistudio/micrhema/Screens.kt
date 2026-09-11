@@ -283,39 +283,20 @@ fun AdminScreen() {
             containerColor = MaterialTheme.colorScheme.background,
             topBar = {
                 if (isAuthenticated) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant).padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            "Painel Administrativo",
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.weight(1f),
-                            maxLines = 1,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                        )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { updateAdminFontScale(adminFontScale - 0.1f) }) {
-                                Icon(Icons.Filled.Clear, contentDescription = "Diminuir Fonte", tint = MaterialTheme.colorScheme.onSurface)
-                            }
-                            Text("Aa", fontSize = 16.sp * adminFontScale, color = MaterialTheme.colorScheme.onSurface)
-                            IconButton(onClick = { updateAdminFontScale(adminFontScale + 0.1f) }) {
-                                Icon(Icons.Filled.Add, contentDescription = "Aumentar Fonte", tint = MaterialTheme.colorScheme.onSurface)
-                            }
-                            IconButton(onClick = {
-                                isAuthenticated = false
-                                adminPrayerTargetState.value = null
-                                runCatching {
-                                    com.google.firebase.messaging.FirebaseMessaging.getInstance().unsubscribeFromTopic("prayer_admins")
-                                    com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
-                                }
-                            }) {
-                                Icon(androidx.compose.material.icons.Icons.Default.ExitToApp, contentDescription = "Sair", tint = MaterialTheme.colorScheme.error)
+                    AdminResponsiveTopBar(
+                        title = "Painel Administrativo",
+                        fontScale = adminFontScale,
+                        onDecreaseFont = { updateAdminFontScale(adminFontScale - 0.1f) },
+                        onIncreaseFont = { updateAdminFontScale(adminFontScale + 0.1f) },
+                        onExit = {
+                            isAuthenticated = false
+                            adminPrayerTargetState.value = null
+                            runCatching {
+                                com.google.firebase.messaging.FirebaseMessaging.getInstance().unsubscribeFromTopic("prayer_admins")
+                                com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
                             }
                         }
-                    }
+                    )
                 }
             }
         ) { paddingValues ->
@@ -468,39 +449,9 @@ fun AdminScreen() {
                 }
 
                 Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                if (currentSection == AdminSection.PRAYERS) adminPrayerTargetState.value = null
-                                currentSection = AdminSection.DASHBOARD
-                            }
-                            .padding(16.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Voltar para o Painel Administrativo",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Painel Administrativo",
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                        if (sectionName.isNotEmpty()) {
-                            Spacer(Modifier.height(8.dp))
-                            Text(
-                                text = sectionName,
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onBackground
-                            )
-                        }
+                    AdminSectionBackHeader(sectionName = sectionName) {
+                        if (currentSection == AdminSection.PRAYERS) adminPrayerTargetState.value = null
+                        currentSection = AdminSection.DASHBOARD
                     }
 
                     Box(modifier = Modifier.fillMaxSize().weight(1f)) {
