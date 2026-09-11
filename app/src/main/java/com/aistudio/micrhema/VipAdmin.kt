@@ -949,6 +949,7 @@ fun EditVipIbrSection() {
     var chapterDescription by remember { mutableStateOf("") }
     var chapterDuration by remember { mutableStateOf("30") }
     var chapterType by remember { mutableStateOf("VIDEO") } // VIDEO, AUDIO, TEXT
+    var chapterAccessMode by remember { mutableStateOf(IBR_LESSON_FREE) }
     var isYoutube by remember { mutableStateOf(false) }
     var videoUrl by remember { mutableStateOf("") }
     var audioUrl by remember { mutableStateOf("") }
@@ -1198,6 +1199,22 @@ fun EditVipIbrSection() {
                             shape = RoundedCornerShape(24.dp)
                         )
 
+                        Text("Liberação da aula", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                        Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf(IBR_LESSON_FREE to "Livre", IBR_LESSON_AFTER_PREVIOUS to "Após aula anterior", IBR_LESSON_MANUAL_LOCKED to "Bloqueada").forEach { (id, title) ->
+                                FilterChip(selected = chapterAccessMode == id, onClick = { chapterAccessMode = id }, label = { Text(title) })
+                            }
+                        }
+                        Text(
+                            when (chapterAccessMode) {
+                                IBR_LESSON_AFTER_PREVIOUS -> "Libera automaticamente quando a aula anterior for concluída."
+                                IBR_LESSON_MANUAL_LOCKED -> "Fica bloqueada até o ADM mudar esta opção."
+                                else -> "Pode ser aberta a qualquer momento dentro do módulo."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
                         when (chapterType) {
                             "VIDEO" -> {
                                 Row(
@@ -1275,6 +1292,7 @@ fun EditVipIbrSection() {
                                         textContent = if (chapterType == "TEXT") textContent else "",
                                         studyPdfUrl = studyPdfUrl.trim(),
                                         studyDocxUrl = studyDocxUrl.trim(),
+                                        accessMode = chapterAccessMode,
                                         isYoutube = detectedYoutube,
                                         youtubeId = detectedYoutubeId
                                     )
@@ -1302,6 +1320,7 @@ fun EditVipIbrSection() {
                                     audioUrl = ""
                                     textContent = ""
                                     chapterType = "VIDEO"
+                                    chapterAccessMode = IBR_LESSON_FREE
                                     studyPdfUrl = ""
                                     studyDocxUrl = ""
                                     isYoutube = false
@@ -1430,7 +1449,7 @@ fun EditVipIbrSection() {
                                                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                             )
                                             Text(
-                                                text = "${ch.durationMinutes} min • ${if (ch.isYoutube) "YouTube 📺" else if (ch.videoUrl.isNotEmpty()) "Vídeo 🎥" else "Somente Áudio 🎵"}${if (ch.studyPdfUrl.isNotBlank()) " • PDF 📄" else ""}${if (ch.studyDocxUrl.isNotBlank()) " • Word 📝" else ""}",
+                                                text = "${ch.durationMinutes} min • ${if (ch.isYoutube) "YouTube 📺" else if (ch.videoUrl.isNotEmpty()) "Vídeo 🎥" else if (ch.audioUrl.isNotEmpty()) "Áudio 🎵" else "Texto 📖"} • ${ibrChapterAccessLabel(ch.accessMode)}${if (ch.studyPdfUrl.isNotBlank()) " • PDF 📄" else ""}${if (ch.studyDocxUrl.isNotBlank()) " • Word 📝" else ""}",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = Color.Gray
                                             )
@@ -1504,6 +1523,7 @@ fun EditVipIbrSection() {
         var editDescription by remember(editingCourse) { mutableStateOf(editingCourse!!.description) }
         var editTheme by remember(editingCourse) { mutableStateOf(editingCourse!!.theme) }
         var editImageUrl by remember(editingCourse) { mutableStateOf(editingCourse!!.imageUrl) }
+        var editCourseAccessMode by remember(editingCourse) { mutableStateOf(editingCourse!!.accessMode.ifBlank { IBR_COURSE_AUTO }.uppercase()) }
         var showNewEditCategory by remember(editingCourse) { mutableStateOf(false) }
         var newEditCategory by remember(editingCourse) { mutableStateOf("") }
         
@@ -1536,13 +1556,28 @@ fun EditVipIbrSection() {
                         }
                     }
                     LocalUploadField(value = editImageUrl, onValueChange = { editImageUrl = it }, label = "Capa do curso (opcional)", mimeType = "image/*")
+                    Text("Acesso ao curso", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(IBR_COURSE_AUTO to "Automático", IBR_COURSE_UNLOCKED to "Desbloqueado", IBR_COURSE_LOCKED to "Bloqueado").forEach { (id, title) ->
+                            FilterChip(selected = editCourseAccessMode == id, onClick = { editCourseAccessMode = id }, label = { Text(title) })
+                        }
+                    }
+                    Text(
+                        when (editCourseAccessMode) {
+                            IBR_COURSE_UNLOCKED -> "Pode ser aberto mesmo antes do módulo anterior ser concluído."
+                            IBR_COURSE_LOCKED -> "Fica bloqueado até o ADM desbloquear."
+                            else -> "Mantém a regra atual: libera após concluir o módulo anterior."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
                     val idx = ibrCoursesState.indexOfFirst { it.id == editingCourse!!.id }
                     if (idx != -1) {
-                        val updated = editingCourse!!.copy(title = editTitle, description = editDescription, theme = editTheme, imageUrl = editImageUrl.trim())
+                        val updated = editingCourse!!.copy(title = editTitle, description = editDescription, theme = editTheme, imageUrl = editImageUrl.trim(), accessMode = editCourseAccessMode)
                         ibrCoursesState[idx] = updated
                         saveIbrCourseSilently(updated)
                     }
@@ -1563,6 +1598,7 @@ fun EditVipIbrSection() {
         var editTextContent by remember(editingChapter) { mutableStateOf(editingChapter!!.textContent) }
         var editStudyPdfUrl by remember(editingChapter) { mutableStateOf(editingChapter!!.studyPdfUrl) }
         var editStudyDocxUrl by remember(editingChapter) { mutableStateOf(editingChapter!!.studyDocxUrl) }
+        var editAccessMode by remember(editingChapter) { mutableStateOf(editingChapter!!.accessMode.ifBlank { IBR_LESSON_FREE }.uppercase()) }
         
         AlertDialog(
             onDismissRequest = {
@@ -1582,6 +1618,12 @@ fun EditVipIbrSection() {
                     Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf("VIDEO" to "Vídeo", "AUDIO" to "Áudio", "TEXT" to "Texto").forEach { (id, title) ->
                             FilterChip(selected = editType == id, onClick = { editType = id }, label = { Text(title) })
+                        }
+                    }
+                    Text("Liberação da aula", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(IBR_LESSON_FREE to "Livre", IBR_LESSON_AFTER_PREVIOUS to "Após anterior", IBR_LESSON_MANUAL_LOCKED to "Bloqueada").forEach { (id, title) ->
+                            FilterChip(selected = editAccessMode == id, onClick = { editAccessMode = id }, label = { Text(title) })
                         }
                     }
                     when (editType) {
@@ -1623,6 +1665,7 @@ fun EditVipIbrSection() {
                                 textContent = if (editType == "TEXT") editTextContent else "",
                                 studyPdfUrl = editStudyPdfUrl.trim(),
                                 studyDocxUrl = editStudyDocxUrl.trim(),
+                                accessMode = editAccessMode,
                                 isYoutube = isYt,
                                 youtubeId = ytId
                             )

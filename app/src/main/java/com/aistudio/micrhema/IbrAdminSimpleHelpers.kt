@@ -94,3 +94,42 @@ fun rememberIbrProgressByMember(): Map<String, List<IbrProgress>> {
     }
     return progressByMember
 }
+
+const val IBR_COURSE_AUTO = "AUTO"
+const val IBR_COURSE_UNLOCKED = "UNLOCKED"
+const val IBR_COURSE_LOCKED = "LOCKED"
+const val IBR_LESSON_FREE = "FREE"
+const val IBR_LESSON_AFTER_PREVIOUS = "AFTER_PREVIOUS"
+const val IBR_LESSON_MANUAL_LOCKED = "MANUAL_LOCKED"
+
+fun isIbrCourseLocked(course: IbrCourse, automaticLocked: Boolean): Boolean = when (course.accessMode.uppercase()) {
+    IBR_COURSE_UNLOCKED -> false
+    IBR_COURSE_LOCKED -> true
+    else -> automaticLocked
+}
+
+fun ibrCourseAccessLabel(mode: String): String = when (mode.uppercase()) {
+    IBR_COURSE_UNLOCKED -> "Desbloqueado"
+    IBR_COURSE_LOCKED -> "Bloqueado"
+    else -> "Automático"
+}
+
+fun isIbrChapterUnlocked(course: IbrCourse, chapter: IbrChapter, progress: List<IbrProgress> = ibrProgressState): Boolean {
+    return when (chapter.accessMode.uppercase()) {
+        IBR_LESSON_MANUAL_LOCKED -> false
+        IBR_LESSON_AFTER_PREVIOUS -> {
+            val index = course.chapters.indexOfFirst { it.id == chapter.id }
+            index <= 0 || progress.any {
+                it.courseId == course.id && it.chapterId == course.chapters[index - 1].id && it.isCompleted
+            }
+        }
+        else -> true
+    }
+}
+
+fun ibrChapterAccessLabel(mode: String): String = when (mode.uppercase()) {
+    IBR_LESSON_AFTER_PREVIOUS -> "Após aula anterior"
+    IBR_LESSON_MANUAL_LOCKED -> "Bloqueada"
+    else -> "Livre"
+}
+

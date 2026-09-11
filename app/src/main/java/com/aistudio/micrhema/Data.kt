@@ -714,6 +714,7 @@ data class IbrChapter(
     var textContent: String = "", // For TEXT type
     var studyPdfUrl: String = "", // PDF opcional para conteúdo de estudo
     var studyDocxUrl: String = "", // Word .docx opcional para conteúdo de estudo
+    var accessMode: String = "FREE", // FREE, AFTER_PREVIOUS, MANUAL_LOCKED
     var isYoutube: Boolean = false,
     var youtubeId: String = "" // if Youtube link
 )
@@ -724,6 +725,7 @@ data class IbrCourse(
     var theme: String = "", // e.g., "Teologia", "História Bíblica", "Vida Cristã"
     var description: String = "",
     var imageUrl: String = "",
+    var accessMode: String = "AUTO", // AUTO, UNLOCKED, LOCKED
     var chapters: List<IbrChapter> = emptyList()
 )
 
