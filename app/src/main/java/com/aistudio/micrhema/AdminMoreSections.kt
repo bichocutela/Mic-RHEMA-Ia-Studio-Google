@@ -31,14 +31,11 @@ fun EditPlansSection() {
     var currentThemes by remember { mutableStateOf(mutableListOf<PlanTheme>()) }
     
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("Gerenciar Planos", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Button(onClick = { showDialog = true; editingPlan = null; currentThemes = mutableListOf() }) {
-                Icon(Icons.Default.Add, contentDescription = "Adicionar")
-                Spacer(Modifier.width(4.dp))
-                Text("Novo")
-            }
-        }
+        AdminActionHeader(
+            title = "Gerenciar Planos",
+            actionText = "Novo",
+            onAction = { showDialog = true; editingPlan = null; currentThemes = mutableListOf() }
+        )
         Spacer(Modifier.height(16.dp))
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
             items(biblePlansState) { plan ->
@@ -338,25 +335,12 @@ fun EditDevotionalsSection() {
     val mediaCount = devotionalsState.count { it.mediaUrl.isNotBlank() }
 
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Devocionais", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                Text(
-                    "Alimente a fé da igreja com uma nova palavra para cada dia.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Button(onClick = { showDialog = true; editingDevotional = null }) {
-                Icon(Icons.Default.Add, contentDescription = "Adicionar devocional")
-                Spacer(Modifier.width(6.dp))
-                Text("Novo devocional")
-            }
-        }
+        AdminActionHeader(
+            title = "Devocionais",
+            subtitle = "Alimente a fé da igreja com uma nova palavra para cada dia.",
+            actionText = "Novo devocional",
+            onAction = { showDialog = true; editingDevotional = null }
+        )
 
         Spacer(Modifier.height(16.dp))
 
@@ -716,33 +700,31 @@ fun EditBannersSection() {
         }
         
         Spacer(Modifier.height(16.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(
-                onClick = {
-                    editingBanner = CarouselItem(id = java.util.UUID.randomUUID().toString())
-                    showDialog = true
-                },
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("Adicionar URL")
-            }
-            
-            Button(
-                onClick = {
-                    imagePickerLauncher.launch("image/*")
-                },
-                modifier = Modifier.weight(1f),
-                enabled = !isUploading
-            ) {
-                if (isUploading) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
-                } else {
-                    Icon(androidx.compose.material.icons.Icons.Default.Add, contentDescription = "Imagem")
-                    Spacer(Modifier.width(4.dp))
-                    Text("Galeria")
+        AdminAdaptivePair(
+            first = { modifier ->
+                Button(
+                    onClick = {
+                        editingBanner = CarouselItem(id = java.util.UUID.randomUUID().toString())
+                        showDialog = true
+                    },
+                    modifier = modifier
+                ) { Text("Adicionar URL") }
+            },
+            second = { modifier ->
+                Button(
+                    onClick = { imagePickerLauncher.launch("image/*") },
+                    modifier = modifier,
+                    enabled = !isUploading
+                ) {
+                    if (isUploading) CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
+                    else {
+                        Icon(androidx.compose.material.icons.Icons.Default.Add, contentDescription = "Imagem")
+                        Spacer(Modifier.width(4.dp))
+                        Text("Galeria")
+                    }
                 }
             }
-        }
+        )
     }
 
     if (bannerToDelete != null) {

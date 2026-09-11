@@ -296,14 +296,16 @@ private fun AdminXpRedemptionCard(redemption: AdminXpRedemption, onDeliver: () -
 
             if (redemption.status == "pendente") {
                 HorizontalDivider()
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    Button(onClick = onDeliver, modifier = Modifier.weight(1f)) {
-                        Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(17.dp))
-                        Spacer(Modifier.size(5.dp))
-                        Text("Entregue")
-                    }
-                    OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f)) { Text("Cancelar") }
-                }
+                AdminAdaptivePair(
+                    first = { modifier ->
+                        Button(onClick = onDeliver, modifier = modifier) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(17.dp))
+                            Spacer(Modifier.size(5.dp))
+                            Text("Entregue")
+                        }
+                    },
+                    second = { modifier -> OutlinedButton(onClick = onCancel, modifier = modifier) { Text("Cancelar") } }
+                )
             }
         }
     }

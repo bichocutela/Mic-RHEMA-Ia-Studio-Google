@@ -109,40 +109,40 @@ fun AdminDashboard(onNavigate: (AdminSection) -> Unit, paddingValues: PaddingVal
 
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AdminOverviewCard(
+                AdminAdaptivePair(
+                    first = { modifier -> AdminOverviewCard(
                         title = "Pendentes",
                         value = pendingCount.toString(),
                         icon = Icons.Default.Warning,
                         accent = MaterialTheme.colorScheme.error,
                         onClick = { onNavigate(AdminSection.MEMBERS) },
-                        modifier = Modifier.weight(1f)
-                    )
-                    AdminOverviewCard(
+                        modifier = modifier
+                    ) },
+                    second = { modifier -> AdminOverviewCard(
                         title = "Aprovados",
                         value = approvedCount.toString(),
                         icon = Icons.Default.CheckCircle,
                         accent = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AdminOverviewCard(
+                        modifier = modifier
+                    ) }
+                )
+                AdminAdaptivePair(
+                    first = { modifier -> AdminOverviewCard(
                         title = "Alunos IBR",
                         value = ibrCount.toString(),
                         icon = Icons.Default.School,
                         accent = MaterialTheme.colorScheme.tertiary,
-                        modifier = Modifier.weight(1f)
-                    )
-                    AdminOverviewCard(
+                        modifier = modifier
+                    ) },
+                    second = { modifier -> AdminOverviewCard(
                         title = "Itens de mídia",
                         value = mediaCount.toString(),
                         icon = Icons.Default.PlayCircle,
                         accent = MaterialTheme.colorScheme.secondary,
                         onClick = { onNavigate(AdminSection.MEDIA) },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
+                        modifier = modifier
+                    ) }
+                )
             }
         }
 
@@ -171,18 +171,18 @@ fun AdminDashboard(onNavigate: (AdminSection) -> Unit, paddingValues: PaddingVal
 
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AdminQuickActionCard("Nova notícia", Icons.Default.Article, { onNavigate(AdminSection.NEWS) }, Modifier.weight(1f))
-                    AdminQuickActionCard("Adicionar mídia", Icons.Default.CloudUpload, { onNavigate(AdminSection.MEDIA) }, Modifier.weight(1f))
-                }
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AdminQuickActionCard("Aprovar membros", Icons.Default.PersonAdd, { onNavigate(AdminSection.MEMBERS) }, Modifier.weight(1f))
-                    AdminQuickActionCard("Novo destaque", Icons.Default.ViewCarousel, { onNavigate(AdminSection.BANNERS) }, Modifier.weight(1f))
-                }
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AdminQuickActionCard("Atualizar culto", Icons.Default.Event, { onNavigate(AdminSection.SERVICES) }, Modifier.weight(1f))
-                    AdminQuickActionCard("Curso IBR", Icons.Default.School, { onNavigate(AdminSection.IBR) }, Modifier.weight(1f))
-                }
+                AdminAdaptivePair(
+                    first = { modifier -> AdminQuickActionCard("Nova notícia", Icons.Default.Article, { onNavigate(AdminSection.NEWS) }, modifier) },
+                    second = { modifier -> AdminQuickActionCard("Adicionar mídia", Icons.Default.CloudUpload, { onNavigate(AdminSection.MEDIA) }, modifier) }
+                )
+                AdminAdaptivePair(
+                    first = { modifier -> AdminQuickActionCard("Aprovar membros", Icons.Default.PersonAdd, { onNavigate(AdminSection.MEMBERS) }, modifier) },
+                    second = { modifier -> AdminQuickActionCard("Novo destaque", Icons.Default.ViewCarousel, { onNavigate(AdminSection.BANNERS) }, modifier) }
+                )
+                AdminAdaptivePair(
+                    first = { modifier -> AdminQuickActionCard("Atualizar culto", Icons.Default.Event, { onNavigate(AdminSection.SERVICES) }, modifier) },
+                    second = { modifier -> AdminQuickActionCard("Curso IBR", Icons.Default.School, { onNavigate(AdminSection.IBR) }, modifier) }
+                )
                 AdminQuickActionCard("Loja XP", Icons.Default.CardGiftcard, { showXpShop = true }, Modifier.fillMaxWidth())
             }
         }
