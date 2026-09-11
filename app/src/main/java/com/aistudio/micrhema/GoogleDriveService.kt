@@ -39,28 +39,37 @@ object GoogleDriveService {
     }
 
     /**
-     * Identifies the file type (PDF, Word, image, audio, video) from a given URL.
+     * Identifies the file type (PDF, EPUB, Word, image, audio, video) from a given URL.
      */
     suspend fun identifyFileType(url: String): FileType = withContext(Dispatchers.IO) {
         if (isYoutubeUrl(url)) return@withContext FileType.VIDEO
+
+        val rawFingerprint = url.lowercase()
+        if (rawFingerprint.substringBefore('?').endsWith(".epub")) return@withContext FileType.EPUB
+        if (rawFingerprint.substringBefore('?').endsWith(".docx") || rawFingerprint.contains("format=docx")) return@withContext FileType.WORD
+        if (rawFingerprint.substringBefore('?').endsWith(".pdf")) return@withContext FileType.PDF
+
         try {
             val directLink = getDirectDownloadLink(url)
             if (!directLink.startsWith("http")) return@withContext FileType.UNKNOWN
-            
+
             val connection = URL(directLink).openConnection() as HttpURLConnection
             connection.requestMethod = "HEAD"
-            connection.connectTimeout = 5000
-            connection.readTimeout = 5000
+            connection.instanceFollowRedirects = true
+            connection.connectTimeout = 8000
+            connection.readTimeout = 8000
             connection.connect()
-            
+
             val contentType = connection.contentType?.lowercase().orEmpty()
             val contentDisposition = connection.getHeaderField("Content-Disposition")?.lowercase().orEmpty()
             val resolvedUrl = connection.url.toString().lowercase()
             connection.disconnect()
 
-            val fingerprint = "$contentType $contentDisposition $resolvedUrl ${url.lowercase()}"
+            val fingerprint = "$contentType $contentDisposition $resolvedUrl $rawFingerprint"
             return@withContext when {
+                contentType.contains("epub+zip") || fingerprint.contains(".epub") -> FileType.EPUB
                 contentType.contains("wordprocessingml") ||
+                    contentType.contains("msword") ||
                     fingerprint.contains(".docx") ||
                     fingerprint.contains("format=docx") -> FileType.WORD
                 contentType.startsWith("image/") -> FileType.IMAGE
@@ -76,6 +85,6 @@ object GoogleDriveService {
     }
 
     enum class FileType {
-        IMAGE, AUDIO, VIDEO, PDF, WORD, UNKNOWN
+        IMAGE, AUDIO, VIDEO, PDF, EPUB, WORD, UNKNOWN
     }
 }
