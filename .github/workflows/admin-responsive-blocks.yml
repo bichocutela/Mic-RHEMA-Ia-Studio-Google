@@ -1,4 +1,4 @@
-name: Validar responsividade do painel ADM
+name: Validar responsividade final do painel ADM
 
 on:
   push:
@@ -47,38 +47,16 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Bloco 1 - estrutura global
-        run: python3 scripts/admin_responsive_patch.py 1
+      - name: Bloco 4 - abas, discipulado, paginacao e Loja XP
+        run: python3 scripts/admin_responsive_extra_patch.py
 
-      - name: Testar bloco 1
+      - name: Testar bloco 4
         run: ./gradlew :app:compileReleaseKotlin --no-daemon
 
-      - name: Commit bloco 1
+      - name: Commit bloco 4
         run: |
-          git add app/src/main/java/com/aistudio/micrhema/AdminResponsive.kt app/src/main/java/com/aistudio/micrhema/Screens.kt
-          git commit -m "Make admin shell responsive"
-
-      - name: Bloco 2 - secoes principais
-        run: python3 scripts/admin_responsive_patch.py 2
-
-      - name: Testar bloco 2
-        run: ./gradlew :app:compileReleaseKotlin --no-daemon
-
-      - name: Commit bloco 2
-        run: |
-          git add app/src/main/java/com/aistudio/micrhema/MembersAdmin.kt app/src/main/java/com/aistudio/micrhema/NewsAdmin.kt app/src/main/java/com/aistudio/micrhema/TeamModule.kt app/src/main/java/com/aistudio/micrhema/AdminServicesV2.kt app/src/main/java/com/aistudio/micrhema/AdminXpShop.kt
-          git commit -m "Adapt admin actions to small screens"
-
-      - name: Bloco 3 - dashboard e acoes pareadas
-        run: python3 scripts/admin_responsive_patch.py 3
-
-      - name: Testar bloco 3
-        run: ./gradlew :app:compileReleaseKotlin --no-daemon
-
-      - name: Commit bloco 3
-        run: |
-          git add app/src/main/java/com/aistudio/micrhema/AdminDashboard.kt app/src/main/java/com/aistudio/micrhema/AdminMoreSections.kt app/src/main/java/com/aistudio/micrhema/AdminXpShop.kt
-          git commit -m "Adapt admin grids and paired actions"
+          git add app/src/main/java/com/aistudio/micrhema/AdminTabs.kt app/src/main/java/com/aistudio/micrhema/AdminDiscipulado.kt app/src/main/java/com/aistudio/micrhema/AdminPagination.kt app/src/main/java/com/aistudio/micrhema/AdminXpLightEffects.kt app/src/main/java/com/aistudio/micrhema/AdminXpBadges.kt app/src/main/java/com/aistudio/micrhema/AdminXpCosmetics.kt
+          git commit -m "Finish responsive admin controls"
 
       - name: Gerar APK de validacao
         run: ./gradlew :app:assembleRelease --no-daemon
