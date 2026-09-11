@@ -44,14 +44,11 @@ fun EditNewsSection() {
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("Gerenciar Avisos / Notícias", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Button(onClick = { showDialog = true; editingNews = null }) {
-                Icon(Icons.Default.Add, contentDescription = "Adicionar")
-                Spacer(Modifier.width(4.dp))
-                Text("Novo")
-            }
-        }
+        AdminActionHeader(
+            title = "Gerenciar Avisos / Notícias",
+            actionText = "Novo",
+            onAction = { showDialog = true; editingNews = null }
+        )
         Spacer(Modifier.height(10.dp))
         OutlinedTextField(
             value = searchQuery,
@@ -62,7 +59,7 @@ fun EditNewsSection() {
             label = { Text("Buscar por título, conteúdo, livro ou categoria") }
         )
         Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+        AdminSafeHorizontalRow {
             FilterChip(selected = intensityFilter == null, onClick = { intensityFilter = null }, label = { Text("Todas") })
             (1..4).forEach { level ->
                 FilterChip(selected = intensityFilter == level, onClick = { intensityFilter = level }, label = { Text("Nível $level") })

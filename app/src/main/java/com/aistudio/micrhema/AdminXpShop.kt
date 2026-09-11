@@ -135,7 +135,7 @@ fun AdminXpShopScreen() {
                 }
             }
             1 -> {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                AdminSafeHorizontalRow {
                     listOf("todos" to "Todos", "pendente" to "Pendentes", "entregue" to "Entregues", "cancelado" to "Cancelados").forEach { (value, label) ->
                         FilterChip(selected = redemptionFilter == value, onClick = { redemptionFilter = value }, label = { Text(label) })
                     }
@@ -403,7 +403,7 @@ private fun AdminXpRewardEditor(
                 OutlinedTextField(value = category, onValueChange = { category = it }, label = { Text("Categoria") }, modifier = Modifier.fillMaxWidth())
 
                 Text("Tipo", style = MaterialTheme.typography.labelLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                AdminSafeHorizontalRow {
                     FilterChip(selected = kind == "digital", onClick = { kind = "digital" }, label = { Text("Digital") })
                     FilterChip(selected = kind == "profile", onClick = { kind = "profile" }, label = { Text("Perfil") })
                     FilterChip(selected = kind == "physical", onClick = { kind = "physical" }, label = { Text("Física") })
