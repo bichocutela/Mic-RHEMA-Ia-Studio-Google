@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import {
   BookHeart, BookOpen, ChevronDown, ChevronRight, CircleUserRound, Copy, FileText, Grid2X2,
   HandHeart, Heart, Home, Info, Landmark, LockKeyhole, Menu as MenuIcon, PlayCircle, School,
-  Settings, Users, type LucideIcon,
+  Settings, ShoppingBag, Users, type LucideIcon,
 } from "lucide-react";
 import { listenToCollection, listenToDocument, loadPwaMemberProfile, type PwaMemberProfile } from "@/lib/firebase";
 import { startPwaActiveMinuteTracker } from "@/lib/badge-activity";
@@ -15,6 +15,7 @@ import { LiveStreamSurface } from "./LiveStreamSurface";
 import "./AndroidParityViews.css";
 
 const AdminParityView=lazy(()=>import("./AdminParityView").then(module=>({default:module.AdminParityView})));
+const PwaXpAdminPanel=lazy(()=>import("./PwaXpAdminPanel").then(module=>({default:module.PwaXpAdminPanel})));
 const PrayerParityView=lazy(()=>import("./PrayerParityView").then(module=>({default:module.PrayerParityView})));
 const AboutParityView=lazy(()=>import("./AboutParityView").then(module=>({default:module.AboutParityView})));
 const SettingsParityViewV2=lazy(()=>import("./SettingsParityViewV2").then(module=>({default:module.SettingsParityViewV2})));
@@ -31,7 +32,7 @@ const MembersParityView=lazy(()=>import("./AndroidParityViews").then(module=>({d
 
 export type AppView =
   | "home" | "bible" | "news" | "devotionals" | "media" | "ibr" | "menu" | "profile"
-  | "settings" | "admin" | "discipulado" | "cultos" | "plans" | "prayer"
+  | "settings" | "admin" | "xp-admin" | "discipulado" | "cultos" | "plans" | "prayer"
   | "members" | "team" | "donations" | "about";
 
 type TeamMember = { id:string; name?:string; role?:string; category?:string; imageUrl?:string; order?:number };
@@ -124,7 +125,7 @@ function AndroidDrawer({active,onNavigate,onProfile,onClose,session,onNotificati
         <button className="drawer-group-title" onClick={()=>toggle(group.title)}><span><GroupIcon size={18}/>{group.title}</span><ChevronDown className={open?"is-open":""} size={18}/></button>
         {open&&<div className="drawer-items">{group.items.map(({id,label,icon:Icon})=><button className={active===id?"is-current":""} key={id} onClick={()=>go(id)}><Icon size={19}/><span>{label}</span></button>)}</div>}
       </section>})}
-      <section className="drawer-group drawer-admin-group"><button className="drawer-group-title" onClick={()=>toggle("ADMINISTRAÇÃO")}><span><LockKeyhole size={18}/>ADMINISTRAÇÃO</span><ChevronDown className={expanded.has("ADMINISTRAÇÃO")?"is-open":""} size={18}/></button>{expanded.has("ADMINISTRAÇÃO")&&<div className="drawer-items"><button className={active==="admin"?"is-current":""} onClick={()=>go("admin")}><LockKeyhole size={19}/><span>Área ADM</span></button></div>}</section>
+      <section className="drawer-group drawer-admin-group"><button className="drawer-group-title" onClick={()=>toggle("ADMINISTRAÇÃO")}><span><LockKeyhole size={18}/>ADMINISTRAÇÃO</span><ChevronDown className={expanded.has("ADMINISTRAÇÃO")?"is-open":""} size={18}/></button>{expanded.has("ADMINISTRAÇÃO")&&<div className="drawer-items"><button className={active==="admin"?"is-current":""} onClick={()=>go("admin")}><LockKeyhole size={19}/><span>Área ADM</span></button><button className={active==="xp-admin"?"is-current":""} onClick={()=>go("xp-admin")}><ShoppingBag size={19}/><span>Loja XP</span></button></div>}</section>
       <button className="drawer-notifications" onClick={onNotifications}><span>Ativar notificações</span><small>Escolha receber avisos desta PWA</small></button>
     </section>
   </aside>;
@@ -143,6 +144,8 @@ export function PwaShell({active,onNavigate,drawerOpen,onCloseDrawer,onOpenDrawe
     :active==="discipulado"?<DiscipuladoParityViewV2/>
     :active==="admin"&&!session?.isAdmin?<AccessPrompt admin onAction={onAdminLogin}/>
     :active==="admin"?<AdminParityView session={session}/>
+    :active==="xp-admin"&&!session?.isAdmin?<AccessPrompt admin onAction={onAdminLogin}/>
+    :active==="xp-admin"?<PwaXpAdminPanel/>
     :active==="profile"&&!session?<AccessPrompt onAction={onProfile}/>
     :active==="profile"?<ProfileParityViewV2 session={session} onNavigateHome={()=>onNavigate("home")}/>
     :active==="settings"?<SettingsParityViewV2 session={session} onProfile={onProfile} onNotifications={onNotifications}/>

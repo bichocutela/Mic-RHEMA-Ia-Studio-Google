@@ -10,12 +10,13 @@ import type { PwaSessionLike } from "./AndroidParityViews";
 import { BiblicalBadgeAvatar } from "./BiblicalBadgeAvatar";
 import { badgeForId, biblicalBadges, levelBadges, type PwaBiblicalBadge } from "./BiblicalBadgeCatalog";
 import { PwaXpPanel } from "./PwaXpPanel";
+import { PwaProfileCustomizationPanel, PwaProfileLiveShowcase } from "./PwaProfileCustomization";
 import "./ProfileParityViewV2.css";
 
 type Avatar = { id: string; name: string };
 type IbrCourse = { id: string; chapters?: Array<{ id?: string }> };
 type IbrProgress = { id: string; courseId?: string; chapterId?: string; isCompleted?: boolean };
-type ProfileSection = "overview" | "xp" | "data" | "avatar" | "badges" | "missions" | "account";
+type ProfileSection = "overview" | "xp" | "data" | "avatar" | "badges" | "missions" | "customization" | "account";
 
 const avatars: Avatar[] = [
   { id:"davi",name:"Davi"},{id:"ester",name:"Ester"},{id:"daniel",name:"Daniel"},{id:"rute",name:"Rute"},
@@ -154,7 +155,7 @@ export function ProfileParityViewV2({ session, onNavigateHome }: { session: PwaS
   const changeSection=(next:ProfileSection)=>{setSection(next);window.requestAnimationFrame(()=>document.querySelector(".profile-v2-root")?.scrollIntoView({behavior:"smooth",block:"start"}))};
 
   return <section className="parity-page profile-v2-root">
-    <header className="profile-v2-hero"><BiblicalBadgeAvatar avatarId={avatar.id} badgeId={equipped.id} size={96} title={`${avatar.name} · ${equipped.name}`}/><div><p>{session.isAdmin?"ADMINISTRADOR · ":""}SEU AVATAR BÍBLICO</p><h1>{draft.name}</h1><span>{avatar.name} · Nível {equipped.level||1}: {equipped.name}</span></div></header>
+    <header className="profile-v2-hero"><PwaProfileLiveShowcase memberId={profile.id} avatarId={avatar.id} badgeId={equipped.id} size={96}/><div><p>{session.isAdmin?"ADMINISTRADOR · ":""}SEU AVATAR BÍBLICO</p><h1>{draft.name}</h1><span>{avatar.name} · Nível {equipped.level||1}: {equipped.name}</span></div></header>
 
     <nav className="profile-v2-tabs" aria-label="Categorias do perfil">
       <button className={section==="overview"?"active":""} onClick={()=>changeSection("overview")}>Resumo</button>
@@ -163,6 +164,7 @@ export function ProfileParityViewV2({ session, onNavigateHome }: { session: PwaS
       <button className={section==="avatar"?"active":""} onClick={()=>changeSection("avatar")}>Avatar</button>
       <button className={section==="badges"?"active":""} onClick={()=>changeSection("badges")}>Emblemas</button>
       <button className={section==="missions"?"active":""} onClick={()=>changeSection("missions")}>Missões</button>
+      <button className={section==="customization"?"active":""} onClick={()=>changeSection("customization")}>Personalização</button>
       <button className={section==="account"?"active":""} onClick={()=>changeSection("account")}>Conta</button>
     </nav>
 
@@ -192,6 +194,8 @@ export function ProfileParityViewV2({ session, onNavigateHome }: { session: PwaS
     </div>}
 
     {section==="missions"&&<div className="profile-v2-section"><section className="profile-v2-missions"><header><strong>Missões dos emblemas</strong><small>As mesmas regras do Android. Cada novo nível começa suas missões do zero; o XP permanece acumulado.</small></header>{levelBadges.map((badge)=>{const fraction=Math.max(0,Math.min(1,summary.missionFraction(badge.id)));const done=summary.calculated.has(badge.id);return <article key={badge.id} className={done?"done":""} onClick={()=>setPreviewBadgeId(badge.id)} role="button" tabIndex={0} onKeyDown={(event)=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();setPreviewBadgeId(badge.id)}}}><BiblicalBadgeAvatar avatarId={avatar.id} badgeId={badge.id} size={72} locked={!done} title={`Nível ${badge.level} · ${badge.name}`}/><div><strong>Nível {badge.level} · {badge.name}{badge.rarity?` · ${badge.rarity}`:""}</strong><small>{badge.requirement}</small><div className="profile-v2-progress"><i style={{width:`${Math.round(fraction*100)}%`}}/></div><em>{done?"Concluída · toque para ver":`${Math.round(fraction*100)}% concluído · toque para ver`}</em></div></article>})}</section></div>}
+
+    {section==="customization"&&<div className="profile-v2-section"><PwaProfileCustomizationPanel memberId={profile.id} avatarId={avatar.id} badgeId={equipped.id}/></div>}
 
     {section==="account"&&<div className="profile-v2-section profile-v2-account">
       <div className="profile-v2-section-heading"><div><strong>Conta</strong><small>Atualize a sessão ou encerre o acesso neste aparelho.</small></div></div>
