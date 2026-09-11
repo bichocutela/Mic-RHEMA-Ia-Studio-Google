@@ -152,7 +152,7 @@ private fun RichDocumentWebView(
                 }
                 setOnScrollChangeListener { _, _, scrollY, _, _ ->
                     prefs.edit().putInt(positionKey, scrollY.coerceAtLeast(0)).apply()
-                    val range = (computeVerticalScrollRange() - height).coerceAtLeast(1)
+                    val range = ((contentHeight * scale).toInt() - height).coerceAtLeast(1)
                     XpMediaClient.recordBook(viewContext, sourceUrl, (scrollY.toFloat() / range.toFloat()).coerceIn(0f, 1f))
                 }
             }
