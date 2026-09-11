@@ -35,6 +35,11 @@
             </intent-filter>
         </activity>
         <activity
+            android:name=".DocumentReaderActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.MICRhema" />
+        <activity
             android:name=".NewsNotificationActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize"
