@@ -21,32 +21,29 @@ function isAndroidUpdatePayload(payload) {
   return title === "tem atualização nova!" || (body.includes("mic rhema") && body.includes("já está disponível"));
 }
 
-// Bloqueio no nível mais baixo do Service Worker. Este listener é registrado antes do
-// Firebase Messaging, então até tokens Web antigos que ainda estejam em algum tópico
-// legado têm o evento interrompido antes que o SDK possa exibir uma notificação.
 self.addEventListener("push", (event) => {
   try {
     const payload = event.data?.json?.();
-    if (isAndroidUpdatePayload(payload)) {
-      event.stopImmediatePropagation();
-    }
+    if (isAndroidUpdatePayload(payload)) event.stopImmediatePropagation();
   } catch {
     // Payloads que não sejam JSON seguem normalmente para o Firebase Messaging.
   }
 });
 
 const messaging = firebase.messaging();
-
-// Segunda barreira para mensagens de dados processadas pelo SDK.
 messaging.onBackgroundMessage((payload) => {
   if (isAndroidUpdatePayload(payload)) return;
 });
 
 const CACHE_PREFIX = "mic-rhema-pwa-";
-const CACHE = "mic-rhema-pwa-v7";
+const CACHE = "mic-rhema-pwa-v8";
 const SHELL_URL = "./";
 const MANIFEST_URL = "./manifest.webmanifest";
 const BASE_PATH = new URL("./", self.location.href).pathname;
+const SHARE_DB = "mic-rhema-share-import";
+const SHARE_STORE = "pending";
+const SHARE_RECORD_ID = "latest";
+const MAX_SHARED_BYTES = 50 * 1024 * 1024;
 
 function shellAssetsFromHtml(html) {
   const urls = new Set();
@@ -55,9 +52,7 @@ function shellAssetsFromHtml(html) {
   while ((match = matcher.exec(html))) {
     try {
       const url = new URL(match[1], self.location.href);
-      if (url.origin === self.location.origin && url.pathname.startsWith(BASE_PATH) && url.pathname.includes("/assets/")) {
-        urls.add(url.href);
-      }
+      if (url.origin === self.location.origin && url.pathname.startsWith(BASE_PATH) && url.pathname.includes("/assets/")) urls.add(url.href);
     } catch {
       // Ignora referências externas ou inválidas.
     }
@@ -70,14 +65,11 @@ async function cacheCompleteShell(response) {
   const html = await response.clone().text();
   const cache = await caches.open(CACHE);
   const assets = shellAssetsFromHtml(html);
-
-  // Primeiro garante os arquivos da versão; só depois troca o HTML offline.
   await Promise.all(assets.map(async (url) => {
     const assetResponse = await fetch(new Request(url, { cache: "reload" }));
     if (!assetResponse.ok) throw new Error(`Falha ao preparar ${url}`);
     await cache.put(url, assetResponse.clone());
   }));
-
   await cache.put(SHELL_URL, response.clone());
 }
 
@@ -85,7 +77,6 @@ async function primeShell() {
   const response = await fetch(new Request(SHELL_URL, { cache: "reload" }));
   if (!response.ok) throw new Error("Não foi possível preparar a PWA.");
   await cacheCompleteShell(response);
-
   const manifest = await fetch(new Request(MANIFEST_URL, { cache: "reload" }));
   if (manifest.ok) {
     const cache = await caches.open(CACHE);
@@ -100,15 +91,79 @@ async function clearLegacyAndroidUpdateNotifications() {
     const title = String(notification.title || "").trim().toLowerCase();
     const body = String(notification.body || "").trim().toLowerCase();
     const tag = String(notification.tag || "").trim().toLowerCase();
-    if (title === "tem atualização nova!" || tag.includes("app_update") || (body.includes("mic rhema") && body.includes("já está disponível"))) {
-      notification.close();
-    }
+    if (title === "tem atualização nova!" || tag.includes("app_update") || (body.includes("mic rhema") && body.includes("já está disponível"))) notification.close();
   });
 }
 
-self.addEventListener("install", (event) => event.waitUntil(
-  primeShell().then(() => self.skipWaiting()),
-));
+function sharedKind(name, type, fingerprint = "") {
+  const value = `${name || ""} ${type || ""} ${fingerprint || ""}`.toLowerCase();
+  if (value.includes("application/pdf") || /\.pdf(?:\b|$)/.test(value)) return "pdf";
+  if (value.includes("application/epub+zip") || /\.epub(?:\b|$)/.test(value)) return "epub";
+  if (value.includes("wordprocessingml") || value.includes("msword") || /\.docx(?:\b|$)/.test(value)) return "docx";
+  return "unknown";
+}
+
+function firstSharedUrl(...values) {
+  for (const value of values) {
+    const match = String(value || "").match(/https?:\/\/[^\s<>"']+/i);
+    if (match) return match[0];
+  }
+  return "";
+}
+
+function openShareDb() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(SHARE_DB, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(SHARE_STORE)) db.createObjectStore(SHARE_STORE, { keyPath: "id" });
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error("Falha ao abrir armazenamento de compartilhamento."));
+  });
+}
+
+async function saveSharedRecord(record) {
+  const db = await openShareDb();
+  await new Promise((resolve, reject) => {
+    const transaction = db.transaction(SHARE_STORE, "readwrite");
+    transaction.objectStore(SHARE_STORE).put(record);
+    transaction.oncomplete = resolve;
+    transaction.onerror = () => reject(transaction.error || new Error("Falha ao salvar compartilhamento."));
+  });
+  db.close();
+}
+
+async function receiveShare(request) {
+  const form = await request.formData();
+  const files = form.getAll("documents").filter((value) => value instanceof File && value.size > 0);
+  const title = String(form.get("title") || "");
+  const text = String(form.get("text") || "");
+  const url = String(form.get("url") || "");
+  const file = files.find((candidate) => sharedKind(candidate.name, candidate.type) !== "unknown") || files[0] || null;
+  if (file && file.size > MAX_SHARED_BYTES) {
+    return new Response("Arquivo compartilhado maior que 50 MB.", { status: 413, headers: { "content-type": "text/plain; charset=utf-8" } });
+  }
+  const remoteUrl = firstSharedUrl(url, text, title);
+  if (!file && !remoteUrl) return new Response("Nenhum arquivo ou link compatível foi compartilhado.", { status: 400 });
+  const name = file?.name || title || remoteUrl.split("/").pop()?.split(/[?#]/)[0] || "material-compartilhado";
+  const kind = sharedKind(name, file?.type || "", `${title} ${text} ${remoteUrl}`);
+  await saveSharedRecord({
+    id: SHARE_RECORD_ID,
+    name,
+    type: file?.type || "",
+    size: file?.size || 0,
+    blob: file ? file.slice(0, file.size, file.type) : null,
+    kind,
+    sharedTitle: title,
+    sharedText: text,
+    sharedUrl: remoteUrl,
+    createdAt: Date.now(),
+  });
+  return Response.redirect(new URL("./?view=admin&section=ibr&shared=1", self.location.href), 303);
+}
+
+self.addEventListener("install", (event) => event.waitUntil(primeShell().then(() => self.skipWaiting())));
 
 self.addEventListener("activate", (event) => event.waitUntil((async () => {
   const keys = (await caches.keys()).filter((key) => key.startsWith(CACHE_PREFIX));
@@ -122,13 +177,18 @@ self.addEventListener("activate", (event) => event.waitUntil((async () => {
 
 self.addEventListener("fetch", (event) => {
   const request = event.request;
+  const url = new URL(request.url);
+
+  if (request.method === "POST" && url.origin === self.location.origin && url.pathname === `${BASE_PATH}share-target`) {
+    event.respondWith(receiveShare(request).catch(() => Response.redirect(new URL("./?view=admin&section=ibr&shared=error", self.location.href), 303)));
+    return;
+  }
+
   if (request.method !== "GET") return;
 
   if (request.mode === "navigate") {
     event.respondWith((async () => {
       try {
-        // HTML sempre vem primeiro da rede. A cópia offline só é trocada depois que
-        // todos os assets referenciados por ela estiverem disponíveis no cache.
         const response = await fetch(request, { cache: "no-store" });
         if (response.ok) event.waitUntil(cacheCompleteShell(response.clone()).catch(() => undefined));
         return response;
@@ -139,19 +199,14 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  const url = new URL(request.url);
   const localStatic = url.origin === self.location.origin
     && url.pathname.startsWith(BASE_PATH)
     && ["script", "style", "font", "image"].includes(request.destination);
   if (!localStatic) return;
 
   event.respondWith((async () => {
-    // Hashes do Vite são imutáveis: se existe em qualquer uma das duas versões
-    // mantidas, pode ser usado com segurança. Isso também protege uma tela que
-    // permaneceu aberta durante uma atualização.
     const cached = await caches.match(request);
     if (cached) return cached;
-
     const response = await fetch(request);
     if (response.ok) {
       const cache = await caches.open(CACHE);

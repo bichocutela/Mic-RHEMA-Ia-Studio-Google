@@ -179,6 +179,8 @@ export default function Home() {
     }catch(error){toast.error("Não foi possível ativar os avisos",{description:error instanceof Error?error.message:"Tente novamente em instantes."})}
   };
 
+  useEffect(()=>{if((view==="admin"||view==="xp-admin")&&!adminSession?.isAdmin)setShowAdminLogin(true);else if(adminSession?.isAdmin)setShowAdminLogin(false)},[view,adminSession?.isAdmin]);
+
   const adminView=view==="admin"||view==="xp-admin";
   const shellSession=adminView?adminSession:session;
 
