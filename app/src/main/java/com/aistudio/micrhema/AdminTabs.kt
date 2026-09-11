@@ -27,29 +27,28 @@ fun AdminTabsScreen() {
         modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
                 "Organize a navegação principal do aplicativo.",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                FilledTonalButton(onClick = { showPreview = !showPreview }) {
-                    Icon(if (showPreview) Icons.Default.VisibilityOff else Icons.Default.Visibility, contentDescription = null)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(if (showPreview) "Ocultar" else "Visualizar")
+            AdminAdaptivePair(
+                first = { modifier ->
+                    FilledTonalButton(onClick = { showPreview = !showPreview }, modifier = modifier) {
+                        Icon(if (showPreview) Icons.Default.VisibilityOff else Icons.Default.Visibility, contentDescription = null)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(if (showPreview) "Ocultar" else "Visualizar")
+                    }
+                },
+                second = { modifier ->
+                    Button(onClick = { showAddDialog = true }, modifier = modifier) {
+                        Icon(Icons.Default.Add, contentDescription = "Adicionar aba")
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Adicionar")
+                    }
                 }
-                Button(onClick = { showAddDialog = true }) {
-                    Icon(Icons.Default.Add, contentDescription = "Adicionar aba")
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Adicionar")
-                }
-            }
+            )
         }
 
         if (showPreview) {
@@ -163,12 +162,8 @@ fun AdminTabsScreen() {
                             )
                         }
                         HorizontalDivider()
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        AdminAdaptivePair(
+                            first = { modifier -> Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text("Visível", style = MaterialTheme.typography.labelLarge)
                                     Spacer(modifier = Modifier.width(6.dp))
@@ -199,8 +194,8 @@ fun AdminTabsScreen() {
                                         }
                                     )
                                 }
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            } },
+                            second = { modifier -> Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.End) {
                                 IconButton(
                                     onClick = { moveAdminTab(tab.id, -1) },
                                     enabled = orderedTabs.indexOfFirst { it.id == tab.id } > 0
@@ -221,8 +216,8 @@ fun AdminTabsScreen() {
                                         Icon(Icons.Default.Delete, contentDescription = "Remover ${tab.title}", tint = MaterialTheme.colorScheme.error)
                                     }
                                 }
-                            }
-                        }
+                            } }
+                        )
                     }
                 }
             }
@@ -251,7 +246,7 @@ fun AdminTabsScreen() {
                         modifier = Modifier.fillMaxWidth()
                     )
                     Text("Tipo de Conteúdo")
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    AdminSafeHorizontalRow {
                         TabContentType.values().filter { it != TabContentType.SYSTEM }.forEach { type ->
                             FilterChip(
                                 selected = selectedType == type,

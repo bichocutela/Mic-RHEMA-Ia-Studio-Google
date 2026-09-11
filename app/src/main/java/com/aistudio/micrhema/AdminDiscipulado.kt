@@ -70,21 +70,12 @@ fun EditDiscipuladoSection() {
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Estudos de Discipulado", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Text("Publique PDFs para todos os usuários do aplicativo.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Button(onClick = { pdfPicker.launch("application/pdf") }) {
-                Icon(Icons.Default.Add, contentDescription = "Adicionar PDF")
-                Spacer(Modifier.size(6.dp))
-                Text("Novo PDF")
-            }
-        }
+        AdminActionHeader(
+            title = "Estudos de Discipulado",
+            subtitle = "Publique PDFs para todos os usuários do aplicativo.",
+            actionText = "Novo PDF",
+            onAction = { pdfPicker.launch("application/pdf") }
+        )
         Spacer(Modifier.height(16.dp))
         if (isUploading) {
             LinearProgressIndicator(progress = { uploadProgress }, modifier = Modifier.fillMaxWidth())
