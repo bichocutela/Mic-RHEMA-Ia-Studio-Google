@@ -27,9 +27,7 @@ object StudyMaterialDownload {
         enqueue(context, sourceUrl, title, "epub", EPUB_MIME, "EPUB")
     }
 
-    /**
-     * Mantém a assinatura antiga usada nas telas IBR, mas agora abre Word/EPUB dentro do MIC Rhema.
-     */
+    /** Mantém a assinatura usada nas telas IBR e abre Word/EPUB dentro do MIC Rhema. */
     fun openDocument(context: Context, sourceUrl: String, label: String) {
         val clean = sourceUrl.trim()
         if (clean.isBlank()) {
@@ -38,10 +36,10 @@ object StudyMaterialDownload {
         }
         val normalized = "$label $clean".lowercase()
         val contentType = if (normalized.contains("epub")) "epub" else "word"
-        documentReaderRequestState.value = DocumentReaderRequest(
-            sourceUrl = clean,
-            title = if (contentType == "epub") "Material EPUB" else "Material em Word",
-            contentType = contentType
+        val title = if (contentType == "epub") "Material EPUB" else "Material em Word"
+        context.startActivity(
+            DocumentReaderActivity.intent(context, clean, title, contentType)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
         )
     }
 
