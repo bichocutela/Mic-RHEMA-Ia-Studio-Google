@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "894363387794",
+    "project_id": "mic-rhema",
+    "storage_bucket": "mic-rhema.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:894363387794:android:bb0b58cf5a668a7685234b",
+        "android_client_info": {
+          "package_name": "com.aistudio.micrhema.xqpq"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCHJ9c8AmfjEXMjNTr618kHySkSdjSjWgE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

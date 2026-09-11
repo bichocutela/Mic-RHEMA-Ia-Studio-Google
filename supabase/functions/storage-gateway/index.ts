@@ -7,6 +7,7 @@ const FIREBASE_ISSUER = `https://securetoken.google.com/${FIREBASE_PROJECT_ID}`;
 const FIREBASE_JWKS_URL = "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
 const SIGNED_URL_TTL_SECONDS = 15 * 60;
 const ADMIN_PASSWORD = Deno.env.get("RHEMA_ADMIN_PASSWORD") || "igreja10";
+const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 const BUCKET_RULES = {
   "profile-photos": {
@@ -21,7 +22,7 @@ const BUCKET_RULES = {
         maxBytes: 50 * 1024 * 1024,
         mimeTypes: new Set([
           "image/jpeg", "image/png", "image/webp",
-          "application/pdf",
+          "application/pdf", DOCX_MIME,
           "audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/ogg", "audio/mp4", "audio/aac",
           "video/mp4", "video/webm", "video/quicktime", "video/3gpp",
         ]),
@@ -226,6 +227,7 @@ function extensionForMime(mimeType: string): string {
   if (mimeType === "image/png") return "png";
   if (mimeType === "image/webp") return "webp";
   if (mimeType === "application/pdf") return "pdf";
+  if (mimeType === DOCX_MIME) return "docx";
   if (mimeType === "audio/mpeg" || mimeType === "audio/mp3") return "mp3";
   if (mimeType === "audio/wav" || mimeType === "audio/x-wav") return "wav";
   if (mimeType === "audio/ogg") return "ogg";

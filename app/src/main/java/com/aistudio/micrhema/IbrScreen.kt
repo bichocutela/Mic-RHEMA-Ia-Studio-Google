@@ -420,7 +420,9 @@ fun IbrTextScreen(courseId: String, chapterId: String, onBack: () -> Unit) {
                     lineHeight = MaterialTheme.typography.bodyLarge.lineHeight * fontSizeMultiplier
                 )
             )
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(20.dp))
+            IbrStudyMaterials(chapter)
+            Spacer(Modifier.height(20.dp))
             Button(
                 onClick = {
                     val newProg = IbrProgress(course.id, chapter.id, 0, chapter.durationMinutes * 60, true)
@@ -506,32 +508,75 @@ fun IbrLessonScreen(courseId: String, chapterId: String, onBack: () -> Unit) {
                 Text(if (isCompleted) "Aula concluída" else "Marcar como concluída")
             }
 
-            if (chapter.studyPdfUrl.isNotBlank()) {
-                HorizontalDivider()
-                Text("Conteúdos para estudo", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
-                    Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.primaryContainer) {
-                            Icon(Icons.Default.PictureAsPdf, null, modifier = Modifier.padding(9.dp).size(24.dp))
-                        }
-                        Spacer(Modifier.width(9.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text("Material complementar", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            Text("PDF disponível para esta aula", style = MaterialTheme.typography.bodySmall)
-                        }
-                        Icon(Icons.Default.Download, null)
-                    }
-                    OutlinedButton(
-                        onClick = { StudyMaterialDownload.enqueuePdf(context, chapter.studyPdfUrl, chapter.title) },
-                        modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
-                    ) {
-                        Icon(Icons.Default.Download, null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Baixar PDF")
-                    }
+            IbrStudyMaterials(chapter)
+            Spacer(Modifier.height(18.dp))
+        }
+    }
+}
+
+
+@Composable
+private fun IbrStudyMaterials(chapter: IbrChapter) {
+    val context = LocalContext.current
+    val hasPdf = chapter.studyPdfUrl.isNotBlank()
+    val hasDocx = chapter.studyDocxUrl.isNotBlank()
+    if (!hasPdf && !hasDocx) return
+
+    HorizontalDivider()
+    Text("Conteúdos para estudo", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+
+    if (hasPdf) {
+        Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+            Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                    Icon(Icons.Default.PictureAsPdf, null, modifier = Modifier.padding(9.dp).size(24.dp))
+                }
+                Spacer(Modifier.width(9.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Material complementar", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Text("PDF disponível para esta aula", style = MaterialTheme.typography.bodySmall)
+                }
+                Icon(Icons.Default.Download, null)
+            }
+            OutlinedButton(
+                onClick = { StudyMaterialDownload.enqueuePdf(context, chapter.studyPdfUrl, chapter.title) },
+                modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
+            ) {
+                Icon(Icons.Default.Download, null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Baixar PDF")
+            }
+        }
+    }
+
+    if (hasDocx) {
+        Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+            Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
+                    Icon(Icons.Default.Description, null, modifier = Modifier.padding(9.dp).size(24.dp))
+                }
+                Spacer(Modifier.width(9.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Material em Word", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Text("Arquivo .docx disponível para esta aula", style = MaterialTheme.typography.bodySmall)
                 }
             }
-            Spacer(Modifier.height(18.dp))
+            OutlinedButton(
+                onClick = { StudyMaterialDownload.openDocument(context, chapter.studyDocxUrl, "arquivo Word") },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
+            ) {
+                Icon(Icons.Default.OpenInNew, null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Abrir Word")
+            }
+            OutlinedButton(
+                onClick = { StudyMaterialDownload.enqueueDocx(context, chapter.studyDocxUrl, chapter.title) },
+                modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
+            ) {
+                Icon(Icons.Default.Download, null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Baixar DOCX")
+            }
         }
     }
 }

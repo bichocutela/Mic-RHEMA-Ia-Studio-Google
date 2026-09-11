@@ -713,6 +713,7 @@ data class IbrChapter(
     var audioUrl: String = "", // URL to audio stream
     var textContent: String = "", // For TEXT type
     var studyPdfUrl: String = "", // PDF opcional para conteúdo de estudo
+    var studyDocxUrl: String = "", // Word .docx opcional para conteúdo de estudo
     var isYoutube: Boolean = false,
     var youtubeId: String = "" // if Youtube link
 )
