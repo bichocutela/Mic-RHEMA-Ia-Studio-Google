@@ -933,11 +933,14 @@ fun EditVipIbrSection() {
     var courseTheme by remember { mutableStateOf("Teologia") }
     var courseTitle by remember { mutableStateOf("") }
     var courseDescription by remember { mutableStateOf("") }
+    var courseImageUrl by remember { mutableStateOf("") }
     
 
     // Add Chapter Form States
     var editingCourse by remember { mutableStateOf<IbrCourse?>(null) }
     var editingChapter by remember { mutableStateOf<IbrChapter?>(null) }
+    var courseToDelete by remember { mutableStateOf<IbrCourse?>(null) }
+    var chapterToDelete by remember { mutableStateOf<Pair<IbrCourse, IbrChapter>?>(null) }
 
     var selectedCourseForChapter by remember { mutableStateOf<IbrCourse?>(null) }
     var chapterTitle by remember { mutableStateOf("") }
@@ -961,6 +964,13 @@ fun EditVipIbrSection() {
                 (courseThemeFilter == "Todos" || course.theme == courseThemeFilter)
         }
         .sortedBy { it.title.lowercase() }
+
+    LaunchedEffect(ibrCoursesState.size) {
+        if (selectedCourseForChapter == null || ibrCoursesState.none { it.id == selectedCourseForChapter?.id }) {
+            selectedCourseForChapter = ibrCoursesState.firstOrNull()
+        }
+    }
+
     LazyColumn(
 
         modifier = Modifier
@@ -1011,6 +1021,12 @@ fun EditVipIbrSection() {
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(24.dp)
                     )
+                    LocalUploadField(
+                        value = courseImageUrl,
+                        onValueChange = { courseImageUrl = it },
+                        label = "Capa do curso (opcional)",
+                        mimeType = "image/*"
+                    )
 
                     // Theme selector chips
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -1038,7 +1054,7 @@ fun EditVipIbrSection() {
                                     title = courseTitle,
                                     description = courseDescription,
                                     theme = courseTheme,
-                                    imageUrl = "",
+                                    imageUrl = courseImageUrl.trim(),
                                     chapters = mutableStateListOf()
                                 )
                                 addIbrCourse(newCourse)
@@ -1049,6 +1065,7 @@ fun EditVipIbrSection() {
                                 )
                                 courseTitle = ""
                                 courseDescription = ""
+                                courseImageUrl = ""
                             } else {
                                 NotificationHelper.showNotification(context, "Erro", "Preencha o título do curso.")
                             }
@@ -1060,11 +1077,6 @@ fun EditVipIbrSection() {
                     }
                 }
             }
-        }
-
-        // Initialize selected course if empty
-        if (selectedCourseForChapter == null && ibrCoursesState.isNotEmpty()) {
-            selectedCourseForChapter = ibrCoursesState.first()
         }
 
         // 2. ADD CHAPTER CARD (Only shown if courses exist)
@@ -1113,71 +1125,70 @@ fun EditVipIbrSection() {
                             shape = RoundedCornerShape(24.dp)
                         )
 
-                        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                            if (maxWidth < 430.dp) {
-                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    GlassTextField(
-                                        value = chapterDuration,
-                                        onValueChange = { chapterDuration = it },
-                                        label = { Text("Duração (Minutos)") },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(24.dp)
-                                    )
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text("É YouTube?", style = MaterialTheme.typography.labelMedium)
-                                        Switch(checked = isYoutube, onCheckedChange = { isYoutube = it })
-                                    }
-                                }
-                            } else {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    GlassTextField(
-                                        value = chapterDuration,
-                                        onValueChange = { chapterDuration = it },
-                                        label = { Text("Duração (Minutos)") },
-                                        modifier = Modifier.weight(1.2f),
-                                        shape = RoundedCornerShape(24.dp)
-                                    )
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        modifier = Modifier.weight(0.8f)
-                                    ) {
-                                        Text("É YouTube?", style = MaterialTheme.typography.labelMedium)
-                                        Switch(checked = isYoutube, onCheckedChange = { isYoutube = it })
-                                    }
-                                }
+                        Text("Tipo da aula", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                        Row(
+                            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf("VIDEO" to "Vídeo", "AUDIO" to "Áudio", "TEXT" to "Texto").forEach { (id, title) ->
+                                FilterChip(
+                                    selected = chapterType == id,
+                                    onClick = {
+                                        chapterType = id
+                                        if (id != "VIDEO") isYoutube = false
+                                    },
+                                    label = { Text(title) }
+                                )
                             }
                         }
 
-                        if (isYoutube) {
-                            GlassTextField(
-                                value = videoUrl,
-                                onValueChange = { videoUrl = it },
-                                label = { Text("Link do YouTube (ID ou URL)") },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(24.dp),
-                                placeholder = { Text("https://youtube.com/watch?v=...") }
-                            )
-                        } else {
-                            LocalUploadField(
-                                value = videoUrl,
-                                onValueChange = { videoUrl = it },
-                                label = "Upload de Vídeo (URL ou Arquivo)",
-                                mimeType = "video/*"
-                            )
-                            LocalUploadField(
+                        GlassTextField(
+                            value = chapterDuration,
+                            onValueChange = { chapterDuration = it },
+                            label = { Text("Duração (minutos)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(24.dp)
+                        )
+
+                        when (chapterType) {
+                            "VIDEO" -> {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("Vídeo do YouTube", style = MaterialTheme.typography.labelMedium)
+                                    Switch(checked = isYoutube, onCheckedChange = { isYoutube = it })
+                                }
+                                if (isYoutube) {
+                                    GlassTextField(
+                                        value = videoUrl,
+                                        onValueChange = { videoUrl = it },
+                                        label = { Text("Link do YouTube") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        placeholder = { Text("https://youtube.com/watch?v=...") }
+                                    )
+                                } else {
+                                    LocalUploadField(
+                                        value = videoUrl,
+                                        onValueChange = { videoUrl = it },
+                                        label = "Vídeo da aula",
+                                        mimeType = "video/*"
+                                    )
+                                }
+                            }
+                            "AUDIO" -> LocalUploadField(
                                 value = audioUrl,
                                 onValueChange = { audioUrl = it },
-                                label = "Upload de Áudio (URL ou Arquivo)",
+                                label = "Áudio da aula",
                                 mimeType = "audio/*"
+                            )
+                            else -> GlassTextField(
+                                value = textContent,
+                                onValueChange = { textContent = it },
+                                label = { Text("Texto da aula") },
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
+                                maxLines = 10
                             )
                         }
 
@@ -1203,17 +1214,17 @@ fun EditVipIbrSection() {
                             onClick = {
                                 if (chapterTitle.isNotBlank() && selectedCourseForChapter != null) {
                                     val duration = chapterDuration.toIntOrNull() ?: 30
-                                    val detectedYoutubeId = extractYouTubeVideoId(videoUrl).orEmpty()
-                                    val detectedYoutube = isYoutube || detectedYoutubeId.isNotBlank() || isYoutubeUrl(videoUrl)
+                                    val detectedYoutubeId = if (chapterType == "VIDEO") extractYouTubeVideoId(videoUrl).orEmpty() else ""
+                                    val detectedYoutube = chapterType == "VIDEO" && (isYoutube || detectedYoutubeId.isNotBlank() || isYoutubeUrl(videoUrl))
                                     val newChapter = IbrChapter(
                                         id = "chap_${System.currentTimeMillis()}",
                                         title = chapterTitle,
                                         description = chapterDescription,
                                         durationMinutes = duration,
                                         type = chapterType,
-                                        videoUrl = videoUrl,
-                                        audioUrl = audioUrl,
-                                        textContent = textContent,
+                                        videoUrl = if (chapterType == "VIDEO") videoUrl else "",
+                                        audioUrl = if (chapterType == "AUDIO") audioUrl else "",
+                                        textContent = if (chapterType == "TEXT") textContent else "",
                                         studyPdfUrl = studyPdfUrl.trim(),
                                         studyDocxUrl = studyDocxUrl.trim(),
                                         isYoutube = detectedYoutube,
@@ -1241,6 +1252,8 @@ fun EditVipIbrSection() {
                                     chapterDescription = ""
                                     videoUrl = ""
                                     audioUrl = ""
+                                    textContent = ""
+                                    chapterType = "VIDEO"
                                     studyPdfUrl = ""
                                     studyDocxUrl = ""
                                     isYoutube = false
@@ -1322,7 +1335,7 @@ fun EditVipIbrSection() {
                                 IconButton(onClick = { editingCourse = course }) {
                                     Icon(Icons.Default.Edit, contentDescription = "Editar Curso", tint = MaterialTheme.colorScheme.primary)
                                 }
-                                IconButton(onClick = { removeIbrCourse(course) }) {
+                                IconButton(onClick = { courseToDelete = course }) {
                                     Icon(Icons.Default.Delete, contentDescription = "Deletar Curso", tint = MaterialTheme.colorScheme.error)
                                 }
                             }
@@ -1377,14 +1390,7 @@ fun EditVipIbrSection() {
                                             Icon(Icons.Default.Edit, contentDescription = "Editar Aula", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
                                         }
                                         IconButton(
-                                            onClick = {
-                                                val updatedChapters = course.chapters.toMutableList().apply { remove(ch) }
-                                                val updatedCourse = course.copy(chapters = updatedChapters)
-                                                val index = ibrCoursesState.indexOf(course)
-                                                if (index != -1) {
-                                                    addIbrCourse(updatedCourse)
-                                                }
-                                            },
+                                            onClick = { chapterToDelete = course to ch },
                                             modifier = Modifier.size(24.dp)
                                         ) {
                                             Icon(Icons.Default.Close, contentDescription = "Deletar Aula", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
@@ -1400,10 +1406,46 @@ fun EditVipIbrSection() {
 
     }
 
+    if (courseToDelete != null) {
+        val target = courseToDelete!!
+        AlertDialog(
+            onDismissRequest = { courseToDelete = null },
+            title = { Text("Excluir curso?") },
+            text = { Text("O curso '${target.title}' e suas aulas serão removidos do IBR.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    removeIbrCourse(target)
+                    courseToDelete = null
+                }) { Text("Excluir", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { courseToDelete = null }) { Text("Cancelar") } }
+        )
+    }
+
+    if (chapterToDelete != null) {
+        val (targetCourse, targetChapter) = chapterToDelete!!
+        AlertDialog(
+            onDismissRequest = { chapterToDelete = null },
+            title = { Text("Excluir aula?") },
+            text = { Text("A aula '${targetChapter.title}' será removida deste curso.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    val updated = targetCourse.copy(chapters = targetCourse.chapters.filterNot { it.id == targetChapter.id })
+                    val index = ibrCoursesState.indexOfFirst { it.id == targetCourse.id }
+                    if (index >= 0) ibrCoursesState[index] = updated
+                    saveIbrCourseSilently(updated)
+                    chapterToDelete = null
+                }) { Text("Excluir", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { chapterToDelete = null }) { Text("Cancelar") } }
+        )
+    }
+
     if (editingCourse != null && editingChapter == null) {
         var editTitle by remember(editingCourse) { mutableStateOf(editingCourse!!.title) }
         var editDescription by remember(editingCourse) { mutableStateOf(editingCourse!!.description) }
         var editTheme by remember(editingCourse) { mutableStateOf(editingCourse!!.theme) }
+        var editImageUrl by remember(editingCourse) { mutableStateOf(editingCourse!!.imageUrl) }
         
         AlertDialog(
             onDismissRequest = { editingCourse = null },
@@ -1413,14 +1455,16 @@ fun EditVipIbrSection() {
                     GlassTextField(value = editTitle, onValueChange = { editTitle = it }, label = { Text("Título") })
                     GlassTextField(value = editDescription, onValueChange = { editDescription = it }, label = { Text("Descrição") })
                     GlassTextField(value = editTheme, onValueChange = { editTheme = it }, label = { Text("Tema") })
+                    LocalUploadField(value = editImageUrl, onValueChange = { editImageUrl = it }, label = "Capa do curso (opcional)", mimeType = "image/*")
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
                     val idx = ibrCoursesState.indexOfFirst { it.id == editingCourse!!.id }
                     if (idx != -1) {
-                        val updated = editingCourse!!.copy(title = editTitle, description = editDescription, theme = editTheme)
-                        addIbrCourse(updated)
+                        val updated = editingCourse!!.copy(title = editTitle, description = editDescription, theme = editTheme, imageUrl = editImageUrl.trim())
+                        ibrCoursesState[idx] = updated
+                        saveIbrCourseSilently(updated)
                     }
                     editingCourse = null
                 }) { Text("Salvar") }
@@ -1433,7 +1477,10 @@ fun EditVipIbrSection() {
         var editTitle by remember(editingChapter) { mutableStateOf(editingChapter!!.title) }
         var editDescription by remember(editingChapter) { mutableStateOf(editingChapter!!.description) }
         var editDuration by remember(editingChapter) { mutableStateOf(editingChapter!!.durationMinutes.toString()) }
+        var editType by remember(editingChapter) { mutableStateOf(editingChapter!!.type.ifBlank { "VIDEO" }.uppercase()) }
         var editVideoUrl by remember(editingChapter) { mutableStateOf(editingChapter!!.videoUrl) }
+        var editAudioUrl by remember(editingChapter) { mutableStateOf(editingChapter!!.audioUrl) }
+        var editTextContent by remember(editingChapter) { mutableStateOf(editingChapter!!.textContent) }
         var editStudyPdfUrl by remember(editingChapter) { mutableStateOf(editingChapter!!.studyPdfUrl) }
         var editStudyDocxUrl by remember(editingChapter) { mutableStateOf(editingChapter!!.studyDocxUrl) }
         
@@ -1451,7 +1498,17 @@ fun EditVipIbrSection() {
                     GlassTextField(value = editTitle, onValueChange = { editTitle = it }, label = { Text("Título") })
                     GlassTextField(value = editDescription, onValueChange = { editDescription = it }, label = { Text("Descrição") })
                     GlassTextField(value = editDuration, onValueChange = { editDuration = it }, label = { Text("Duração (Min)") })
-                    GlassTextField(value = editVideoUrl, onValueChange = { editVideoUrl = it }, label = { Text("URL Vídeo") })
+                    Text("Tipo da aula", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("VIDEO" to "Vídeo", "AUDIO" to "Áudio", "TEXT" to "Texto").forEach { (id, title) ->
+                            FilterChip(selected = editType == id, onClick = { editType = id }, label = { Text(title) })
+                        }
+                    }
+                    when (editType) {
+                        "VIDEO" -> LocalUploadField(value = editVideoUrl, onValueChange = { editVideoUrl = it }, label = "Vídeo ou link do YouTube", mimeType = "video/*")
+                        "AUDIO" -> LocalUploadField(value = editAudioUrl, onValueChange = { editAudioUrl = it }, label = "Áudio da aula", mimeType = "audio/*")
+                        else -> GlassTextField(value = editTextContent, onValueChange = { editTextContent = it }, label = { Text("Texto da aula") }, modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp), maxLines = 10)
+                    }
                     LocalUploadField(
                         value = editStudyPdfUrl,
                         onValueChange = { editStudyPdfUrl = it },
@@ -1474,19 +1531,24 @@ fun EditVipIbrSection() {
                         val chapterIdx = course.chapters.indexOfFirst { it.id == editingChapter!!.id }
                         if (chapterIdx != -1) {
                             val updatedChapters = course.chapters.toMutableList()
-                            val isYt = isYoutubeUrl(editVideoUrl)
-                            val ytId = extractYouTubeVideoId(editVideoUrl) ?: ""
+                            val isYt = editType == "VIDEO" && isYoutubeUrl(editVideoUrl)
+                            val ytId = if (editType == "VIDEO") extractYouTubeVideoId(editVideoUrl) ?: "" else ""
                             updatedChapters[chapterIdx] = editingChapter!!.copy(
                                 title = editTitle,
                                 description = editDescription,
                                 durationMinutes = editDuration.toIntOrNull() ?: editingChapter!!.durationMinutes,
-                                videoUrl = editVideoUrl,
+                                type = editType,
+                                videoUrl = if (editType == "VIDEO") editVideoUrl else "",
+                                audioUrl = if (editType == "AUDIO") editAudioUrl else "",
+                                textContent = if (editType == "TEXT") editTextContent else "",
                                 studyPdfUrl = editStudyPdfUrl.trim(),
                                 studyDocxUrl = editStudyDocxUrl.trim(),
                                 isYoutube = isYt,
                                 youtubeId = ytId
                             )
-                            ibrCoursesState[courseIdx] = course.copy(chapters = updatedChapters)
+                            val updatedCourse = course.copy(chapters = updatedChapters)
+                            ibrCoursesState[courseIdx] = updatedCourse
+                            saveIbrCourseSilently(updatedCourse)
                         }
                     }
                     editingChapter = null
