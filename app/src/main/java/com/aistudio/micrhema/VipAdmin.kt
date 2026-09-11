@@ -74,69 +74,28 @@ fun EditVipSection() {
     var vipTab by remember { mutableStateOf("overview") } // overview, midia, cursos or certificados
     val tabs = listOf(
         "overview" to "Visão geral",
-        "midia" to "Conteúdo IBR",
-        "cursos" to "Módulos IBR",
-        "certificados" to "Certificados IBR"
+        "midia" to "Conteúdo",
+        "cursos" to "Módulos",
+        "certificados" to "Certificados"
     )
 
     Column(modifier = Modifier.fillMaxSize()) {
-        BoxWithConstraints(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp).horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            val compact = maxWidth < 600.dp
-            if (compact) {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    tabs.chunked(2).forEach { rowTabs ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            rowTabs.forEach { (id, title) ->
-                                FilterChip(
-                                    selected = vipTab == id,
-                                    onClick = { vipTab = id },
-                                    modifier = Modifier.weight(1f),
-                                    label = {
-                                        Text(
-                                            title,
-                                            modifier = Modifier.fillMaxWidth(),
-                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                            maxLines = 2
-                                        )
-                                    }
-                                )
-                            }
-                            if (rowTabs.size == 1) Spacer(Modifier.weight(1f))
-                        }
-                    }
-                }
-            } else {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    tabs.forEach { (id, title) ->
-                        FilterChip(
-                            selected = vipTab == id,
-                            onClick = { vipTab = id },
-                            modifier = Modifier.weight(1f),
-                            label = {
-                                Text(
-                                    title,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                    maxLines = 1
-                                )
-                            }
-                        )
-                    }
-                }
+            tabs.forEach { (id, title) ->
+                FilterChip(
+                    selected = vipTab == id,
+                    onClick = { vipTab = id },
+                    label = { Text(title, maxLines = 1) }
+                )
             }
         }
 
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             if (vipTab == "overview") {
-                EditIbrOverviewSection()
+                EditIbrOverviewSection(onOpenTab = { vipTab = it })
             } else if (vipTab == "midia") {
                 EditVipContentSection()
             } else if (vipTab == "cursos") {
@@ -149,11 +108,15 @@ fun EditVipSection() {
 }
 
 @Composable
-fun EditIbrOverviewSection() {
+fun EditIbrOverviewSection(onOpenTab: (String) -> Unit = {}) {
     val totalCourses = ibrCoursesState.size
     val totalLessons = ibrCoursesState.sumOf { it.chapters.size }
     val totalIbrMembers = memberRequestsState.count { it.isIbr }
-    val certificatesPending = memberRequestsState.count { it.isIbr && it.ibrCertificateUrl.isBlank() && it.ibrCertificateStoragePath.isBlank() }
+    val progressByMember = rememberIbrProgressByMember()
+    val certificatesPending = memberRequestsState.count { member ->
+        member.isIbr && member.ibrCertificateUrl.isBlank() && member.ibrCertificateStoragePath.isBlank() &&
+            isIbrCompleteFor(progressByMember[member.id].orEmpty())
+    }
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -165,14 +128,14 @@ fun EditIbrOverviewSection() {
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                IbrAdminMetricCard("Cursos", totalCourses.toString(), Icons.Default.MenuBook, Modifier.weight(1f))
-                IbrAdminMetricCard("Aulas", totalLessons.toString(), Icons.Default.Class, Modifier.weight(1f))
+                IbrAdminMetricCard("Cursos", totalCourses.toString(), Icons.Default.MenuBook, Modifier.weight(1f)) { onOpenTab("cursos") }
+                IbrAdminMetricCard("Aulas", totalLessons.toString(), Icons.Default.Class, Modifier.weight(1f)) { onOpenTab("cursos") }
             }
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 IbrAdminMetricCard("Alunos IBR", totalIbrMembers.toString(), Icons.Default.People, Modifier.weight(1f))
-                IbrAdminMetricCard("Certificados", certificatesPending.toString(), Icons.Default.EmojiEvents, Modifier.weight(1f))
+                IbrAdminMetricCard("Cert. pendentes", certificatesPending.toString(), Icons.Default.EmojiEvents, Modifier.weight(1f)) { onOpenTab("certificados") }
             }
         }
         item {
@@ -188,8 +151,18 @@ fun EditIbrOverviewSection() {
 }
 
 @Composable
-private fun IbrAdminMetricCard(label: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier = Modifier) {
-    Card(modifier = modifier, shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+private fun IbrAdminMetricCard(
+    label: String,
+    value: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
+) {
+    Card(
+        modifier = modifier.then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.height(8.dp))
@@ -222,10 +195,22 @@ fun EditVipContentSection() {
     var audioToDelete by remember { mutableStateOf<ContentAudio?>(null) }
     var videoToDelete by remember { mutableStateOf<ContentVideo?>(null) }
     var isDeleting by remember { mutableStateOf(false) }
+    var contentFilter by remember { mutableStateOf("Todos") }
+    var addContentType by remember { mutableStateOf<String?>(null) }
 
-    Column(modifier = Modifier.padding(16.dp).imePadding().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(modifier = Modifier.padding(16.dp).imePadding().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("IBR - Conteúdo Geral", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Text("Adicione e edite livros, áudios e vídeos para os alunos do Instituto Bíblico Rhema.", style = MaterialTheme.typography.bodyMedium)
+        Text("Adicione e edite os materiais dos alunos sem sair desta tela.", style = MaterialTheme.typography.bodyMedium)
+        Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("Todos", "Livros", "Áudios", "Vídeos", "Fotos").forEach { option ->
+                FilterChip(selected = contentFilter == option, onClick = { contentFilter = option }, label = { Text(option) })
+            }
+        }
+        Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("Livros" to "+ Livro", "Áudios" to "+ Áudio", "Vídeos" to "+ Vídeo", "Fotos" to "+ Álbum").forEach { (type, label) ->
+                AssistChip(onClick = { addContentType = if (addContentType == type) null else type }, label = { Text(label) })
+            }
+        }
         // SMART IMPORTER
         var smartUrl by remember { mutableStateOf("") }
         var isSmartLoading by remember { mutableStateOf(false) }
@@ -233,7 +218,7 @@ fun EditVipContentSection() {
         Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("Smart Import Google Drive 🚀", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                Text("Cole um link do Google Drive. O sistema detectará automaticamente PDF, Word (DOCX), Áudio (MP3), Vídeo (MP4) ou Imagem.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 8.dp))
+                Text("Cole um link do Google Drive. O sistema detectará automaticamente PDF, EPUB, Word (DOCX), Áudio (MP3), Vídeo (MP4) ou Imagem.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 8.dp))
                 GlassTextField(value = smartUrl, onValueChange = { smartUrl = it }, label = { Text("Link do Google Drive") }, modifier = Modifier.fillMaxWidth())
                 if (isSmartLoading) {
                     CircularProgressIndicator(modifier = Modifier.padding(top = 8.dp).size(24.dp))
@@ -249,6 +234,10 @@ fun EditVipContentSection() {
                                 GoogleDriveService.FileType.PDF -> {
                                     smartMessage = "Livro PDF detectado e adicionado!"
                                     addVipBook(ContentBook(id = System.currentTimeMillis().toString(), title = "Novo Livro Importado", author = "Desconhecido", coverUrl = "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=500&q=80", contentText = "", bookUrl = GoogleDriveService.getDirectDownloadLink(smartUrl)))
+                                }
+                                GoogleDriveService.FileType.EPUB -> {
+                                    smartMessage = "Livro EPUB detectado e adicionado!"
+                                    addVipBook(ContentBook(id = System.currentTimeMillis().toString(), title = "Novo Livro EPUB Importado", author = "Documento EPUB", coverUrl = "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=500&q=80", contentText = "", bookUrl = GoogleDriveService.getDirectDownloadLink(smartUrl), type = "epub"))
                                 }
                                 GoogleDriveService.FileType.WORD -> {
                                     smartMessage = "Documento Word detectado e adicionado!"
@@ -281,6 +270,7 @@ fun EditVipContentSection() {
 
         
         // ADD BOOK
+        if (addContentType == "Livros") {
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("Adicionar Livro", fontWeight = FontWeight.Bold)
@@ -316,8 +306,9 @@ fun EditVipContentSection() {
                 }
             }
         }
+        }
         
-        if (vipBooksState.isNotEmpty()) {
+        if ((contentFilter == "Todos" || contentFilter == "Livros") && vipBooksState.isNotEmpty()) {
             Text("Livros Cadastrados", fontWeight = FontWeight.Bold)
             vipBooksState.forEach { book ->
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -336,6 +327,7 @@ fun EditVipContentSection() {
         Divider()
         
         // ADD AUDIO
+        if (addContentType == "Áudios") {
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("Adicionar Áudio", fontWeight = FontWeight.Bold)
@@ -362,8 +354,9 @@ fun EditVipContentSection() {
                 }
             }
         }
+        }
         
-        if (vipAudiosState.isNotEmpty()) {
+        if ((contentFilter == "Todos" || contentFilter == "Áudios") && vipAudiosState.isNotEmpty()) {
             Text("Áudios Cadastrados", fontWeight = FontWeight.Bold)
             vipAudiosState.forEach { audio ->
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -382,6 +375,7 @@ fun EditVipContentSection() {
         Divider()
         
         // ADD VIDEO
+        if (addContentType == "Vídeos") {
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("Adicionar Vídeo", fontWeight = FontWeight.Bold)
@@ -428,8 +422,9 @@ fun EditVipContentSection() {
                 }
             }
         }
+        }
         
-        if (vipVideosState.isNotEmpty()) {
+        if ((contentFilter == "Todos" || contentFilter == "Vídeos") && vipVideosState.isNotEmpty()) {
             Text("Vídeos Cadastrados", fontWeight = FontWeight.Bold)
             vipVideosState.forEach { video ->
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -448,6 +443,7 @@ fun EditVipContentSection() {
 
 
         // ADD ALBUM
+        if (addContentType == "Fotos") {
         Card(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("Adicionar Álbum de Fotos", fontWeight = FontWeight.Bold)
@@ -532,8 +528,9 @@ fun EditVipContentSection() {
                 }
             }
         }
+        }
         
-        if (vipAlbumsState.isNotEmpty()) {
+        if ((contentFilter == "Todos" || contentFilter == "Fotos") && vipAlbumsState.isNotEmpty()) {
             Text("Álbuns Cadastrados", fontWeight = FontWeight.Bold)
             vipAlbumsState.forEach { album ->
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -933,11 +930,17 @@ fun EditVipIbrSection() {
     var courseTheme by remember { mutableStateOf("Teologia") }
     var courseTitle by remember { mutableStateOf("") }
     var courseDescription by remember { mutableStateOf("") }
+    var courseImageUrl by remember { mutableStateOf("") }
+    var showCreateCourseForm by remember { mutableStateOf(false) }
+    var showAddChapterForm by remember { mutableStateOf(false) }
+    var expandedCourseIds by remember { mutableStateOf(setOf<String>()) }
     
 
     // Add Chapter Form States
     var editingCourse by remember { mutableStateOf<IbrCourse?>(null) }
     var editingChapter by remember { mutableStateOf<IbrChapter?>(null) }
+    var courseToDelete by remember { mutableStateOf<IbrCourse?>(null) }
+    var chapterToDelete by remember { mutableStateOf<Pair<IbrCourse, IbrChapter>?>(null) }
 
     var selectedCourseForChapter by remember { mutableStateOf<IbrCourse?>(null) }
     var chapterTitle by remember { mutableStateOf("") }
@@ -961,6 +964,13 @@ fun EditVipIbrSection() {
                 (courseThemeFilter == "Todos" || course.theme == courseThemeFilter)
         }
         .sortedBy { it.title.lowercase() }
+
+    LaunchedEffect(ibrCoursesState.size) {
+        if (selectedCourseForChapter == null || ibrCoursesState.none { it.id == selectedCourseForChapter?.id }) {
+            selectedCourseForChapter = ibrCoursesState.firstOrNull()
+        }
+    }
+
     LazyColumn(
 
         modifier = Modifier
@@ -979,18 +989,31 @@ fun EditVipIbrSection() {
                     color = MaterialTheme.colorScheme.primary
                 )
                 Text(
-                    text = "Cadastre novos cursos teológicos, capítulos, links do YouTube, vídeos e áudios",
+                    text = "Cursos e aulas do IBR, organizados de forma simples.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                Spacer(Modifier.height(10.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = { showCreateCourseForm = !showCreateCourseForm; if (showCreateCourseForm) showAddChapterForm = false },
+                        modifier = Modifier.weight(1f)
+                    ) { Text(if (showCreateCourseForm) "Fechar" else "+ Curso") }
+                    Button(
+                        onClick = { showAddChapterForm = !showAddChapterForm; if (showAddChapterForm) showCreateCourseForm = false },
+                        modifier = Modifier.weight(1f),
+                        enabled = ibrCoursesState.isNotEmpty()
+                    ) { Text(if (showAddChapterForm) "Fechar" else "+ Aula") }
+                }
             }
         }
 
         // 1. CREATE NEW COURSE CARD
+        if (showCreateCourseForm) {
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(32.dp),
+                shape = RoundedCornerShape(18.dp),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1010,6 +1033,12 @@ fun EditVipIbrSection() {
                         label = { Text("Descrição Curta") },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(24.dp)
+                    )
+                    LocalUploadField(
+                        value = courseImageUrl,
+                        onValueChange = { courseImageUrl = it },
+                        label = "Capa do curso (opcional)",
+                        mimeType = "image/*"
                     )
 
                     // Theme selector chips
@@ -1038,7 +1067,7 @@ fun EditVipIbrSection() {
                                     title = courseTitle,
                                     description = courseDescription,
                                     theme = courseTheme,
-                                    imageUrl = "",
+                                    imageUrl = courseImageUrl.trim(),
                                     chapters = mutableStateListOf()
                                 )
                                 addIbrCourse(newCourse)
@@ -1049,6 +1078,8 @@ fun EditVipIbrSection() {
                                 )
                                 courseTitle = ""
                                 courseDescription = ""
+                                courseImageUrl = ""
+                                showCreateCourseForm = false
                             } else {
                                 NotificationHelper.showNotification(context, "Erro", "Preencha o título do curso.")
                             }
@@ -1061,18 +1092,14 @@ fun EditVipIbrSection() {
                 }
             }
         }
-
-        // Initialize selected course if empty
-        if (selectedCourseForChapter == null && ibrCoursesState.isNotEmpty()) {
-            selectedCourseForChapter = ibrCoursesState.first()
         }
 
         // 2. ADD CHAPTER CARD (Only shown if courses exist)
-        if (ibrCoursesState.isNotEmpty()) {
+        if (ibrCoursesState.isNotEmpty() && showAddChapterForm) {
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(32.dp),
+                    shape = RoundedCornerShape(18.dp),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                 ) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1113,71 +1140,70 @@ fun EditVipIbrSection() {
                             shape = RoundedCornerShape(24.dp)
                         )
 
-                        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                            if (maxWidth < 430.dp) {
-                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    GlassTextField(
-                                        value = chapterDuration,
-                                        onValueChange = { chapterDuration = it },
-                                        label = { Text("Duração (Minutos)") },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(24.dp)
-                                    )
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text("É YouTube?", style = MaterialTheme.typography.labelMedium)
-                                        Switch(checked = isYoutube, onCheckedChange = { isYoutube = it })
-                                    }
-                                }
-                            } else {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    GlassTextField(
-                                        value = chapterDuration,
-                                        onValueChange = { chapterDuration = it },
-                                        label = { Text("Duração (Minutos)") },
-                                        modifier = Modifier.weight(1.2f),
-                                        shape = RoundedCornerShape(24.dp)
-                                    )
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        modifier = Modifier.weight(0.8f)
-                                    ) {
-                                        Text("É YouTube?", style = MaterialTheme.typography.labelMedium)
-                                        Switch(checked = isYoutube, onCheckedChange = { isYoutube = it })
-                                    }
-                                }
+                        Text("Tipo da aula", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                        Row(
+                            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf("VIDEO" to "Vídeo", "AUDIO" to "Áudio", "TEXT" to "Texto").forEach { (id, title) ->
+                                FilterChip(
+                                    selected = chapterType == id,
+                                    onClick = {
+                                        chapterType = id
+                                        if (id != "VIDEO") isYoutube = false
+                                    },
+                                    label = { Text(title) }
+                                )
                             }
                         }
 
-                        if (isYoutube) {
-                            GlassTextField(
-                                value = videoUrl,
-                                onValueChange = { videoUrl = it },
-                                label = { Text("Link do YouTube (ID ou URL)") },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(24.dp),
-                                placeholder = { Text("https://youtube.com/watch?v=...") }
-                            )
-                        } else {
-                            LocalUploadField(
-                                value = videoUrl,
-                                onValueChange = { videoUrl = it },
-                                label = "Upload de Vídeo (URL ou Arquivo)",
-                                mimeType = "video/*"
-                            )
-                            LocalUploadField(
+                        GlassTextField(
+                            value = chapterDuration,
+                            onValueChange = { chapterDuration = it },
+                            label = { Text("Duração (minutos)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(24.dp)
+                        )
+
+                        when (chapterType) {
+                            "VIDEO" -> {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("Vídeo do YouTube", style = MaterialTheme.typography.labelMedium)
+                                    Switch(checked = isYoutube, onCheckedChange = { isYoutube = it })
+                                }
+                                if (isYoutube) {
+                                    GlassTextField(
+                                        value = videoUrl,
+                                        onValueChange = { videoUrl = it },
+                                        label = { Text("Link do YouTube") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        placeholder = { Text("https://youtube.com/watch?v=...") }
+                                    )
+                                } else {
+                                    LocalUploadField(
+                                        value = videoUrl,
+                                        onValueChange = { videoUrl = it },
+                                        label = "Vídeo da aula",
+                                        mimeType = "video/*"
+                                    )
+                                }
+                            }
+                            "AUDIO" -> LocalUploadField(
                                 value = audioUrl,
                                 onValueChange = { audioUrl = it },
-                                label = "Upload de Áudio (URL ou Arquivo)",
+                                label = "Áudio da aula",
                                 mimeType = "audio/*"
+                            )
+                            else -> GlassTextField(
+                                value = textContent,
+                                onValueChange = { textContent = it },
+                                label = { Text("Texto da aula") },
+                                modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
+                                maxLines = 10
                             )
                         }
 
@@ -1203,17 +1229,17 @@ fun EditVipIbrSection() {
                             onClick = {
                                 if (chapterTitle.isNotBlank() && selectedCourseForChapter != null) {
                                     val duration = chapterDuration.toIntOrNull() ?: 30
-                                    val detectedYoutubeId = extractYouTubeVideoId(videoUrl).orEmpty()
-                                    val detectedYoutube = isYoutube || detectedYoutubeId.isNotBlank() || isYoutubeUrl(videoUrl)
+                                    val detectedYoutubeId = if (chapterType == "VIDEO") extractYouTubeVideoId(videoUrl).orEmpty() else ""
+                                    val detectedYoutube = chapterType == "VIDEO" && (isYoutube || detectedYoutubeId.isNotBlank() || isYoutubeUrl(videoUrl))
                                     val newChapter = IbrChapter(
                                         id = "chap_${System.currentTimeMillis()}",
                                         title = chapterTitle,
                                         description = chapterDescription,
                                         durationMinutes = duration,
                                         type = chapterType,
-                                        videoUrl = videoUrl,
-                                        audioUrl = audioUrl,
-                                        textContent = textContent,
+                                        videoUrl = if (chapterType == "VIDEO") videoUrl else "",
+                                        audioUrl = if (chapterType == "AUDIO") audioUrl else "",
+                                        textContent = if (chapterType == "TEXT") textContent else "",
                                         studyPdfUrl = studyPdfUrl.trim(),
                                         studyDocxUrl = studyDocxUrl.trim(),
                                         isYoutube = detectedYoutube,
@@ -1241,9 +1267,12 @@ fun EditVipIbrSection() {
                                     chapterDescription = ""
                                     videoUrl = ""
                                     audioUrl = ""
+                                    textContent = ""
+                                    chapterType = "VIDEO"
                                     studyPdfUrl = ""
                                     studyDocxUrl = ""
                                     isYoutube = false
+                                    showAddChapterForm = false
                                 } else {
                                     NotificationHelper.showNotification(context, "Erro", "Preencha o título da aula.")
                                 }
@@ -1300,9 +1329,10 @@ fun EditVipIbrSection() {
             }
         } else {
             items(visibleCourses) { course ->
+                val expanded = expandedCourseIds.contains(course.id)
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(32.dp),
+                    shape = RoundedCornerShape(18.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                 ) {
@@ -1317,17 +1347,24 @@ fun EditVipIbrSection() {
                                     Text(course.theme.uppercase(), style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 4.dp), color = MaterialTheme.colorScheme.onPrimary)
                                 }
                                 Text(course.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                Text("${course.chapters.size} aula(s) • ${course.chapters.sumOf { it.durationMinutes }} min", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             Row {
+                                IconButton(onClick = {
+                                    expandedCourseIds = if (expanded) expandedCourseIds - course.id else expandedCourseIds + course.id
+                                }) {
+                                    Icon(if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, contentDescription = if (expanded) "Recolher" else "Abrir")
+                                }
                                 IconButton(onClick = { editingCourse = course }) {
                                     Icon(Icons.Default.Edit, contentDescription = "Editar Curso", tint = MaterialTheme.colorScheme.primary)
                                 }
-                                IconButton(onClick = { removeIbrCourse(course) }) {
+                                IconButton(onClick = { courseToDelete = course }) {
                                     Icon(Icons.Default.Delete, contentDescription = "Deletar Curso", tint = MaterialTheme.colorScheme.error)
                                 }
                             }
                         }
 
+                        if (expanded) {
                         Text(course.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         
                         Divider(modifier = Modifier.padding(vertical = 8.dp))
@@ -1377,14 +1414,7 @@ fun EditVipIbrSection() {
                                             Icon(Icons.Default.Edit, contentDescription = "Editar Aula", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
                                         }
                                         IconButton(
-                                            onClick = {
-                                                val updatedChapters = course.chapters.toMutableList().apply { remove(ch) }
-                                                val updatedCourse = course.copy(chapters = updatedChapters)
-                                                val index = ibrCoursesState.indexOf(course)
-                                                if (index != -1) {
-                                                    addIbrCourse(updatedCourse)
-                                                }
-                                            },
+                                            onClick = { chapterToDelete = course to ch },
                                             modifier = Modifier.size(24.dp)
                                         ) {
                                             Icon(Icons.Default.Close, contentDescription = "Deletar Aula", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(16.dp))
@@ -1393,6 +1423,7 @@ fun EditVipIbrSection() {
                                 }
                             }
                         }
+                        }
                     }
                 }
             }
@@ -1400,10 +1431,46 @@ fun EditVipIbrSection() {
 
     }
 
+    if (courseToDelete != null) {
+        val target = courseToDelete!!
+        AlertDialog(
+            onDismissRequest = { courseToDelete = null },
+            title = { Text("Excluir curso?") },
+            text = { Text("O curso '${target.title}' e suas aulas serão removidos do IBR.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    removeIbrCourse(target)
+                    courseToDelete = null
+                }) { Text("Excluir", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { courseToDelete = null }) { Text("Cancelar") } }
+        )
+    }
+
+    if (chapterToDelete != null) {
+        val (targetCourse, targetChapter) = chapterToDelete!!
+        AlertDialog(
+            onDismissRequest = { chapterToDelete = null },
+            title = { Text("Excluir aula?") },
+            text = { Text("A aula '${targetChapter.title}' será removida deste curso.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    val updated = targetCourse.copy(chapters = targetCourse.chapters.filterNot { it.id == targetChapter.id })
+                    val index = ibrCoursesState.indexOfFirst { it.id == targetCourse.id }
+                    if (index >= 0) ibrCoursesState[index] = updated
+                    saveIbrCourseSilently(updated)
+                    chapterToDelete = null
+                }) { Text("Excluir", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { chapterToDelete = null }) { Text("Cancelar") } }
+        )
+    }
+
     if (editingCourse != null && editingChapter == null) {
         var editTitle by remember(editingCourse) { mutableStateOf(editingCourse!!.title) }
         var editDescription by remember(editingCourse) { mutableStateOf(editingCourse!!.description) }
         var editTheme by remember(editingCourse) { mutableStateOf(editingCourse!!.theme) }
+        var editImageUrl by remember(editingCourse) { mutableStateOf(editingCourse!!.imageUrl) }
         
         AlertDialog(
             onDismissRequest = { editingCourse = null },
@@ -1413,14 +1480,16 @@ fun EditVipIbrSection() {
                     GlassTextField(value = editTitle, onValueChange = { editTitle = it }, label = { Text("Título") })
                     GlassTextField(value = editDescription, onValueChange = { editDescription = it }, label = { Text("Descrição") })
                     GlassTextField(value = editTheme, onValueChange = { editTheme = it }, label = { Text("Tema") })
+                    LocalUploadField(value = editImageUrl, onValueChange = { editImageUrl = it }, label = "Capa do curso (opcional)", mimeType = "image/*")
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
                     val idx = ibrCoursesState.indexOfFirst { it.id == editingCourse!!.id }
                     if (idx != -1) {
-                        val updated = editingCourse!!.copy(title = editTitle, description = editDescription, theme = editTheme)
-                        addIbrCourse(updated)
+                        val updated = editingCourse!!.copy(title = editTitle, description = editDescription, theme = editTheme, imageUrl = editImageUrl.trim())
+                        ibrCoursesState[idx] = updated
+                        saveIbrCourseSilently(updated)
                     }
                     editingCourse = null
                 }) { Text("Salvar") }
@@ -1433,7 +1502,10 @@ fun EditVipIbrSection() {
         var editTitle by remember(editingChapter) { mutableStateOf(editingChapter!!.title) }
         var editDescription by remember(editingChapter) { mutableStateOf(editingChapter!!.description) }
         var editDuration by remember(editingChapter) { mutableStateOf(editingChapter!!.durationMinutes.toString()) }
+        var editType by remember(editingChapter) { mutableStateOf(editingChapter!!.type.ifBlank { "VIDEO" }.uppercase()) }
         var editVideoUrl by remember(editingChapter) { mutableStateOf(editingChapter!!.videoUrl) }
+        var editAudioUrl by remember(editingChapter) { mutableStateOf(editingChapter!!.audioUrl) }
+        var editTextContent by remember(editingChapter) { mutableStateOf(editingChapter!!.textContent) }
         var editStudyPdfUrl by remember(editingChapter) { mutableStateOf(editingChapter!!.studyPdfUrl) }
         var editStudyDocxUrl by remember(editingChapter) { mutableStateOf(editingChapter!!.studyDocxUrl) }
         
@@ -1451,7 +1523,17 @@ fun EditVipIbrSection() {
                     GlassTextField(value = editTitle, onValueChange = { editTitle = it }, label = { Text("Título") })
                     GlassTextField(value = editDescription, onValueChange = { editDescription = it }, label = { Text("Descrição") })
                     GlassTextField(value = editDuration, onValueChange = { editDuration = it }, label = { Text("Duração (Min)") })
-                    GlassTextField(value = editVideoUrl, onValueChange = { editVideoUrl = it }, label = { Text("URL Vídeo") })
+                    Text("Tipo da aula", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("VIDEO" to "Vídeo", "AUDIO" to "Áudio", "TEXT" to "Texto").forEach { (id, title) ->
+                            FilterChip(selected = editType == id, onClick = { editType = id }, label = { Text(title) })
+                        }
+                    }
+                    when (editType) {
+                        "VIDEO" -> LocalUploadField(value = editVideoUrl, onValueChange = { editVideoUrl = it }, label = "Vídeo ou link do YouTube", mimeType = "video/*")
+                        "AUDIO" -> LocalUploadField(value = editAudioUrl, onValueChange = { editAudioUrl = it }, label = "Áudio da aula", mimeType = "audio/*")
+                        else -> GlassTextField(value = editTextContent, onValueChange = { editTextContent = it }, label = { Text("Texto da aula") }, modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp), maxLines = 10)
+                    }
                     LocalUploadField(
                         value = editStudyPdfUrl,
                         onValueChange = { editStudyPdfUrl = it },
@@ -1474,19 +1556,24 @@ fun EditVipIbrSection() {
                         val chapterIdx = course.chapters.indexOfFirst { it.id == editingChapter!!.id }
                         if (chapterIdx != -1) {
                             val updatedChapters = course.chapters.toMutableList()
-                            val isYt = isYoutubeUrl(editVideoUrl)
-                            val ytId = extractYouTubeVideoId(editVideoUrl) ?: ""
+                            val isYt = editType == "VIDEO" && isYoutubeUrl(editVideoUrl)
+                            val ytId = if (editType == "VIDEO") extractYouTubeVideoId(editVideoUrl) ?: "" else ""
                             updatedChapters[chapterIdx] = editingChapter!!.copy(
                                 title = editTitle,
                                 description = editDescription,
                                 durationMinutes = editDuration.toIntOrNull() ?: editingChapter!!.durationMinutes,
-                                videoUrl = editVideoUrl,
+                                type = editType,
+                                videoUrl = if (editType == "VIDEO") editVideoUrl else "",
+                                audioUrl = if (editType == "AUDIO") editAudioUrl else "",
+                                textContent = if (editType == "TEXT") editTextContent else "",
                                 studyPdfUrl = editStudyPdfUrl.trim(),
                                 studyDocxUrl = editStudyDocxUrl.trim(),
                                 isYoutube = isYt,
                                 youtubeId = ytId
                             )
-                            ibrCoursesState[courseIdx] = course.copy(chapters = updatedChapters)
+                            val updatedCourse = course.copy(chapters = updatedChapters)
+                            ibrCoursesState[courseIdx] = updatedCourse
+                            saveIbrCourseSilently(updatedCourse)
                         }
                     }
                     editingChapter = null
@@ -1512,27 +1599,11 @@ fun EditIbrCertificatesSection() {
     var emailingMemberId by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     
-    val totalIbrCourses = ibrCoursesState.size
-    
-    val eligibleUsers = memberRequestsState.filter { member -> 
-        if (!member.isIbr) return@filter false
-        if (totalIbrCourses == 0) return@filter false
-        
-        var completedCoursesCount = 0
-        ibrCoursesState.forEach { course ->
-            var allChaptersCompleted = true
-            course.chapters.forEach { chapter ->
-                val p = ibrProgressState.find { it.courseId == course.id && it.chapterId == chapter.id }
-                if (p == null || !p.isCompleted) {
-                    allChaptersCompleted = false
-                }
-            }
-            if (allChaptersCompleted && course.chapters.isNotEmpty()) {
-                completedCoursesCount++
-            }
-        }
-        
-        completedCoursesCount == totalIbrCourses
+    val totalIbrCourses = ibrCoursesState.count { it.chapters.isNotEmpty() }
+    val totalIbrLessons = ibrCoursesState.sumOf { it.chapters.size }
+    val progressByMember = rememberIbrProgressByMember()
+    val eligibleUsers = memberRequestsState.filter { member ->
+        member.isIbr && isIbrCompleteFor(progressByMember[member.id].orEmpty())
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
@@ -1565,7 +1636,9 @@ fun EditIbrCertificatesSection() {
                                 }
                             }
 
-                            val memberBadgeProgress = calculateBadgeProgress(member)
+                            val memberProgress = progressByMember[member.id].orEmpty()
+                            val completedLessons = memberProgress.count { it.isCompleted }
+                            val completedCourses = completedIbrCourseCountFor(memberProgress)
                             val memberBadge = biblicalBadgeForId(member.equippedBadgeId)
                             Card(
                                 modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
@@ -1580,12 +1653,12 @@ fun EditIbrCertificatesSection() {
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text("Nível ${memberBadge.level ?: 1}: ${memberBadge.name}", fontWeight = FontWeight.SemiBold)
                                         Text(
-                                            "${memberBadgeProgress.unlockedIds.size} emblemas desbloqueados • ${memberBadgeProgress.completedIbrCourses} cursos concluídos",
+                                            "$completedCourses/$totalIbrCourses cursos concluídos",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
-                                    Text("${memberBadgeProgress.completedIbrLessons} aulas", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                    Text("$completedLessons/$totalIbrLessons aulas", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                                 }
                             }
 
