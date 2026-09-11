@@ -1,0 +1,404 @@
+name: Validar limpeza simples do IBR
+
+on:
+  push:
+    branches:
+      - 'feat/ibr-admin-simple-cleanup'
+    paths:
+      - '.github/workflows/ibr-admin-simple-blocks.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-test:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/ibr-admin-simple-cleanup
+          fetch-depth: 0
+
+      - name: Configurar Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Configurar Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          validate-wrappers: false
+
+      - name: Restaurar configuração de build
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          printf '%s' "$GOOGLE_SERVICES_JSON" > app/google-services.json
+          jq empty app/google-services.json
+          cp .env.example .env
+          if [ -n "$SUPABASE_URL" ]; then sed -i "s|^SUPABASE_URL=.*|SUPABASE_URL=$SUPABASE_URL|" .env; fi
+          if [ -n "$SUPABASE_ANON_KEY" ]; then sed -i "s|^SUPABASE_ANON_KEY=.*|SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY|" .env; fi
+          echo "${{ secrets.MICRHEMA_KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
+          chmod +x gradlew
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Bloco 1 — corrigir aulas, edições e exclusões sem alterar o fluxo existente
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          vip_path = Path('app/src/main/java/com/aistudio/micrhema/VipAdmin.kt')
+          text = vip_path.read_text(encoding='utf-8')
+
+          helper = r'''package com.aistudio.micrhema
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.remember
+import com.google.firebase.Firebase
+import com.google.firebase.firestore.firestore
+import kotlinx.coroutines.tasks.await
+
+/** Salva alterações administrativas sem disparar uma notificação de novo conteúdo. */
+fun saveIbrCourseSilently(item: IbrCourse) {
+    if (BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
+        Firebase.firestore.collection("ibr_courses").document(item.id).set(item)
+    }
+}
+
+fun completedIbrCourseCountFor(progress: List<IbrProgress>, courses: List<IbrCourse> = ibrCoursesState): Int {
+    return courses.count { course ->
+        course.chapters.isNotEmpty() && course.chapters.all { chapter ->
+            progress.any { item -> item.courseId == course.id && item.chapterId == chapter.id && item.isCompleted }
+        }
+    }
+}
+
+fun isIbrCompleteFor(progress: List<IbrProgress>, courses: List<IbrCourse> = ibrCoursesState): Boolean {
+    val validCourses = courses.filter { it.chapters.isNotEmpty() }
+    return validCourses.isNotEmpty() && completedIbrCourseCountFor(progress, validCourses) == validCourses.size
+}
+
+@Composable
+fun rememberIbrProgressByMember(): Map<String, List<IbrProgress>> {
+    val memberIds = memberRequestsState.filter { it.isIbr }.map { it.id }.filter { it.isNotBlank() }.distinct().sorted()
+    val progressByMember = remember { mutableStateMapOf<String, List<IbrProgress>>() }
+    LaunchedEffect(memberIds.joinToString("|")) {
+        val activeIds = memberIds.toSet()
+        progressByMember.keys.toList().filterNot { it in activeIds }.forEach { progressByMember.remove(it) }
+        memberIds.forEach { memberId ->
+            val progress = runCatching {
+                Firebase.firestore.collection("users").document(memberId).collection("ibrProgress")
+                    .get().await().documents.mapNotNull { document ->
+                        runCatching { document.toObject(IbrProgress::class.java) }.getOrNull()
+                    }
+            }.getOrElse { emptyList() }
+            progressByMember[memberId] = progress
+        }
+    }
+    return progressByMember
+}
+'''
+          Path('app/src/main/java/com/aistudio/micrhema/IbrAdminSimpleHelpers.kt').write_text(helper, encoding='utf-8')
+
+          marker = 'fun EditVipIbrSection() {'
+          if marker not in text:
+              raise SystemExit('EditVipIbrSection não encontrado')
+          head, body = text.split(marker, 1)
+          section = marker + body
+
+          def rep(old, new, label):
+              global section
+              if old not in section:
+                  raise SystemExit(f'Bloco 1 não encontrou: {label}')
+              section = section.replace(old, new, 1)
+
+          rep('    var courseDescription by remember { mutableStateOf("") }\n    \n\n    // Add Chapter Form States',
+              '    var courseDescription by remember { mutableStateOf("") }\n    var courseImageUrl by remember { mutableStateOf("") }\n    \n\n    // Add Chapter Form States', 'estado da capa')
+
+          rep('    var editingCourse by remember { mutableStateOf<IbrCourse?>(null) }\n    var editingChapter by remember { mutableStateOf<IbrChapter?>(null) }',
+              '    var editingCourse by remember { mutableStateOf<IbrCourse?>(null) }\n    var editingChapter by remember { mutableStateOf<IbrChapter?>(null) }\n    var courseToDelete by remember { mutableStateOf<IbrCourse?>(null) }\n    var chapterToDelete by remember { mutableStateOf<Pair<IbrCourse, IbrChapter>?>(null) }', 'confirmação de exclusão')
+
+          rep('        .sortedBy { it.title.lowercase() }\n    LazyColumn(',
+              '        .sortedBy { it.title.lowercase() }\n\n    LaunchedEffect(ibrCoursesState.size) {\n        if (selectedCourseForChapter == null || ibrCoursesState.none { it.id == selectedCourseForChapter?.id }) {\n            selectedCourseForChapter = ibrCoursesState.firstOrNull()\n        }\n    }\n\n    LazyColumn(', 'seleção segura de curso')
+
+          rep('                    GlassTextField(\n                        value = courseDescription,\n                        onValueChange = { courseDescription = it },\n                        label = { Text("Descrição Curta") },\n                        modifier = Modifier.fillMaxWidth(),\n                        shape = RoundedCornerShape(24.dp)\n                    )\n\n                    // Theme selector chips',
+              '                    GlassTextField(\n                        value = courseDescription,\n                        onValueChange = { courseDescription = it },\n                        label = { Text("Descrição Curta") },\n                        modifier = Modifier.fillMaxWidth(),\n                        shape = RoundedCornerShape(24.dp)\n                    )\n                    LocalUploadField(\n                        value = courseImageUrl,\n                        onValueChange = { courseImageUrl = it },\n                        label = "Capa do curso (opcional)",\n                        mimeType = "image/*"\n                    )\n\n                    // Theme selector chips', 'capa do curso')
+
+          rep('                                    imageUrl = "",', '                                    imageUrl = courseImageUrl.trim(),', 'salvar capa')
+          rep('                                courseTitle = ""\n                                courseDescription = ""',
+              '                                courseTitle = ""\n                                courseDescription = ""\n                                courseImageUrl = ""', 'limpar capa')
+
+          init_block = '''        // Initialize selected course if empty\n        if (selectedCourseForChapter == null && ibrCoursesState.isNotEmpty()) {\n            selectedCourseForChapter = ibrCoursesState.first()\n        }\n\n'''
+          rep(init_block, '', 'inicialização durante composição')
+
+          pattern = re.compile(r'''                        BoxWithConstraints\(modifier = Modifier\.fillMaxWidth\(\)\) \{.*?                        LocalUploadField\(\n                            value = studyPdfUrl,''', re.S)
+          replacement = '''                        Text("Tipo da aula", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)\n                        Row(\n                            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),\n                            horizontalArrangement = Arrangement.spacedBy(8.dp)\n                        ) {\n                            listOf("VIDEO" to "Vídeo", "AUDIO" to "Áudio", "TEXT" to "Texto").forEach { (id, title) ->\n                                FilterChip(\n                                    selected = chapterType == id,\n                                    onClick = {\n                                        chapterType = id\n                                        if (id != "VIDEO") isYoutube = false\n                                    },\n                                    label = { Text(title) }\n                                )\n                            }\n                        }\n\n                        GlassTextField(\n                            value = chapterDuration,\n                            onValueChange = { chapterDuration = it },\n                            label = { Text("Duração (minutos)") },\n                            modifier = Modifier.fillMaxWidth(),\n                            shape = RoundedCornerShape(24.dp)\n                        )\n\n                        when (chapterType) {\n                            "VIDEO" -> {\n                                Row(\n                                    modifier = Modifier.fillMaxWidth(),\n                                    verticalAlignment = Alignment.CenterVertically,\n                                    horizontalArrangement = Arrangement.SpaceBetween\n                                ) {\n                                    Text("Vídeo do YouTube", style = MaterialTheme.typography.labelMedium)\n                                    Switch(checked = isYoutube, onCheckedChange = { isYoutube = it })\n                                }\n                                if (isYoutube) {\n                                    GlassTextField(\n                                        value = videoUrl,\n                                        onValueChange = { videoUrl = it },\n                                        label = { Text("Link do YouTube") },\n                                        modifier = Modifier.fillMaxWidth(),\n                                        placeholder = { Text("https://youtube.com/watch?v=...") }\n                                    )\n                                } else {\n                                    LocalUploadField(\n                                        value = videoUrl,\n                                        onValueChange = { videoUrl = it },\n                                        label = "Vídeo da aula",\n                                        mimeType = "video/*"\n                                    )\n                                }\n                            }\n                            "AUDIO" -> LocalUploadField(\n                                value = audioUrl,\n                                onValueChange = { audioUrl = it },\n                                label = "Áudio da aula",\n                                mimeType = "audio/*"\n                            )\n                            else -> GlassTextField(\n                                value = textContent,\n                                onValueChange = { textContent = it },\n                                label = { Text("Texto da aula") },\n                                modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),\n                                maxLines = 10\n                            )\n                        }\n\n                        LocalUploadField(\n                            value = studyPdfUrl,'''
+          section, count = pattern.subn(replacement, section, count=1)
+          if count != 1:
+              raise SystemExit('Bloco 1 não encontrou formulário antigo de mídia da aula')
+
+          rep('                                    val detectedYoutubeId = extractYouTubeVideoId(videoUrl).orEmpty()\n                                    val detectedYoutube = isYoutube || detectedYoutubeId.isNotBlank() || isYoutubeUrl(videoUrl)',
+              '                                    val detectedYoutubeId = if (chapterType == "VIDEO") extractYouTubeVideoId(videoUrl).orEmpty() else ""\n                                    val detectedYoutube = chapterType == "VIDEO" && (isYoutube || detectedYoutubeId.isNotBlank() || isYoutubeUrl(videoUrl))', 'detecção youtube')
+          rep('                                        videoUrl = videoUrl,\n                                        audioUrl = audioUrl,\n                                        textContent = textContent,',
+              '                                        videoUrl = if (chapterType == "VIDEO") videoUrl else "",\n                                        audioUrl = if (chapterType == "AUDIO") audioUrl else "",\n                                        textContent = if (chapterType == "TEXT") textContent else "",', 'campos por tipo')
+          rep('                                    audioUrl = ""\n                                    studyPdfUrl = ""',
+              '                                    audioUrl = ""\n                                    textContent = ""\n                                    chapterType = "VIDEO"\n                                    studyPdfUrl = ""', 'limpar aula')
+
+          rep('                                IconButton(onClick = { removeIbrCourse(course) }) {',
+              '                                IconButton(onClick = { courseToDelete = course }) {', 'confirmar exclusão de curso')
+
+          old_delete_chapter = '''                                        IconButton(\n                                            onClick = {\n                                                val updatedChapters = course.chapters.toMutableList().apply { remove(ch) }\n                                                val updatedCourse = course.copy(chapters = updatedChapters)\n                                                val index = ibrCoursesState.indexOf(course)\n                                                if (index != -1) {\n                                                    addIbrCourse(updatedCourse)\n                                                }\n                                            },'''
+          new_delete_chapter = '''                                        IconButton(\n                                            onClick = { chapterToDelete = course to ch },'''
+          rep(old_delete_chapter, new_delete_chapter, 'confirmar exclusão de aula')
+
+          rep('        var editTheme by remember(editingCourse) { mutableStateOf(editingCourse!!.theme) }',
+              '        var editTheme by remember(editingCourse) { mutableStateOf(editingCourse!!.theme) }\n        var editImageUrl by remember(editingCourse) { mutableStateOf(editingCourse!!.imageUrl) }', 'editar capa')
+          rep('                    GlassTextField(value = editTheme, onValueChange = { editTheme = it }, label = { Text("Tema") })',
+              '                    GlassTextField(value = editTheme, onValueChange = { editTheme = it }, label = { Text("Tema") })\n                    LocalUploadField(value = editImageUrl, onValueChange = { editImageUrl = it }, label = "Capa do curso (opcional)", mimeType = "image/*")', 'campo editar capa')
+          rep('                        val updated = editingCourse!!.copy(title = editTitle, description = editDescription, theme = editTheme)\n                        addIbrCourse(updated)',
+              '                        val updated = editingCourse!!.copy(title = editTitle, description = editDescription, theme = editTheme, imageUrl = editImageUrl.trim())\n                        ibrCoursesState[idx] = updated\n                        saveIbrCourseSilently(updated)', 'salvar edição curso silenciosa')
+
+          rep('        var editVideoUrl by remember(editingChapter) { mutableStateOf(editingChapter!!.videoUrl) }',
+              '        var editType by remember(editingChapter) { mutableStateOf(editingChapter!!.type.ifBlank { "VIDEO" }.uppercase()) }\n        var editVideoUrl by remember(editingChapter) { mutableStateOf(editingChapter!!.videoUrl) }\n        var editAudioUrl by remember(editingChapter) { mutableStateOf(editingChapter!!.audioUrl) }\n        var editTextContent by remember(editingChapter) { mutableStateOf(editingChapter!!.textContent) }', 'estado editar tipo aula')
+
+          rep('                    GlassTextField(value = editDuration, onValueChange = { editDuration = it }, label = { Text("Duração (Min)") })\n                    GlassTextField(value = editVideoUrl, onValueChange = { editVideoUrl = it }, label = { Text("URL Vídeo") })',
+              '''                    GlassTextField(value = editDuration, onValueChange = { editDuration = it }, label = { Text("Duração (Min)") })\n                    Text("Tipo da aula", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)\n                    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {\n                        listOf("VIDEO" to "Vídeo", "AUDIO" to "Áudio", "TEXT" to "Texto").forEach { (id, title) ->\n                            FilterChip(selected = editType == id, onClick = { editType = id }, label = { Text(title) })\n                        }\n                    }\n                    when (editType) {\n                        "VIDEO" -> LocalUploadField(value = editVideoUrl, onValueChange = { editVideoUrl = it }, label = "Vídeo ou link do YouTube", mimeType = "video/*")\n                        "AUDIO" -> LocalUploadField(value = editAudioUrl, onValueChange = { editAudioUrl = it }, label = "Áudio da aula", mimeType = "audio/*")\n                        else -> GlassTextField(value = editTextContent, onValueChange = { editTextContent = it }, label = { Text("Texto da aula") }, modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp), maxLines = 10)\n                    }''', 'editar conteúdo por tipo')
+
+          old_update = '''                            val isYt = isYoutubeUrl(editVideoUrl)\n                            val ytId = extractYouTubeVideoId(editVideoUrl) ?: ""\n                            updatedChapters[chapterIdx] = editingChapter!!.copy(\n                                title = editTitle,\n                                description = editDescription,\n                                durationMinutes = editDuration.toIntOrNull() ?: editingChapter!!.durationMinutes,\n                                videoUrl = editVideoUrl,\n                                studyPdfUrl = editStudyPdfUrl.trim(),\n                                studyDocxUrl = editStudyDocxUrl.trim(),\n                                isYoutube = isYt,\n                                youtubeId = ytId\n                            )\n                            ibrCoursesState[courseIdx] = course.copy(chapters = updatedChapters)'''
+          new_update = '''                            val isYt = editType == "VIDEO" && isYoutubeUrl(editVideoUrl)\n                            val ytId = if (editType == "VIDEO") extractYouTubeVideoId(editVideoUrl) ?: "" else ""\n                            updatedChapters[chapterIdx] = editingChapter!!.copy(\n                                title = editTitle,\n                                description = editDescription,\n                                durationMinutes = editDuration.toIntOrNull() ?: editingChapter!!.durationMinutes,\n                                type = editType,\n                                videoUrl = if (editType == "VIDEO") editVideoUrl else "",\n                                audioUrl = if (editType == "AUDIO") editAudioUrl else "",\n                                textContent = if (editType == "TEXT") editTextContent else "",\n                                studyPdfUrl = editStudyPdfUrl.trim(),\n                                studyDocxUrl = editStudyDocxUrl.trim(),\n                                isYoutube = isYt,\n                                youtubeId = ytId\n                            )\n                            val updatedCourse = course.copy(chapters = updatedChapters)\n                            ibrCoursesState[courseIdx] = updatedCourse\n                            saveIbrCourseSilently(updatedCourse)'''
+          rep(old_update, new_update, 'persistir edição de aula')
+
+          dialogs = r'''
+    if (courseToDelete != null) {
+        val target = courseToDelete!!
+        AlertDialog(
+            onDismissRequest = { courseToDelete = null },
+            title = { Text("Excluir curso?") },
+            text = { Text("O curso '${target.title}' e suas aulas serão removidos do IBR.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    removeIbrCourse(target)
+                    courseToDelete = null
+                }) { Text("Excluir", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { courseToDelete = null }) { Text("Cancelar") } }
+        )
+    }
+
+    if (chapterToDelete != null) {
+        val (targetCourse, targetChapter) = chapterToDelete!!
+        AlertDialog(
+            onDismissRequest = { chapterToDelete = null },
+            title = { Text("Excluir aula?") },
+            text = { Text("A aula '${targetChapter.title}' será removida deste curso.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    val updated = targetCourse.copy(chapters = targetCourse.chapters.filterNot { it.id == targetChapter.id })
+                    val index = ibrCoursesState.indexOfFirst { it.id == targetCourse.id }
+                    if (index >= 0) ibrCoursesState[index] = updated
+                    saveIbrCourseSilently(updated)
+                    chapterToDelete = null
+                }) { Text("Excluir", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { chapterToDelete = null }) { Text("Cancelar") } }
+        )
+    }
+
+'''
+          rep('    if (editingCourse != null && editingChapter == null) {', dialogs + '    if (editingCourse != null && editingChapter == null) {', 'diálogos de confirmação')
+
+          vip_path.write_text(head + section, encoding='utf-8')
+          PY
+
+      - name: Testar bloco 1
+        env:
+          KEYSTORE_FILE: ../release.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.MICRHEMA_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.MICRHEMA_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.MICRHEMA_KEY_PASSWORD }}
+        run: ./gradlew compileReleaseKotlin --no-daemon --stacktrace
+
+      - name: Salvar bloco 1
+        run: |
+          git add app/src/main/java/com/aistudio/micrhema/VipAdmin.kt app/src/main/java/com/aistudio/micrhema/IbrAdminSimpleHelpers.kt
+          git commit -m "fix: simplificar edição de cursos e aulas IBR"
+
+      - name: Bloco 2 — calcular certificados pelo aluno correto
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+          path = Path('app/src/main/java/com/aistudio/micrhema/VipAdmin.kt')
+          text = path.read_text(encoding='utf-8')
+
+          def rep(old, new, label):
+              global text
+              if old not in text:
+                  raise SystemExit(f'Bloco 2 não encontrou: {label}')
+              text = text.replace(old, new, 1)
+
+          rep('                EditIbrOverviewSection()', '                EditIbrOverviewSection(onOpenTab = { vipTab = it })', 'callback visão geral')
+          rep('@Composable\nfun EditIbrOverviewSection() {\n    val totalCourses = ibrCoursesState.size\n    val totalLessons = ibrCoursesState.sumOf { it.chapters.size }\n    val totalIbrMembers = memberRequestsState.count { it.isIbr }\n    val certificatesPending = memberRequestsState.count { it.isIbr && it.ibrCertificateUrl.isBlank() && it.ibrCertificateStoragePath.isBlank() }',
+              '@Composable\nfun EditIbrOverviewSection(onOpenTab: (String) -> Unit = {}) {\n    val totalCourses = ibrCoursesState.size\n    val totalLessons = ibrCoursesState.sumOf { it.chapters.size }\n    val totalIbrMembers = memberRequestsState.count { it.isIbr }\n    val progressByMember = rememberIbrProgressByMember()\n    val certificatesPending = memberRequestsState.count { member ->\n        member.isIbr && member.ibrCertificateUrl.isBlank() && member.ibrCertificateStoragePath.isBlank() &&\n            isIbrCompleteFor(progressByMember[member.id].orEmpty())\n    }', 'contagem correta de certificados')
+
+          rep('                IbrAdminMetricCard("Cursos", totalCourses.toString(), Icons.Default.MenuBook, Modifier.weight(1f))\n                IbrAdminMetricCard("Aulas", totalLessons.toString(), Icons.Default.Class, Modifier.weight(1f))',
+              '                IbrAdminMetricCard("Cursos", totalCourses.toString(), Icons.Default.MenuBook, Modifier.weight(1f)) { onOpenTab("cursos") }\n                IbrAdminMetricCard("Aulas", totalLessons.toString(), Icons.Default.Class, Modifier.weight(1f)) { onOpenTab("cursos") }', 'atalhos cursos')
+          rep('                IbrAdminMetricCard("Alunos IBR", totalIbrMembers.toString(), Icons.Default.People, Modifier.weight(1f))\n                IbrAdminMetricCard("Certificados", certificatesPending.toString(), Icons.Default.EmojiEvents, Modifier.weight(1f))',
+              '                IbrAdminMetricCard("Alunos IBR", totalIbrMembers.toString(), Icons.Default.People, Modifier.weight(1f))\n                IbrAdminMetricCard("Cert. pendentes", certificatesPending.toString(), Icons.Default.EmojiEvents, Modifier.weight(1f)) { onOpenTab("certificados") }', 'atalho certificados')
+
+          old_metric = '''@Composable\nprivate fun IbrAdminMetricCard(label: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier = Modifier) {\n    Card(modifier = modifier, shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {'''
+          new_metric = '''@Composable\nprivate fun IbrAdminMetricCard(\n    label: String,\n    value: String,\n    icon: androidx.compose.ui.graphics.vector.ImageVector,\n    modifier: Modifier = Modifier,\n    onClick: (() -> Unit)? = null\n) {\n    Card(\n        modifier = modifier.then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),\n        shape = RoundedCornerShape(16.dp),\n        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)\n    ) {'''
+          rep(old_metric, new_metric, 'métrica clicável')
+
+          pattern = re.compile(r'''    val totalIbrCourses = ibrCoursesState\.size\n    \n    val eligibleUsers = memberRequestsState\.filter \{ member ->.*?    \}\n\n    Column\(modifier = Modifier\.fillMaxSize\(\)\.padding\(16\.dp\)\) \{''', re.S)
+          replacement = '''    val totalIbrCourses = ibrCoursesState.count { it.chapters.isNotEmpty() }\n    val totalIbrLessons = ibrCoursesState.sumOf { it.chapters.size }\n    val progressByMember = rememberIbrProgressByMember()\n    val eligibleUsers = memberRequestsState.filter { member ->\n        member.isIbr && isIbrCompleteFor(progressByMember[member.id].orEmpty())\n    }\n\n    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {'''
+          text, count = pattern.subn(replacement, text, count=1)
+          if count != 1:
+              raise SystemExit('Bloco 2 não encontrou filtro de certificados')
+
+          old_progress = '''                            val memberBadgeProgress = calculateBadgeProgress(member)\n                            val memberBadge = biblicalBadgeForId(member.equippedBadgeId)'''
+          new_progress = '''                            val memberProgress = progressByMember[member.id].orEmpty()\n                            val completedLessons = memberProgress.count { it.isCompleted }\n                            val completedCourses = completedIbrCourseCountFor(memberProgress)\n                            val memberBadge = biblicalBadgeForId(member.equippedBadgeId)'''
+          rep(old_progress, new_progress, 'progresso individual')
+          rep('                                            "${memberBadgeProgress.unlockedIds.size} emblemas desbloqueados • ${memberBadgeProgress.completedIbrCourses} cursos concluídos",',
+              '                                            "$completedCourses/$totalIbrCourses cursos concluídos",', 'resumo cursos')
+          rep('                                    Text("${memberBadgeProgress.completedIbrLessons} aulas", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)',
+              '                                    Text("$completedLessons/$totalIbrLessons aulas", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)', 'resumo aulas')
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Testar bloco 2
+        env:
+          KEYSTORE_FILE: ../release.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.MICRHEMA_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.MICRHEMA_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.MICRHEMA_KEY_PASSWORD }}
+        run: ./gradlew compileReleaseKotlin --no-daemon --stacktrace
+
+      - name: Salvar bloco 2
+        run: |
+          git add app/src/main/java/com/aistudio/micrhema/VipAdmin.kt
+          git commit -m "fix: usar progresso individual nos certificados IBR"
+
+      - name: Bloco 3 — limpar a interface sem reescrever o painel
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+          path = Path('app/src/main/java/com/aistudio/micrhema/VipAdmin.kt')
+          text = path.read_text(encoding='utf-8')
+
+          def rep(old, new, label):
+              global text
+              if old not in text:
+                  raise SystemExit(f'Bloco 3 não encontrou: {label}')
+              text = text.replace(old, new, 1)
+
+          rep('        "midia" to "Conteúdo IBR",\n        "cursos" to "Módulos IBR",\n        "certificados" to "Certificados IBR"',
+              '        "midia" to "Conteúdo",\n        "cursos" to "Módulos",\n        "certificados" to "Certificados"', 'nomes curtos das abas')
+
+          start = text.index('        BoxWithConstraints(\n            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)\n        ) {')
+          end_marker = '\n\n        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {'
+          end = text.index(end_marker, start)
+          new_tabs = '''        Row(\n            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp).horizontalScroll(rememberScrollState()),\n            horizontalArrangement = Arrangement.spacedBy(8.dp)\n        ) {\n            tabs.forEach { (id, title) ->\n                FilterChip(\n                    selected = vipTab == id,\n                    onClick = { vipTab = id },\n                    label = { Text(title, maxLines = 1) }\n                )\n            }\n        }'''
+          text = text[:start] + new_tabs + text[end:]
+
+          rep('    var isDeleting by remember { mutableStateOf(false) }\n\n    Column(modifier = Modifier.padding(16.dp).imePadding().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {',
+              '    var isDeleting by remember { mutableStateOf(false) }\n    var contentFilter by remember { mutableStateOf("Todos") }\n    var addContentType by remember { mutableStateOf<String?>(null) }\n\n    Column(modifier = Modifier.padding(16.dp).imePadding().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {', 'estados conteúdo')
+
+          rep('        Text("Adicione e edite livros, áudios e vídeos para os alunos do Instituto Bíblico Rhema.", style = MaterialTheme.typography.bodyMedium)\n        // SMART IMPORTER',
+              '''        Text("Adicione e edite os materiais dos alunos sem sair desta tela.", style = MaterialTheme.typography.bodyMedium)\n        Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {\n            listOf("Todos", "Livros", "Áudios", "Vídeos", "Fotos").forEach { option ->\n                FilterChip(selected = contentFilter == option, onClick = { contentFilter = option }, label = { Text(option) })\n            }\n        }\n        Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {\n            listOf("Livros" to "+ Livro", "Áudios" to "+ Áudio", "Vídeos" to "+ Vídeo", "Fotos" to "+ Álbum").forEach { (type, label) ->\n                AssistChip(onClick = { addContentType = if (addContentType == type) null else type }, label = { Text(label) })\n            }\n        }\n        // SMART IMPORTER''', 'filtros conteúdo')
+
+          rep('PDF, Word (DOCX), Áudio (MP3), Vídeo (MP4) ou Imagem.', 'PDF, EPUB, Word (DOCX), Áudio (MP3), Vídeo (MP4) ou Imagem.', 'texto EPUB')
+          rep('                                GoogleDriveService.FileType.WORD -> {',
+              '''                                GoogleDriveService.FileType.EPUB -> {\n                                    smartMessage = "Livro EPUB detectado e adicionado!"\n                                    addVipBook(ContentBook(id = System.currentTimeMillis().toString(), title = "Novo Livro EPUB Importado", author = "Documento EPUB", coverUrl = "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=500&q=80", contentText = "", bookUrl = GoogleDriveService.getDirectDownloadLink(smartUrl), type = "epub"))\n                                }\n                                GoogleDriveService.FileType.WORD -> {''', 'smart import EPUB')
+
+          # Formulários de conteúdo aparecem somente quando solicitados; listas continuam usando o código antigo.
+          rep('        // ADD BOOK\n        Card(modifier = Modifier.fillMaxWidth()) {', '        // ADD BOOK\n        if (addContentType == "Livros") {\n        Card(modifier = Modifier.fillMaxWidth()) {', 'abrir formulário livro')
+          rep('        }\n        \n        if (vipBooksState.isNotEmpty()) {', '        }\n        }\n        \n        if ((contentFilter == "Todos" || contentFilter == "Livros") && vipBooksState.isNotEmpty()) {', 'fechar formulário livro')
+
+          rep('        // ADD AUDIO\n        Card(modifier = Modifier.fillMaxWidth()) {', '        // ADD AUDIO\n        if (addContentType == "Áudios") {\n        Card(modifier = Modifier.fillMaxWidth()) {', 'abrir formulário áudio')
+          rep('        }\n        \n        if (vipAudiosState.isNotEmpty()) {', '        }\n        }\n        \n        if ((contentFilter == "Todos" || contentFilter == "Áudios") && vipAudiosState.isNotEmpty()) {', 'fechar formulário áudio')
+
+          rep('        // ADD VIDEO\n        Card(modifier = Modifier.fillMaxWidth()) {', '        // ADD VIDEO\n        if (addContentType == "Vídeos") {\n        Card(modifier = Modifier.fillMaxWidth()) {', 'abrir formulário vídeo')
+          rep('        }\n        \n        if (vipVideosState.isNotEmpty()) {', '        }\n        }\n        \n        if ((contentFilter == "Todos" || contentFilter == "Vídeos") && vipVideosState.isNotEmpty()) {', 'fechar formulário vídeo')
+
+          rep('        // ADD ALBUM\n        Card(modifier = Modifier.fillMaxWidth()) {', '        // ADD ALBUM\n        if (addContentType == "Fotos") {\n        Card(modifier = Modifier.fillMaxWidth()) {', 'abrir formulário álbum')
+          rep('        }\n        \n        if (vipAlbumsState.isNotEmpty()) {', '        }\n        }\n        \n        if ((contentFilter == "Todos" || contentFilter == "Fotos") && vipAlbumsState.isNotEmpty()) {', 'fechar formulário álbum')
+
+          marker = 'fun EditVipIbrSection() {'
+          head, section = text.split(marker, 1)
+          section = marker + section
+          def srep(old, new, label):
+              global section
+              if old not in section:
+                  raise SystemExit(f'Bloco 3 módulos não encontrou: {label}')
+              section = section.replace(old, new, 1)
+
+          srep('    var courseImageUrl by remember { mutableStateOf("") }',
+               '    var courseImageUrl by remember { mutableStateOf("") }\n    var showCreateCourseForm by remember { mutableStateOf(false) }\n    var showAddChapterForm by remember { mutableStateOf(false) }\n    var expandedCourseIds by remember { mutableStateOf(setOf<String>()) }', 'estados compactos')
+
+          srep('                    text = "Cadastre novos cursos teológicos, capítulos, links do YouTube, vídeos e áudios",',
+               '                    text = "Cursos e aulas do IBR, organizados de forma simples.",', 'subtítulo módulos')
+          srep('                    color = MaterialTheme.colorScheme.onSurfaceVariant\n                )\n            }\n        }\n\n        // 1. CREATE NEW COURSE CARD',
+               '''                    color = MaterialTheme.colorScheme.onSurfaceVariant\n                )\n                Spacer(Modifier.height(10.dp))\n                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {\n                    OutlinedButton(\n                        onClick = { showCreateCourseForm = !showCreateCourseForm; if (showCreateCourseForm) showAddChapterForm = false },\n                        modifier = Modifier.weight(1f)\n                    ) { Text(if (showCreateCourseForm) "Fechar" else "+ Curso") }\n                    Button(\n                        onClick = { showAddChapterForm = !showAddChapterForm; if (showAddChapterForm) showCreateCourseForm = false },\n                        modifier = Modifier.weight(1f),\n                        enabled = ibrCoursesState.isNotEmpty()\n                    ) { Text(if (showAddChapterForm) "Fechar" else "+ Aula") }\n                }\n            }\n        }\n\n        // 1. CREATE NEW COURSE CARD''', 'botões rápidos')
+
+          srep('        item {\n            Card(\n                modifier = Modifier.fillMaxWidth(),\n                shape = RoundedCornerShape(32.dp),',
+               '        if (showCreateCourseForm) {\n        item {\n            Card(\n                modifier = Modifier.fillMaxWidth(),\n                shape = RoundedCornerShape(18.dp),', 'mostrar formulário curso')
+          srep('                }\n            }\n        }\n\n        // 2. ADD CHAPTER CARD',
+               '                }\n            }\n        }\n        }\n\n        // 2. ADD CHAPTER CARD', 'fechar formulário curso')
+          srep('        if (ibrCoursesState.isNotEmpty()) {', '        if (ibrCoursesState.isNotEmpty() && showAddChapterForm) {', 'mostrar formulário aula')
+          srep('                    shape = RoundedCornerShape(32.dp),\n                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)',
+               '                    shape = RoundedCornerShape(18.dp),\n                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)', 'shape formulário aula')
+
+          srep('            items(visibleCourses) { course ->\n                Card(',
+               '            items(visibleCourses) { course ->\n                val expanded = expandedCourseIds.contains(course.id)\n                Card(', 'estado expandido')
+          srep('                    shape = RoundedCornerShape(32.dp),', '                    shape = RoundedCornerShape(18.dp),', 'shape curso')
+          srep('                            Row {\n                                IconButton(onClick = { editingCourse = course }) {',
+               '''                            Row {\n                                IconButton(onClick = {\n                                    expandedCourseIds = if (expanded) expandedCourseIds - course.id else expandedCourseIds + course.id\n                                }) {\n                                    Icon(if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, contentDescription = if (expanded) "Recolher" else "Abrir")\n                                }\n                                IconButton(onClick = { editingCourse = course }) {''', 'botão expandir')
+          srep('                                Text(course.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)\n                            }',
+               '                                Text(course.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)\n                                Text("${course.chapters.size} aula(s) • ${course.chapters.sumOf { it.durationMinutes }} min", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)\n                            }', 'resumo curso')
+          srep('                        Text(course.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)\n                        \n                        Divider(modifier = Modifier.padding(vertical = 8.dp))',
+               '                        if (expanded) {\n                        Text(course.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)\n                        \n                        Divider(modifier = Modifier.padding(vertical = 8.dp))', 'abrir detalhes curso')
+          # Fecha o bloco expanded logo após a lista de aulas, antes de fechar a coluna do card.
+          needle = '''                            }\n                        }\n                    }\n                }\n            }\n        }\n\n    }'''
+          replacement = '''                            }\n                        }\n                        }\n                    }\n                }\n            }\n        }\n\n    }'''
+          if needle not in section:
+              raise SystemExit('Bloco 3 módulos não encontrou fechamento dos detalhes')
+          section = section.replace(needle, replacement, 1)
+
+          section = section.replace('                                courseImageUrl = ""', '                                courseImageUrl = ""\n                                showCreateCourseForm = false', 1)
+          section = section.replace('                                    isYoutube = false', '                                    isYoutube = false\n                                    showAddChapterForm = false', 1)
+
+          text = head + section
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Testar bloco 3 com APK completo
+        env:
+          KEYSTORE_FILE: ../release.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.MICRHEMA_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.MICRHEMA_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.MICRHEMA_KEY_PASSWORD }}
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Salvar bloco 3
+        run: |
+          git add app/src/main/java/com/aistudio/micrhema/VipAdmin.kt
+          git commit -m "ui: deixar painel IBR mais simples e compacto"
+
+      - name: Remover workflow temporário e publicar branch
+        run: |
+          rm -f app/google-services.json .env release.keystore
+          git rm .github/workflows/ibr-admin-simple-blocks.yml
+          git commit -m "chore: remover validação temporária do IBR"
+          git push origin HEAD:feat/ibr-admin-simple-cleanup
