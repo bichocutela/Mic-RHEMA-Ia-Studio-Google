@@ -33,10 +33,10 @@ fun PdfViewer(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    var isLoading by remember { mutableStateOf(true) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var pdfFile by remember { mutableStateOf<File?>(null) }
-    var detectedFileType by remember { mutableStateOf<GoogleDriveService.FileType?>(null) }
+    var isLoading by remember(bookUrl, contentType) { mutableStateOf(true) }
+    var error by remember(bookUrl, contentType) { mutableStateOf<String?>(null) }
+    var pdfFile by remember(bookUrl, contentType) { mutableStateOf<File?>(null) }
+    var detectedFileType by remember(bookUrl, contentType) { mutableStateOf<GoogleDriveService.FileType?>(null) }
 
     LaunchedEffect(bookUrl, contentType) {
         if (bookUrl.isBlank()) {
@@ -46,35 +46,50 @@ fun PdfViewer(
         }
         isLoading = true
         error = null
+        pdfFile = null
         try {
-            detectedFileType = if (contentType.equals("word", ignoreCase = true)) {
-                GoogleDriveService.FileType.WORD
-            } else if (bookUrl.startsWith("http", ignoreCase = true)) {
-                GoogleDriveService.identifyFileType(bookUrl)
-            } else {
-                val mime = runCatching {
-                    context.contentResolver.getType(Uri.parse(bookUrl)).orEmpty().lowercase()
-                }.getOrDefault("")
-                if (mime.contains("wordprocessingml")) GoogleDriveService.FileType.WORD else GoogleDriveService.FileType.PDF
+            val normalizedType = contentType.trim().lowercase()
+            detectedFileType = when {
+                normalizedType in setOf("word", "doc", "docx") -> GoogleDriveService.FileType.WORD
+                normalizedType == "epub" -> GoogleDriveService.FileType.EPUB
+                normalizedType == "pdf" -> GoogleDriveService.FileType.PDF
+                bookUrl.startsWith("http", ignoreCase = true) -> GoogleDriveService.identifyFileType(bookUrl)
+                else -> {
+                    val uri = Uri.parse(bookUrl)
+                    val mime = runCatching { context.contentResolver.getType(uri).orEmpty().lowercase() }.getOrDefault("")
+                    when {
+                        mime.contains("epub+zip") || bookUrl.lowercase().endsWith(".epub") -> GoogleDriveService.FileType.EPUB
+                        mime.contains("wordprocessingml") || mime.contains("msword") || bookUrl.lowercase().endsWith(".docx") -> GoogleDriveService.FileType.WORD
+                        else -> GoogleDriveService.FileType.PDF
+                    }
+                }
             }
-            if (detectedFileType == GoogleDriveService.FileType.WORD) {
+
+            if (detectedFileType == GoogleDriveService.FileType.WORD || detectedFileType == GoogleDriveService.FileType.EPUB) {
                 isLoading = false
                 return@LaunchedEffect
             }
 
             val file = withContext(Dispatchers.IO) {
-                if (bookUrl.startsWith("http")) {
+                if (bookUrl.startsWith("http", ignoreCase = true)) {
                     val fileName = "book_${bookUrl.hashCode()}.pdf"
                     val cachedFile = File(context.cacheDir, fileName)
-                    if (!cachedFile.exists()) {
+                    if (!cachedFile.exists() || cachedFile.length() <= 0L) {
                         val connection = URL(convertGoogleDriveUrl(bookUrl)).openConnection() as HttpURLConnection
+                        connection.instanceFollowRedirects = true
+                        connection.connectTimeout = 15_000
+                        connection.readTimeout = 30_000
                         connection.connect()
-                        if (connection.responseCode == HttpURLConnection.HTTP_OK) {
-                            connection.inputStream.use { input ->
-                                FileOutputStream(cachedFile).use { output -> input.copyTo(output) }
+                        try {
+                            if (connection.responseCode in 200..299) {
+                                connection.inputStream.use { input ->
+                                    FileOutputStream(cachedFile).use { output -> input.copyTo(output) }
+                                }
+                            } else {
+                                return@withContext null
                             }
-                        } else {
-                            return@withContext null
+                        } finally {
+                            connection.disconnect()
                         }
                     }
                     cachedFile
@@ -82,7 +97,7 @@ fun PdfViewer(
                     val uri = Uri.parse(bookUrl)
                     val fileName = "book_${bookUrl.hashCode()}.pdf"
                     val cachedFile = File(context.cacheDir, fileName)
-                    if (!cachedFile.exists()) {
+                    if (!cachedFile.exists() || cachedFile.length() <= 0L) {
                         val input = context.contentResolver.openInputStream(uri) ?: return@withContext null
                         input.use { source ->
                             FileOutputStream(cachedFile).use { output -> source.copyTo(output) }
@@ -98,49 +113,37 @@ fun PdfViewer(
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            error = "Erro ao carregar o PDF: ${e.message}"
+            error = "Erro ao carregar o documento: ${e.message}"
         } finally {
             isLoading = false
         }
     }
 
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        if (isLoading) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        when {
+            isLoading -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 CircularProgressIndicator()
                 Spacer(modifier = Modifier.height(16.dp))
                 Text("Baixando/Carregando livro...")
             }
-        } else if (detectedFileType == GoogleDriveService.FileType.WORD) {
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(title, style = MaterialTheme.typography.titleLarge)
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    "Documento Word disponível. Você pode abrir em um aplicativo compatível ou baixar o arquivo DOCX.",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Spacer(modifier = Modifier.height(20.dp))
-                Button(
-                    onClick = { StudyMaterialDownload.openDocument(context, bookUrl, "arquivo Word") },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Abrir Word")
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedButton(
-                    onClick = { StudyMaterialDownload.enqueueDocx(context, bookUrl, title) },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Baixar DOCX")
-                }
-            }
-        } else if (error != null) {
-            Text(error!!, color = MaterialTheme.colorScheme.error)
-        } else if (pdfFile != null) {
-            PdfRendererView(pdfFile!!, bookUrl)
+
+            detectedFileType == GoogleDriveService.FileType.WORD -> RichDocumentReader(
+                sourceUrl = bookUrl,
+                title = title,
+                kind = RichDocumentKind.DOCX,
+                modifier = Modifier.fillMaxSize()
+            )
+
+            detectedFileType == GoogleDriveService.FileType.EPUB -> RichDocumentReader(
+                sourceUrl = bookUrl,
+                title = title,
+                kind = RichDocumentKind.EPUB,
+                modifier = Modifier.fillMaxSize()
+            )
+
+            error != null -> Text(error!!, color = MaterialTheme.colorScheme.error)
+            pdfFile != null -> PdfRendererView(pdfFile!!, bookUrl)
+            else -> Text("Formato de documento não reconhecido.", color = MaterialTheme.colorScheme.error)
         }
     }
 }
