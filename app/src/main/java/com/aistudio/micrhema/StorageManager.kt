@@ -38,6 +38,7 @@ object StorageManager {
     private const val MEDIA_BUCKET = "media-assets"
     private const val STORAGE_GATEWAY_FUNCTION = "storage-gateway"
     private const val DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    private const val EPUB_MIME = "application/epub+zip"
     private const val MAX_IMAGE_BYTES = 5L * 1024L * 1024L
     private const val MAX_DOCUMENT_BYTES = 50L * 1024L * 1024L
     private const val MAX_MEDIA_BYTES = 50L * 1024L * 1024L
@@ -137,6 +138,7 @@ object StorageManager {
         "image/webp" -> ".webp"
         "application/pdf" -> ".pdf"
         DOCX_MIME -> ".docx"
+        EPUB_MIME -> ".epub"
         else -> ""
     }
 
@@ -200,7 +202,7 @@ object StorageManager {
             DOCUMENT_BUCKET -> setOf("application/pdf")
             MEDIA_BUCKET -> setOf(
                 "image/jpeg", "image/png", "image/webp",
-                "application/pdf", DOCX_MIME,
+                "application/pdf", DOCX_MIME, EPUB_MIME,
                 "audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/ogg", "audio/mp4", "audio/aac",
                 "video/mp4", "video/webm", "video/quicktime", "video/3gpp"
             )
