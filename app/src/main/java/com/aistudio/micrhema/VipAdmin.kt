@@ -72,34 +72,68 @@ fun removeVipAlbum(item: ContentPhotoAlbum) {
 @Composable
 fun EditVipSection() {
     var vipTab by remember { mutableStateOf("overview") } // overview, midia, cursos or certificados
-    
+    val tabs = listOf(
+        "overview" to "Visão geral",
+        "midia" to "Conteúdo IBR",
+        "cursos" to "Módulos IBR",
+        "certificados" to "Certificados IBR"
+    )
+
     Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        BoxWithConstraints(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            FilterChip(
-                selected = vipTab == "overview",
-                onClick = { vipTab = "overview" },
-                label = { Text("Visão geral") }
-            )
-            FilterChip(
-                selected = vipTab == "midia",
-                onClick = { vipTab = "midia" },
-                label = { Text("Conteúdo IBR") }
-            )
-            FilterChip(
-                selected = vipTab == "cursos",
-                onClick = { vipTab = "cursos" },
-                label = { Text("Módulos IBR") }
-            )
-            FilterChip(
-                selected = vipTab == "certificados",
-                onClick = { vipTab = "certificados" },
-                label = { Text("Certificados IBR") }
-            )
+            val compact = maxWidth < 600.dp
+            if (compact) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    tabs.chunked(2).forEach { rowTabs ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            rowTabs.forEach { (id, title) ->
+                                FilterChip(
+                                    selected = vipTab == id,
+                                    onClick = { vipTab = id },
+                                    modifier = Modifier.weight(1f),
+                                    label = {
+                                        Text(
+                                            title,
+                                            modifier = Modifier.fillMaxWidth(),
+                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                            maxLines = 2
+                                        )
+                                    }
+                                )
+                            }
+                            if (rowTabs.size == 1) Spacer(Modifier.weight(1f))
+                        }
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    tabs.forEach { (id, title) ->
+                        FilterChip(
+                            selected = vipTab == id,
+                            onClick = { vipTab = id },
+                            modifier = Modifier.weight(1f),
+                            label = {
+                                Text(
+                                    title,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                    maxLines = 1
+                                )
+                            }
+                        )
+                    }
+                }
+            }
         }
-        
+
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             if (vipTab == "overview") {
                 EditIbrOverviewSection()
@@ -911,6 +945,7 @@ fun EditVipIbrSection() {
     var audioUrl by remember { mutableStateOf("") }
     var textContent by remember { mutableStateOf("") }
     var studyPdfUrl by remember { mutableStateOf("") }
+    var studyDocxUrl by remember { mutableStateOf("") }
     
     var courseSearch by remember { mutableStateOf("") }
     var courseThemeFilter by remember { mutableStateOf("Todos") }
@@ -976,7 +1011,10 @@ fun EditVipIbrSection() {
                     // Theme selector chips
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("Tema / Categoria:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
                             val themes = listOf("Teologia", "História Bíblica", "Vida Cristã")
                             themes.forEach { theme ->
                                 FilterChip(
@@ -1071,25 +1109,47 @@ fun EditVipIbrSection() {
                             shape = RoundedCornerShape(24.dp)
                         )
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            GlassTextField(
-                                value = chapterDuration,
-                                onValueChange = { chapterDuration = it },
-                                label = { Text("Duração (Minutos)") },
-                                modifier = Modifier.weight(1.2f),
-                                shape = RoundedCornerShape(24.dp)
-                            )
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.weight(0.8f)
-                            ) {
-                                Text("É YouTube?", style = MaterialTheme.typography.labelMedium)
-                                Switch(checked = isYoutube, onCheckedChange = { isYoutube = it })
+                        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                            if (maxWidth < 430.dp) {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    GlassTextField(
+                                        value = chapterDuration,
+                                        onValueChange = { chapterDuration = it },
+                                        label = { Text("Duração (Minutos)") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(24.dp)
+                                    )
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text("É YouTube?", style = MaterialTheme.typography.labelMedium)
+                                        Switch(checked = isYoutube, onCheckedChange = { isYoutube = it })
+                                    }
+                                }
+                            } else {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    GlassTextField(
+                                        value = chapterDuration,
+                                        onValueChange = { chapterDuration = it },
+                                        label = { Text("Duração (Minutos)") },
+                                        modifier = Modifier.weight(1.2f),
+                                        shape = RoundedCornerShape(24.dp)
+                                    )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.weight(0.8f)
+                                    ) {
+                                        Text("É YouTube?", style = MaterialTheme.typography.labelMedium)
+                                        Switch(checked = isYoutube, onCheckedChange = { isYoutube = it })
+                                    }
+                                }
                             }
                         }
 
@@ -1123,8 +1183,14 @@ fun EditVipIbrSection() {
                             label = "Conteúdo para estudo — PDF ou link do Drive (opcional)",
                             mimeType = "application/pdf"
                         )
+                        LocalUploadField(
+                            value = studyDocxUrl,
+                            onValueChange = { studyDocxUrl = it },
+                            label = "Conteúdo para estudo — Word .docx (opcional)",
+                            mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        )
                         Text(
-                            "O PDF aparecerá abaixo da aula para o aluno baixar quando estiver disponível.",
+                            "PDF e Word aparecerão abaixo da aula para o aluno abrir ou baixar quando estiverem disponíveis.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1145,6 +1211,7 @@ fun EditVipIbrSection() {
                                         audioUrl = audioUrl,
                                         textContent = textContent,
                                         studyPdfUrl = studyPdfUrl.trim(),
+                                        studyDocxUrl = studyDocxUrl.trim(),
                                         isYoutube = detectedYoutube,
                                         youtubeId = detectedYoutubeId
                                     )
@@ -1171,6 +1238,7 @@ fun EditVipIbrSection() {
                                     videoUrl = ""
                                     audioUrl = ""
                                     studyPdfUrl = ""
+                                    studyDocxUrl = ""
                                     isYoutube = false
                                 } else {
                                     NotificationHelper.showNotification(context, "Erro", "Preencha o título da aula.")
@@ -1240,7 +1308,7 @@ fun EditVipIbrSection() {
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Badge(containerColor = MaterialTheme.colorScheme.primary) {
                                     Text(course.theme.uppercase(), style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 4.dp), color = MaterialTheme.colorScheme.onPrimary)
                                 }
@@ -1273,12 +1341,22 @@ fun EditVipIbrSection() {
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Row(
+                                        modifier = Modifier.weight(1f),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
                                         Text("${idx + 1}.", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-                                        Column {
-                                            Text(ch.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                                        Column(modifier = Modifier.weight(1f)) {
                                             Text(
-                                                text = "${ch.durationMinutes} min • ${if (ch.isYoutube) "YouTube 📺" else if (ch.videoUrl.isNotEmpty()) "Vídeo 🎥" else "Somente Áudio 🎵"}${if (ch.studyPdfUrl.isNotBlank()) " • PDF 📄" else ""}",
+                                                ch.title,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                text = "${ch.durationMinutes} min • ${if (ch.isYoutube) "YouTube 📺" else if (ch.videoUrl.isNotEmpty()) "Vídeo 🎥" else "Somente Áudio 🎵"}${if (ch.studyPdfUrl.isNotBlank()) " • PDF 📄" else ""}${if (ch.studyDocxUrl.isNotBlank()) " • Word 📝" else ""}",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = Color.Gray
                                             )
@@ -1353,6 +1431,7 @@ fun EditVipIbrSection() {
         var editDuration by remember(editingChapter) { mutableStateOf(editingChapter!!.durationMinutes.toString()) }
         var editVideoUrl by remember(editingChapter) { mutableStateOf(editingChapter!!.videoUrl) }
         var editStudyPdfUrl by remember(editingChapter) { mutableStateOf(editingChapter!!.studyPdfUrl) }
+        var editStudyDocxUrl by remember(editingChapter) { mutableStateOf(editingChapter!!.studyDocxUrl) }
         
         AlertDialog(
             onDismissRequest = {
@@ -1361,7 +1440,10 @@ fun EditVipIbrSection() {
             },
             title = { Text("Editar Aula") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 480.dp).imePadding().verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     GlassTextField(value = editTitle, onValueChange = { editTitle = it }, label = { Text("Título") })
                     GlassTextField(value = editDescription, onValueChange = { editDescription = it }, label = { Text("Descrição") })
                     GlassTextField(value = editDuration, onValueChange = { editDuration = it }, label = { Text("Duração (Min)") })
@@ -1371,6 +1453,12 @@ fun EditVipIbrSection() {
                         onValueChange = { editStudyPdfUrl = it },
                         label = "Conteúdo para estudo — PDF ou link do Drive",
                         mimeType = "application/pdf"
+                    )
+                    LocalUploadField(
+                        value = editStudyDocxUrl,
+                        onValueChange = { editStudyDocxUrl = it },
+                        label = "Conteúdo para estudo — Word .docx",
+                        mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                     )
                 }
             },
@@ -1390,6 +1478,7 @@ fun EditVipIbrSection() {
                                 durationMinutes = editDuration.toIntOrNull() ?: editingChapter!!.durationMinutes,
                                 videoUrl = editVideoUrl,
                                 studyPdfUrl = editStudyPdfUrl.trim(),
+                                studyDocxUrl = editStudyDocxUrl.trim(),
                                 isYoutube = isYt,
                                 youtubeId = ytId
                             )
