@@ -2,6 +2,7 @@ import { firebaseAdminAuth } from "./firebase";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://cwphbkdtorfpgmnlafqb.supabase.co";
 const gateway = `${supabaseUrl}/functions/v1/storage-gateway`;
+const ibrDocxGateway = `${supabaseUrl}/functions/v1/pwa-ibr-docx`;
 
 async function authToken() {
   const user = firebaseAdminAuth?.currentUser;
@@ -18,6 +19,17 @@ export async function uploadAdminMedia(file: File) {
   const response = await fetch(gateway, { method: "POST", headers: { authorization: `Bearer ${token}` }, body: form });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.ok !== true || !payload.signed_url) throw new Error(payload.error || "Não foi possível enviar o arquivo ao Supabase.");
+  return { url: String(payload.signed_url), storagePath: String(payload.storage_path || "") };
+}
+
+export async function uploadAdminDocx(file: File) {
+  if (!file.name.toLowerCase().endsWith(".docx")) throw new Error("Selecione um arquivo Word no formato .docx.");
+  const { token } = await authToken();
+  const form = new FormData();
+  form.append("file", file);
+  const response = await fetch(ibrDocxGateway, { method: "POST", headers: { authorization: `Bearer ${token}` }, body: form });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload.ok !== true || !payload.signed_url) throw new Error(payload.error || "Não foi possível enviar o arquivo Word.");
   return { url: String(payload.signed_url), storagePath: String(payload.storage_path || "") };
 }
 
