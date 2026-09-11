@@ -1,0 +1,637 @@
+name: Validar categorias e acesso IBR
+
+on:
+  push:
+    branches:
+      - 'feat/ibr-categories-lesson-access'
+    paths:
+      - '.github/workflows/ibr-categories-access-blocks.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-test:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: feat/ibr-categories-lesson-access
+          fetch-depth: 0
+
+      - name: Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          validate-wrappers: false
+
+      - name: Restaurar configuração
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          printf '%s' "$GOOGLE_SERVICES_JSON" > app/google-services.json
+          jq empty app/google-services.json
+          cp .env.example .env
+          if [ -n "$SUPABASE_URL" ]; then sed -i "s|^SUPABASE_URL=.*|SUPABASE_URL=$SUPABASE_URL|" .env; fi
+          if [ -n "$SUPABASE_ANON_KEY" ]; then sed -i "s|^SUPABASE_ANON_KEY=.*|SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY|" .env; fi
+          echo "${{ secrets.MICRHEMA_KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
+          chmod +x gradlew
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Bloco 1 — categorias personalizadas
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          helper_path = Path('app/src/main/java/com/aistudio/micrhema/IbrAdminSimpleHelpers.kt')
+          helper = helper_path.read_text(encoding='utf-8')
+          helper = helper.replace(
+              'import androidx.compose.runtime.mutableStateMapOf\n',
+              'import androidx.compose.runtime.mutableStateListOf\nimport androidx.compose.runtime.mutableStateMapOf\n',
+              1
+          )
+          marker = '''fun saveIbrCourseSilently(item: IbrCourse) {
+              if (BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
+                  Firebase.firestore.collection("ibr_courses").document(item.id).set(item)
+              }
+          }
+          '''
+          marker = marker.replace('          ', '')
+          if marker not in helper:
+              raise SystemExit('helper marker not found')
+          category_code = marker + '''
+
+private val defaultIbrCourseCategories = listOf("Teologia", "História Bíblica", "Vida Cristã")
+val ibrCourseCategoriesState = mutableStateListOf<String>().apply { addAll(defaultIbrCourseCategories) }
+
+fun loadIbrCourseCategories() {
+    val localCategories = (defaultIbrCourseCategories + ibrCoursesState.map { it.theme })
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .distinctBy { it.lowercase() }
+    ibrCourseCategoriesState.clear()
+    ibrCourseCategoriesState.addAll(localCategories)
+    if (BuildConfig.FIREBASE_PROJECT_ID.isEmpty()) return
+    Firebase.firestore.collection("settings").document("ibr").get()
+        .addOnSuccessListener { document ->
+            val saved = (document.get("courseThemes") as? List<*>)
+                ?.mapNotNull { it?.toString()?.trim() }
+                .orEmpty()
+                .filter { it.isNotBlank() }
+            val merged = (defaultIbrCourseCategories + saved + ibrCoursesState.map { it.theme })
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+                .distinctBy { it.lowercase() }
+                .sortedBy { it.lowercase() }
+            ibrCourseCategoriesState.clear()
+            ibrCourseCategoriesState.addAll(merged)
+        }
+}
+
+fun saveIbrCourseCategory(name: String) {
+    val category = name.trim()
+    if (category.isBlank()) return
+    val merged = (ibrCourseCategoriesState + category)
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .distinctBy { it.lowercase() }
+        .sortedBy { it.lowercase() }
+    ibrCourseCategoriesState.clear()
+    ibrCourseCategoriesState.addAll(merged)
+    if (BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
+        Firebase.firestore.collection("settings").document("ibr").set(
+            mapOf("courseThemes" to merged),
+            com.google.firebase.firestore.SetOptions.merge()
+        )
+    }
+}
+'''
+          helper = helper.replace(marker, category_code, 1)
+          helper_path.write_text(helper, encoding='utf-8')
+
+          vip_path = Path('app/src/main/java/com/aistudio/micrhema/VipAdmin.kt')
+          vip = vip_path.read_text(encoding='utf-8')
+          old = '''    var courseImageUrl by remember { mutableStateOf("") }
+    var showCreateCourseForm by remember { mutableStateOf(false) }
+'''
+          new = '''    var courseImageUrl by remember { mutableStateOf("") }
+    var showNewCourseCategory by remember { mutableStateOf(false) }
+    var newCourseCategory by remember { mutableStateOf("") }
+    var showCreateCourseForm by remember { mutableStateOf(false) }
+'''
+          if old not in vip: raise SystemExit('course states marker not found')
+          vip = vip.replace(old, new, 1)
+
+          old = '''    val courseThemes = listOf("Todos") + ibrCoursesState.map { it.theme }.filter { it.isNotBlank() }.distinct().sorted()
+'''
+          new = '''    val courseThemes = listOf("Todos") + (ibrCourseCategoriesState + ibrCoursesState.map { it.theme })
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .distinctBy { it.lowercase() }
+        .sortedBy { it.lowercase() }
+'''
+          if old not in vip: raise SystemExit('courseThemes marker not found')
+          vip = vip.replace(old, new, 1)
+
+          old = '''    LaunchedEffect(ibrCoursesState.size) {
+'''
+          new = '''    LaunchedEffect(Unit) {
+        loadIbrCourseCategories()
+    }
+
+    LaunchedEffect(ibrCoursesState.size) {
+'''
+          if old not in vip: raise SystemExit('launched marker not found')
+          vip = vip.replace(old, new, 1)
+
+          old = '''                        Row(
+                            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            val themes = listOf("Teologia", "História Bíblica", "Vida Cristã")
+                            themes.forEach { theme ->
+                                FilterChip(
+                                    selected = courseTheme == theme,
+                                    onClick = { courseTheme = theme },
+                                    label = { Text(theme) }
+                                )
+                            }
+                        }
+'''
+          new = '''                        Row(
+                            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            ibrCourseCategoriesState.forEach { theme ->
+                                FilterChip(
+                                    selected = courseTheme == theme,
+                                    onClick = { courseTheme = theme },
+                                    label = { Text(theme) }
+                                )
+                            }
+                            AssistChip(
+                                onClick = { showNewCourseCategory = !showNewCourseCategory },
+                                label = { Text("+") }
+                            )
+                        }
+                        if (showNewCourseCategory) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                GlassTextField(
+                                    value = newCourseCategory,
+                                    onValueChange = { newCourseCategory = it },
+                                    label = { Text("Nova categoria") },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Button(onClick = {
+                                    val name = newCourseCategory.trim()
+                                    if (name.isNotBlank()) {
+                                        saveIbrCourseCategory(name)
+                                        courseTheme = name
+                                        newCourseCategory = ""
+                                        showNewCourseCategory = false
+                                    }
+                                }) { Text("Salvar") }
+                            }
+                        }
+'''
+          if old not in vip: raise SystemExit('create categories UI marker not found')
+          vip = vip.replace(old, new, 1)
+
+          old = '''        var editTheme by remember(editingCourse) { mutableStateOf(editingCourse!!.theme) }
+        var editImageUrl by remember(editingCourse) { mutableStateOf(editingCourse!!.imageUrl) }
+'''
+          new = '''        var editTheme by remember(editingCourse) { mutableStateOf(editingCourse!!.theme) }
+        var editImageUrl by remember(editingCourse) { mutableStateOf(editingCourse!!.imageUrl) }
+        var showNewEditCategory by remember(editingCourse) { mutableStateOf(false) }
+        var newEditCategory by remember(editingCourse) { mutableStateOf("") }
+'''
+          if old not in vip: raise SystemExit('edit course state marker not found')
+          vip = vip.replace(old, new, 1)
+
+          old = '''                    GlassTextField(value = editTheme, onValueChange = { editTheme = it }, label = { Text("Tema") })
+                    LocalUploadField(value = editImageUrl, onValueChange = { editImageUrl = it }, label = "Capa do curso (opcional)", mimeType = "image/*")
+'''
+          new = '''                    Text("Tema / Categoria", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        (ibrCourseCategoriesState + listOf(editTheme)).filter { it.isNotBlank() }.distinctBy { it.lowercase() }.forEach { theme ->
+                            FilterChip(selected = editTheme == theme, onClick = { editTheme = theme }, label = { Text(theme) })
+                        }
+                        AssistChip(onClick = { showNewEditCategory = !showNewEditCategory }, label = { Text("+") })
+                    }
+                    if (showNewEditCategory) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            GlassTextField(value = newEditCategory, onValueChange = { newEditCategory = it }, label = { Text("Nova categoria") }, modifier = Modifier.weight(1f))
+                            Button(onClick = {
+                                val name = newEditCategory.trim()
+                                if (name.isNotBlank()) {
+                                    saveIbrCourseCategory(name)
+                                    editTheme = name
+                                    newEditCategory = ""
+                                    showNewEditCategory = false
+                                }
+                            }) { Text("Salvar") }
+                        }
+                    }
+                    LocalUploadField(value = editImageUrl, onValueChange = { editImageUrl = it }, label = "Capa do curso (opcional)", mimeType = "image/*")
+'''
+          if old not in vip: raise SystemExit('edit theme UI marker not found')
+          vip = vip.replace(old, new, 1)
+          vip_path.write_text(vip, encoding='utf-8')
+          PY
+
+      - name: Testar bloco 1
+        run: ./gradlew compileReleaseKotlin --no-daemon
+
+      - name: Commit bloco 1
+        run: |
+          git add app/src/main/java/com/aistudio/micrhema/IbrAdminSimpleHelpers.kt app/src/main/java/com/aistudio/micrhema/VipAdmin.kt
+          git commit -m "feat: permitir categorias personalizadas no IBR"
+
+      - name: Bloco 2 — bloqueio simples de cursos e aulas
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          data_path = Path('app/src/main/java/com/aistudio/micrhema/Data.kt')
+          data = data_path.read_text(encoding='utf-8')
+          old = '''    var studyDocxUrl: String = "", // Word .docx opcional para conteúdo de estudo
+    var isYoutube: Boolean = false,
+'''
+          new = '''    var studyDocxUrl: String = "", // Word .docx opcional para conteúdo de estudo
+    var accessMode: String = "FREE", // FREE, AFTER_PREVIOUS, MANUAL_LOCKED
+    var isYoutube: Boolean = false,
+'''
+          if old not in data: raise SystemExit('IbrChapter marker not found')
+          data = data.replace(old, new, 1)
+          old = '''    var description: String = "",
+    var imageUrl: String = "",
+    var chapters: List<IbrChapter> = emptyList()
+'''
+          new = '''    var description: String = "",
+    var imageUrl: String = "",
+    var accessMode: String = "AUTO", // AUTO, UNLOCKED, LOCKED
+    var chapters: List<IbrChapter> = emptyList()
+'''
+          if old not in data: raise SystemExit('IbrCourse marker not found')
+          data = data.replace(old, new, 1)
+          data_path.write_text(data, encoding='utf-8')
+
+          helper_path = Path('app/src/main/java/com/aistudio/micrhema/IbrAdminSimpleHelpers.kt')
+          helper = helper_path.read_text(encoding='utf-8')
+          append = '''
+
+const val IBR_COURSE_AUTO = "AUTO"
+const val IBR_COURSE_UNLOCKED = "UNLOCKED"
+const val IBR_COURSE_LOCKED = "LOCKED"
+const val IBR_LESSON_FREE = "FREE"
+const val IBR_LESSON_AFTER_PREVIOUS = "AFTER_PREVIOUS"
+const val IBR_LESSON_MANUAL_LOCKED = "MANUAL_LOCKED"
+
+fun isIbrCourseLocked(course: IbrCourse, automaticLocked: Boolean): Boolean = when (course.accessMode.uppercase()) {
+    IBR_COURSE_UNLOCKED -> false
+    IBR_COURSE_LOCKED -> true
+    else -> automaticLocked
+}
+
+fun ibrCourseAccessLabel(mode: String): String = when (mode.uppercase()) {
+    IBR_COURSE_UNLOCKED -> "Desbloqueado"
+    IBR_COURSE_LOCKED -> "Bloqueado"
+    else -> "Automático"
+}
+
+fun isIbrChapterUnlocked(
+    course: IbrCourse,
+    chapter: IbrChapter,
+    progress: List<IbrProgress> = ibrProgressState
+): Boolean {
+    return when (chapter.accessMode.uppercase()) {
+        IBR_LESSON_MANUAL_LOCKED -> false
+        IBR_LESSON_AFTER_PREVIOUS -> {
+            val index = course.chapters.indexOfFirst { it.id == chapter.id }
+            index <= 0 || progress.any {
+                it.courseId == course.id && it.chapterId == course.chapters[index - 1].id && it.isCompleted
+            }
+        }
+        else -> true
+    }
+}
+
+fun ibrChapterAccessLabel(mode: String): String = when (mode.uppercase()) {
+    IBR_LESSON_AFTER_PREVIOUS -> "Após aula anterior"
+    IBR_LESSON_MANUAL_LOCKED -> "Bloqueada"
+    else -> "Livre"
+}
+'''
+          if 'const val IBR_COURSE_AUTO' not in helper:
+              helper = helper.rstrip() + append + '\n'
+          helper_path.write_text(helper, encoding='utf-8')
+
+          vip_path = Path('app/src/main/java/com/aistudio/micrhema/VipAdmin.kt')
+          vip = vip_path.read_text(encoding='utf-8')
+          old = '''    var chapterType by remember { mutableStateOf("VIDEO") } // VIDEO, AUDIO, TEXT
+    var isYoutube by remember { mutableStateOf(false) }
+'''
+          new = '''    var chapterType by remember { mutableStateOf("VIDEO") } // VIDEO, AUDIO, TEXT
+    var chapterAccessMode by remember { mutableStateOf(IBR_LESSON_FREE) }
+    var isYoutube by remember { mutableStateOf(false) }
+'''
+          if old not in vip: raise SystemExit('chapter access state marker not found')
+          vip = vip.replace(old, new, 1)
+
+          old = '''                        GlassTextField(
+                            value = chapterDuration,
+                            onValueChange = { chapterDuration = it },
+                            label = { Text("Duração (minutos)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(24.dp)
+                        )
+
+                        when (chapterType) {
+'''
+          new = '''                        GlassTextField(
+                            value = chapterDuration,
+                            onValueChange = { chapterDuration = it },
+                            label = { Text("Duração (minutos)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(24.dp)
+                        )
+
+                        Text("Liberação da aula", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                        Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf(
+                                IBR_LESSON_FREE to "Livre",
+                                IBR_LESSON_AFTER_PREVIOUS to "Após aula anterior",
+                                IBR_LESSON_MANUAL_LOCKED to "Bloqueada"
+                            ).forEach { (id, title) ->
+                                FilterChip(selected = chapterAccessMode == id, onClick = { chapterAccessMode = id }, label = { Text(title) })
+                            }
+                        }
+                        Text(
+                            when (chapterAccessMode) {
+                                IBR_LESSON_AFTER_PREVIOUS -> "Libera automaticamente quando a aula anterior for concluída."
+                                IBR_LESSON_MANUAL_LOCKED -> "Fica bloqueada até o ADM mudar esta opção."
+                                else -> "Pode ser aberta a qualquer momento dentro do módulo."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        when (chapterType) {
+'''
+          if old not in vip: raise SystemExit('chapter access UI insertion marker not found')
+          vip = vip.replace(old, new, 1)
+
+          old = '''                                        studyPdfUrl = studyPdfUrl.trim(),
+                                        studyDocxUrl = studyDocxUrl.trim(),
+                                        isYoutube = detectedYoutube,
+'''
+          new = '''                                        studyPdfUrl = studyPdfUrl.trim(),
+                                        studyDocxUrl = studyDocxUrl.trim(),
+                                        accessMode = chapterAccessMode,
+                                        isYoutube = detectedYoutube,
+'''
+          if old not in vip: raise SystemExit('new chapter save marker not found')
+          vip = vip.replace(old, new, 1)
+
+          old = '''                                    chapterType = "VIDEO"
+                                    studyPdfUrl = ""
+'''
+          new = '''                                    chapterType = "VIDEO"
+                                    chapterAccessMode = IBR_LESSON_FREE
+                                    studyPdfUrl = ""
+'''
+          if old not in vip: raise SystemExit('chapter reset marker not found')
+          vip = vip.replace(old, new, 1)
+
+          old = '''                                                text = "${ch.durationMinutes} min • ${if (ch.isYoutube) "YouTube 📺" else if (ch.videoUrl.isNotEmpty()) "Vídeo 🎥" else "Somente Áudio 🎵"}${if (ch.studyPdfUrl.isNotBlank()) " • PDF 📄" else ""}${if (ch.studyDocxUrl.isNotBlank()) " • Word 📝" else ""}",
+'''
+          new = '''                                                text = "${ch.durationMinutes} min • ${if (ch.isYoutube) "YouTube 📺" else if (ch.videoUrl.isNotEmpty()) "Vídeo 🎥" else if (ch.audioUrl.isNotEmpty()) "Áudio 🎵" else "Texto 📖"} • ${ibrChapterAccessLabel(ch.accessMode)}${if (ch.studyPdfUrl.isNotBlank()) " • PDF 📄" else ""}${if (ch.studyDocxUrl.isNotBlank()) " • Word 📝" else ""}",
+'''
+          if old not in vip: raise SystemExit('chapter summary marker not found')
+          vip = vip.replace(old, new, 1)
+
+          old = '''        var editImageUrl by remember(editingCourse) { mutableStateOf(editingCourse!!.imageUrl) }
+        var showNewEditCategory by remember(editingCourse) { mutableStateOf(false) }
+'''
+          new = '''        var editImageUrl by remember(editingCourse) { mutableStateOf(editingCourse!!.imageUrl) }
+        var editCourseAccessMode by remember(editingCourse) { mutableStateOf(editingCourse!!.accessMode.ifBlank { IBR_COURSE_AUTO }.uppercase()) }
+        var showNewEditCategory by remember(editingCourse) { mutableStateOf(false) }
+'''
+          if old not in vip: raise SystemExit('edit course access state marker not found')
+          vip = vip.replace(old, new, 1)
+
+          old = '''                    LocalUploadField(value = editImageUrl, onValueChange = { editImageUrl = it }, label = "Capa do curso (opcional)", mimeType = "image/*")
+                }
+'''
+          new = '''                    LocalUploadField(value = editImageUrl, onValueChange = { editImageUrl = it }, label = "Capa do curso (opcional)", mimeType = "image/*")
+                    Text("Acesso ao curso", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(
+                            IBR_COURSE_AUTO to "Automático",
+                            IBR_COURSE_UNLOCKED to "Desbloqueado",
+                            IBR_COURSE_LOCKED to "Bloqueado"
+                        ).forEach { (id, title) ->
+                            FilterChip(selected = editCourseAccessMode == id, onClick = { editCourseAccessMode = id }, label = { Text(title) })
+                        }
+                    }
+                    Text(
+                        when (editCourseAccessMode) {
+                            IBR_COURSE_UNLOCKED -> "Pode ser aberto mesmo antes do módulo anterior ser concluído."
+                            IBR_COURSE_LOCKED -> "Fica bloqueado até o ADM desbloquear."
+                            else -> "Mantém a regra atual: libera após concluir o módulo anterior."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+'''
+          if old not in vip: raise SystemExit('edit course access UI marker not found')
+          vip = vip.replace(old, new, 1)
+
+          old = '''                        val updated = editingCourse!!.copy(title = editTitle, description = editDescription, theme = editTheme, imageUrl = editImageUrl.trim())
+'''
+          new = '''                        val updated = editingCourse!!.copy(title = editTitle, description = editDescription, theme = editTheme, imageUrl = editImageUrl.trim(), accessMode = editCourseAccessMode)
+'''
+          if old not in vip: raise SystemExit('edit course save marker not found')
+          vip = vip.replace(old, new, 1)
+
+          old = '''        var editStudyDocxUrl by remember(editingChapter) { mutableStateOf(editingChapter!!.studyDocxUrl) }
+        
+'''
+          new = '''        var editStudyDocxUrl by remember(editingChapter) { mutableStateOf(editingChapter!!.studyDocxUrl) }
+        var editAccessMode by remember(editingChapter) { mutableStateOf(editingChapter!!.accessMode.ifBlank { IBR_LESSON_FREE }.uppercase()) }
+        
+'''
+          if old not in vip: raise SystemExit('edit lesson access state marker not found')
+          vip = vip.replace(old, new, 1)
+
+          old = '''                    when (editType) {
+                        "VIDEO" -> LocalUploadField(value = editVideoUrl, onValueChange = { editVideoUrl = it }, label = "Vídeo ou link do YouTube", mimeType = "video/*")
+'''
+          new = '''                    Text("Liberação da aula", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(
+                            IBR_LESSON_FREE to "Livre",
+                            IBR_LESSON_AFTER_PREVIOUS to "Após anterior",
+                            IBR_LESSON_MANUAL_LOCKED to "Bloqueada"
+                        ).forEach { (id, title) ->
+                            FilterChip(selected = editAccessMode == id, onClick = { editAccessMode = id }, label = { Text(title) })
+                        }
+                    }
+                    when (editType) {
+                        "VIDEO" -> LocalUploadField(value = editVideoUrl, onValueChange = { editVideoUrl = it }, label = "Vídeo ou link do YouTube", mimeType = "video/*")
+'''
+          if old not in vip: raise SystemExit('edit lesson access UI marker not found')
+          vip = vip.replace(old, new, 1)
+
+          old = '''                                studyPdfUrl = editStudyPdfUrl.trim(),
+                                studyDocxUrl = editStudyDocxUrl.trim(),
+                                isYoutube = isYt,
+'''
+          new = '''                                studyPdfUrl = editStudyPdfUrl.trim(),
+                                studyDocxUrl = editStudyDocxUrl.trim(),
+                                accessMode = editAccessMode,
+                                isYoutube = isYt,
+'''
+          if old not in vip: raise SystemExit('edit lesson save marker not found')
+          vip = vip.replace(old, new, 1)
+          vip_path.write_text(vip, encoding='utf-8')
+          PY
+
+      - name: Testar bloco 2
+        run: ./gradlew compileReleaseKotlin --no-daemon
+
+      - name: Commit bloco 2
+        run: |
+          git add app/src/main/java/com/aistudio/micrhema/Data.kt app/src/main/java/com/aistudio/micrhema/IbrAdminSimpleHelpers.kt app/src/main/java/com/aistudio/micrhema/VipAdmin.kt
+          git commit -m "feat: adicionar bloqueio simples de cursos e aulas"
+
+      - name: Bloco 3 — aplicar liberação para o aluno
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          path = Path('app/src/main/java/com/aistudio/micrhema/IbrScreen.kt')
+          text = path.read_text(encoding='utf-8')
+
+          old = '''            val nextLesson = allLessons.firstOrNull { (c, ch) ->
+                ibrProgressState.find { it.courseId == c.id && it.chapterId == ch.id }?.let { it.lastPositionSeconds > 0 && !it.isCompleted } == true
+            } ?: allLessons.firstOrNull { (c, ch) ->
+                ibrProgressState.none { it.courseId == c.id && it.chapterId == ch.id && it.isCompleted }
+            }
+'''
+          new = '''            val nextLesson = allLessons.firstOrNull { (c, ch) ->
+                isIbrChapterUnlocked(c, ch) &&
+                    ibrProgressState.find { it.courseId == c.id && it.chapterId == ch.id }?.let { it.lastPositionSeconds > 0 && !it.isCompleted } == true
+            } ?: allLessons.firstOrNull { (c, ch) ->
+                isIbrChapterUnlocked(c, ch) &&
+                    ibrProgressState.none { it.courseId == c.id && it.chapterId == ch.id && it.isCompleted }
+            }
+'''
+          if old not in text: raise SystemExit('nextLesson marker not found')
+          text = text.replace(old, new, 1)
+
+          old = '''                courses.forEachIndexed { index, course ->
+                    val locked = index > 0 && !previousCourseCompleted
+'''
+          new = '''                courses.forEachIndexed { index, course ->
+                    val automaticLocked = index > 0 && !previousCourseCompleted
+                    val locked = isIbrCourseLocked(course, automaticLocked)
+'''
+          if old not in text: raise SystemExit('course lock marker not found')
+          text = text.replace(old, new, 1)
+
+          old = '''                            if (locked) android.widget.Toast.makeText(localContext, "Conclua o módulo anterior para desbloquear este.", android.widget.Toast.LENGTH_SHORT).show()
+                            else onNavigateToCourse(course.id)
+'''
+          new = '''                            if (locked) {
+                                val message = if (course.accessMode.uppercase() == IBR_COURSE_LOCKED) "Este módulo foi bloqueado pelo administrador." else "Conclua o módulo anterior para desbloquear este."
+                                android.widget.Toast.makeText(localContext, message, android.widget.Toast.LENGTH_SHORT).show()
+                            } else onNavigateToCourse(course.id)
+'''
+          if old not in text: raise SystemExit('course toast marker not found')
+          text = text.replace(old, new, 1)
+
+          old = '''            items(course.chapters) { chapter ->
+                val isCompleted = ibrProgressState.any { it.courseId == course.id && it.chapterId == chapter.id && it.isCompleted }
+                Card(
+                    modifier = Modifier.fillMaxWidth().clickable {
+                        markIbrChapterStarted(context, course, chapter)
+                        onNavigateToLesson(course.id, chapter.id)
+                    },
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+'''
+          new = '''            items(course.chapters) { chapter ->
+                val isCompleted = ibrProgressState.any { it.courseId == course.id && it.chapterId == chapter.id && it.isCompleted }
+                val isUnlocked = isIbrChapterUnlocked(course, chapter)
+                Card(
+                    modifier = Modifier.fillMaxWidth().clickable {
+                        if (isUnlocked) {
+                            markIbrChapterStarted(context, course, chapter)
+                            onNavigateToLesson(course.id, chapter.id)
+                        } else {
+                            val message = if (chapter.accessMode.uppercase() == IBR_LESSON_AFTER_PREVIOUS) "Conclua a aula anterior para liberar esta aula." else "Esta aula está bloqueada pelo administrador."
+                            android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = if (isUnlocked) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .55f))
+                ) {
+'''
+          if old not in text: raise SystemExit('lesson card marker not found')
+          text = text.replace(old, new, 1)
+
+          old = '''                            Text("${chapter.durationMinutes} min", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                        }
+                        Icon(if (isCompleted) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked, if (isCompleted) "Concluído" else "Pendente", modifier = Modifier.size(23.dp), tint = if (isCompleted) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurface.copy(alpha = .3f))
+'''
+          new = '''                            Text("${chapter.durationMinutes} min • ${ibrChapterAccessLabel(chapter.accessMode)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                            if (!isUnlocked) {
+                                Text(
+                                    if (chapter.accessMode.uppercase() == IBR_LESSON_AFTER_PREVIOUS) "Aguardando aula anterior" else "Bloqueada pelo ADM",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                        Icon(
+                            if (!isUnlocked) Icons.Default.Lock else if (isCompleted) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                            if (!isUnlocked) "Bloqueada" else if (isCompleted) "Concluído" else "Pendente",
+                            modifier = Modifier.size(23.dp),
+                            tint = if (!isUnlocked) MaterialTheme.colorScheme.error else if (isCompleted) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurface.copy(alpha = .3f)
+                        )
+'''
+          if old not in text: raise SystemExit('lesson status marker not found')
+          text = text.replace(old, new, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Testar bloco 3 com APK completo
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Commit bloco 3
+        run: |
+          git add app/src/main/java/com/aistudio/micrhema/IbrScreen.kt
+          git commit -m "feat: aplicar regras de liberação no IBR"
+
+      - name: Publicar branch e remover arquivos temporários
+        run: |
+          rm -f app/google-services.json .env release.keystore
+          git push origin HEAD:feat/ibr-categories-lesson-access
+          git rm .github/workflows/ibr-categories-access-blocks.yml
+          git commit -m "chore: remover validação temporária do IBR"
+          git push origin HEAD:feat/ibr-categories-lesson-access
