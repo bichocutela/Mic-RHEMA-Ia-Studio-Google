@@ -136,7 +136,7 @@ fun EditVipSection() {
 
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             if (vipTab == "overview") {
-                EditIbrOverviewSection()
+                EditIbrOverviewSection(onOpenTab = { vipTab = it })
             } else if (vipTab == "midia") {
                 EditVipContentSection()
             } else if (vipTab == "cursos") {
@@ -149,11 +149,15 @@ fun EditVipSection() {
 }
 
 @Composable
-fun EditIbrOverviewSection() {
+fun EditIbrOverviewSection(onOpenTab: (String) -> Unit = {}) {
     val totalCourses = ibrCoursesState.size
     val totalLessons = ibrCoursesState.sumOf { it.chapters.size }
     val totalIbrMembers = memberRequestsState.count { it.isIbr }
-    val certificatesPending = memberRequestsState.count { it.isIbr && it.ibrCertificateUrl.isBlank() && it.ibrCertificateStoragePath.isBlank() }
+    val progressByMember = rememberIbrProgressByMember()
+    val certificatesPending = memberRequestsState.count { member ->
+        member.isIbr && member.ibrCertificateUrl.isBlank() && member.ibrCertificateStoragePath.isBlank() &&
+            isIbrCompleteFor(progressByMember[member.id].orEmpty())
+    }
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -165,14 +169,14 @@ fun EditIbrOverviewSection() {
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                IbrAdminMetricCard("Cursos", totalCourses.toString(), Icons.Default.MenuBook, Modifier.weight(1f))
-                IbrAdminMetricCard("Aulas", totalLessons.toString(), Icons.Default.Class, Modifier.weight(1f))
+                IbrAdminMetricCard("Cursos", totalCourses.toString(), Icons.Default.MenuBook, Modifier.weight(1f)) { onOpenTab("cursos") }
+                IbrAdminMetricCard("Aulas", totalLessons.toString(), Icons.Default.Class, Modifier.weight(1f)) { onOpenTab("cursos") }
             }
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 IbrAdminMetricCard("Alunos IBR", totalIbrMembers.toString(), Icons.Default.People, Modifier.weight(1f))
-                IbrAdminMetricCard("Certificados", certificatesPending.toString(), Icons.Default.EmojiEvents, Modifier.weight(1f))
+                IbrAdminMetricCard("Cert. pendentes", certificatesPending.toString(), Icons.Default.EmojiEvents, Modifier.weight(1f)) { onOpenTab("certificados") }
             }
         }
         item {
@@ -188,8 +192,18 @@ fun EditIbrOverviewSection() {
 }
 
 @Composable
-private fun IbrAdminMetricCard(label: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier = Modifier) {
-    Card(modifier = modifier, shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+private fun IbrAdminMetricCard(
+    label: String,
+    value: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
+) {
+    Card(
+        modifier = modifier.then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.height(8.dp))
@@ -1574,27 +1588,11 @@ fun EditIbrCertificatesSection() {
     var emailingMemberId by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     
-    val totalIbrCourses = ibrCoursesState.size
-    
-    val eligibleUsers = memberRequestsState.filter { member -> 
-        if (!member.isIbr) return@filter false
-        if (totalIbrCourses == 0) return@filter false
-        
-        var completedCoursesCount = 0
-        ibrCoursesState.forEach { course ->
-            var allChaptersCompleted = true
-            course.chapters.forEach { chapter ->
-                val p = ibrProgressState.find { it.courseId == course.id && it.chapterId == chapter.id }
-                if (p == null || !p.isCompleted) {
-                    allChaptersCompleted = false
-                }
-            }
-            if (allChaptersCompleted && course.chapters.isNotEmpty()) {
-                completedCoursesCount++
-            }
-        }
-        
-        completedCoursesCount == totalIbrCourses
+    val totalIbrCourses = ibrCoursesState.count { it.chapters.isNotEmpty() }
+    val totalIbrLessons = ibrCoursesState.sumOf { it.chapters.size }
+    val progressByMember = rememberIbrProgressByMember()
+    val eligibleUsers = memberRequestsState.filter { member ->
+        member.isIbr && isIbrCompleteFor(progressByMember[member.id].orEmpty())
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
@@ -1627,7 +1625,9 @@ fun EditIbrCertificatesSection() {
                                 }
                             }
 
-                            val memberBadgeProgress = calculateBadgeProgress(member)
+                            val memberProgress = progressByMember[member.id].orEmpty()
+                            val completedLessons = memberProgress.count { it.isCompleted }
+                            val completedCourses = completedIbrCourseCountFor(memberProgress)
                             val memberBadge = biblicalBadgeForId(member.equippedBadgeId)
                             Card(
                                 modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
@@ -1642,12 +1642,12 @@ fun EditIbrCertificatesSection() {
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text("Nível ${memberBadge.level ?: 1}: ${memberBadge.name}", fontWeight = FontWeight.SemiBold)
                                         Text(
-                                            "${memberBadgeProgress.unlockedIds.size} emblemas desbloqueados • ${memberBadgeProgress.completedIbrCourses} cursos concluídos",
+                                            "$completedCourses/$totalIbrCourses cursos concluídos",
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
-                                    Text("${memberBadgeProgress.completedIbrLessons} aulas", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                    Text("$completedLessons/$totalIbrLessons aulas", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                                 }
                             }
 
