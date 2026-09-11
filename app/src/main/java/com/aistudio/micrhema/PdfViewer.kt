@@ -8,9 +8,7 @@ import android.os.ParcelFileDescriptor
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,14 +29,16 @@ import java.net.URL
 fun PdfViewer(
     bookUrl: String,
     title: String,
+    contentType: String = "",
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     var isLoading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var pdfFile by remember { mutableStateOf<File?>(null) }
+    var detectedFileType by remember { mutableStateOf<GoogleDriveService.FileType?>(null) }
 
-    LaunchedEffect(bookUrl) {
+    LaunchedEffect(bookUrl, contentType) {
         if (bookUrl.isBlank()) {
             error = "URL do livro não informada."
             isLoading = false
@@ -47,6 +47,21 @@ fun PdfViewer(
         isLoading = true
         error = null
         try {
+            detectedFileType = if (contentType.equals("word", ignoreCase = true)) {
+                GoogleDriveService.FileType.WORD
+            } else if (bookUrl.startsWith("http", ignoreCase = true)) {
+                GoogleDriveService.identifyFileType(bookUrl)
+            } else {
+                val mime = runCatching {
+                    context.contentResolver.getType(Uri.parse(bookUrl)).orEmpty().lowercase()
+                }.getOrDefault("")
+                if (mime.contains("wordprocessingml")) GoogleDriveService.FileType.WORD else GoogleDriveService.FileType.PDF
+            }
+            if (detectedFileType == GoogleDriveService.FileType.WORD) {
+                isLoading = false
+                return@LaunchedEffect
+            }
+
             val file = withContext(Dispatchers.IO) {
                 if (bookUrl.startsWith("http")) {
                     val fileName = "book_${bookUrl.hashCode()}.pdf"
@@ -95,6 +110,32 @@ fun PdfViewer(
                 CircularProgressIndicator()
                 Spacer(modifier = Modifier.height(16.dp))
                 Text("Baixando/Carregando livro...")
+            }
+        } else if (detectedFileType == GoogleDriveService.FileType.WORD) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(title, style = MaterialTheme.typography.titleLarge)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "Documento Word disponível. Você pode abrir em um aplicativo compatível ou baixar o arquivo DOCX.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(modifier = Modifier.height(20.dp))
+                Button(
+                    onClick = { StudyMaterialDownload.openDocument(context, bookUrl, "arquivo Word") },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Abrir Word")
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { StudyMaterialDownload.enqueueDocx(context, bookUrl, title) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Baixar DOCX")
+                }
             }
         } else if (error != null) {
             Text(error!!, color = MaterialTheme.colorScheme.error)

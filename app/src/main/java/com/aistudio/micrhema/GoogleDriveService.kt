@@ -12,6 +12,14 @@ object GoogleDriveService {
      */
     fun getDirectDownloadLink(url: String): String {
         try {
+            // Google Docs nativo: exporta diretamente como Word (.docx).
+            if (url.contains("docs.google.com/document/")) {
+                val docIdRegex = Regex("/document/d/([a-zA-Z0-9_-]+)")
+                val docMatch = docIdRegex.find(url)
+                if (docMatch != null && docMatch.groupValues.size > 1) {
+                    return "https://docs.google.com/document/d/${docMatch.groupValues[1]}/export?format=docx"
+                }
+            }
             if (url.contains("drive.google.com") || url.contains("docs.google.com")) {
                 val fileIdRegex = Regex("/d/([a-zA-Z0-9_-]+)")
                 val match = fileIdRegex.find(url)
@@ -31,7 +39,7 @@ object GoogleDriveService {
     }
 
     /**
-     * Identifies the file type (PDF, image, audio, video) from a given URL.
+     * Identifies the file type (PDF, Word, image, audio, video) from a given URL.
      */
     suspend fun identifyFileType(url: String): FileType = withContext(Dispatchers.IO) {
         if (isYoutubeUrl(url)) return@withContext FileType.VIDEO
@@ -45,10 +53,16 @@ object GoogleDriveService {
             connection.readTimeout = 5000
             connection.connect()
             
-            val contentType = connection.contentType?.lowercase() ?: ""
+            val contentType = connection.contentType?.lowercase().orEmpty()
+            val contentDisposition = connection.getHeaderField("Content-Disposition")?.lowercase().orEmpty()
+            val resolvedUrl = connection.url.toString().lowercase()
             connection.disconnect()
-            
+
+            val fingerprint = "$contentType $contentDisposition $resolvedUrl ${url.lowercase()}"
             return@withContext when {
+                contentType.contains("wordprocessingml") ||
+                    fingerprint.contains(".docx") ||
+                    fingerprint.contains("format=docx") -> FileType.WORD
                 contentType.startsWith("image/") -> FileType.IMAGE
                 contentType.startsWith("audio/") -> FileType.AUDIO
                 contentType.startsWith("video/") -> FileType.VIDEO
@@ -62,6 +76,6 @@ object GoogleDriveService {
     }
 
     enum class FileType {
-        IMAGE, AUDIO, VIDEO, PDF, UNKNOWN
+        IMAGE, AUDIO, VIDEO, PDF, WORD, UNKNOWN
     }
 }

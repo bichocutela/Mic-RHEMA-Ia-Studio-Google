@@ -233,7 +233,7 @@ fun EditVipContentSection() {
         Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("Smart Import Google Drive 🚀", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                Text("Cole um link do Google Drive. O sistema detectará automaticamente se é Livro (PDF), Áudio (MP3), Vídeo (MP4) ou Imagem.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 8.dp))
+                Text("Cole um link do Google Drive. O sistema detectará automaticamente PDF, Word (DOCX), Áudio (MP3), Vídeo (MP4) ou Imagem.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 8.dp))
                 GlassTextField(value = smartUrl, onValueChange = { smartUrl = it }, label = { Text("Link do Google Drive") }, modifier = Modifier.fillMaxWidth())
                 if (isSmartLoading) {
                     CircularProgressIndicator(modifier = Modifier.padding(top = 8.dp).size(24.dp))
@@ -249,6 +249,10 @@ fun EditVipContentSection() {
                                 GoogleDriveService.FileType.PDF -> {
                                     smartMessage = "Livro PDF detectado e adicionado!"
                                     addVipBook(ContentBook(id = System.currentTimeMillis().toString(), title = "Novo Livro Importado", author = "Desconhecido", coverUrl = "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=500&q=80", contentText = "", bookUrl = GoogleDriveService.getDirectDownloadLink(smartUrl)))
+                                }
+                                GoogleDriveService.FileType.WORD -> {
+                                    smartMessage = "Documento Word detectado e adicionado!"
+                                    addVipBook(ContentBook(id = System.currentTimeMillis().toString(), title = "Novo Documento Word Importado", author = "Documento Word", coverUrl = "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=500&q=80", contentText = "", bookUrl = GoogleDriveService.getDirectDownloadLink(smartUrl), type = "word"))
                                 }
                                 GoogleDriveService.FileType.AUDIO -> {
                                     smartMessage = "Áudio detectado e adicionado!"

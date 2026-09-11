@@ -449,7 +449,7 @@ fun androidx.compose.animation.SharedTransitionScope.BookReader(book: ContentBoo
         }
         HorizontalDivider()
         if (book.bookUrl.isNotBlank()) {
-            PdfViewer(bookUrl = book.bookUrl, title = book.title)
+            PdfViewer(bookUrl = book.bookUrl, title = book.title, contentType = book.type)
         } else {
             LazyColumn(contentPadding = PaddingValues(16.dp)) {
                 item {
