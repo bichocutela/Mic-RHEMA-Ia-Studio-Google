@@ -94,9 +94,11 @@ fun IbrMainScreen(onNavigateToCourse: (String) -> Unit) {
             val progressPercent = if (courses.isEmpty()) 0f else completedModules.toFloat() / courses.size
             val allLessons = courses.flatMap { c -> c.chapters.map { ch -> c to ch } }
             val nextLesson = allLessons.firstOrNull { (c, ch) ->
-                ibrProgressState.find { it.courseId == c.id && it.chapterId == ch.id }?.let { it.lastPositionSeconds > 0 && !it.isCompleted } == true
+                isIbrChapterUnlocked(c, ch) &&
+                    ibrProgressState.find { it.courseId == c.id && it.chapterId == ch.id }?.let { it.lastPositionSeconds > 0 && !it.isCompleted } == true
             } ?: allLessons.firstOrNull { (c, ch) ->
-                ibrProgressState.none { it.courseId == c.id && it.chapterId == ch.id && it.isCompleted }
+                isIbrChapterUnlocked(c, ch) &&
+                    ibrProgressState.none { it.courseId == c.id && it.chapterId == ch.id && it.isCompleted }
             }
             val localContext = LocalContext.current
 
@@ -121,11 +123,14 @@ fun IbrMainScreen(onNavigateToCourse: (String) -> Unit) {
                 }
                 var previousCourseCompleted = true
                 courses.forEachIndexed { index, course ->
-                    val locked = index > 0 && !previousCourseCompleted
+                    val automaticLocked = index > 0 && !previousCourseCompleted
+                    val locked = isIbrCourseLocked(course, automaticLocked)
                     item {
                         IbrModuleCard(course, locked) {
-                            if (locked) android.widget.Toast.makeText(localContext, "Conclua o módulo anterior para desbloquear este.", android.widget.Toast.LENGTH_SHORT).show()
-                            else onNavigateToCourse(course.id)
+                            if (locked) {
+                                val message = if (course.accessMode.uppercase() == IBR_COURSE_LOCKED) "Este módulo foi bloqueado pelo administrador." else "Conclua o módulo anterior para desbloquear este."
+                                android.widget.Toast.makeText(localContext, message, android.widget.Toast.LENGTH_SHORT).show()
+                            } else onNavigateToCourse(course.id)
                         }
                     }
                     previousCourseCompleted = course.chapters.isNotEmpty() && course.chapters.all { chapter ->
@@ -363,12 +368,19 @@ fun IbrCourseScreen(courseId: String, onBack: () -> Unit, onNavigateToLesson: (S
             }
             items(course.chapters) { chapter ->
                 val isCompleted = ibrProgressState.any { it.courseId == course.id && it.chapterId == chapter.id && it.isCompleted }
+                val isUnlocked = isIbrChapterUnlocked(course, chapter)
                 Card(
                     modifier = Modifier.fillMaxWidth().clickable {
-                        markIbrChapterStarted(context, course, chapter)
-                        onNavigateToLesson(course.id, chapter.id)
+                        if (isUnlocked) {
+                            markIbrChapterStarted(context, course, chapter)
+                            onNavigateToLesson(course.id, chapter.id)
+                        } else {
+                            val message = if (chapter.accessMode.uppercase() == IBR_LESSON_AFTER_PREVIOUS) "Conclua a aula anterior para liberar esta aula." else "Esta aula está bloqueada pelo administrador."
+                            android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
+                        }
                     },
-                    shape = RoundedCornerShape(14.dp)
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = if (isUnlocked) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .55f))
                 ) {
                     Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
@@ -380,9 +392,21 @@ fun IbrCourseScreen(courseId: String, onBack: () -> Unit, onNavigateToLesson: (S
                             Text(chapter.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                             Spacer(Modifier.height(2.dp))
                             Text(chapter.description, style = MaterialTheme.typography.bodySmall, maxLines = 2)
-                            Text("${chapter.durationMinutes} min", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                            Text("${chapter.durationMinutes} min • ${ibrChapterAccessLabel(chapter.accessMode)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                            if (!isUnlocked) {
+                                Text(
+                                    if (chapter.accessMode.uppercase() == IBR_LESSON_AFTER_PREVIOUS) "Aguardando aula anterior" else "Bloqueada pelo ADM",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
                         }
-                        Icon(if (isCompleted) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked, if (isCompleted) "Concluído" else "Pendente", modifier = Modifier.size(23.dp), tint = if (isCompleted) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurface.copy(alpha = .3f))
+                        Icon(
+                            if (!isUnlocked) Icons.Default.Lock else if (isCompleted) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                            if (!isUnlocked) "Bloqueada" else if (isCompleted) "Concluído" else "Pendente",
+                            modifier = Modifier.size(23.dp),
+                            tint = if (!isUnlocked) MaterialTheme.colorScheme.error else if (isCompleted) Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurface.copy(alpha = .3f)
+                        )
                     }
                 }
             }
