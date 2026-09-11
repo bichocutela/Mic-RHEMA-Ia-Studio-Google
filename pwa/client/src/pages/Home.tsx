@@ -11,7 +11,7 @@ const ADMIN_SESSION_KEY="mic-rhema-pwa-admin-session";
 
 function initialViewFromUrl(): AppView {
   const requested = new URLSearchParams(window.location.search).get("view") || "";
-  const allowed = new Set<AppView>(["home","bible","news","devotionals","media","ibr","menu","profile","settings","admin","discipulado","cultos","plans","prayer","members","team","donations","about"]);
+  const allowed = new Set<AppView>(["home","bible","news","devotionals","media","ibr","menu","profile","settings","admin","xp-admin","discipulado","cultos","plans","prayer","members","team","donations","about"]);
   return allowed.has(requested as AppView) ? requested as AppView : "home";
 }
 
@@ -163,7 +163,7 @@ export default function Home() {
 
   const navigate=(next:AppView)=>{
     setView(next);
-    if(next==="admin"&&!adminSession?.isAdmin)setShowAdminLogin(true);
+    if((next==="admin"||next==="xp-admin")&&!adminSession?.isAdmin)setShowAdminLogin(true);
   };
 
   const openProfile=()=>{
@@ -179,7 +179,8 @@ export default function Home() {
     }catch(error){toast.error("Não foi possível ativar os avisos",{description:error instanceof Error?error.message:"Tente novamente em instantes."})}
   };
 
-  const shellSession=view==="admin"?adminSession:session;
+  const adminView=view==="admin"||view==="xp-admin";
+  const shellSession=adminView?adminSession:session;
 
   return <>
     <PwaShell
@@ -193,7 +194,7 @@ export default function Home() {
       session={shellSession}
       onNotifications={enableNotifications}
     />
-    {adminSession?.isAdmin&&view==="admin"&&<button
+    {adminSession?.isAdmin&&adminView&&<button
       type="button"
       onClick={()=>void logoutAdmin()}
       aria-label="Sair da administração"
