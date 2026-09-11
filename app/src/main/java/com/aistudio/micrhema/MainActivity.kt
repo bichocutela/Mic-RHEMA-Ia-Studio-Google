@@ -632,7 +632,7 @@ LaunchedEffect(loggedInMemberState.value?.id, currentRoute) {
                 modifier = Modifier.weight(1f),
                 containerColor = MaterialTheme.colorScheme.background,
                 bottomBar = {
-                    if (!isImeVisible) {
+                    if (!isImeVisible && currentRoute != Screen.Admin.route) {
                         Column(modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars)) {
                             PersistentAudioPlayerBar()
                             if (isCompact) {
