@@ -31,175 +31,95 @@ jobs:
               text = file.read_text(encoding="utf-8")
               count = text.count(old)
               if count != 1:
-                  raise SystemExit(f"Esperava 1 ocorrência em {path}, encontrei {count}: {old[:100]!r}")
+                  raise SystemExit(f"Esperava 1 ocorrência em {path}, encontrei {count}: {old[:120]!r}")
               file.write_text(text.replace(old, new, 1), encoding="utf-8")
 
           drive = "app/src/main/java/com/aistudio/micrhema/GoogleDriveService.kt"
           replace_once(
               drive,
-              '''        try {
-                      if (url.contains("drive.google.com") || url.contains("docs.google.com")) {''',
-              '''        try {
-                      // Google Docs nativo: exporta diretamente como Word para poder distribuir no IBR.
-                      if (url.contains("docs.google.com/document/")) {
-                          val docIdRegex = Regex("/document/d/([a-zA-Z0-9_-]+)")
-                          val docMatch = docIdRegex.find(url)
-                          if (docMatch != null && docMatch.groupValues.size > 1) {
-                              return "https://docs.google.com/document/d/${docMatch.groupValues[1]}/export?format=docx"
-                          }
-                      }
-                      if (url.contains("drive.google.com") || url.contains("docs.google.com")) {'''
+              '        try {\n            if (url.contains("drive.google.com") || url.contains("docs.google.com")) {',
+              '        try {\n            // Google Docs nativo: exporta diretamente como Word (.docx).\n            if (url.contains("docs.google.com/document/")) {\n                val docIdRegex = Regex("/document/d/([a-zA-Z0-9_-]+)")\n                val docMatch = docIdRegex.find(url)\n                if (docMatch != null && docMatch.groupValues.size > 1) {\n                    return "https://docs.google.com/document/d/${docMatch.groupValues[1]}/export?format=docx"\n                }\n            }\n            if (url.contains("drive.google.com") || url.contains("docs.google.com")) {'
           )
           replace_once(
               drive,
-              '''     * Identifies the file type (PDF, image, audio, video) from a given URL.''',
-              '''     * Identifies the file type (PDF, Word, image, audio, video) from a given URL.'''
+              '     * Identifies the file type (PDF, image, audio, video) from a given URL.',
+              '     * Identifies the file type (PDF, Word, image, audio, video) from a given URL.'
           )
           replace_once(
               drive,
-              '''            val contentType = connection.contentType?.lowercase() ?: ""
-                      connection.disconnect()
-                      
-                      return@withContext when {
-                          contentType.startsWith("image/") -> FileType.IMAGE
-                          contentType.startsWith("audio/") -> FileType.AUDIO
-                          contentType.startsWith("video/") -> FileType.VIDEO
-                          contentType.contains("pdf") -> FileType.PDF
-                          else -> FileType.UNKNOWN
-                      }''',
-              '''            val contentType = connection.contentType?.lowercase().orEmpty()
-                      val contentDisposition = connection.getHeaderField("Content-Disposition")?.lowercase().orEmpty()
-                      val resolvedUrl = connection.url.toString().lowercase()
-                      connection.disconnect()
-
-                      val fingerprint = "$contentType $contentDisposition $resolvedUrl ${url.lowercase()}"
-                      return@withContext when {
-                          contentType.contains("wordprocessingml") ||
-                              contentType.contains("msword") ||
-                              fingerprint.contains(".docx") ||
-                              fingerprint.contains(".doc") ||
-                              fingerprint.contains("format=docx") -> FileType.WORD
-                          contentType.startsWith("image/") -> FileType.IMAGE
-                          contentType.startsWith("audio/") -> FileType.AUDIO
-                          contentType.startsWith("video/") -> FileType.VIDEO
-                          contentType.contains("pdf") -> FileType.PDF
-                          else -> FileType.UNKNOWN
-                      }'''
+              '            val contentType = connection.contentType?.lowercase() ?: ""\n            connection.disconnect()\n            \n            return@withContext when {\n                contentType.startsWith("image/") -> FileType.IMAGE\n                contentType.startsWith("audio/") -> FileType.AUDIO\n                contentType.startsWith("video/") -> FileType.VIDEO\n                contentType.contains("pdf") -> FileType.PDF\n                else -> FileType.UNKNOWN\n            }',
+              '            val contentType = connection.contentType?.lowercase().orEmpty()\n            val contentDisposition = connection.getHeaderField("Content-Disposition")?.lowercase().orEmpty()\n            val resolvedUrl = connection.url.toString().lowercase()\n            connection.disconnect()\n\n            val fingerprint = "$contentType $contentDisposition $resolvedUrl ${url.lowercase()}"\n            return@withContext when {\n                contentType.contains("wordprocessingml") ||\n                    fingerprint.contains(".docx") ||\n                    fingerprint.contains("format=docx") -> FileType.WORD\n                contentType.startsWith("image/") -> FileType.IMAGE\n                contentType.startsWith("audio/") -> FileType.AUDIO\n                contentType.startsWith("video/") -> FileType.VIDEO\n                contentType.contains("pdf") -> FileType.PDF\n                else -> FileType.UNKNOWN\n            }'
           )
           replace_once(
               drive,
-              '''    enum class FileType {
-                      IMAGE, AUDIO, VIDEO, PDF, UNKNOWN
-                  }''',
-              '''    enum class FileType {
-                      IMAGE, AUDIO, VIDEO, PDF, WORD, UNKNOWN
-                  }'''
+              '    enum class FileType {\n        IMAGE, AUDIO, VIDEO, PDF, UNKNOWN\n    }',
+              '    enum class FileType {\n        IMAGE, AUDIO, VIDEO, PDF, WORD, UNKNOWN\n    }'
           )
 
           vip = "app/src/main/java/com/aistudio/micrhema/VipAdmin.kt"
           replace_once(
               vip,
-              '''                Text("Cole um link do Google Drive. O sistema detectará automaticamente se é Livro (PDF), Áudio (MP3), Vídeo (MP4) ou Imagem.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 8.dp))''',
-              '''                Text("Cole um link do Google Drive. O sistema detectará automaticamente PDF, Word (DOC/DOCX), Áudio (MP3), Vídeo (MP4) ou Imagem.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 8.dp))'''
+              '                Text("Cole um link do Google Drive. O sistema detectará automaticamente se é Livro (PDF), Áudio (MP3), Vídeo (MP4) ou Imagem.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 8.dp))',
+              '                Text("Cole um link do Google Drive. O sistema detectará automaticamente PDF, Word (DOCX), Áudio (MP3), Vídeo (MP4) ou Imagem.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 8.dp))'
           )
           replace_once(
               vip,
-              '''                                GoogleDriveService.FileType.AUDIO -> {
-                                          smartMessage = "Áudio detectado e adicionado!"''',
-              '''                                GoogleDriveService.FileType.WORD -> {
-                                          smartMessage = "Documento Word detectado e adicionado!"
-                                          addVipBook(ContentBook(id = System.currentTimeMillis().toString(), title = "Novo Documento Word Importado", author = "Documento Word", coverUrl = "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=500&q=80", contentText = "", bookUrl = GoogleDriveService.getDirectDownloadLink(smartUrl), type = "word"))
-                                      }
-                                      GoogleDriveService.FileType.AUDIO -> {
-                                          smartMessage = "Áudio detectado e adicionado!"'''
+              '                                GoogleDriveService.FileType.AUDIO -> {\n                                    smartMessage = "Áudio detectado e adicionado!"',
+              '                                GoogleDriveService.FileType.WORD -> {\n                                    smartMessage = "Documento Word detectado e adicionado!"\n                                    addVipBook(ContentBook(id = System.currentTimeMillis().toString(), title = "Novo Documento Word Importado", author = "Documento Word", coverUrl = "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=500&q=80", contentText = "", bookUrl = GoogleDriveService.getDirectDownloadLink(smartUrl), type = "word"))\n                                }\n                                GoogleDriveService.FileType.AUDIO -> {\n                                    smartMessage = "Áudio detectado e adicionado!"'
+          )
+
+          screens = "app/src/main/java/com/aistudio/micrhema/ContentScreens.kt"
+          replace_once(
+              screens,
+              '            PdfViewer(bookUrl = book.bookUrl, title = book.title)',
+              '            PdfViewer(bookUrl = book.bookUrl, title = book.title, contentType = book.type)'
           )
 
           viewer = "app/src/main/java/com/aistudio/micrhema/PdfViewer.kt"
           replace_once(
               viewer,
-              '''import androidx.compose.material3.CircularProgressIndicator
-                  import androidx.compose.material3.MaterialTheme
-                  import androidx.compose.material3.Text''',
-              '''import androidx.compose.material3.*'''
+              'import androidx.compose.material3.CircularProgressIndicator\nimport androidx.compose.material3.MaterialTheme\nimport androidx.compose.material3.Text',
+              'import androidx.compose.material3.*'
           )
           replace_once(
               viewer,
-              '''    var pdfFile by remember { mutableStateOf<File?>(null) }''',
-              '''    var pdfFile by remember { mutableStateOf<File?>(null) }
-                  var detectedFileType by remember { mutableStateOf<GoogleDriveService.FileType?>(null) }'''
+              '    title: String,\n    modifier: Modifier = Modifier',
+              '    title: String,\n    contentType: String = "",\n    modifier: Modifier = Modifier'
           )
           replace_once(
               viewer,
-              '''        try {
-                      val file = withContext(Dispatchers.IO) {''',
-              '''        try {
-                      detectedFileType = if (bookUrl.startsWith("http", ignoreCase = true)) {
-                          GoogleDriveService.identifyFileType(bookUrl)
-                      } else {
-                          val mime = runCatching {
-                              context.contentResolver.getType(Uri.parse(bookUrl)).orEmpty().lowercase()
-                          }.getOrDefault("")
-                          if (mime.contains("wordprocessingml") || mime.contains("msword")) {
-                              GoogleDriveService.FileType.WORD
-                          } else {
-                              GoogleDriveService.FileType.PDF
-                          }
-                      }
-                      if (detectedFileType == GoogleDriveService.FileType.WORD) {
-                          isLoading = false
-                          return@LaunchedEffect
-                      }
-
-                      val file = withContext(Dispatchers.IO) {'''
+              '    var pdfFile by remember { mutableStateOf<File?>(null) }',
+              '    var pdfFile by remember { mutableStateOf<File?>(null) }\n    var detectedFileType by remember { mutableStateOf<GoogleDriveService.FileType?>(null) }'
           )
           replace_once(
               viewer,
-              '''        } else if (error != null) {
-                      Text(error!!, color = MaterialTheme.colorScheme.error)''',
-              '''        } else if (detectedFileType == GoogleDriveService.FileType.WORD) {
-                      Column(
-                          modifier = Modifier.fillMaxWidth().padding(24.dp),
-                          horizontalAlignment = Alignment.CenterHorizontally
-                      ) {
-                          Text(title, style = MaterialTheme.typography.titleLarge)
-                          Spacer(modifier = Modifier.height(8.dp))
-                          Text(
-                              "Documento Word disponível. Você pode abrir em um aplicativo compatível ou baixar o arquivo DOCX.",
-                              style = MaterialTheme.typography.bodyMedium
-                          )
-                          Spacer(modifier = Modifier.height(20.dp))
-                          Button(
-                              onClick = { StudyMaterialDownload.openDocument(context, bookUrl, "arquivo Word") },
-                              modifier = Modifier.fillMaxWidth()
-                          ) {
-                              Text("Abrir Word")
-                          }
-                          Spacer(modifier = Modifier.height(8.dp))
-                          OutlinedButton(
-                              onClick = { StudyMaterialDownload.enqueueDocx(context, bookUrl, title) },
-                              modifier = Modifier.fillMaxWidth()
-                          ) {
-                              Text("Baixar DOCX")
-                          }
-                      }
-                  } else if (error != null) {
-                      Text(error!!, color = MaterialTheme.colorScheme.error)'''
+              '    LaunchedEffect(bookUrl) {',
+              '    LaunchedEffect(bookUrl, contentType) {'
+          )
+          replace_once(
+              viewer,
+              '        try {\n            val file = withContext(Dispatchers.IO) {',
+              '        try {\n            detectedFileType = if (contentType.equals("word", ignoreCase = true)) {\n                GoogleDriveService.FileType.WORD\n            } else if (bookUrl.startsWith("http", ignoreCase = true)) {\n                GoogleDriveService.identifyFileType(bookUrl)\n            } else {\n                val mime = runCatching {\n                    context.contentResolver.getType(Uri.parse(bookUrl)).orEmpty().lowercase()\n                }.getOrDefault("")\n                if (mime.contains("wordprocessingml")) GoogleDriveService.FileType.WORD else GoogleDriveService.FileType.PDF\n            }\n            if (detectedFileType == GoogleDriveService.FileType.WORD) {\n                isLoading = false\n                return@LaunchedEffect\n            }\n\n            val file = withContext(Dispatchers.IO) {'
+          )
+          replace_once(
+              viewer,
+              '        } else if (error != null) {\n            Text(error!!, color = MaterialTheme.colorScheme.error)',
+              '        } else if (detectedFileType == GoogleDriveService.FileType.WORD) {\n            Column(\n                modifier = Modifier.fillMaxWidth().padding(24.dp),\n                horizontalAlignment = Alignment.CenterHorizontally\n            ) {\n                Text(title, style = MaterialTheme.typography.titleLarge)\n                Spacer(modifier = Modifier.height(8.dp))\n                Text(\n                    "Documento Word disponível. Você pode abrir em um aplicativo compatível ou baixar o arquivo DOCX.",\n                    style = MaterialTheme.typography.bodyMedium\n                )\n                Spacer(modifier = Modifier.height(20.dp))\n                Button(\n                    onClick = { StudyMaterialDownload.openDocument(context, bookUrl, "arquivo Word") },\n                    modifier = Modifier.fillMaxWidth()\n                ) {\n                    Text("Abrir Word")\n                }\n                Spacer(modifier = Modifier.height(8.dp))\n                OutlinedButton(\n                    onClick = { StudyMaterialDownload.enqueueDocx(context, bookUrl, title) },\n                    modifier = Modifier.fillMaxWidth()\n                ) {\n                    Text("Baixar DOCX")\n                }\n            }\n        } else if (error != null) {\n            Text(error!!, color = MaterialTheme.colorScheme.error)'
           )
 
-          # O próprio workflow é temporário e não fica no repositório depois da correção.
+          # Remove este workflow temporário antes de gerar o commit definitivo.
           Path(".github/workflows/oneoff-word-import.yml").unlink()
 
       - name: Conferir alterações
         run: |
           grep -q 'FileType.WORD' app/src/main/java/com/aistudio/micrhema/VipAdmin.kt
-          grep -q 'Word (DOC/DOCX)' app/src/main/java/com/aistudio/micrhema/VipAdmin.kt
+          grep -q 'Word (DOCX)' app/src/main/java/com/aistudio/micrhema/VipAdmin.kt
           grep -q 'WORD, UNKNOWN' app/src/main/java/com/aistudio/micrhema/GoogleDriveService.kt
+          grep -q 'contentType = book.type' app/src/main/java/com/aistudio/micrhema/ContentScreens.kt
           grep -q 'Baixar DOCX' app/src/main/java/com/aistudio/micrhema/PdfViewer.kt
           git diff --check
 
       - name: Commit e push
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
