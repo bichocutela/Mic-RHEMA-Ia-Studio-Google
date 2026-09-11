@@ -1,0 +1,220 @@
+name: One-off Word import patch
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/oneoff-word-import.yml'
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  patch-word-import:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Aplicar suporte a Word no Smart Import
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"Esperava 1 ocorrência em {path}, encontrei {count}: {old[:100]!r}")
+              file.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          drive = "app/src/main/java/com/aistudio/micrhema/GoogleDriveService.kt"
+          replace_once(
+              drive,
+              '''        try {
+                      if (url.contains("drive.google.com") || url.contains("docs.google.com")) {''',
+              '''        try {
+                      // Google Docs nativo: exporta diretamente como Word para poder distribuir no IBR.
+                      if (url.contains("docs.google.com/document/")) {
+                          val docIdRegex = Regex("/document/d/([a-zA-Z0-9_-]+)")
+                          val docMatch = docIdRegex.find(url)
+                          if (docMatch != null && docMatch.groupValues.size > 1) {
+                              return "https://docs.google.com/document/d/${docMatch.groupValues[1]}/export?format=docx"
+                          }
+                      }
+                      if (url.contains("drive.google.com") || url.contains("docs.google.com")) {'''
+          )
+          replace_once(
+              drive,
+              '''     * Identifies the file type (PDF, image, audio, video) from a given URL.''',
+              '''     * Identifies the file type (PDF, Word, image, audio, video) from a given URL.'''
+          )
+          replace_once(
+              drive,
+              '''            val contentType = connection.contentType?.lowercase() ?: ""
+                      connection.disconnect()
+                      
+                      return@withContext when {
+                          contentType.startsWith("image/") -> FileType.IMAGE
+                          contentType.startsWith("audio/") -> FileType.AUDIO
+                          contentType.startsWith("video/") -> FileType.VIDEO
+                          contentType.contains("pdf") -> FileType.PDF
+                          else -> FileType.UNKNOWN
+                      }''',
+              '''            val contentType = connection.contentType?.lowercase().orEmpty()
+                      val contentDisposition = connection.getHeaderField("Content-Disposition")?.lowercase().orEmpty()
+                      val resolvedUrl = connection.url.toString().lowercase()
+                      connection.disconnect()
+
+                      val fingerprint = "$contentType $contentDisposition $resolvedUrl ${url.lowercase()}"
+                      return@withContext when {
+                          contentType.contains("wordprocessingml") ||
+                              contentType.contains("msword") ||
+                              fingerprint.contains(".docx") ||
+                              fingerprint.contains(".doc") ||
+                              fingerprint.contains("format=docx") -> FileType.WORD
+                          contentType.startsWith("image/") -> FileType.IMAGE
+                          contentType.startsWith("audio/") -> FileType.AUDIO
+                          contentType.startsWith("video/") -> FileType.VIDEO
+                          contentType.contains("pdf") -> FileType.PDF
+                          else -> FileType.UNKNOWN
+                      }'''
+          )
+          replace_once(
+              drive,
+              '''    enum class FileType {
+                      IMAGE, AUDIO, VIDEO, PDF, UNKNOWN
+                  }''',
+              '''    enum class FileType {
+                      IMAGE, AUDIO, VIDEO, PDF, WORD, UNKNOWN
+                  }'''
+          )
+
+          vip = "app/src/main/java/com/aistudio/micrhema/VipAdmin.kt"
+          replace_once(
+              vip,
+              '''                Text("Cole um link do Google Drive. O sistema detectará automaticamente se é Livro (PDF), Áudio (MP3), Vídeo (MP4) ou Imagem.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 8.dp))''',
+              '''                Text("Cole um link do Google Drive. O sistema detectará automaticamente PDF, Word (DOC/DOCX), Áudio (MP3), Vídeo (MP4) ou Imagem.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 8.dp))'''
+          )
+          replace_once(
+              vip,
+              '''                                GoogleDriveService.FileType.AUDIO -> {
+                                          smartMessage = "Áudio detectado e adicionado!"''',
+              '''                                GoogleDriveService.FileType.WORD -> {
+                                          smartMessage = "Documento Word detectado e adicionado!"
+                                          addVipBook(ContentBook(id = System.currentTimeMillis().toString(), title = "Novo Documento Word Importado", author = "Documento Word", coverUrl = "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=500&q=80", contentText = "", bookUrl = GoogleDriveService.getDirectDownloadLink(smartUrl), type = "word"))
+                                      }
+                                      GoogleDriveService.FileType.AUDIO -> {
+                                          smartMessage = "Áudio detectado e adicionado!"'''
+          )
+
+          viewer = "app/src/main/java/com/aistudio/micrhema/PdfViewer.kt"
+          replace_once(
+              viewer,
+              '''import androidx.compose.material3.CircularProgressIndicator
+                  import androidx.compose.material3.MaterialTheme
+                  import androidx.compose.material3.Text''',
+              '''import androidx.compose.material3.*'''
+          )
+          replace_once(
+              viewer,
+              '''    var pdfFile by remember { mutableStateOf<File?>(null) }''',
+              '''    var pdfFile by remember { mutableStateOf<File?>(null) }
+                  var detectedFileType by remember { mutableStateOf<GoogleDriveService.FileType?>(null) }'''
+          )
+          replace_once(
+              viewer,
+              '''        try {
+                      val file = withContext(Dispatchers.IO) {''',
+              '''        try {
+                      detectedFileType = if (bookUrl.startsWith("http", ignoreCase = true)) {
+                          GoogleDriveService.identifyFileType(bookUrl)
+                      } else {
+                          val mime = runCatching {
+                              context.contentResolver.getType(Uri.parse(bookUrl)).orEmpty().lowercase()
+                          }.getOrDefault("")
+                          if (mime.contains("wordprocessingml") || mime.contains("msword")) {
+                              GoogleDriveService.FileType.WORD
+                          } else {
+                              GoogleDriveService.FileType.PDF
+                          }
+                      }
+                      if (detectedFileType == GoogleDriveService.FileType.WORD) {
+                          isLoading = false
+                          return@LaunchedEffect
+                      }
+
+                      val file = withContext(Dispatchers.IO) {'''
+          )
+          replace_once(
+              viewer,
+              '''        } else if (error != null) {
+                      Text(error!!, color = MaterialTheme.colorScheme.error)''',
+              '''        } else if (detectedFileType == GoogleDriveService.FileType.WORD) {
+                      Column(
+                          modifier = Modifier.fillMaxWidth().padding(24.dp),
+                          horizontalAlignment = Alignment.CenterHorizontally
+                      ) {
+                          Text(title, style = MaterialTheme.typography.titleLarge)
+                          Spacer(modifier = Modifier.height(8.dp))
+                          Text(
+                              "Documento Word disponível. Você pode abrir em um aplicativo compatível ou baixar o arquivo DOCX.",
+                              style = MaterialTheme.typography.bodyMedium
+                          )
+                          Spacer(modifier = Modifier.height(20.dp))
+                          Button(
+                              onClick = { StudyMaterialDownload.openDocument(context, bookUrl, "arquivo Word") },
+                              modifier = Modifier.fillMaxWidth()
+                          ) {
+                              Text("Abrir Word")
+                          }
+                          Spacer(modifier = Modifier.height(8.dp))
+                          OutlinedButton(
+                              onClick = { StudyMaterialDownload.enqueueDocx(context, bookUrl, title) },
+                              modifier = Modifier.fillMaxWidth()
+                          ) {
+                              Text("Baixar DOCX")
+                          }
+                      }
+                  } else if (error != null) {
+                      Text(error!!, color = MaterialTheme.colorScheme.error)'''
+          )
+
+          # O próprio workflow é temporário e não fica no repositório depois da correção.
+          Path(".github/workflows/oneoff-word-import.yml").unlink()
+
+      - name: Conferir alterações
+        run: |
+          grep -q 'FileType.WORD' app/src/main/java/com/aistudio/micrhema/VipAdmin.kt
+          grep -q 'Word (DOC/DOCX)' app/src/main/java/com/aistudio/micrhema/VipAdmin.kt
+          grep -q 'WORD, UNKNOWN' app/src/main/java/com/aistudio/micrhema/GoogleDriveService.kt
+          grep -q 'Baixar DOCX' app/src/main/java/com/aistudio/micrhema/PdfViewer.kt
+          git diff --check
+
+      - name: Commit e push
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Add Word import support to IBR"
+          git push origin HEAD:main
+
+      - name: Disparar build Android da alteração
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          curl --fail-with-body -L \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/${{ github.repository }}/actions/workflows/main.yml/dispatches \
+            -d '{"ref":"main"}'
