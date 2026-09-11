@@ -11,6 +11,7 @@ async function authToken() {
 }
 
 export async function uploadAdminMedia(file: File) {
+  if (file.name.toLowerCase().endsWith(".docx")) return uploadAdminDocx(file);
   const { uid, token } = await authToken();
   const form = new FormData();
   form.append("file", file);
