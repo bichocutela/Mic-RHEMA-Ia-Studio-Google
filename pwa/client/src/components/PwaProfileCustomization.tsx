@@ -73,6 +73,7 @@ function effectStyle(effect: PwaLightEffect): CSSProperties {
 export function PwaProfileShowcase({
   avatarId,
   badgeId,
+  profilePhotoUrl = "",
   size = 180,
   distinctives = [],
   frame = null,
@@ -81,6 +82,7 @@ export function PwaProfileShowcase({
 }: {
   avatarId: string;
   badgeId: string;
+  profilePhotoUrl?: string;
   size?: number;
   distinctives?: PwaProfileCosmetic[];
   frame?: PwaProfileCosmetic | null;
@@ -94,24 +96,24 @@ export function PwaProfileShowcase({
 
   return <div className="pwa-profile-showcase" style={{ width: size, height: size }}>
     {effect && <span className={`pwa-profile-light-effect effect-${effectType}`} style={effectStyle(effect)} aria-label={effect.name}/>} 
-    <span className="pwa-profile-showcase-avatar"><BiblicalBadgeAvatar avatarId={avatarId} badgeId={badgeId} size={size} title="Prévia do perfil"/></span>
+    <span className="pwa-profile-showcase-avatar"><BiblicalBadgeAvatar avatarId={avatarId} profilePhotoUrl={profilePhotoUrl} badgeId={badgeId} size={size} title="Prévia do perfil"/></span>
     {frame && <CosmeticImage item={frame} className="pwa-profile-showcase-frame"/>}
     {primary && <span className="pwa-profile-primary-distinctive"><CosmeticImage item={primary}/></span>}
     {featured.length > 0 && <span className="pwa-profile-featured-distinctives">{featured.map((item) => <CosmeticImage key={item.id} item={item}/>)}</span>}
   </div>;
 }
 
-export function PwaProfileLiveShowcase({ memberId, avatarId, badgeId, size = 96 }: { memberId: string; avatarId: string; badgeId: string; size?: number }) {
+export function PwaProfileLiveShowcase({ memberId, avatarId, badgeId, profilePhotoUrl = "", size = 96 }: { memberId: string; avatarId: string; badgeId: string; profilePhotoUrl?: string; size?: number }) {
   const { data, reload } = usePwaCustomization(memberId, badgeId);
   useEffect(() => {
     const refresh = () => void reload(true);
     window.addEventListener("micrhema:pwa-customization-updated", refresh);
     return () => window.removeEventListener("micrhema:pwa-customization-updated", refresh);
   }, [reload]);
-  if (!data) return <BiblicalBadgeAvatar avatarId={avatarId} badgeId={badgeId} size={size} title="Avatar do perfil"/>;
+  if (!data) return <BiblicalBadgeAvatar avatarId={avatarId} profilePhotoUrl={profilePhotoUrl} badgeId={badgeId} size={size} title="Avatar do perfil"/>;
   const frame = data.frames.find((item) => item.id === data.selections.selectedProfileFrameId) || null;
   const effect = data.effects.find((item) => item.id === data.selections.selectedProfileEffectId) || null;
-  return <PwaProfileShowcase avatarId={avatarId} badgeId={badgeId} size={size} distinctives={data.distinctives} frame={frame} effect={effect} selections={data.selections}/>;
+  return <PwaProfileShowcase avatarId={avatarId} badgeId={badgeId} profilePhotoUrl={profilePhotoUrl} size={size} distinctives={data.distinctives} frame={frame} effect={effect} selections={data.selections}/>;
 }
 
 function ChoiceCard({ selected, title, subtitle, image, onClick }: { selected: boolean; title: string; subtitle?: string; image?: React.ReactNode; onClick: () => void }) {
@@ -122,7 +124,7 @@ function ChoiceCard({ selected, title, subtitle, image, onClick }: { selected: b
   </button>;
 }
 
-export function PwaProfileCustomizationPanel({ memberId, avatarId, badgeId }: { memberId: string; avatarId: string; badgeId: string }) {
+export function PwaProfileCustomizationPanel({ memberId, avatarId, badgeId, profilePhotoUrl = "" }: { memberId: string; avatarId: string; badgeId: string; profilePhotoUrl?: string }) {
   const { data, setData, loading, error, reload } = usePwaCustomization(memberId, badgeId);
   const [draft, setDraft] = useState<PwaProfileSelections>(emptyPwaProfileSelections());
   const [saving, setSaving] = useState(false);
@@ -165,7 +167,7 @@ export function PwaProfileCustomizationPanel({ memberId, avatarId, badgeId }: { 
     <div className="profile-v2-section-heading"><div><strong>Personalização do perfil</strong><small>Mesmos itens e mesmas regras de liberação do Android.</small></div><Sparkles size={22}/></div>
 
     <div className="pwa-custom-preview-card">
-      <PwaProfileShowcase avatarId={avatarId} badgeId={badgeId} size={180} distinctives={data.distinctives} frame={selectedFrame} effect={selectedEffect} selections={draft}/>
+      <PwaProfileShowcase avatarId={avatarId} badgeId={badgeId} profilePhotoUrl={profilePhotoUrl} size={180} distinctives={data.distinctives} frame={selectedFrame} effect={selectedEffect} selections={draft}/>
       <div><strong>Prévia em tempo real</strong><small>Somente itens que sua conta realmente possui ou que foram liberados para este emblema aparecem abaixo.</small></div>
     </div>
 
