@@ -40,11 +40,18 @@ function builtinAvatarId(id: string) {
 
 const avatarUrl = (id: string) => `${rawBase}/avatar_${builtinAvatarId(id)}.png?v=avatar-20260924`;
 const profileEmblemUrl = (level: number) => `${rawBase}/profile_emblem_level_${String(level).padStart(2,"0")}.webp?v=hd-20260907`;
-const avatarErrorFallback = (event: React.SyntheticEvent<HTMLImageElement>) => {
+const avatarErrorFallback = (event: React.SyntheticEvent<HTMLImageElement>, fallbackId: string) => {
   const image = event.currentTarget;
-  if (image.dataset.fallbackApplied === "1") return;
-  image.dataset.fallbackApplied = "1";
-  image.src = avatarUrl("davi");
+  const fallback = avatarUrl(fallbackId);
+  if (image.dataset.fallbackApplied !== "1" && image.src !== fallback) {
+    image.dataset.fallbackApplied = "1";
+    image.src = fallback;
+    return;
+  }
+  if (image.dataset.fallbackApplied !== "2" && fallbackId !== "davi") {
+    image.dataset.fallbackApplied = "2";
+    image.src = avatarUrl("davi");
+  }
 };
 // Keep these openings aligned with BadgeFrame.kt and the reviewed art manifest.
 const profileEmblemAvatarFractions: Record<number, number> = {
@@ -112,15 +119,20 @@ function BottomMedallion({ accent, level }: { accent: string; level: number }) {
   return <g filter="url(#badgeShadow)"><circle cx="50" cy="89" r="9.2" fill="#1f1f1f" opacity=".72"/><polygon points={points} fill={accent} stroke="white" strokeOpacity=".5" strokeWidth="1"/></g>;
 }
 
-export function BiblicalBadgeAvatar({ avatarId, badgeId, size = 64, locked = false, dimWhenLocked = true, className = "", title }: { avatarId: string; badgeId: string; size?: number; locked?: boolean; dimWhenLocked?: boolean; className?: string; title?: string }) {
+export function BiblicalBadgeAvatar({ avatarId, badgeId, profilePhotoUrl = "", size = 64, locked = false, dimWhenLocked = true, className = "", title }: { avatarId: string; badgeId: string; profilePhotoUrl?: string; size?: number; locked?: boolean; dimWhenLocked?: boolean; className?: string; title?: string }) {
   const profileLevel = profileEmblemLevelById[badgeId] ?? introductoryEmblemLevelById[badgeId];
   const opacity = locked && dimWhenLocked ? .34 : 1;
+  const fallbackId = builtinAvatarId(avatarId);
+  const portraitSource = String(avatarId || "").startsWith(profilePhotoPrefix) && profilePhotoUrl.trim()
+    ? profilePhotoUrl.trim()
+    : avatarUrl(fallbackId);
+  const handlePortraitError = (event: React.SyntheticEvent<HTMLImageElement>) => avatarErrorFallback(event, fallbackId);
 
   if (profileLevel) {
     const portraitPercent = (profileEmblemAvatarFractions[profileLevel] ?? .58) * 100;
     const portraitInset = (100 - portraitPercent) / 2;
     return <div className={`biblical-badge-avatar ${className}`} title={title} aria-label={title} style={{ width:size,height:size,position:"relative",flex:"0 0 auto",opacity,transition:"opacity .2s ease, transform .2s ease" }}>
-      <img src={avatarUrl(avatarId)} onError={avatarErrorFallback} alt="" draggable={false} style={{ position:"absolute",left:`${portraitInset}%`,top:`${portraitInset}%`,width:`${portraitPercent}%`,height:`${portraitPercent}%`,borderRadius:"50%",objectFit:"cover",background:"#f4ecd8" }}/>
+      <img src={portraitSource} onError={handlePortraitError} alt="" draggable={false} style={{ position:"absolute",left:`${portraitInset}%`,top:`${portraitInset}%`,width:`${portraitPercent}%`,height:`${portraitPercent}%`,borderRadius:"50%",objectFit:"cover",background:"#f4ecd8" }}/>
       <img src={profileEmblemUrl(profileLevel)} alt="" draggable={false} style={{ position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"contain",pointerEvents:"none" }}/>
       {locked && <span aria-hidden="true" style={{ position:"absolute",inset:0,display:"grid",placeItems:"center",color:"var(--muted-foreground,#666)",opacity:1 }}><Lock size={Math.max(16,Math.round(size*.28))} strokeWidth={2.4}/></span>}
     </div>;
@@ -148,7 +160,7 @@ export function BiblicalBadgeAvatar({ avatarId, badgeId, size = 64, locked = fal
       {leafRows.map((leaf, index) => <g key={`r-${index}`} transform={`translate(${100 - leaf.x} ${leaf.y}) rotate(${-leaf.rotate})`}><ellipse cx="0" cy="0" rx="3.1" ry={4.2 + visual.level * .15} fill={visual.accent}/><path d="M0-2.6V2.4" stroke="white" strokeOpacity=".46" strokeWidth=".7"/></g>)}
       <TopSymbol visual={visual}/><BottomMedallion accent={visual.accent} level={visual.level}/>
     </svg>
-    <img src={avatarUrl(avatarId)} onError={avatarErrorFallback} alt="" draggable={false} style={{ position: "absolute", left: "14%", top: "14%", width: "72%", height: "72%", borderRadius: "50%", objectFit: "cover", background: "#f4ecd8", boxShadow: "0 0 0 1px rgba(255,255,255,.36)" }} />
+    <img src={portraitSource} onError={handlePortraitError} alt="" draggable={false} style={{ position: "absolute", left: "14%", top: "14%", width: "72%", height: "72%", borderRadius: "50%", objectFit: "cover", background: "#f4ecd8", boxShadow: "0 0 0 1px rgba(255,255,255,.36)" }} />
     {locked && <span aria-hidden="true" style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "var(--muted-foreground,#666)", opacity: 1 }}><Lock size={Math.max(16, Math.round(size * .28))} strokeWidth={2.4}/></span>}
   </div>;
 }

@@ -5,7 +5,7 @@
  */
 import { getApp, getApps, initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { collection, doc, getFirestore, onSnapshot, serverTimestamp, setDoc, updateDoc, type DocumentData } from "firebase/firestore";
+import { collection, doc, getDoc, getFirestore, onSnapshot, serverTimestamp, setDoc, updateDoc, type DocumentData } from "firebase/firestore";
 import { getPrayerDeviceIdentity } from "./prayer-device";
 
 const firebaseConfig = {
@@ -58,6 +58,8 @@ export type PwaMemberProfile = {
   isAdmin: boolean;
   ibrCertificateName: string;
   ibrCertificateUrl: string;
+  profilePhotoUrl?: string;
+  supabaseStoragePath?: string;
 };
 
 export function listenToCollection<T extends DocumentData>(
@@ -189,7 +191,21 @@ async function profileRequest(body: Record<string, unknown>, forceRefresh = fals
 
 /** Lê o mesmo documento acessos_pendentes/{memberId} utilizado pelo Android. */
 export async function loadPwaMemberProfile(): Promise<PwaMemberProfile> {
-  return profileRequest({ action: "get" });
+  const profile = await profileRequest({ action: "get" });
+  const uid = firebaseAuth?.currentUser?.uid || "";
+  if (!firestore || !uid || uid !== profile.id) return profile;
+  try {
+    const snapshot = await getDoc(doc(firestore, "users", uid));
+    if (!snapshot.exists()) return profile;
+    const data = snapshot.data();
+    return {
+      ...profile,
+      profilePhotoUrl: String(data.profilePhotoUrl || profile.profilePhotoUrl || ""),
+      supabaseStoragePath: String(data.supabaseStoragePath || profile.supabaseStoragePath || ""),
+    };
+  } catch {
+    return profile;
+  }
 }
 
 /**

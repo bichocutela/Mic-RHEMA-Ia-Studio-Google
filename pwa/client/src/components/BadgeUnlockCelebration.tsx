@@ -12,6 +12,7 @@ const confettiColors=["#ffd54f","#ffb300","#66bb6a","#42a5f5","#ef5350","#ab47bc
 export function BadgeUnlockCelebration({onOpenBadges}:{onOpenBadges:()=>void}){
   const[queue,setQueue]=useState<string[]>([]);
   const[avatarId,setAvatarId]=useState("davi");
+  const[profilePhotoUrl,setProfilePhotoUrl]=useState("");
   const currentId=queue[0]||"";
   const badge=currentId?badgeForId(currentId):null;
   const pieces=useMemo(()=>Array.from({length:54},(_,index)=>({
@@ -28,7 +29,7 @@ export function BadgeUnlockCelebration({onOpenBadges}:{onOpenBadges:()=>void}){
       const ids=(detail?.badgeIds||[]).filter((id)=>badgeIds.has(id));
       if(!ids.length)return;
       setQueue(current=>[...current,...ids.filter(id=>!current.includes(id))]);
-      void loadPwaMemberProfile().then(profile=>setAvatarId(profile.avatarId||"davi")).catch(()=>undefined);
+      void loadPwaMemberProfile().then(profile=>{setAvatarId(profile.avatarId||"davi");setProfilePhotoUrl(profile.profilePhotoUrl||"")}).catch(()=>undefined);
       if("vibrate" in navigator) navigator.vibrate?.([90,45,130]);
     };
     window.addEventListener(PWA_BADGE_UNLOCK_EVENT,handler as EventListener);
@@ -50,7 +51,7 @@ export function BadgeUnlockCelebration({onOpenBadges}:{onOpenBadges:()=>void}){
       <div className="badge-unlock-kicker"><Sparkles size={18}/>{badge.level?"NOVO NÍVEL DESBLOQUEADO!":"NOVO EMBLEMA DESBLOQUEADO!"}</div>
       <h2>Parabéns!</h2>
       <p className="badge-unlock-lead">Sua constância fez você avançar na jornada MIC Rhema.</p>
-      <div className="badge-unlock-medal"><BiblicalBadgeAvatar avatarId={avatarId} badgeId={badge.id} size={218} title={badge.name}/></div>
+      <div className="badge-unlock-medal"><BiblicalBadgeAvatar avatarId={avatarId} profilePhotoUrl={profilePhotoUrl} badgeId={badge.id} size={218} title={badge.name}/></div>
       <div className="badge-unlock-title"><Trophy size={22}/><strong>{badge.level?`Nível ${badge.level} · ${badge.name}`:badge.name}</strong></div>
       {badge.rarity&&<strong style={{color:"var(--pwa-primary,#8a6500)"}}>{badge.rarity}</strong>}
       <p>{badge.description}</p>

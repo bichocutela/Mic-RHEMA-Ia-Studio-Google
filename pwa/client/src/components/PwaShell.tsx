@@ -117,7 +117,7 @@ function AndroidDrawer({active,onNavigate,onProfile,onClose,session,onNotificati
     <button className="drawer-dismiss" aria-label="Fechar menu" onClick={onClose}/>
     <section className="drawer-sheet">
       <button className="drawer-profile" onClick={()=>{onProfile();onClose()}}>
-        {session?<span className="drawer-avatar" style={{width:58,height:58,display:"grid",placeItems:"center",background:"transparent",overflow:"visible"}}><BiblicalBadgeAvatar avatarId={drawerAvatarId} badgeId={drawerBadgeId} size={58} title={`Avatar de ${userName}`}/></span>:<span className="drawer-avatar"><CircleUserRound size={25}/></span>}
+        {session?<span className="drawer-avatar" style={{width:58,height:58,display:"grid",placeItems:"center",background:"transparent",overflow:"visible"}}><BiblicalBadgeAvatar avatarId={drawerAvatarId} profilePhotoUrl={drawerProfile?.profilePhotoUrl||""} badgeId={drawerBadgeId} size={58} title={`Avatar de ${userName}`}/></span>:<span className="drawer-avatar"><CircleUserRound size={25}/></span>}
         <span><strong>{userName}</strong><small>{session?"Meu Perfil":"Solicite acesso para membros"}</small></span><ChevronRight size={19}/>
       </button>
       <DrawerBadgesParity session={session}/>
