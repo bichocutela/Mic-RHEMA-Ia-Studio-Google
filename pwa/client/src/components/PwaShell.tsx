@@ -38,31 +38,68 @@ export type AppView =
 type TeamMember = { id:string; name?:string; role?:string; category?:string; imageUrl?:string; order?:number };
 type DonationSettings = { pixKey?:string; qrCodeUrl?:string };
 
-const primaryItems:Array<{id:AppView;label:string;icon:LucideIcon}>=[
-  {id:"home",label:"Início",icon:Home},
-  {id:"bible",label:"Bíblia",icon:BookOpen},
-  {id:"devotionals",label:"Devocionais",icon:FileText},
-  {id:"ibr",label:"IBR",icon:School},
+type AppTabConfig = {
+  id:string; title?:string; iconName?:string; isPrivate?:boolean; isVisible?:boolean;
+  showInBottomBar?:boolean; order?:number; type?:string; systemRoute?:string|null;
+};
+type GlobalAppSettings = { showDonationsTab?:boolean; notificationsEnabled?:boolean };
+
+const fallbackTabs:AppTabConfig[]=[
+  {id:"1",title:"Início",iconName:"Home",isVisible:true,showInBottomBar:true,order:0,systemRoute:"home"},
+  {id:"bible_tab",title:"Bíblia",iconName:"MenuBook",isVisible:true,showInBottomBar:false,order:1,systemRoute:"bible"},
+  {id:"2",title:"Cultos",iconName:"DateRange",isVisible:true,showInBottomBar:true,order:2,systemRoute:"services"},
+  {id:"3",title:"Devocionais",iconName:"Book",isVisible:true,showInBottomBar:false,order:3,systemRoute:"devocionais"},
+  {id:"4",title:"Cursos IBR",iconName:"School",isVisible:true,showInBottomBar:false,order:4,systemRoute:"ibr"},
+  {id:"discipulado_tab",title:"Discipulado",iconName:"MenuBook",isVisible:true,showInBottomBar:false,order:5,systemRoute:"discipulado"},
+  {id:"5",title:"Mídia",iconName:"PlayArrow",isVisible:true,showInBottomBar:false,order:6,systemRoute:"content"},
+  {id:"6",title:"Pedidos de Oração",iconName:"Favorite",isVisible:true,showInBottomBar:true,order:7,systemRoute:"prayer"},
+  {id:"plans_tab",title:"Planos",iconName:"List",isVisible:true,showInBottomBar:true,order:8,systemRoute:"plans"},
+  {id:"team_tab",title:"Equipe",iconName:"Groups",isVisible:true,showInBottomBar:false,order:9,systemRoute:"equipe"},
+  {id:"7",title:"Membros",iconName:"Person",isVisible:true,showInBottomBar:false,order:10,systemRoute:"members"},
+  {id:"8",title:"Sobre",iconName:"Info",isVisible:true,showInBottomBar:false,order:11,systemRoute:"about"},
+  {id:"settings_tab",title:"Configurações",iconName:"Settings",isVisible:true,showInBottomBar:false,order:12,systemRoute:"settings"},
+  {id:"10",title:"Dízimos e Ofertas",iconName:"VolunteerActivism",isVisible:true,showInBottomBar:true,order:13,systemRoute:"donations"},
+  {id:"admin_tab",title:"Área ADM",iconName:"Lock",isVisible:true,showInBottomBar:false,order:14,systemRoute:"admin"},
 ];
 
-const drawerGroups:Array<{title:string;icon:LucideIcon;items:Array<{id:AppView;label:string;icon:LucideIcon}>}>=[
-  {title:"CONTEÚDO",icon:Grid2X2,items:[
-    {id:"home",label:"Início",icon:Home},{id:"bible",label:"Bíblia",icon:BookOpen},
-    {id:"devotionals",label:"Devocionais",icon:FileText},{id:"ibr",label:"Cursos IBR",icon:School},
-    {id:"discipulado",label:"Discipulado",icon:BookHeart},{id:"media",label:"Mídia",icon:PlayCircle},
-    {id:"plans",label:"Planos",icon:BookOpen},
-  ]},
-  {title:"COMUNIDADE",icon:Users,items:[
-    {id:"prayer",label:"Pedidos de Oração",icon:HandHeart},{id:"members",label:"Membros",icon:Users},
-    {id:"team",label:"Equipe",icon:CircleUserRound},
-  ]},
-  {title:"IGREJA",icon:Landmark,items:[
-    {id:"cultos",label:"Cultos",icon:Landmark},{id:"donations",label:"Dízimos e Ofertas",icon:Heart},
-  ]},
-  {title:"SISTEMA",icon:Settings,items:[
-    {id:"settings",label:"Configurações",icon:Settings},{id:"about",label:"Sobre",icon:Info},
-  ]},
-];
+const tabRouteMap:Record<string,AppView>={
+  home:"home", bible:"bible", devocionais:"devotionals", services:"cultos", ibr:"ibr",
+  discipulado:"discipulado", content:"media", prayer:"prayer", plans:"plans", equipe:"team",
+  members:"members", about:"about", settings:"settings", donations:"donations", admin:"admin",
+};
+const tabIdRouteMap:Record<string,AppView>={
+  "1":"home",bible_tab:"bible","2":"cultos","3":"devotionals","4":"ibr",discipulado_tab:"discipulado",
+  "5":"media","6":"prayer",plans_tab:"plans",team_tab:"team","7":"members","8":"about",
+  settings_tab:"settings","10":"donations",admin_tab:"admin",
+};
+function tabView(tab:AppTabConfig):AppView|null{
+  const route=String(tab.systemRoute||"").trim();
+  return tabRouteMap[route]||tabIdRouteMap[tab.id]||null;
+}
+function tabIcon(tab:AppTabConfig):LucideIcon{
+  const title=String(tab.title||"");
+  if(title==="Bíblia")return BookOpen;if(title==="Devocionais")return FileText;if(title==="Cursos IBR")return School;
+  if(title==="Mídia")return PlayCircle;if(title==="Pedidos de Oração")return HandHeart;if(title==="Membros")return Users;
+  if(title==="Equipe")return CircleUserRound;if(title==="Dízimos e Ofertas")return Heart;if(title==="Configurações")return Settings;
+  if(title==="Sobre")return Info;if(title==="Área ADM")return LockKeyhole;if(title==="Cultos")return Landmark;
+  if(title==="Discipulado")return BookHeart;if(title==="Planos")return BookOpen;if(title==="Início")return Home;
+  const name=String(tab.iconName||"");
+  if(name==="Home")return Home;if(name==="Book"||name==="MenuBook"||name==="List")return BookOpen;
+  if(name==="School")return School;if(name==="PlayArrow"||name==="Video")return PlayCircle;if(name==="Favorite")return Heart;
+  if(name==="People"||name==="Groups"||name==="Person")return Users;if(name==="Settings")return Settings;
+  if(name==="Info")return Info;if(name==="Lock")return LockKeyhole;if(name==="DateRange")return Landmark;
+  return Grid2X2;
+}
+function groupForTitle(title:string){
+  if(["Pedidos de Oração","Membros","Equipe"].includes(title))return "COMUNIDADE";
+  if(["Cultos","Dízimos e Ofertas"].includes(title))return "IGREJA";
+  if(["Configurações","Sobre"].includes(title))return "SISTEMA";
+  if(["Área ADM"].includes(title))return "ADMINISTRAÇÃO";
+  return "CONTEÚDO";
+}
+const groupIcons:Record<string,LucideIcon>={
+  "CONTEÚDO":Grid2X2,"COMUNIDADE":Users,"IGREJA":Landmark,"SISTEMA":Settings,"ADMINISTRAÇÃO":LockKeyhole,
+};
 
 function RouteFallback(){return <section className="page-pad android-module"><div className="parity-empty"><span className="pwa-route-spinner" aria-hidden="true"/><p>Carregando…</p></div></section>}
 function AccessPrompt({admin,onAction}:{admin?:boolean;onAction:()=>void}){return <section className="parity-page"><div className="parity-empty"><LockKeyhole size={48}/><h1>{admin?"Área Administrativa":"Área de Membros"}</h1><p>{admin?"Entre com o acesso administrativo para continuar.":"Entre na sua conta para abrir este conteúdo."}</p><button className="android-primary-action" onClick={onAction}>{admin?"Entrar como administrador":"Entrar"}</button></div></section>}
@@ -99,7 +136,7 @@ function DonationsParityView(){
   </section>;
 }
 
-function AndroidDrawer({active,onNavigate,onProfile,onClose,session,onNotifications}:{active:AppView;onNavigate:(view:AppView)=>void;onProfile:()=>void;onClose:()=>void;session:PwaSessionLike;onNotifications:()=>void}){
+function AndroidDrawer({active,onNavigate,onProfile,onClose,session,onNotifications,drawerTabs,notificationsEnabled}:{active:AppView;onNavigate:(view:AppView)=>void;onProfile:()=>void;onClose:()=>void;session:PwaSessionLike;onNotifications:()=>void;drawerTabs:AppTabConfig[];notificationsEnabled:boolean}){
   const[expanded,setExpanded]=useState<Set<string>>(()=>new Set(["CONTEÚDO"]));
   const[drawerProfile,setDrawerProfile]=useState<PwaMemberProfile|null>(null);
   useEffect(()=>{
@@ -121,18 +158,27 @@ function AndroidDrawer({active,onNavigate,onProfile,onClose,session,onNotificati
         <span><strong>{userName}</strong><small>{session?"Meu Perfil":"Solicite acesso para membros"}</small></span><ChevronRight size={19}/>
       </button>
       <DrawerBadgesParity session={session}/>
-      {drawerGroups.map(group=>{const GroupIcon=group.icon;const open=expanded.has(group.title);return <section className="drawer-group" key={group.title}>
-        <button className="drawer-group-title" onClick={()=>toggle(group.title)}><span><GroupIcon size={18}/>{group.title}</span><ChevronDown className={open?"is-open":""} size={18}/></button>
-        {open&&<div className="drawer-items">{group.items.map(({id,label,icon:Icon})=><button className={active===id?"is-current":""} key={id} onClick={()=>go(id)}><Icon size={19}/><span>{label}</span></button>)}</div>}
+      {(["CONTEÚDO","COMUNIDADE","IGREJA","SISTEMA","ADMINISTRAÇÃO"] as const).map(groupTitle=>{const items=drawerTabs.filter(tab=>groupForTitle(String(tab.title||""))===groupTitle).map(tab=>({tab,view:tabView(tab)})).filter((item):item is {tab:AppTabConfig;view:AppView}=>Boolean(item.view));if(!items.length)return null;const GroupIcon=groupIcons[groupTitle];const open=expanded.has(groupTitle);return <section className="drawer-group" key={groupTitle}>
+        <button className="drawer-group-title" onClick={()=>toggle(groupTitle)}><span><GroupIcon size={18}/>{groupTitle}</span><ChevronDown className={open?"is-open":""} size={18}/></button>
+        {open&&<div className="drawer-items">{items.map(({tab,view})=>{const Icon=tabIcon(tab);return <button className={active===view?"is-current":""} key={tab.id} onClick={()=>go(view)}><Icon size={19}/><span>{tab.title||"Aba"}</span></button>})}</div>}
       </section>})}
-      <section className="drawer-group drawer-admin-group"><button className="drawer-group-title" onClick={()=>toggle("ADMINISTRAÇÃO")}><span><LockKeyhole size={18}/>ADMINISTRAÇÃO</span><ChevronDown className={expanded.has("ADMINISTRAÇÃO")?"is-open":""} size={18}/></button>{expanded.has("ADMINISTRAÇÃO")&&<div className="drawer-items"><button className={active==="admin"?"is-current":""} onClick={()=>go("admin")}><LockKeyhole size={19}/><span>Área ADM</span></button><button className={active==="xp-admin"?"is-current":""} onClick={()=>go("xp-admin")}><ShoppingBag size={19}/><span>Loja XP</span></button></div>}</section>
-      <button className="drawer-notifications" onClick={onNotifications}><span>Ativar notificações</span><small>Escolha receber avisos desta PWA</small></button>
+      {notificationsEnabled&&<button className="drawer-notifications" onClick={onNotifications}><span>Ativar notificações</span><small>Escolha receber avisos desta PWA</small></button>}
     </section>
   </aside>;
 }
 
 export function PwaShell({active,onNavigate,drawerOpen,onCloseDrawer,onOpenDrawer,onProfile,onAdminLogin,session,onNotifications}:{active:AppView;onNavigate:(view:AppView)=>void;drawerOpen:boolean;onCloseDrawer:()=>void;onOpenDrawer:()=>void;onProfile:()=>void;onAdminLogin:()=>void;session:PwaSessionLike;onNotifications:()=>void}){
   useEffect(()=>startPwaActiveMinuteTracker(),[]);
+  const[remoteTabs,setRemoteTabs]=useState<AppTabConfig[]|null>(null);
+  const[globalSettings,setGlobalSettings]=useState<GlobalAppSettings>({});
+  useEffect(()=>listenToCollection<AppTabConfig>("app_tabs",items=>setRemoteTabs(items),()=>setRemoteTabs(null)),[]);
+  useEffect(()=>listenToDocument<GlobalAppSettings>("settings","app",value=>setGlobalSettings(value||{}),()=>setGlobalSettings({})),[]);
+  const visibleTabs=useMemo(()=>{
+    const source=(remoteTabs??fallbackTabs).slice().sort((a,b)=>Number(a.order||0)-Number(b.order||0));
+    return source.filter(tab=>tab.isVisible!==false&&(tab.id!=="10"||globalSettings.showDonationsTab!==false)&&Boolean(tabView(tab)));
+  },[remoteTabs,globalSettings.showDonationsTab]);
+  const bottomTabs=useMemo(()=>visibleTabs.filter(tab=>tab.showInBottomBar===true),[visibleTabs]);
+  const drawerTabs=useMemo(()=>visibleTabs.filter(tab=>tab.showInBottomBar!==true),[visibleTabs]);
   const content=active==="home"?<HomeParityView session={session} onNavigate={onNavigate}/>
     :active==="bible"?<BibleParityViewV2/>
     :active==="news"?<NewsParityView onNavigate={onNavigate}/>
@@ -157,8 +203,8 @@ export function PwaShell({active,onNavigate,drawerOpen,onCloseDrawer,onOpenDrawe
     :<HomeParityView session={session} onNavigate={onNavigate}/>;
   return <div className="android-app-shell">
     <main className="android-app-content"><LiveStreamSurface visible={active==="home"}/><Suspense fallback={<RouteFallback/>}>{content}</Suspense></main>
-    <nav className="android-bottom-dock" aria-label="Navegação principal">{primaryItems.map(({id,label,icon:Icon})=>{const selected=active===id;return <button className={selected?"is-active":""} key={id} onClick={()=>onNavigate(id)} aria-current={selected?"page":undefined}><Icon size={20} strokeWidth={selected?2.4:1.9}/>{selected&&<span>{label}</span>}</button>})}<button onClick={onOpenDrawer} aria-label="Abrir menu"><MenuIcon size={22}/></button></nav>
-    {drawerOpen&&<AndroidDrawer active={active} onNavigate={onNavigate} onProfile={onProfile} onClose={onCloseDrawer} session={session} onNotifications={onNotifications}/>} 
+    {active!=="admin"&&active!=="xp-admin"&&<nav className="android-bottom-dock" aria-label="Navegação principal">{bottomTabs.map(tab=>{const id=tabView(tab)!;const Icon=tabIcon(tab);const selected=active===id;return <button className={selected?"is-active":""} key={tab.id} onClick={()=>onNavigate(id)} aria-current={selected?"page":undefined}><Icon size={20} strokeWidth={selected?2.4:1.9}/>{selected&&<span>{tab.title||"Aba"}</span>}</button>})}<button onClick={onOpenDrawer} aria-label="Abrir menu"><MenuIcon size={22}/></button></nav>}
+    {drawerOpen&&<AndroidDrawer active={active} onNavigate={onNavigate} onProfile={onProfile} onClose={onCloseDrawer} session={session} onNotifications={onNotifications} drawerTabs={drawerTabs} notificationsEnabled={globalSettings.notificationsEnabled!==false}/>} 
     <BadgeUnlockCelebration onOpenBadges={()=>{onCloseDrawer();onNavigate("profile")}}/>
   </div>;
 }
