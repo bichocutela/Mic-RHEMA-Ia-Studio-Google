@@ -190,6 +190,8 @@ Deno.serve(async (request) => {
     const isAdministrator = name.toLowerCase() === "admin" && password.length > 0 && await sha256(password) === ADMIN_PASSWORD_SHA256;
 
     let member: Member;
+    let pending = false;
+    let requested = false;
     if (isAdministrator) {
       const androidAdmin = await findAndroidAdmin(projectId, accessToken);
       member = androidAdmin
@@ -200,21 +202,23 @@ Deno.serve(async (request) => {
       const existing = await findMember(projectId, accessToken, phone);
       if (!existing) {
         member = await createPendingMember(projectId, accessToken, name, phone);
-        if (!member.isApproved) return json({ ok: true, pending: true, requested: true, member: { ...member, isAdmin: false } });
+        requested = !member.isApproved && !member.isAdmin;
       } else {
         member = existing;
-        if (!member.isApproved && !member.isAdmin) return json({ ok: true, pending: true, requested: false, member: { ...member, isAdmin: false } });
       }
+      pending = !member.isApproved && !member.isAdmin;
     }
 
     const explicitAdminSession = isAdministrator && member.isAdmin;
     const publicMember = explicitAdminSession ? member : { ...member, isAdmin: false };
+    // Assim como no Android, uma solicitação recém-criada já possui identidade Firebase.
+    // A aprovação continua controlando os recursos protegidos pelo campo/claim de acesso.
     const token = await customFirebaseToken(account, member.id, {
       isAdmin: explicitAdminSession,
       isIbr: member.isIbr,
       memberId: member.id,
     });
-    return json({ ok: true, token, pending: false, requested: false, member: publicMember });
+    return json({ ok: true, token, pending, requested, member: publicMember });
   } catch (error) {
     console.error("pwa-auth failed", error instanceof Error ? error.message : "unknown");
     return json({ error: error instanceof Error ? error.message : "Não foi possível iniciar sua sessão agora." }, 500);
