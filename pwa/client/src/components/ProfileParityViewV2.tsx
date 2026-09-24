@@ -10,7 +10,7 @@ import type { PwaSessionLike } from "./AndroidParityViews";
 import { BiblicalBadgeAvatar } from "./BiblicalBadgeAvatar";
 import { badgeForId, biblicalBadges, levelBadges, type PwaBiblicalBadge } from "./BiblicalBadgeCatalog";
 import { PwaXpPanel } from "./PwaXpPanel";
-import { loadPwaXpDashboard } from "@/lib/xp";
+import { loadPwaXpAccount } from "@/lib/xp";
 import { PwaProfileCustomizationPanel, PwaProfileLiveShowcase } from "./PwaProfileCustomization";
 import "./ProfileParityViewV2.css";
 
@@ -130,7 +130,7 @@ export function ProfileParityViewV2({ session, onNavigateHome }: { session: PwaS
   const reload=async()=>{
     setLoading(true);setLoadError("");setXpSyncError("");
     try{
-      const [value,xpResult]=await Promise.allSettled([loadPwaMemberProfile(),loadPwaXpDashboard()]);
+      const [value,xpResult]=await Promise.allSettled([loadPwaMemberProfile(),loadPwaXpAccount()]);
       if(value.status==="rejected") throw value.reason;
       setProfile(value.value);setDraft(value.value);
       if(xpResult.status==="fulfilled") setCentralXp(xpResult.value.account.total_earned);
