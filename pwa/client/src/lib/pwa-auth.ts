@@ -6,12 +6,14 @@ import { signInWithCustomToken } from "firebase/auth";
 import { firebaseAdminAuth, firebaseAuth } from "./firebase";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://cwphbkdtorfpgmnlafqb.supabase.co";
+const supabasePublishableKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_Dv98hBnbJB2TzRCG6aJNwA_KMPHLZSw";
 
 export type PwaSession = {
   uid: string;
   name: string;
   isAdmin: boolean;
   isIbr: boolean;
+  isApproved?: boolean;
 };
 
 export type PwaMemberAccessResult = {
@@ -26,6 +28,21 @@ type AuthPayload = {
   token?: string;
   pending?: boolean;
   requested?: boolean;
+  error?: string;
+  member?: {
+    id?: string;
+    name?: string;
+    isAdmin?: boolean;
+    isIbr?: boolean;
+    isApproved?: boolean;
+  };
+};
+
+type RecoveryPayload = {
+  ok?: boolean;
+  found?: boolean;
+  customToken?: string;
+  duplicateCount?: number;
   error?: string;
   member?: {
     id?: string;
@@ -52,6 +69,34 @@ async function authRequest(input: { name: string; phone: string; password?: stri
   return payload;
 }
 
+async function recoverAndroidMemberSession(phone: string): Promise<RecoveryPayload> {
+  const response = await fetch(`${supabaseUrl}/functions/v1/member-session`, {
+    method: "POST",
+    headers: {
+      apikey: supabasePublishableKey,
+      authorization: `Bearer ${supabasePublishableKey}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ action: "recover", phone }),
+  });
+  const payload = await response.json().catch(() => ({})) as RecoveryPayload;
+  if (!response.ok) throw new Error(payload.error || "Não foi possível verificar seu cadastro agora.");
+  return payload;
+}
+
+async function sessionFromRecovery(payload: RecoveryPayload, fallbackName: string): Promise<PwaSession> {
+  if (!firebaseAuth) throw new Error("A conexão Firebase da PWA ainda não foi configurada para este ambiente.");
+  if (!payload.customToken) throw new Error(payload.error || "O servidor não retornou uma sessão válida.");
+  const result = await signInWithCustomToken(firebaseAuth, payload.customToken);
+  return {
+    uid: result.user.uid,
+    name: payload.member?.name || fallbackName || "Membro MIC Rhema",
+    isAdmin: false,
+    isIbr: payload.member?.isIbr === true,
+    isApproved: payload.member?.isApproved === true,
+  };
+}
+
 async function sessionFromPayload(payload: AuthPayload, fallbackName: string, admin = false): Promise<PwaSession> {
   const auth = admin ? firebaseAdminAuth : firebaseAuth;
   if (!auth) throw new Error("A conexão Firebase da PWA ainda não foi configurada para este ambiente.");
@@ -63,6 +108,7 @@ async function sessionFromPayload(payload: AuthPayload, fallbackName: string, ad
     name: payload.member?.name || fallbackName || "Membro MIC Rhema",
     isAdmin: admin,
     isIbr: payload.member?.isIbr === true,
+    isApproved: payload.member?.isApproved === true || admin,
   };
 }
 
@@ -77,7 +123,37 @@ export async function signInOrRequestPwa(input: { name: string; phone: string })
     throw new Error("Preencha seu nome completo e um telefone válido com DDD.");
   }
 
+  // Primeiro usa exatamente a recuperação do Android. Isso preserva a identidade
+  // pelo telefone, consolida cadastros duplicados e recupera também perfis pendentes.
+  const recovery = await recoverAndroidMemberSession(phone);
+  if (recovery.found) {
+    const session = await sessionFromRecovery(recovery, completeName);
+    return {
+      session,
+      pending: session.isApproved !== true,
+      requested: false,
+      message: recovery.duplicateCount && recovery.duplicateCount > 0
+        ? "Acesso recuperado. Registros antigos duplicados foram ignorados."
+        : "Acesso e progresso recuperados.",
+    };
+  }
+
+  // Se não existe cadastro, a função PWA cria a mesma solicitação pendente usada
+  // pelo app. Versões novas do backend já devolvem token também para o perfil pendente.
   const payload = await authRequest({ name: completeName, phone });
+  if (payload.token) {
+    const session = await sessionFromPayload(payload, completeName, false);
+    return {
+      session,
+      pending: payload.pending === true || session.isApproved !== true,
+      requested: payload.requested === true,
+      message: payload.requested
+        ? "Solicitação enviada. Aguarde a aprovação do administrador."
+        : "Acesso e progresso recuperados.",
+    };
+  }
+
+  // Compatibilidade durante uma eventual janela de deploy do backend.
   if (payload.pending || payload.requested) {
     return {
       session: null,
@@ -90,7 +166,7 @@ export async function signInOrRequestPwa(input: { name: string; phone: string })
   }
 
   const session = await sessionFromPayload(payload, completeName, false);
-  return { session, pending: false, requested: false };
+  return { session, pending: false, requested: false, message: "Acesso e progresso recuperados." };
 }
 
 /** Mantém o fluxo administrativo e compatibilidade com chamadas antigas. */
