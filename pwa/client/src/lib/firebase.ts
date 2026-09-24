@@ -189,6 +189,32 @@ async function profileRequest(body: Record<string, unknown>, forceRefresh = fals
   return payload.profile as PwaMemberProfile;
 }
 
+async function resolvePrivateProfilePhotoUrl(memberId: string, storagePath: string) {
+  const path = storagePath.trim();
+  if (!path) return "";
+  const user = firebaseAuth?.currentUser;
+  if (!user) return "";
+  const token = await user.getIdToken();
+  const response = await fetch(`${supabaseUrl}/functions/v1/storage-gateway`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${token}`,
+      "x-rhema-bucket": "profile-photos",
+      "x-rhema-operation": "signed-url",
+    },
+    body: JSON.stringify({
+      operation: "signed-url",
+      bucket: "profile-photos",
+      storagePath: path,
+      targetUid: memberId,
+    }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload.ok !== true || !payload.signed_url) return "";
+  return String(payload.signed_url);
+}
+
 /** Lê o mesmo documento acessos_pendentes/{memberId} utilizado pelo Android. */
 export async function loadPwaMemberProfile(): Promise<PwaMemberProfile> {
   const profile = await profileRequest({ action: "get" });
@@ -196,12 +222,16 @@ export async function loadPwaMemberProfile(): Promise<PwaMemberProfile> {
   if (!firestore || !uid || uid !== profile.id) return profile;
   try {
     const snapshot = await getDoc(doc(firestore, "users", uid));
-    if (!snapshot.exists()) return profile;
-    const data = snapshot.data();
+    const data = snapshot.exists() ? snapshot.data() : {};
+    const storagePath = String(data.supabaseStoragePath || profile.supabaseStoragePath || "");
+    const legacyPhotoUrl = String(data.profilePhotoUrl || profile.profilePhotoUrl || "");
+    const signedPhotoUrl = storagePath
+      ? await resolvePrivateProfilePhotoUrl(profile.id, storagePath).catch(() => "")
+      : "";
     return {
       ...profile,
-      profilePhotoUrl: String(data.profilePhotoUrl || profile.profilePhotoUrl || ""),
-      supabaseStoragePath: String(data.supabaseStoragePath || profile.supabaseStoragePath || ""),
+      profilePhotoUrl: signedPhotoUrl || legacyPhotoUrl,
+      supabaseStoragePath: storagePath,
     };
   } catch {
     return profile;
