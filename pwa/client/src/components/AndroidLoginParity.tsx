@@ -42,7 +42,7 @@ export function AndroidLoginParity({ onClose, onSuccess, initialAdmin = false }:
       const result=await signInOrRequestPwa({name,phone:cleanPhone});
       if(result.session){
         onSuccess({...result.session,isAdmin:false});
-        toast.success(`Bem-vindo, ${result.session.name}.`);
+        toast.success(result.message||`Bem-vindo, ${result.session.name}.`);
         onClose();
         return;
       }
