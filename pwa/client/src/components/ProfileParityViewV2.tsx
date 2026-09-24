@@ -10,6 +10,7 @@ import type { PwaSessionLike } from "./AndroidParityViews";
 import { BiblicalBadgeAvatar } from "./BiblicalBadgeAvatar";
 import { badgeForId, biblicalBadges, levelBadges, type PwaBiblicalBadge } from "./BiblicalBadgeCatalog";
 import { PwaXpPanel } from "./PwaXpPanel";
+import { loadPwaXpAccount } from "@/lib/xp";
 import { PwaProfileCustomizationPanel, PwaProfileLiveShowcase } from "./PwaProfileCustomization";
 import "./ProfileParityViewV2.css";
 
@@ -118,6 +119,7 @@ export function ProfileParityViewV2({ session, onNavigateHome }: { session: PwaS
   const [courses,setCourses]=useState<IbrCourse[]>([]);
   const [ibrProgress,setIbrProgress]=useState<IbrProgress[]>([]);
   const [centralXp,setCentralXp]=useState<number|null>(null);
+  const [xpSyncError,setXpSyncError]=useState("");
   const [loading,setLoading]=useState(true);
   const [loadError,setLoadError]=useState("");
   const [saving,setSaving]=useState(false);
@@ -125,7 +127,22 @@ export function ProfileParityViewV2({ session, onNavigateHome }: { session: PwaS
   const [focusedBadgeId,setFocusedBadgeId]=useState<string|null>(null);
   const [previewBadgeId,setPreviewBadgeId]=useState<string|null>(null);
 
-  const reload=async()=>{setLoading(true);setLoadError("");try{const value=await loadPwaMemberProfile();setProfile(value);setDraft(value);}catch(error){const message=error instanceof Error?error.message:"Não foi possível carregar o perfil.";setLoadError(message);toast.error(message);}finally{setLoading(false)}};
+  const reload=async()=>{
+    setLoading(true);setLoadError("");setXpSyncError("");
+    try{
+      const [value,xpResult]=await Promise.allSettled([loadPwaMemberProfile(),loadPwaXpAccount()]);
+      if(value.status==="rejected") throw value.reason;
+      setProfile(value.value);setDraft(value.value);
+      if(xpResult.status==="fulfilled") setCentralXp(xpResult.value.account.total_earned);
+      else {
+        setCentralXp(null);
+        setXpSyncError(xpResult.reason instanceof Error?xpResult.reason.message:"Não foi possível sincronizar o XP agora.");
+      }
+    }catch(error){
+      const message=error instanceof Error?error.message:"Não foi possível carregar o perfil.";
+      setLoadError(message);toast.error(message);
+    }finally{setLoading(false)}
+  };
   useEffect(()=>{if(session)void reload()},[session?.uid]);
   useEffect(()=>listenToCollection<IbrCourse>("ibr_courses",setCourses,()=>setCourses([])),[]);
   useEffect(()=>profile?.id?listenToIbrProgress<IbrProgress>(profile.id,setIbrProgress,()=>setIbrProgress([])):()=>undefined,[profile?.id]);
@@ -175,7 +192,7 @@ export function ProfileParityViewV2({ session, onNavigateHome }: { session: PwaS
       <article className="profile-v2-level"><Trophy size={25}/><div><strong>Progresso das conquistas</strong><span>{summary.completedLessons} aulas IBR concluídas · {summary.completedCourses} cursos concluídos · {summary.totalXp} XP</span>{summary.next?<><small>Próximo: {summary.next.name} — {summary.next.requirement}</small><div className="profile-v2-progress"><i style={{width:`${Math.round(summary.fraction*100)}%`}}/></div><b>{Math.round(summary.fraction*100)}%</b></>:<small>Todos os níveis principais foram alcançados.</small>}</div></article>
       <div className="profile-v2-stats"><div><strong>{summary.calculated.size}</strong><span>Conquistas</span></div><div><strong>{summary.totalXp}</strong><span>XP acumulado</span></div><div><strong>{summary.activeMinutes}</strong><span>Minutos ativos</span></div><div><strong>{summary.counts.bible_chapters}</strong><span>Capítulos</span></div></div>
       <article className="profile-v2-activity"><BookOpen size={21}/><div><strong>Atividade sincronizada</strong><small>{summary.counts.devotionals} devocionais · {summary.counts.plan_themes} temas · {summary.counts.plans} planos · {summary.counts.books} livros · {summary.counts.videos} vídeos · {summary.counts.audios} áudios · {summary.counts.bible_news} notícias · {summary.counts.bible_chapters} capítulos</small></div></article>
-      <button className="profile-v2-refresh" onClick={()=>void reload()}><RefreshCcw size={17}/> Atualizar progresso</button>
+      {xpSyncError&&<p className="parity-warning">XP central indisponível agora. Exibindo o progresso local até a próxima sincronização.</p>}<button className="profile-v2-refresh" onClick={()=>void reload()}><RefreshCcw size={17}/> Atualizar progresso</button>
     </div>}
 
     {section==="xp"&&<div className="profile-v2-section"><PwaXpPanel onAccount={(account)=>setCentralXp(account.total_earned)}/></div>}
