@@ -23,8 +23,29 @@ const badgeVisuals: Record<string, BadgeVisual> = {
 };
 
 const rawBase = "https://raw.githubusercontent.com/bichocutela/Mic-RHEMA-Ia-Studio-Google/main/app/src/main/res/drawable-nodpi";
-const avatarUrl = (id: string) => `${rawBase}/avatar_${id}.png`;
+const builtinAvatarIds = new Set([
+  "davi","ester","daniel","rute","moises","noe","maria","paulo","josue","abraao","sara","rebeca",
+  "jaco","jose","samuel","elias","isaias","jeremias","joao_batista","timoteo","priscila","lidia",
+]);
+const profilePhotoPrefix = "profile_photo::";
+
+function builtinAvatarId(id: string) {
+  const clean = String(id || "").trim();
+  if (clean.startsWith(profilePhotoPrefix)) {
+    const previous = clean.split("::").filter(Boolean).at(-1) || "davi";
+    return builtinAvatarIds.has(previous) ? previous : "davi";
+  }
+  return builtinAvatarIds.has(clean) ? clean : "davi";
+}
+
+const avatarUrl = (id: string) => `${rawBase}/avatar_${builtinAvatarId(id)}.png?v=avatar-20260924`;
 const profileEmblemUrl = (level: number) => `${rawBase}/profile_emblem_level_${String(level).padStart(2,"0")}.webp?v=hd-20260907`;
+const avatarErrorFallback = (event: React.SyntheticEvent<HTMLImageElement>) => {
+  const image = event.currentTarget;
+  if (image.dataset.fallbackApplied === "1") return;
+  image.dataset.fallbackApplied = "1";
+  image.src = avatarUrl("davi");
+};
 // Keep these openings aligned with BadgeFrame.kt and the reviewed art manifest.
 const profileEmblemAvatarFractions: Record<number, number> = {
   1: 0.5595,
@@ -99,7 +120,7 @@ export function BiblicalBadgeAvatar({ avatarId, badgeId, size = 64, locked = fal
     const portraitPercent = (profileEmblemAvatarFractions[profileLevel] ?? .58) * 100;
     const portraitInset = (100 - portraitPercent) / 2;
     return <div className={`biblical-badge-avatar ${className}`} title={title} aria-label={title} style={{ width:size,height:size,position:"relative",flex:"0 0 auto",opacity,transition:"opacity .2s ease, transform .2s ease" }}>
-      <img src={avatarUrl(avatarId)} alt="" draggable={false} style={{ position:"absolute",left:`${portraitInset}%`,top:`${portraitInset}%`,width:`${portraitPercent}%`,height:`${portraitPercent}%`,borderRadius:"50%",objectFit:"cover",background:"#f4ecd8" }}/>
+      <img src={avatarUrl(avatarId)} onError={avatarErrorFallback} alt="" draggable={false} style={{ position:"absolute",left:`${portraitInset}%`,top:`${portraitInset}%`,width:`${portraitPercent}%`,height:`${portraitPercent}%`,borderRadius:"50%",objectFit:"cover",background:"#f4ecd8" }}/>
       <img src={profileEmblemUrl(profileLevel)} alt="" draggable={false} style={{ position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"contain",pointerEvents:"none" }}/>
       {locked && <span aria-hidden="true" style={{ position:"absolute",inset:0,display:"grid",placeItems:"center",color:"var(--muted-foreground,#666)",opacity:1 }}><Lock size={Math.max(16,Math.round(size*.28))} strokeWidth={2.4}/></span>}
     </div>;
@@ -127,7 +148,7 @@ export function BiblicalBadgeAvatar({ avatarId, badgeId, size = 64, locked = fal
       {leafRows.map((leaf, index) => <g key={`r-${index}`} transform={`translate(${100 - leaf.x} ${leaf.y}) rotate(${-leaf.rotate})`}><ellipse cx="0" cy="0" rx="3.1" ry={4.2 + visual.level * .15} fill={visual.accent}/><path d="M0-2.6V2.4" stroke="white" strokeOpacity=".46" strokeWidth=".7"/></g>)}
       <TopSymbol visual={visual}/><BottomMedallion accent={visual.accent} level={visual.level}/>
     </svg>
-    <img src={avatarUrl(avatarId)} alt="" draggable={false} style={{ position: "absolute", left: "14%", top: "14%", width: "72%", height: "72%", borderRadius: "50%", objectFit: "cover", background: "#f4ecd8", boxShadow: "0 0 0 1px rgba(255,255,255,.36)" }} />
+    <img src={avatarUrl(avatarId)} onError={avatarErrorFallback} alt="" draggable={false} style={{ position: "absolute", left: "14%", top: "14%", width: "72%", height: "72%", borderRadius: "50%", objectFit: "cover", background: "#f4ecd8", boxShadow: "0 0 0 1px rgba(255,255,255,.36)" }} />
     {locked && <span aria-hidden="true" style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "var(--muted-foreground,#666)", opacity: 1 }}><Lock size={Math.max(16, Math.round(size * .28))} strokeWidth={2.4}/></span>}
   </div>;
 }
