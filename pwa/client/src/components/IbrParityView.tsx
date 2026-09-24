@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { BadgeCheck, BookOpen, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, Headphones, LockKeyhole, Mail, Play, School, Video } from "lucide-react";
+import { BadgeCheck, BookOpen, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, Headphones, LockKeyhole, Mail, Minus, Play, Plus, School, Video } from "lucide-react";
 import { toast } from "sonner";
 import {
   listenToCollection, listenToIbrProgress, loadPwaMemberProfile, saveIbrProgress,
@@ -15,8 +15,8 @@ import { IbrStudyMaterials } from "./IbrStudyMaterials";
 import "./AndroidParityViews.css";
 import "./IbrParityView.css";
 
-type Chapter = { id:string; title?:string; description?:string; durationMinutes?:number; type?:string; videoUrl?:string; audioUrl?:string; textContent?:string; isYoutube?:boolean; youtube?:boolean; youtubeId?:string; studyPdfUrl?:string; studyDocxUrl?:string };
-type Course = { id:string; title?:string; theme?:string; description?:string; imageUrl?:string; chapters?:Chapter[] };
+type Chapter = { id:string; title?:string; description?:string; durationMinutes?:number; type?:string; videoUrl?:string; audioUrl?:string; textContent?:string; accessMode?:string; isYoutube?:boolean; youtube?:boolean; youtubeId?:string; studyPdfUrl?:string; studyDocxUrl?:string };
+type Course = { id:string; title?:string; theme?:string; description?:string; imageUrl?:string; accessMode?:string; chapters?:Chapter[] };
 type Progress = { id:string; courseId:string; chapterId:string; lastPositionSeconds?:number; totalDurationSeconds?:number; isCompleted?:boolean };
 
 function CourseCover({course,locked}:{course:Course;locked:boolean}){
@@ -41,7 +41,21 @@ export function IbrParityView({ session, onLogin }: { session: PwaSessionLike; o
   const ordered=courses.slice().sort((a,b)=>String(a.id).localeCompare(String(b.id),undefined,{numeric:true}));
   const progressFor=(course:string,chapter:string)=>progress.find(item=>item.courseId===course&&item.chapterId===chapter);
   const completeCourse=(course:Course)=>Boolean(course.chapters?.length)&&course.chapters!.every(chapter=>progressFor(course.id,chapter.id)?.isCompleted);
-  const courseLocked=(index:number)=>index>0&&!completeCourse(ordered[index-1]);
+  const courseLocked=(index:number)=>{
+    const mode=String(ordered[index]?.accessMode||"AUTO").toUpperCase();
+    if(mode==="UNLOCKED")return false;
+    if(mode==="LOCKED")return true;
+    return index>0&&!completeCourse(ordered[index-1]);
+  };
+  const chapterUnlocked=(course:Course,chapter:Chapter)=>{
+    const mode=String(chapter.accessMode||"FREE").toUpperCase();
+    if(mode==="MANUAL_LOCKED")return false;
+    if(mode!=="AFTER_PREVIOUS")return true;
+    const index=(course.chapters||[]).findIndex(item=>item.id===chapter.id);
+    if(index<=0)return true;
+    const previous=(course.chapters||[])[index-1];
+    return Boolean(previous&&progressFor(course.id,previous.id)?.isCompleted);
+  };
   const selectedCourse=ordered.find(item=>item.id===courseId)||null;
   const lessonCourse=lessonKey?ordered.find(item=>item.id===lessonKey.courseId)||null:null;
   const lesson=lessonCourse?.chapters?.find(item=>item.id===lessonKey?.chapterId)||null;
@@ -49,17 +63,37 @@ export function IbrParityView({ session, onLogin }: { session: PwaSessionLike; o
   const completedMinutes=ordered.reduce((sum,course)=>sum+(course.chapters||[]).filter(chapter=>progressFor(course.id,chapter.id)?.isCompleted).reduce((inner,chapter)=>inner+Number(chapter.durationMinutes||0),0),0);
   const nextLesson=(()=>{
     for(let index=0;index<ordered.length;index++){
-      if(index>0&&!completeCourse(ordered[index-1]))break;
-      const course=ordered[index];const started=(course.chapters||[]).find(chapter=>{const item=progressFor(course.id,chapter.id);return item&&Number(item.lastPositionSeconds||0)>0&&!item.isCompleted});
-      if(started)return{course,chapter:started};const pending=(course.chapters||[]).find(chapter=>!progressFor(course.id,chapter.id)?.isCompleted);if(pending)return{course,chapter:pending};
+      if(courseLocked(index))continue;
+      const course=ordered[index];
+      const started=(course.chapters||[]).find(chapter=>{
+        const item=progressFor(course.id,chapter.id);
+        return chapterUnlocked(course,chapter)&&item&&Number(item.lastPositionSeconds||0)>0&&!item.isCompleted;
+      });
+      if(started)return{course,chapter:started};
+      const pending=(course.chapters||[]).find(chapter=>chapterUnlocked(course,chapter)&&!progressFor(course.id,chapter.id)?.isCompleted);
+      if(pending)return{course,chapter:pending};
     }
     return null;
   })();
-  const openLesson=async(course:Course,chapter:Chapter)=>{if(!memberId)return;const current=progressFor(course.id,chapter.id);if(!current){await saveIbrProgress(memberId,{courseId:course.id,chapterId:chapter.id,lastPositionSeconds:1,totalDurationSeconds:Number(chapter.durationMinutes||0)*60,isCompleted:false}).catch(()=>undefined);}setLessonKey({courseId:course.id,chapterId:chapter.id})};
+  const openLesson=async(course:Course,chapter:Chapter)=>{
+    if(!memberId)return;
+    const courseIndex=ordered.findIndex(item=>item.id===course.id);
+    if(courseIndex>=0&&courseLocked(courseIndex)){
+      toast.info(String(course.accessMode||"AUTO").toUpperCase()==="LOCKED"?"Este módulo foi bloqueado pelo administrador.":"Conclua o módulo anterior para desbloquear este.");
+      return;
+    }
+    if(!chapterUnlocked(course,chapter)){
+      toast.info(String(chapter.accessMode||"FREE").toUpperCase()==="AFTER_PREVIOUS"?"Conclua a aula anterior para liberar esta aula.":"Esta aula está bloqueada pelo administrador.");
+      return;
+    }
+    const current=progressFor(course.id,chapter.id);
+    if(!current){await saveIbrProgress(memberId,{courseId:course.id,chapterId:chapter.id,lastPositionSeconds:1,totalDurationSeconds:Number(chapter.durationMinutes||0)*60,isCompleted:false}).catch(()=>undefined);}
+    setLessonKey({courseId:course.id,chapterId:chapter.id});
+  };
   const complete=async()=>{if(!lessonCourse||!lesson||!memberId)return;try{await saveIbrProgress(memberId,{courseId:lessonCourse.id,chapterId:lesson.id,lastPositionSeconds:Number(lesson.durationMinutes||0)*60,totalDurationSeconds:Number(lesson.durationMinutes||0)*60,isCompleted:true});await reconcilePwaBadges().catch(()=>undefined);toast.success("Aula concluída e sincronizada com o Android.");}catch(error){toast.error(error instanceof Error?error.message:"Não foi possível salvar o progresso.")}};
 
   if(lessonCourse&&lesson)return <IbrLesson course={lessonCourse} lesson={lesson} done={Boolean(progressFor(lessonCourse.id,lesson.id)?.isCompleted)} onBack={()=>setLessonKey(null)} onComplete={()=>void complete()}/>;
-  if(selectedCourse){const index=ordered.findIndex(item=>item.id===selectedCourse.id);if(courseLocked(index)){setCourseId(null);return null;}return <section className="parity-page"><button className="back-link" onClick={()=>setCourseId(null)}><ChevronLeft size={18}/> Voltar ao IBR</button><div className="parity-title"><div><p>{selectedCourse.theme||"MÓDULO IBR"}</p><h1>{selectedCourse.title||"Curso IBR"}</h1><span>{selectedCourse.description||"Formação bíblica"}</span></div><School size={30}/></div>{resolveDisplayImageUrl(selectedCourse.imageUrl)&&<img src={resolveDisplayImageUrl(selectedCourse.imageUrl)} alt="" style={{width:"100%",maxHeight:210,objectFit:"cover",borderRadius:18,marginBottom:15}}/>}<div className="android-list-cards">{(selectedCourse.chapters||[]).map((chapter,lessonIndex)=>{const done=Boolean(progressFor(selectedCourse.id,chapter.id)?.isCompleted);const type=(chapter.type||"AULA").toUpperCase();return <button key={chapter.id} onClick={()=>void openLesson(selectedCourse,chapter)}><span>{String(lessonIndex+1).padStart(2,"0")}</span><div><strong>{chapter.title||"Aula IBR"}</strong><small>{type==="VIDEO"?"Vídeo":type==="AUDIO"?"Áudio":type==="TEXT"?"Leitura":"Aula"} · {Number(chapter.durationMinutes||0)} min</small></div>{done?<BadgeCheck size={20}/>:<ChevronRight size={19}/>}</button>})}</div></section>}
+  if(selectedCourse){const index=ordered.findIndex(item=>item.id===selectedCourse.id);if(courseLocked(index)){setCourseId(null);return null;}return <section className="parity-page"><button className="back-link" onClick={()=>setCourseId(null)}><ChevronLeft size={18}/> Voltar ao IBR</button><div className="parity-title"><div><p>{selectedCourse.theme||"MÓDULO IBR"}</p><h1>{selectedCourse.title||"Curso IBR"}</h1><span>{selectedCourse.description||"Formação bíblica"}</span></div><School size={30}/></div>{resolveDisplayImageUrl(selectedCourse.imageUrl)&&<img src={resolveDisplayImageUrl(selectedCourse.imageUrl)} alt="" style={{width:"100%",maxHeight:210,objectFit:"cover",borderRadius:18,marginBottom:15}}/>}<div className="android-list-cards">{(selectedCourse.chapters||[]).map((chapter,lessonIndex)=>{const done=Boolean(progressFor(selectedCourse.id,chapter.id)?.isCompleted);const unlocked=chapterUnlocked(selectedCourse,chapter);const type=(chapter.type||"AULA").toUpperCase();return <button key={chapter.id} className={unlocked?undefined:"is-locked"} onClick={()=>void openLesson(selectedCourse,chapter)}><span>{String(lessonIndex+1).padStart(2,"0")}</span><div><strong>{chapter.title||"Aula IBR"}</strong><small>{type==="VIDEO"?"Vídeo":type==="AUDIO"?"Áudio":type==="TEXT"?"Leitura":"Aula"} · {Number(chapter.durationMinutes||0)} min</small></div>{!unlocked?<LockKeyhole size={19}/>:done?<BadgeCheck size={20}/>:<ChevronRight size={19}/>}</button>})}</div></section>}
 
   return <section className="parity-page"><div className="parity-title"><div><p>INSTITUTO BÍBLICO RHEMA</p><h1>Plataforma de Ensino IBR</h1><span>Mesmo progresso, cursos e materiais do Android.</span></div><School size={30}/></div>
     <article className="android-module-card ibr-progress-card">
@@ -70,19 +104,19 @@ export function IbrParityView({ session, onLogin }: { session: PwaSessionLike; o
     </article>
     {nextLesson&&<button className="android-module-card ibr-continue-card" onClick={()=>void openLesson(nextLesson.course,nextLesson.chapter)}><Play size={24}/><div><small>CONTINUAR ESTUDANDO</small><strong>{nextLesson.course.title}</strong><span>{nextLesson.chapter.title} · {Number(nextLesson.chapter.durationMinutes||0)} min</span></div><ChevronRight size={20}/></button>}
     <IbrContentLibrary/>
-    {!ordered.length?<p className="parity-status">Nenhum módulo disponível.</p>:<div className="android-list-cards ibr-course-list" style={{marginTop:16}}>{ordered.map((course,index)=>{const locked=courseLocked(index);const completed=completeCourse(course);const chapters=course.chapters||[];const finished=chapters.filter(ch=>progressFor(course.id,ch.id)?.isCompleted).length;const estimated=chapters.reduce((sum,ch)=>sum+Number(ch.durationMinutes||0),0);return <button key={course.id} className={locked?"is-locked":undefined} onClick={()=>locked?toast.info("Conclua o módulo anterior para desbloquear este."):setCourseId(course.id)}><CourseCover course={course} locked={locked}/><div><strong>{course.title||"Curso IBR"}</strong><small>{course.theme||"Módulo"} · {finished}/{chapters.length} aulas · {estimated} min</small></div>{locked?<LockKeyhole size={19}/>:completed?<BadgeCheck size={20}/>:<ChevronRight size={19}/>}</button>})}</div>}
+    {!ordered.length?<p className="parity-status">Nenhum módulo disponível.</p>:<div className="android-list-cards ibr-course-list" style={{marginTop:16}}>{ordered.map((course,index)=>{const locked=courseLocked(index);const completed=completeCourse(course);const chapters=course.chapters||[];const finished=chapters.filter(ch=>progressFor(course.id,ch.id)?.isCompleted).length;const estimated=chapters.reduce((sum,ch)=>sum+Number(ch.durationMinutes||0),0);return <button key={course.id} className={locked?"is-locked":undefined} onClick={()=>locked?toast.info(String(course.accessMode||"AUTO").toUpperCase()==="LOCKED"?"Este módulo foi bloqueado pelo administrador.":"Conclua o módulo anterior para desbloquear este."):setCourseId(course.id)}><CourseCover course={course} locked={locked}/><div><strong>{course.title||"Curso IBR"}</strong><small>{course.theme||"Módulo"} · {finished}/{chapters.length} aulas · {estimated} min</small></div>{locked?<LockKeyhole size={19}/>:completed?<BadgeCheck size={20}/>:<ChevronRight size={19}/>}</button>})}</div>}
   </section>;
 }
 
 function IbrLesson({course,lesson,done,onBack,onComplete}:{course:Course;lesson:Chapter;done:boolean;onBack:()=>void;onComplete:()=>void}){
-  const audioRef=useRef<HTMLAudioElement|null>(null);const type=(lesson.type||(lesson.textContent?"TEXT":lesson.videoUrl?"VIDEO":"AUDIO")).toUpperCase();const videoId=lesson.youtubeId||youtubeVideoId(lesson.videoUrl);const videoUrl=resolvePortableAssetUrl(lesson.videoUrl);const audioUrl=resolvePortableAssetUrl(lesson.audioUrl);const pdf=String(lesson.studyPdfUrl||"").trim();const pdfEmbed=resolvePdfEmbedUrl(pdf);const pdfDownload=resolvePortableAssetUrl(pdf);const docx=String(lesson.studyDocxUrl||"").trim();const docxDownload=resolvePortableAssetUrl(docx);
+  const audioRef=useRef<HTMLAudioElement|null>(null);const[fontScale,setFontScale]=useState(1);const type=(lesson.type||(lesson.textContent?"TEXT":lesson.videoUrl?"VIDEO":"AUDIO")).toUpperCase();const videoId=lesson.youtubeId||youtubeVideoId(lesson.videoUrl);const videoUrl=resolvePortableAssetUrl(lesson.videoUrl);const audioUrl=resolvePortableAssetUrl(lesson.audioUrl);const pdf=String(lesson.studyPdfUrl||"").trim();const pdfEmbed=resolvePdfEmbedUrl(pdf);const pdfDownload=resolvePortableAssetUrl(pdf);const docx=String(lesson.studyDocxUrl||"").trim();const docxDownload=resolvePortableAssetUrl(docx);
   const downloadPdf=()=>{if(!pdfDownload)return;const a=document.createElement("a");a.href=pdfDownload;a.target="_blank";a.rel="noopener noreferrer";a.download=`${safeFilename(lesson.title||"material-ibr")}.pdf`;document.body.appendChild(a);a.click();a.remove()};
   const downloadDocx=()=>{if(!docxDownload)return;const a=document.createElement("a");a.href=docxDownload;a.target="_blank";a.rel="noopener noreferrer";a.download=`${safeFilename(lesson.title||"material-ibr")}.docx`;document.body.appendChild(a);a.click();a.remove()};
-  const showManualComplete=type==="TEXT"||(type==="VIDEO"&&Boolean(videoId));
+  const showManualComplete=true;
   return <section className="parity-page ibr-lesson-view"><button className="back-link" onClick={onBack}><ChevronLeft size={18}/> Voltar às aulas</button><div className="parity-title"><div><p>{course.title||"CURSO IBR"}</p><h1>{lesson.title||"Aula IBR"}</h1><span>{lesson.description||"Acompanhe a aula até o fim para registrar seu progresso."}</span></div></div>
-    {type==="TEXT"?<article className="parity-reader">{String(lesson.textContent||"Nenhum conteúdo adicionado.").split(/\n{2,}/).map((p,i)=><p key={i}>{p}</p>)}</article>:type==="AUDIO"?<div className="audio-reader"><Headphones size={42}/><audio ref={audioRef} controls preload="metadata" src={audioUrl} onEnded={()=>!done&&onComplete()}>Seu navegador não suporta áudio.</audio><small>A aula é concluída ao terminar o áudio.</small></div>:videoId?<iframe className="parity-video" title={lesson.title||"Vídeo IBR"} src={`https://www.youtube-nocookie.com/embed/${videoId}?rel=0&playsinline=1`} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen/>:<video className="parity-video" controls playsInline preload="metadata" src={videoUrl} onEnded={()=>!done&&onComplete()}>Seu navegador não suporta vídeo.</video>}
+    {type==="TEXT"?<><div className="ibr-text-size-controls"><button aria-label="Diminuir fonte" onClick={()=>setFontScale(value=>Math.max(.8,Math.round((value-.1)*10)/10))}><Minus size={18}/></button><span>Texto {Math.round(fontScale*100)}%</span><button aria-label="Aumentar fonte" onClick={()=>setFontScale(value=>Math.min(2,Math.round((value+.1)*10)/10))}><Plus size={18}/></button></div><article className="parity-reader" style={{fontSize:`${fontScale}em`,lineHeight:1.65}}>{String(lesson.textContent||"Nenhum conteúdo adicionado.").split(/\n{2,}/).map((p,i)=><p key={i}>{p}</p>)}</article></>:type==="AUDIO"?<div className="audio-reader"><Headphones size={42}/><audio ref={audioRef} controls preload="metadata" src={audioUrl}>Seu navegador não suporta áudio.</audio><small>Ao terminar, marque a aula como concluída.</small></div>:videoId?<iframe className="parity-video" title={lesson.title||"Vídeo IBR"} src={`https://www.youtube-nocookie.com/embed/${videoId}?rel=0&playsinline=1`} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen/>:<video className="parity-video" controls playsInline preload="metadata" src={videoUrl}>Seu navegador não suporta vídeo.</video>}
     <div className="lesson-meta" style={{display:"flex",gap:10,margin:"14px 0"}}><span>{type==="VIDEO"?<Video size={15}/>:type==="AUDIO"?<Headphones size={15}/>:<BookOpen size={15}/>} {type==="VIDEO"?"Vídeo-aula":type==="AUDIO"?"Áudio-aula":"Leitura"}</span><span>{Number(lesson.durationMinutes||0)} min</span>{done&&<span><BadgeCheck size={15}/> Concluída</span>}</div>
-    {showManualComplete&&<button className="parity-primary" disabled={done} onClick={onComplete}><BadgeCheck size={18}/>{done?"Aula concluída":type==="TEXT"?"Concluir leitura":"Concluir vídeo"}</button>}
+    {showManualComplete&&<button className="parity-primary" disabled={done} onClick={onComplete}><BadgeCheck size={18}/>{done?"Aula concluída":type==="TEXT"?"Concluir leitura":"Marcar como concluída"}</button>}
     <IbrStudyMaterials lesson={lesson}/>
     {type==="VIDEO"&&lesson.videoUrl&&<a className="back-link" style={{marginTop:14}} href={lesson.videoUrl} target="_blank" rel="noreferrer"><ExternalLink size={17}/> Abrir fonte do vídeo</a>}
   </section>;
