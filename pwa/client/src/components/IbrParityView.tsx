@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BadgeCheck, BookOpen, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, Headphones, LockKeyhole, Mail, Play, School, Video } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -47,14 +47,14 @@ export function IbrParityView({ session, onLogin }: { session: PwaSessionLike; o
   const lesson=lessonCourse?.chapters?.find(item=>item.id===lessonKey?.chapterId)||null;
   const completedModules=ordered.filter(completeCourse).length;const remainingModules=Math.max(0,ordered.length-completedModules);const percent=ordered.length?Math.round(completedModules/ordered.length*100):0;
   const completedMinutes=ordered.reduce((sum,course)=>sum+(course.chapters||[]).filter(chapter=>progressFor(course.id,chapter.id)?.isCompleted).reduce((inner,chapter)=>inner+Number(chapter.durationMinutes||0),0),0);
-  const nextLesson=useMemo(()=>{
+  const nextLesson=(()=>{
     for(let index=0;index<ordered.length;index++){
       if(index>0&&!completeCourse(ordered[index-1]))break;
       const course=ordered[index];const started=(course.chapters||[]).find(chapter=>{const item=progressFor(course.id,chapter.id);return item&&Number(item.lastPositionSeconds||0)>0&&!item.isCompleted});
       if(started)return{course,chapter:started};const pending=(course.chapters||[]).find(chapter=>!progressFor(course.id,chapter.id)?.isCompleted);if(pending)return{course,chapter:pending};
     }
     return null;
-  },[ordered,progress]);
+  })();
   const openLesson=async(course:Course,chapter:Chapter)=>{if(!memberId)return;const current=progressFor(course.id,chapter.id);if(!current){await saveIbrProgress(memberId,{courseId:course.id,chapterId:chapter.id,lastPositionSeconds:1,totalDurationSeconds:Number(chapter.durationMinutes||0)*60,isCompleted:false}).catch(()=>undefined);}setLessonKey({courseId:course.id,chapterId:chapter.id})};
   const complete=async()=>{if(!lessonCourse||!lesson||!memberId)return;try{await saveIbrProgress(memberId,{courseId:lessonCourse.id,chapterId:lesson.id,lastPositionSeconds:Number(lesson.durationMinutes||0)*60,totalDurationSeconds:Number(lesson.durationMinutes||0)*60,isCompleted:true});await reconcilePwaBadges().catch(()=>undefined);toast.success("Aula concluída e sincronizada com o Android.");}catch(error){toast.error(error instanceof Error?error.message:"Não foi possível salvar o progresso.")}};
 
