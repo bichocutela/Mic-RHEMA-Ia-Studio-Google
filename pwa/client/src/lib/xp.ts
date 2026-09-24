@@ -165,6 +165,10 @@ function quizSyncKey() {
   return `micrhema:pwa:quiz-sync-pending:${uid}`;
 }
 
+export function loadPwaXpAccount() {
+  return authenticatedRequest<{ ok: true; unlocked: boolean; account: PwaXpAccount }>("xp-engine", { action: "get_account" });
+}
+
 export function loadPwaXpDashboard() {
   return request<PwaXpDashboard>({ action: "dashboard" });
 }
