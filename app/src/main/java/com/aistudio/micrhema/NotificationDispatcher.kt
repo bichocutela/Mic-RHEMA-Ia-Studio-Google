@@ -17,7 +17,7 @@ import java.util.concurrent.TimeUnit
 
 object NotificationDispatcher {
     private const val FUNCTION_NAME = "notify-fcm"
-    private val scheduledOnlyCollections = setOf("devocionais", "cultos_agenda", "bible_news")
+    private val scheduledOnlyCollections = setOf("cultos_agenda", "bible_news")
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val client = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS).build()
 
@@ -50,6 +50,10 @@ object NotificationDispatcher {
                 var finalBody = body
                 var destination = requestedDestination.orEmpty()
                 val category = when (collection) {
+                    "devocionais" -> {
+                        destination = Screen.Devotionals.route
+                        "daily_devotional"
+                    }
                     "ibr_courses" -> {
                         finalTitle = "Novo curso no IBR"
                         destination = "ibr"
