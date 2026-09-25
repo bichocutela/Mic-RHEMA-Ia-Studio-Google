@@ -38,7 +38,11 @@ enum class AdminSection {
 }
 
 @Composable
-fun AdminDashboard(onNavigate: (AdminSection) -> Unit, paddingValues: PaddingValues) {
+fun AdminDashboard(
+    onNavigate: (AdminSection) -> Unit,
+    onNewDevotional: () -> Unit,
+    paddingValues: PaddingValues
+) {
     val context = LocalContext.current
     LaunchedEffect(Unit) {
         // Sempre reabrir a leitura remota ao entrar no dashboard, sem usar estado local.
@@ -172,18 +176,21 @@ fun AdminDashboard(onNavigate: (AdminSection) -> Unit, paddingValues: PaddingVal
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 AdminAdaptivePair(
-                    first = { modifier -> AdminQuickActionCard("Nova notícia", Icons.Default.Article, { onNavigate(AdminSection.NEWS) }, modifier) },
-                    second = { modifier -> AdminQuickActionCard("Adicionar mídia", Icons.Default.CloudUpload, { onNavigate(AdminSection.MEDIA) }, modifier) }
+                    first = { modifier -> AdminQuickActionCard("Novo devocional", Icons.Default.Book, onNewDevotional, modifier) },
+                    second = { modifier -> AdminQuickActionCard("Nova notícia", Icons.Default.Article, { onNavigate(AdminSection.NEWS) }, modifier) }
                 )
                 AdminAdaptivePair(
-                    first = { modifier -> AdminQuickActionCard("Aprovar membros", Icons.Default.PersonAdd, { onNavigate(AdminSection.MEMBERS) }, modifier) },
-                    second = { modifier -> AdminQuickActionCard("Novo destaque", Icons.Default.ViewCarousel, { onNavigate(AdminSection.BANNERS) }, modifier) }
+                    first = { modifier -> AdminQuickActionCard("Adicionar mídia", Icons.Default.CloudUpload, { onNavigate(AdminSection.MEDIA) }, modifier) },
+                    second = { modifier -> AdminQuickActionCard("Aprovar membros", Icons.Default.PersonAdd, { onNavigate(AdminSection.MEMBERS) }, modifier) }
                 )
                 AdminAdaptivePair(
-                    first = { modifier -> AdminQuickActionCard("Atualizar culto", Icons.Default.Event, { onNavigate(AdminSection.SERVICES) }, modifier) },
-                    second = { modifier -> AdminQuickActionCard("Curso IBR", Icons.Default.School, { onNavigate(AdminSection.IBR) }, modifier) }
+                    first = { modifier -> AdminQuickActionCard("Novo destaque", Icons.Default.ViewCarousel, { onNavigate(AdminSection.BANNERS) }, modifier) },
+                    second = { modifier -> AdminQuickActionCard("Atualizar culto", Icons.Default.Event, { onNavigate(AdminSection.SERVICES) }, modifier) }
                 )
-                AdminQuickActionCard("Loja XP", Icons.Default.CardGiftcard, { showXpShop = true }, Modifier.fillMaxWidth())
+                AdminAdaptivePair(
+                    first = { modifier -> AdminQuickActionCard("Curso IBR", Icons.Default.School, { onNavigate(AdminSection.IBR) }, modifier) },
+                    second = { modifier -> AdminQuickActionCard("Loja XP", Icons.Default.CardGiftcard, { showXpShop = true }, modifier) }
+                )
             }
         }
 
