@@ -28,13 +28,17 @@ object DevotionalManager {
             
             scope.launch {
                 DevotionalRepository.getDevotionalsFlow().collect { newList ->
-                    if (newList.isNotEmpty()) {
-                        val sorted = newList.sortedByDescending { it.timestamp }
-                        devotionalsState.clear()
-                        devotionalsState.addAll(sorted)
-                        
-                        IbrDatabaseHelper(context).saveCachedDevotionals(sorted)
-                    }
+                    val sorted = newList
+                        .distinctBy { it.id }
+                        .sortedWith(
+                            compareByDescending<Devotional> { it.timestamp }
+                                .thenByDescending { DevotionalDateUtils.parse(it.date) ?: java.time.LocalDate.MIN }
+                                .thenByDescending { it.id }
+                        )
+                    devotionalsState.clear()
+                    devotionalsState.addAll(sorted)
+
+                    IbrDatabaseHelper(context).saveCachedDevotionals(sorted)
                 }
             }
         } catch (e: Exception) {
