@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -82,7 +83,7 @@ fun DiscipuladoScreen(
                     Text("Biblioteca de estudos", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        "Leia os materiais em PDF e avance no seu estudo da Palavra.",
+                        "Leia materiais em PDF ou Word e avance no seu estudo da Palavra.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -110,7 +111,7 @@ fun DiscipuladoPdfReaderScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(pdf?.title ?: "Estudo em PDF", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = { Text(pdf?.title ?: "Material de estudo", maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Voltar")
@@ -131,6 +132,7 @@ fun DiscipuladoPdfReaderScreen(
             PdfViewer(
                 bookUrl = source,
                 title = pdf.title,
+                contentType = pdf.fileType.ifBlank { "pdf" },
                 modifier = Modifier.fillMaxSize().padding(paddingValues)
             )
         }
@@ -217,7 +219,7 @@ private fun DiscipuladoEmptyState() {
             Text("Novos estudos em breve", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                "A liderança está preparando materiais em PDF para você estudar com calma e propósito.",
+                "A liderança está preparando materiais em PDF e Word para você estudar com calma e propósito.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
@@ -228,6 +230,9 @@ private fun DiscipuladoEmptyState() {
 
 @Composable
 private fun DiscipuladoPdfCard(pdf: DiscipuladoPdf, onClick: () -> Unit) {
+    val isWord = pdf.fileType.equals("word", ignoreCase = true) ||
+        pdf.fileType.equals("docx", ignoreCase = true)
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
@@ -236,20 +241,32 @@ private fun DiscipuladoPdfCard(pdf: DiscipuladoPdf, onClick: () -> Unit) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(
-                    color = MaterialTheme.colorScheme.errorContainer,
+                    color = if (isWord) {
+                        MaterialTheme.colorScheme.primaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.errorContainer
+                    },
                     shape = RoundedCornerShape(16.dp)
                 ) {
                     Icon(
-                        Icons.Default.PictureAsPdf,
-                        contentDescription = "PDF",
-                        tint = MaterialTheme.colorScheme.onErrorContainer,
+                        if (isWord) Icons.Default.Description else Icons.Default.PictureAsPdf,
+                        contentDescription = if (isWord) "Word" else "PDF",
+                        tint = if (isWord) {
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.onErrorContainer
+                        },
                         modifier = Modifier.padding(14.dp).size(28.dp)
                     )
                 }
                 Spacer(modifier = Modifier.size(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(pdf.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Text(pdf.category, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    Text(
+                        "${if (isWord) "Word" else "PDF"} • ${pdf.category}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
             }
             if (pdf.subtitle.isNotBlank()) {

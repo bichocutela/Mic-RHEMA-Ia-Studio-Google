@@ -1112,6 +1112,7 @@ data class DiscipuladoPdf(
     var coverUrl: String = "",
     var storagePath: String = "",
     var fileUrl: String = "",
+    var fileType: String = "pdf",
     var pageCount: Int = 0,
     var order: Int = 0,
     var isPublished: Boolean = true,
