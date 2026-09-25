@@ -410,7 +410,7 @@ fun EditDevotionalsSection() {
         var verse by remember { mutableStateOf(editingDevotional?.verse ?: "") }
         var mediaUrl by remember { mutableStateOf(editingDevotional?.mediaUrl ?: "") }
         var ref by remember { mutableStateOf(editingDevotional?.verseReference ?: "") }
-        var date by remember { mutableStateOf(editingDevotional?.date ?: "") }
+        var date by remember { mutableStateOf(editingDevotional?.date ?: java.time.LocalDate.now().toString()) }
         
         AlertDialog(
             onDismissRequest = { showDialog = false },
@@ -418,7 +418,7 @@ fun EditDevotionalsSection() {
             text = {
                 Column {
                     OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Título") })
-                    OutlinedTextField(value = date, onValueChange = { date = it }, label = { Text("Data (ex: 24 de Maio)") })
+                    OutlinedTextField(value = date, onValueChange = { date = it }, label = { Text("Data (dd/MM/aaaa ou aaaa-MM-dd)") })
                     OutlinedTextField(value = ref, onValueChange = { ref = it }, label = { Text("Referência (ex: João 3:16)") })
                     OutlinedTextField(value = verse, onValueChange = { verse = it }, label = { Text("Versículo") })
                     OutlinedTextField(value = content, onValueChange = { content = it }, label = { Text("Conteúdo") }, modifier = Modifier.height(120.dp))
@@ -428,10 +428,21 @@ fun EditDevotionalsSection() {
             confirmButton = {
                 TextButton(onClick = {
                     if (title.isNotEmpty()) {
+                        val parsedDate = DevotionalDateUtils.parse(date)
+                        if (date.isNotBlank() && parsedDate == null) {
+                            android.widget.Toast.makeText(
+                                context,
+                                "Data inválida. Use dd/MM/aaaa ou aaaa-MM-dd.",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                            return@TextButton
+                        }
+
+                        val isNewDevotional = editingDevotional == null
                         val newDev = Devotional(
                             id = editingDevotional?.id ?: java.util.UUID.randomUUID().toString(),
                             title = title,
-                            date = date,
+                            date = (parsedDate ?: java.time.LocalDate.now()).toString(),
                             verse = verse,
                             verseReference = ref,
                             content = content,
@@ -440,7 +451,7 @@ fun EditDevotionalsSection() {
                             timestamp = editingDevotional?.timestamp ?: System.currentTimeMillis()
                         )
                         scope.launch {
-                            val res = DevotionalRepository.addDevotional(newDev)
+                            val res = DevotionalRepository.addDevotional(newDev, notifyUsers = isNewDevotional)
                             if (res.isSuccess) {
                                 android.widget.Toast.makeText(context, "Devocional salvo!", android.widget.Toast.LENGTH_SHORT).show()
                                 showDialog = false

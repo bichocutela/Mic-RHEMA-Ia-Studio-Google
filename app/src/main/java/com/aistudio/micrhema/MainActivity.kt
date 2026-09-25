@@ -119,7 +119,7 @@ class MainActivity : ComponentActivity() {
         val destination = source
             ?.getStringExtra(NotificationHelper.EXTRA_NOTIFICATION_DESTINATION)
             ?.takeIf {
-                it == Screen.About.route || it == Screen.Prayer.route || it == Screen.Admin.route || it.startsWith("admin_prayer/")
+                it == Screen.About.route || it == Screen.Prayer.route || it == Screen.Admin.route || it == Screen.Devotionals.route || it.startsWith("admin_prayer/")
             }
         notificationDestinationState.value = destination
         if (destination?.startsWith("admin_prayer/") == true) {
@@ -344,6 +344,7 @@ fun MainScreen() {
             destination.startsWith("admin_prayer/") -> Screen.Admin.route
             destination == Screen.Prayer.route -> Screen.Prayer.route
             destination == Screen.Admin.route -> Screen.Admin.route
+            destination == Screen.Devotionals.route -> Screen.Devotionals.route
             destination == Screen.About.route -> Screen.About.route
             else -> null
         }
