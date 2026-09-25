@@ -1288,9 +1288,8 @@ fun addDevotional(context: android.content.Context, item: Devotional) {
         Firebase.firestore.collection("devocionais").document(item.id).set(item)
             .addOnSuccessListener {
                 android.widget.Toast.makeText(context, "Devocional salvo com sucesso!", android.widget.Toast.LENGTH_SHORT).show()
-                NotificationDispatcher.enqueue("all_users", "Novo devocional disponível", item.title, "devocionais", item.id)
-                // Update timestamp for GlobalStateManager
-                Firebase.firestore.collection("settings").document("sync_trigger").set(mapOf("timestamp" to System.currentTimeMillis()))
+                // O backend observa a criação em devocionais, atualiza o gatilho
+                // de sincronização e envia a notificação para todos os aparelhos.
             }
             .addOnFailureListener { e ->
                 android.widget.Toast.makeText(context, "Erro ao salvar: ${e.message}", android.widget.Toast.LENGTH_LONG).show()

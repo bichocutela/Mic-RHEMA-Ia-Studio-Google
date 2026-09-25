@@ -1,4 +1,4 @@
-const functions = require("firebase-functions");
+const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 
 admin.initializeApp();
@@ -54,12 +54,122 @@ exports.dailyDevotionalReminder = functions.pubsub.schedule("0 8 * * *")
     return null;
   });
 
-exports.notifyNewDevotional = collectionUpdate(
-  "devocionais",
-  "all_users",
-  "Novo devocional disponível",
-  "Confira agora: {title}"
-);
+const DEVOTIONAL_DELIVERY_COLLECTION = "_notification_deliveries";
+const DEVOTIONAL_DELIVERY_LEASE_MS = 2 * 60 * 1000;
+const DEVOTIONAL_MAX_EVENT_AGE_MS = 12 * 60 * 60 * 1000;
+
+async function claimDevotionalDelivery(eventId, documentId) {
+  const deliveryRef = admin.firestore()
+    .collection(DEVOTIONAL_DELIVERY_COLLECTION)
+    .doc(eventId);
+  const now = Date.now();
+
+  return admin.firestore().runTransaction(async (transaction) => {
+    const current = await transaction.get(deliveryRef);
+    if (current.exists) {
+      const state = current.get("state");
+      const leaseUntil = Number(current.get("leaseUntil") || 0);
+      if (state === "sent") return "sent";
+      if (state === "sending" && leaseUntil > now) return "busy";
+    }
+
+    transaction.set(deliveryRef, {
+      kind: "devotional",
+      documentId,
+      state: "sending",
+      leaseUntil: now + DEVOTIONAL_DELIVERY_LEASE_MS,
+      attempts: admin.firestore.FieldValue.increment(1),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return "claimed";
+  });
+}
+
+async function markDevotionalDelivery(eventId, patch) {
+  await admin.firestore()
+    .collection(DEVOTIONAL_DELIVERY_COLLECTION)
+    .doc(eventId)
+    .set({
+      ...patch,
+      leaseUntil: 0,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+}
+
+exports.notifyNewDevotional = functions
+  .runWith({ failurePolicy: true, timeoutSeconds: 60, memory: "256MB" })
+  .firestore.document("devocionais/{documentId}")
+  .onCreate(async (snapshot, context) => {
+    const data = snapshot.data() || {};
+    if (data.isApproved === false || data.approved === false) {
+      console.log("Devocional ainda não aprovado; notificação ignorada.", snapshot.id);
+      return null;
+    }
+
+    const eventAge = Date.now() - Date.parse(context.timestamp);
+    if (Number.isFinite(eventAge) && eventAge > DEVOTIONAL_MAX_EVENT_AGE_MS) {
+      console.warn("Evento de devocional expirado; evitando aviso atrasado.", snapshot.id);
+      return null;
+    }
+
+    const deliveryState = await claimDevotionalDelivery(context.eventId, snapshot.id);
+    if (deliveryState === "sent") return null;
+    if (deliveryState === "busy") {
+      throw new Error("Envio do devocional já está em andamento; tentar novamente.");
+    }
+
+    const itemTitle = String(data.title || "").trim().slice(0, 120);
+    const title = "Novo devocional disponível";
+    const body = itemTitle ? `Confira agora: ${itemTitle}` : "Uma nova palavra está disponível no MIC Rhema.";
+
+    try {
+      await admin.firestore().collection("settings").doc("sync_trigger").set({
+        timestamp: Date.now(),
+        source: "devotional_backend",
+        devotionalId: snapshot.id,
+      }, { merge: true });
+
+      const messageId = await admin.messaging().send({
+        topic: "all_users",
+        notification: { title, body },
+        data: {
+          title,
+          body,
+          documentId: snapshot.id,
+          collection: "devocionais",
+          category: "daily_devotional",
+          destination: "devocionais",
+        },
+        android: {
+          priority: "high",
+          notification: {
+            tag: `devotional-${snapshot.id}`,
+          },
+        },
+      });
+
+      await Promise.all([
+        markDevotionalDelivery(context.eventId, {
+          state: "sent",
+          sentAt: admin.firestore.FieldValue.serverTimestamp(),
+          messageId,
+        }),
+        snapshot.ref.set({
+          notificationSentAt: admin.firestore.FieldValue.serverTimestamp(),
+          notificationSource: "firebase_function",
+        }, { merge: true }),
+      ]);
+
+      console.log("Devocional distribuído pelo servidor.", snapshot.id, messageId);
+      return null;
+    } catch (error) {
+      await markDevotionalDelivery(context.eventId, {
+        state: "failed",
+        lastError: String(error?.message || error).slice(0, 500),
+      }).catch(() => undefined);
+      throw error;
+    }
+  });
 
 exports.notifyNewBook = collectionUpdate(
   "conteudos_books",
