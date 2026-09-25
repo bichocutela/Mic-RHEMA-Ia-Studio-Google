@@ -50,9 +50,29 @@ object DevotionalRepository {
         awaitClose { listenerRegistration.remove() }
     }
 
-    suspend fun addDevotional(devotional: Devotional): Result<Unit> {
+    suspend fun addDevotional(devotional: Devotional, notifyUsers: Boolean = false): Result<Unit> {
         return try {
             collection.document(devotional.id).set(devotional).await()
+
+            runCatching {
+                db.collection("settings")
+                    .document("sync_trigger")
+                    .set(mapOf("timestamp" to System.currentTimeMillis()))
+                    .await()
+            }.onFailure { error ->
+                Log.w("DevotionalRepository", "Devocional salvo, mas o gatilho de sincronização falhou.", error)
+            }
+
+            if (notifyUsers) {
+                NotificationDispatcher.enqueue(
+                    topic = "all_users",
+                    title = "Novo devocional disponível",
+                    body = devotional.title.ifBlank { "Uma nova palavra foi publicada." },
+                    collection = "devocionais",
+                    documentId = devotional.id
+                )
+            }
+
             Result.success(Unit)
         } catch (e: Exception) {
             Log.e("DevotionalRepository", "Error adding devotional", e)
