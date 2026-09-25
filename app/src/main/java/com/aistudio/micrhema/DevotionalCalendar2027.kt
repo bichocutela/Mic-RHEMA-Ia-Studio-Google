@@ -163,10 +163,23 @@ object DevotionalDateUtils {
 
     fun todayOrLatest(base: List<Devotional>, today: LocalDate = LocalDate.now()): Devotional? {
         val available = availableUntilToday(base, today)
-        return available.firstOrNull { parse(it.date) == today }
+
+        // Pode haver mais de um devocional na mesma data. Para a Home,
+        // o conteúdo publicado mais recentemente deve prevalecer sem
+        // remover os demais do histórico.
+        val todayDevotional = available
+            .asSequence()
+            .filter { parse(it.date) == today }
+            .maxWithOrNull(
+                compareBy<Devotional> { it.timestamp }
+                    .thenBy { it.id }
+            )
+
+        return todayDevotional
             ?: available.maxWithOrNull(
                 compareBy<Devotional> { parse(it.date) ?: LocalDate.MIN }
                     .thenBy { it.timestamp }
+                    .thenBy { it.id }
             )
     }
 }
