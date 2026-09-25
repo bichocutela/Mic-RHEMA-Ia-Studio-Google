@@ -494,6 +494,15 @@ fun EditDevotionalsSection(
                         scope.launch {
                             val res = DevotionalRepository.addDevotional(newDev, notifyUsers = isNewDevotional)
                             if (res.isSuccess) {
+                                val updatedHistory = (devotionalsState.filterNot { it.id == newDev.id } + newDev)
+                                    .sortedWith(
+                                        compareByDescending<Devotional> { it.timestamp }
+                                            .thenByDescending { DevotionalDateUtils.parse(it.date) ?: java.time.LocalDate.MIN }
+                                            .thenByDescending { it.id }
+                                    )
+                                devotionalsState.clear()
+                                devotionalsState.addAll(updatedHistory)
+
                                 android.widget.Toast.makeText(context, "Devocional salvo!", android.widget.Toast.LENGTH_SHORT).show()
                                 showDialog = false
                                 forceRefreshData()
