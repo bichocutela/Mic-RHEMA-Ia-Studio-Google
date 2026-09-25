@@ -323,12 +323,24 @@ fun EditServicesSection() {
 }
 
 // DEVOTIONALS
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EditDevotionalsSection() {
+fun EditDevotionalsSection(
+    openNewOnEnter: Boolean = false,
+    onNewOpened: () -> Unit = {}
+) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     var showDialog by remember { mutableStateOf(false) }
     var editingDevotional by remember { mutableStateOf<Devotional?>(null) }
+
+    LaunchedEffect(openNewOnEnter) {
+        if (openNewOnEnter) {
+            editingDevotional = null
+            showDialog = true
+            onNewOpened()
+        }
+    }
     val sortedDevotionals = devotionalsState.sortedWith(
         compareByDescending<Devotional> { it.timestamp }.thenByDescending { it.date }
     )
@@ -411,6 +423,19 @@ fun EditDevotionalsSection() {
         var mediaUrl by remember { mutableStateOf(editingDevotional?.mediaUrl ?: "") }
         var ref by remember { mutableStateOf(editingDevotional?.verseReference ?: "") }
         var date by remember { mutableStateOf(editingDevotional?.date ?: java.time.LocalDate.now().toString()) }
+        var showDatePicker by remember { mutableStateOf(false) }
+        val parsedDevotionalDate = DevotionalDateUtils.parse(date) ?: java.time.LocalDate.now()
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = parsedDevotionalDate
+                .atStartOfDay(java.time.ZoneOffset.UTC)
+                .toInstant()
+                .toEpochMilli()
+        )
+        val formattedDevotionalDate = "%02d/%02d/%04d".format(
+            parsedDevotionalDate.dayOfMonth,
+            parsedDevotionalDate.monthValue,
+            parsedDevotionalDate.year
+        )
         
         AlertDialog(
             onDismissRequest = { showDialog = false },
@@ -418,7 +443,24 @@ fun EditDevotionalsSection() {
             text = {
                 Column {
                     OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Título") })
-                    OutlinedTextField(value = date, onValueChange = { date = it }, label = { Text("Data (dd/MM/aaaa ou aaaa-MM-dd)") })
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = formattedDevotionalDate,
+                            onValueChange = { },
+                            readOnly = true,
+                            label = { Text("Data") },
+                            supportingText = { Text("Toque para escolher no calendário") },
+                            trailingIcon = {
+                                Icon(Icons.Default.DateRange, contentDescription = "Abrir calendário")
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .clickable { showDatePicker = true }
+                        )
+                    }
                     OutlinedTextField(value = ref, onValueChange = { ref = it }, label = { Text("Referência (ex: João 3:16)") })
                     OutlinedTextField(value = verse, onValueChange = { verse = it }, label = { Text("Versículo") })
                     OutlinedTextField(value = content, onValueChange = { content = it }, label = { Text("Conteúdo") }, modifier = Modifier.height(120.dp))
@@ -453,6 +495,15 @@ fun EditDevotionalsSection() {
                         scope.launch {
                             val res = DevotionalRepository.addDevotional(newDev, notifyUsers = isNewDevotional)
                             if (res.isSuccess) {
+                                val updatedHistory = (devotionalsState.filterNot { it.id == newDev.id } + newDev)
+                                    .sortedWith(
+                                        compareByDescending<Devotional> { it.timestamp }
+                                            .thenByDescending { DevotionalDateUtils.parse(it.date) ?: java.time.LocalDate.MIN }
+                                            .thenByDescending { it.id }
+                                    )
+                                devotionalsState.clear()
+                                devotionalsState.addAll(updatedHistory)
+
                                 android.widget.Toast.makeText(context, "Devocional salvo!", android.widget.Toast.LENGTH_SHORT).show()
                                 showDialog = false
                                 forceRefreshData()
@@ -465,6 +516,28 @@ fun EditDevotionalsSection() {
             },
             dismissButton = { TextButton(onClick = { showDialog = false }) { Text("Cancelar") } }
         )
+
+        if (showDatePicker) {
+            DatePickerDialog(
+                onDismissRequest = { showDatePicker = false },
+                confirmButton = {
+                    TextButton(onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            date = java.time.Instant.ofEpochMilli(millis)
+                                .atZone(java.time.ZoneOffset.UTC)
+                                .toLocalDate()
+                                .toString()
+                        }
+                        showDatePicker = false
+                    }) { Text("OK") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDatePicker = false }) { Text("Cancelar") }
+                }
+            ) {
+                DatePicker(state = datePickerState)
+            }
+        }
     }
 }
 

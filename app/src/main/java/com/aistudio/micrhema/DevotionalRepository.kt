@@ -2,7 +2,6 @@ package com.aistudio.micrhema
 
 import android.util.Log
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.Query
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -14,7 +13,6 @@ object DevotionalRepository {
 
     fun getDevotionalsFlow(): Flow<List<Devotional>> = callbackFlow {
         val listenerRegistration = collection
-            .orderBy("timestamp", Query.Direction.DESCENDING)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     Log.e("DevotionalRepository", "Listen failed.", error)
@@ -43,7 +41,12 @@ object DevotionalRepository {
                             null
                         }
                     }
-                    trySend(devotionals).isSuccess
+                    val sorted = devotionals.sortedWith(
+                        compareByDescending<Devotional> { it.timestamp }
+                            .thenByDescending { DevotionalDateUtils.parse(it.date) ?: java.time.LocalDate.MIN }
+                            .thenByDescending { it.id }
+                    )
+                    trySend(sorted).isSuccess
                 }
             }
 

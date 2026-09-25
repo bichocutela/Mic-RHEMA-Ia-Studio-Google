@@ -411,6 +411,7 @@ fun AdminScreen() {
             var currentSection by remember {
                 mutableStateOf(if (!adminPrayerTargetState.value.isNullOrBlank()) AdminSection.PRAYERS else AdminSection.DASHBOARD)
             }
+            var openNewDevotionalOnEnter by remember { mutableStateOf(false) }
 
             LaunchedEffect(adminPrayerTargetState.value) {
                 if (!adminPrayerTargetState.value.isNullOrBlank()) currentSection = AdminSection.PRAYERS
@@ -424,6 +425,10 @@ fun AdminScreen() {
             if (currentSection == AdminSection.DASHBOARD) {
                 AdminDashboard(
                     onNavigate = { currentSection = it },
+                    onNewDevotional = {
+                        openNewDevotionalOnEnter = true
+                        currentSection = AdminSection.DEVOTIONALS
+                    },
                     paddingValues = paddingValues
                 )
             } else {
@@ -459,7 +464,10 @@ fun AdminScreen() {
                             AdminSection.TABS -> AdminTabsScreen()
                             AdminSection.PLANS -> EditPlansSection()
                             AdminSection.SERVICES -> EditServicesSectionV2()
-                            AdminSection.DEVOTIONALS -> EditDevotionalsSection()
+                            AdminSection.DEVOTIONALS -> EditDevotionalsSection(
+                                openNewOnEnter = openNewDevotionalOnEnter,
+                                onNewOpened = { openNewDevotionalOnEnter = false }
+                            )
                             AdminSection.NEWS -> EditNewsSection()
                             AdminSection.MEDIA -> EditMediaSection()
                             AdminSection.IBR -> EditVipSection()
