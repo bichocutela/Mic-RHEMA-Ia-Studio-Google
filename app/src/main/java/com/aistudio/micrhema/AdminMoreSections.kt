@@ -438,6 +438,7 @@ fun EditDevotionalsSection() {
                             return@TextButton
                         }
 
+                        val isNewDevotional = editingDevotional == null
                         val newDev = Devotional(
                             id = editingDevotional?.id ?: java.util.UUID.randomUUID().toString(),
                             title = title,
@@ -450,7 +451,7 @@ fun EditDevotionalsSection() {
                             timestamp = editingDevotional?.timestamp ?: System.currentTimeMillis()
                         )
                         scope.launch {
-                            val res = DevotionalRepository.addDevotional(newDev)
+                            val res = DevotionalRepository.addDevotional(newDev, notifyUsers = isNewDevotional)
                             if (res.isSuccess) {
                                 android.widget.Toast.makeText(context, "Devocional salvo!", android.widget.Toast.LENGTH_SHORT).show()
                                 showDialog = false
