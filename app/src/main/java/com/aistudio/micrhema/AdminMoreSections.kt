@@ -323,6 +323,7 @@ fun EditServicesSection() {
 }
 
 // DEVOTIONALS
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditDevotionalsSection(
     openNewOnEnter: Boolean = false,
