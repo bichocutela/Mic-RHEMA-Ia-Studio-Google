@@ -14,13 +14,27 @@ private val sharedContentListeners = mutableMapOf<String, ListenerRegistration>(
 
 internal fun Query.addSharedSnapshotListener(key: String, listener: EventListener<QuerySnapshot>): ListenerRegistration =
     synchronized(sharedContentListeners) {
-        sharedContentListeners.getOrPut(key) { addSnapshotListener(listener) }
+        sharedContentListeners.getOrPut(key) {
+            addSnapshotListener { snapshot, error ->
+                if (error != null) releaseFailedSubscription(key)
+                listener.onEvent(snapshot, error)
+            }
+        }
     }
 
 internal fun DocumentReference.addSharedSnapshotListener(key: String, listener: EventListener<DocumentSnapshot>): ListenerRegistration =
     synchronized(sharedContentListeners) {
-        sharedContentListeners.getOrPut(key) { addSnapshotListener(listener) }
+        sharedContentListeners.getOrPut(key) {
+            addSnapshotListener { snapshot, error ->
+                if (error != null) releaseFailedSubscription(key)
+                listener.onEvent(snapshot, error)
+            }
+        }
     }
+
+private fun releaseFailedSubscription(key: String) {
+    synchronized(sharedContentListeners) { sharedContentListeners.remove(key)?.remove() }
+}
 
 internal fun <T> SnapshotStateList<T>.replaceContentsIfChanged(items: List<T>) {
     if (toList() == items) return
