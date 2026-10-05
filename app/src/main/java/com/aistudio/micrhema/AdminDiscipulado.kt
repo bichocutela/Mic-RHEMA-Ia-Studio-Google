@@ -387,7 +387,8 @@ fun EditDiscipuladoSection() {
                                     isPublished = true
                                 )
                                 Firebase.firestore.collection("discipulado_pdfs").document(item.id).set(item).await()
-                                discipuladoPdfsState.add(item)
+                                // O listener do Firestore já atualiza a lista, inclusive antes
+                                // do await retornar. Inserir aqui repete a chave da LazyColumn.
                                 android.widget.Toast.makeText(
                                     context,
                                     "Material publicado para todos os usuários.",

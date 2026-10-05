@@ -393,6 +393,9 @@ LaunchedEffect(loggedInMemberState.value?.id, currentRoute) {
 
     ModalNavigationDrawer(
         drawerState = drawerState,
+        // Conteúdo rolável e leitores WebView não devem abrir o menu por arraste.
+        // Quando aberto pelo botão, o drawer continua podendo ser fechado por gesto.
+        gesturesEnabled = drawerState.isOpen,
         drawerContent = {
             ModalDrawerSheet(
                 drawerContainerColor = MaterialTheme.colorScheme.surface,
