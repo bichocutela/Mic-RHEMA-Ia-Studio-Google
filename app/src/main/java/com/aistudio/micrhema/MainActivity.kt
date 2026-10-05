@@ -305,7 +305,7 @@ fun MainScreen() {
         if (devotionalsState.isEmpty()) {
             loadDevotionalsFromJson(context)
         }
-        DevotionalManager.syncDevotionals(context, kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main))
+        DevotionalManager.syncDevotionals(context, this)
         initializeTabs()
         loadContentFromFirebase(context)
         loadTeamMembersFromFirebase()
@@ -485,7 +485,9 @@ LaunchedEffect(loggedInMemberState.value?.id, currentRoute) {
                 Spacer(Modifier.height(8.dp))
                 HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
 
-                DrawerBadgesSection(member = member)
+                if (drawerState.isOpen || drawerState.targetValue == DrawerValue.Open) {
+                    DrawerBadgesSection(member = member)
+                }
                 HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
                 
                 val groupsMapping = remember {

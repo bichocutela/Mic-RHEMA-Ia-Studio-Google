@@ -157,8 +157,10 @@ fun PdfRendererView(file: File, bookUrl: String) {
     val initialPage = prefs.getInt(bookmarkKey, 0)
     val listState = androidx.compose.foundation.lazy.rememberLazyListState(initialFirstVisibleItemIndex = initialPage)
 
-    LaunchedEffect(listState.firstVisibleItemIndex) {
-        prefs.edit().putInt(bookmarkKey, listState.firstVisibleItemIndex).apply()
+    LaunchedEffect(listState, bookmarkKey) {
+        snapshotFlow { listState.firstVisibleItemIndex }.collect { index ->
+            prefs.edit().putInt(bookmarkKey, index).apply()
+        }
     }
 
     // A leitura só entra no XP enquanto o visualizador permanece realmente aberto.

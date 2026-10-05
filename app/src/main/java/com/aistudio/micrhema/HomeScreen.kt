@@ -84,6 +84,7 @@ fun HomeScreen(
         if (validBanners.size > 1) {
             while (true) {
                 delay(bannerRotationMillis)
+                if (scrollState.isScrollInProgress || bannerListState.isScrollInProgress) continue
                 val currentIndex = bannerListState.firstVisibleItemIndex.coerceIn(0, validBanners.lastIndex)
                 val nextIndex = if (currentIndex >= validBanners.lastIndex) 0 else currentIndex + 1
                 bannerListState.animateScrollToItem(nextIndex)
