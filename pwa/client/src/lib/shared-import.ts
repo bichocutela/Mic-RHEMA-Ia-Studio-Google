@@ -32,9 +32,10 @@ function openDb(): Promise<IDBDatabase> {
 
 function inferKind(value: string): SharedDocumentKind {
   const fingerprint = value.toLowerCase();
+  if (fingerprint.includes("msword") || /\\.doc(?:\\b|$)/.test(fingerprint)) return "unknown";
   if (fingerprint.includes("application/pdf") || /\.pdf(?:\b|$)/.test(fingerprint)) return "pdf";
   if (fingerprint.includes("application/epub+zip") || /\.epub(?:\b|$)/.test(fingerprint)) return "epub";
-  if (fingerprint.includes("wordprocessingml") || fingerprint.includes("msword") || /\.docx(?:\b|$)/.test(fingerprint)) return "docx";
+  if (fingerprint.includes("wordprocessingml") || /\.docx(?:\b|$)/.test(fingerprint)) return "docx";
   return "unknown";
 }
 
@@ -79,6 +80,9 @@ function mimeForKind(kind: Exclude<SharedDocumentKind, "unknown">) {
 }
 
 export async function sharedDocumentFile(document: PendingSharedDocument, forcedKind?: Exclude<SharedDocumentKind, "unknown">) {
+  if (document.type.toLowerCase().includes("msword") || /\\.doc$/i.test(document.name)) {
+    throw new Error("Word antigo (.doc): abra no aplicativo Android ou converta para .docx antes de importar na versão web.");
+  }
   const kind = forcedKind || await detectPendingSharedKind(document);
   if (kind === "unknown") throw new Error("Não foi possível identificar se o arquivo é PDF, EPUB ou Word (.docx).");
   if (document.blob && document.blob.size > 0) {

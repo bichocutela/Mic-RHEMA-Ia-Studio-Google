@@ -81,6 +81,8 @@ private fun resolveDiscipuladoLocalFile(
         detectedMime == DISCIPULADO_DOCX_MIME || extension == "docx" ->
             DiscipuladoLocalFile(displayName.ifBlank { "material.docx" }, DISCIPULADO_DOCX_MIME, "word")
 
+        detectedMime == "application/msword" || extension == "doc" ->
+            DiscipuladoLocalFile(displayName.ifBlank { "material.doc" }, "application/msword", "word")
         else -> null
     }
 }
@@ -254,7 +256,8 @@ fun EditDiscipuladoSection() {
                             documentPicker.launch(
                                 arrayOf(
                                     DISCIPULADO_PDF_MIME,
-                                    DISCIPULADO_DOCX_MIME
+                                    DISCIPULADO_DOCX_MIME,
+                                    "application/msword"
                                 )
                             )
                         },

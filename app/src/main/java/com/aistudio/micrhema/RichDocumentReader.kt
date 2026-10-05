@@ -71,6 +71,7 @@ fun RichDocumentReader(
             }
         }.onSuccess { prepared = it }
             .onFailure { throwable ->
+                if (throwable is kotlinx.coroutines.CancellationException) throw throwable
                 error = throwable.message ?: "Não foi possível preparar o documento para leitura."
             }
         loading = false
@@ -213,7 +214,7 @@ private object RichDocumentParser {
         primaryCss: String
     ): PreparedRichDocument {
         if (sourceUrl.isBlank()) throw IllegalArgumentException("O documento não possui um endereço válido.")
-        val cacheId = "${kind.name.lowercase()}_${sourceUrl.hashCode().toUInt().toString(16)}"
+        val cacheId = "v2_${kind.name.lowercase()}_${sourceUrl.hashCode().toUInt().toString(16)}"
         val extension = if (kind == RichDocumentKind.DOCX) "docx" else "epub"
         val packageFile = File(context.cacheDir, "reader_$cacheId.$extension")
         if (!packageFile.exists() || packageFile.length() <= 0L) {
@@ -224,16 +225,40 @@ private object RichDocumentParser {
             throw IllegalArgumentException("O arquivo excede o limite de 50 MB do leitor interno.")
         }
 
-        val unpacked = File(context.cacheDir, "reader_unpack_$cacheId")
-        if (!unpacked.exists() || unpacked.listFiles().isNullOrEmpty()) {
-            unpacked.deleteRecursively()
-            unpacked.mkdirs()
-            unpackZip(packageFile, unpacked)
+        val format = try {
+            DocumentFiles.detect(packageFile)
+        } catch (error: Exception) {
+            packageFile.delete()
+            throw error
         }
-
-        val body = when (kind) {
-            RichDocumentKind.DOCX -> renderDocx(unpacked)
-            RichDocumentKind.EPUB -> renderEpub(unpacked)
+        val unpacked = File(context.cacheDir, "reader_unpack_$cacheId")
+        val completed = File(unpacked, ".complete")
+        val body = try {
+            if (kind == RichDocumentKind.DOCX && format == DocumentFormat.DOC) {
+                LegacyWordText.read(packageFile).split('\n').joinToString("") { line ->
+                    "<p>${escapeHtml(line).ifBlank { "&nbsp;" }}</p>"
+                }
+            } else {
+                require((kind == RichDocumentKind.DOCX && format == DocumentFormat.DOCX) ||
+                    (kind == RichDocumentKind.EPUB && format == DocumentFormat.EPUB)) {
+                    "O formato do arquivo não corresponde ao leitor selecionado."
+                }
+                if (!completed.exists()) {
+                    unpacked.deleteRecursively()
+                    check(unpacked.mkdirs()) { "Não foi possível preparar o documento." }
+                    unpackZip(packageFile, unpacked)
+                }
+                val rendered = when (kind) {
+                    RichDocumentKind.DOCX -> renderDocx(unpacked)
+                    RichDocumentKind.EPUB -> renderEpub(unpacked)
+                }
+                completed.writeText("complete")
+                rendered
+            }
+        } catch (error: Exception) {
+            unpacked.deleteRecursively()
+            packageFile.delete()
+            throw error
         }
         if (body.isBlank()) throw IllegalArgumentException("O documento não contém texto compatível com o leitor interno.")
 
@@ -246,57 +271,18 @@ private object RichDocumentParser {
         )
         return PreparedRichDocument(
             html = html,
-            baseUrl = unpacked.toURI().toString(),
+            baseUrl = (if (format == DocumentFormat.DOC) context.cacheDir else unpacked).toURI().toString(),
             cacheKey = "$cacheId:${packageFile.length()}:$backgroundCss:$foregroundCss"
         )
     }
 
     private fun copySourceToFile(context: Context, sourceUrl: String, destination: File) {
-        destination.parentFile?.mkdirs()
         if (sourceUrl.startsWith("http://", true) || sourceUrl.startsWith("https://", true)) {
-            val resolved = convertGoogleDriveUrl(sourceUrl)
-            val connection = URL(resolved).openConnection() as HttpURLConnection
-            try {
-                connection.requestMethod = "GET"
-                connection.instanceFollowRedirects = true
-                connection.connectTimeout = 15_000
-                connection.readTimeout = 30_000
-                connection.connect()
-                if (connection.responseCode !in 200..299) {
-                    throw IllegalArgumentException("O servidor respondeu ${connection.responseCode} ao baixar o documento.")
-                }
-                val announced = connection.contentLengthLong
-                if (announced > MAX_PACKAGE_BYTES) throw IllegalArgumentException("O arquivo excede o limite de 50 MB.")
-                connection.inputStream.use { input -> copyLimited(input, destination, MAX_PACKAGE_BYTES) }
-            } finally {
-                connection.disconnect()
-            }
+            RemoteDocumentDownload.download(sourceUrl, destination)
         } else {
-            val uri = Uri.parse(sourceUrl)
-            context.contentResolver.openInputStream(uri)?.use { input ->
-                copyLimited(input, destination, MAX_PACKAGE_BYTES)
+            context.contentResolver.openInputStream(Uri.parse(sourceUrl))?.use {
+                DocumentFiles.copy(it, destination)
             } ?: throw IllegalArgumentException("Não foi possível ler o documento selecionado.")
-        }
-    }
-
-    private fun copyLimited(input: java.io.InputStream, destination: File, maxBytes: Long) {
-        var total = 0L
-        FileOutputStream(destination).use { output ->
-            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-            while (true) {
-                val read = input.read(buffer)
-                if (read <= 0) break
-                total += read
-                if (total > maxBytes) {
-                    destination.delete()
-                    throw IllegalArgumentException("O arquivo excede o limite de 50 MB.")
-                }
-                output.write(buffer, 0, read)
-            }
-        }
-        if (total <= 0L) {
-            destination.delete()
-            throw IllegalArgumentException("O arquivo recebido está vazio.")
         }
     }
 

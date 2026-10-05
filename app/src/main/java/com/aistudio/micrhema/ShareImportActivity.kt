@@ -140,7 +140,7 @@ class ShareImportActivity : ComponentActivity() {
                                 Text(
                                     when (current.type) {
                                         SharedDocumentType.PDF -> "Leitor atribuído: PDF interno"
-                                        SharedDocumentType.DOCX -> "Leitor atribuído: Word interno"
+                                        SharedDocumentType.DOC, SharedDocumentType.DOCX -> "Leitor atribuído: Word interno"
                                         SharedDocumentType.EPUB -> "Leitor atribuído: EPUB interno"
                                     },
                                     style = MaterialTheme.typography.bodySmall,
@@ -209,7 +209,7 @@ class ShareImportActivity : ComponentActivity() {
                         }
 
                         Text(
-                            "Compatível com o compartilhamento do Xodo e de outros aplicativos Android. PDF, EPUB e Word .docx são identificados automaticamente.",
+                            "Compatível com o compartilhamento do Xodo e de outros aplicativos Android. PDF, EPUB e Word .doc e .docx são identificados automaticamente.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

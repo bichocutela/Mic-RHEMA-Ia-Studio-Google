@@ -1,0 +1,5 @@
+SampleDoc.doc is an Apache POI test fixture, distributed under the Apache License 2.0.
+Source: https://github.com/apache/poi/blob/trunk/test-data/document/SampleDoc.doc
+Git blob: e82c7def3fbca0ea8484d997b7b7025f40142fa9
+Copyright The Apache Software Foundation.
+See LICENSE.txt in this directory.

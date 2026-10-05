@@ -47,6 +47,7 @@ fun PdfViewer(
         isLoading = true
         error = null
         pdfFile = null
+        detectedFileType = null
         try {
             val normalizedType = contentType.trim().lowercase()
             detectedFileType = when {
@@ -59,7 +60,7 @@ fun PdfViewer(
                     val mime = runCatching { context.contentResolver.getType(uri).orEmpty().lowercase() }.getOrDefault("")
                     when {
                         mime.contains("epub+zip") || bookUrl.lowercase().endsWith(".epub") -> GoogleDriveService.FileType.EPUB
-                        mime.contains("wordprocessingml") || mime.contains("msword") || bookUrl.lowercase().endsWith(".docx") -> GoogleDriveService.FileType.WORD
+                        mime.contains("wordprocessingml") || mime.contains("msword") || bookUrl.lowercase().substringBefore('?').endsWith(".docx") || bookUrl.lowercase().substringBefore('?').endsWith(".doc") -> GoogleDriveService.FileType.WORD
                         else -> GoogleDriveService.FileType.PDF
                     }
                 }
@@ -71,47 +72,28 @@ fun PdfViewer(
             }
 
             val file = withContext(Dispatchers.IO) {
-                if (bookUrl.startsWith("http", ignoreCase = true)) {
-                    val fileName = "book_${bookUrl.hashCode()}.pdf"
-                    val cachedFile = File(context.cacheDir, fileName)
-                    if (!cachedFile.exists() || cachedFile.length() <= 0L) {
-                        val connection = URL(convertGoogleDriveUrl(bookUrl)).openConnection() as HttpURLConnection
-                        connection.instanceFollowRedirects = true
-                        connection.connectTimeout = 15_000
-                        connection.readTimeout = 30_000
-                        connection.connect()
-                        try {
-                            if (connection.responseCode in 200..299) {
-                                connection.inputStream.use { input ->
-                                    FileOutputStream(cachedFile).use { output -> input.copyTo(output) }
-                                }
-                            } else {
-                                return@withContext null
-                            }
-                        } finally {
-                            connection.disconnect()
-                        }
-                    }
-                    cachedFile
-                } else {
-                    val uri = Uri.parse(bookUrl)
-                    val fileName = "book_${bookUrl.hashCode()}.pdf"
-                    val cachedFile = File(context.cacheDir, fileName)
-                    if (!cachedFile.exists() || cachedFile.length() <= 0L) {
-                        val input = context.contentResolver.openInputStream(uri) ?: return@withContext null
-                        input.use { source ->
-                            FileOutputStream(cachedFile).use { output -> source.copyTo(output) }
-                        }
-                    }
-                    cachedFile
+                val cachedFile = File(context.cacheDir, "book_v2_${bookUrl.hashCode()}.pdf")
+                if (cachedFile.exists() && runCatching { DocumentFiles.detect(cachedFile) }.isFailure) {
+                    cachedFile.delete()
                 }
+                if (!cachedFile.exists()) {
+                    if (bookUrl.startsWith("http", ignoreCase = true)) {
+                        RemoteDocumentDownload.download(bookUrl, cachedFile)
+                    } else {
+                        val input = context.contentResolver.openInputStream(Uri.parse(bookUrl))
+                            ?: throw IllegalArgumentException("Não foi possível ler o documento selecionado.")
+                        input.use { DocumentFiles.copy(it, cachedFile) }
+                    }
+                }
+                cachedFile
             }
-            if (file != null) {
-                pdfFile = file
-            } else {
-                error = "Não foi possível carregar o arquivo PDF."
+            when (withContext(Dispatchers.IO) { DocumentFiles.detect(file) }) {
+                DocumentFormat.PDF -> pdfFile = file
+                DocumentFormat.DOC, DocumentFormat.DOCX -> detectedFileType = GoogleDriveService.FileType.WORD
+                DocumentFormat.EPUB -> detectedFileType = GoogleDriveService.FileType.EPUB
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             e.printStackTrace()
             error = "Erro ao carregar o documento: ${e.message}"
         } finally {
@@ -127,6 +109,8 @@ fun PdfViewer(
                 Text("Baixando/Carregando livro...")
             }
 
+            error != null -> Text(error!!, color = MaterialTheme.colorScheme.error)
+
             detectedFileType == GoogleDriveService.FileType.WORD -> RichDocumentReader(
                 sourceUrl = bookUrl,
                 title = title,
@@ -141,7 +125,6 @@ fun PdfViewer(
                 modifier = Modifier.fillMaxSize()
             )
 
-            error != null -> Text(error!!, color = MaterialTheme.colorScheme.error)
             pdfFile != null -> PdfRendererView(pdfFile!!, bookUrl)
             else -> Text("Formato de documento não reconhecido.", color = MaterialTheme.colorScheme.error)
         }

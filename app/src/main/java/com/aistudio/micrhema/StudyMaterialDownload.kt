@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Environment
 import android.widget.Toast
+import kotlinx.coroutines.launch
 
 /**
  * Download reutilizável para materiais de estudo.
@@ -20,7 +21,29 @@ object StudyMaterialDownload {
     }
 
     fun enqueueDocx(context: Context, sourceUrl: String, title: String) {
-        enqueue(context, sourceUrl, title, "docx", DOCX_MIME, "Word")
+        val appContext = context.applicationContext
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+            try {
+                val resolved = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    val probe = java.io.File.createTempFile("word_download_", ".tmp", appContext.cacheDir)
+                    try {
+                        val (_, _, downloadUrl) = RemoteDocumentDownload.download(sourceUrl.trim(), probe)
+                        when (DocumentFiles.detect(probe)) {
+                            DocumentFormat.DOC -> Triple(downloadUrl, "doc", "application/msword")
+                            DocumentFormat.DOCX -> Triple(downloadUrl, "docx", DOCX_MIME)
+                            else -> throw IllegalArgumentException("O endereço não retornou um documento Word.")
+                        }
+                    } finally {
+                        probe.delete()
+                    }
+                }
+                val baseTitle = title.replace(Regex("(?i)\\.docx?$"), "")
+                enqueue(appContext, resolved.first, baseTitle, resolved.second, resolved.third, "Word")
+            } catch (error: Exception) {
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                Toast.makeText(appContext, error.message ?: "Não foi possível baixar o documento Word.", Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     fun enqueueEpub(context: Context, sourceUrl: String, title: String) {

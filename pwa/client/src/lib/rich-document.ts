@@ -266,6 +266,11 @@ export async function loadRichDocument(sourceUrl: string, type: RichDocumentType
   const response = await fetch(sourceUrl, { cache: "no-store", credentials: "omit" });
   if (!response.ok) throw new Error(`Não foi possível baixar o documento (HTTP ${response.status}).`);
   const buffer = await response.arrayBuffer();
+  const header = new Uint8Array(buffer, 0, Math.min(buffer.byteLength, 8));
+  if ([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1].every((byte, index) => header[index] === byte)) {
+    throw new Error("Word antigo (.doc): abra no aplicativo Android ou converta para .docx para ler na versão web.");
+  }
   const entries = await unzip(buffer);
   return type === "docx" ? parseDocx(entries) : parseEpub(entries);
 }
+

@@ -21,6 +21,7 @@ enum class SharedDocumentType(
 ) {
     PDF("pdf", "application/pdf", "pdf", "PDF"),
     EPUB("epub", "application/epub+zip", "epub", "EPUB"),
+    DOC("word", "application/msword", "doc", "Word antigo"),
     DOCX("word", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "docx", "Word")
 }
 
@@ -51,7 +52,7 @@ object SharedDocumentImport {
 
         try {
             when {
-                sourceUri != null -> {
+                sourceUri != null && sourceUri.scheme !in setOf("http", "https") -> {
                     originalName = queryDisplayName(context, sourceUri)
                     if (hintedMime.isBlank() || hintedMime == "application/octet-stream" || hintedMime == "*/*") {
                         hintedMime = context.contentResolver.getType(sourceUri).orEmpty().lowercase().substringBefore(';')
@@ -61,18 +62,19 @@ object SharedDocumentImport {
                     } ?: throw IllegalArgumentException("Não foi possível ler o arquivo compartilhado.")
                 }
 
-                sharedText.startsWith("http://", true) || sharedText.startsWith("https://", true) -> {
-                    val result = downloadRemote(sharedText, temp)
+                sourceUri?.scheme in setOf("http", "https") ||
+                    sharedText.startsWith("http://", true) || sharedText.startsWith("https://", true) -> {
+                    val result = downloadRemote(sourceUri?.toString() ?: sharedText, temp)
                     originalName = result.first
                     if (hintedMime.isBlank() || hintedMime == "text/plain" || hintedMime == "application/octet-stream" || hintedMime == "*/*") {
                         hintedMime = result.second
                     }
                 }
 
-                else -> throw IllegalArgumentException("Compartilhe um arquivo PDF, EPUB, Word (.docx) ou um link direto para um desses arquivos.")
+                else -> throw IllegalArgumentException("Compartilhe um arquivo PDF, EPUB, Word (.doc ou .docx) ou um link direto para um desses arquivos.")
             }
 
-            val detected = detectType(temp, originalName, hintedMime)
+            val detected = detectType(temp)
             val safeBase = sanitizeBaseName(originalName.substringBeforeLast('.', originalName))
                 .ifBlank { "material-ibr-${System.currentTimeMillis()}" }
             val finalFile = File(context.cacheDir, "${safeBase.take(70)}_${System.currentTimeMillis()}.${detected.extension}")
@@ -117,89 +119,26 @@ object SharedDocumentImport {
     }.getOrDefault("")
 
     private fun downloadRemote(sourceUrl: String, destination: File): Pair<String, String> {
-        val resolved = convertGoogleDriveUrl(sourceUrl)
-        val connection = URL(resolved).openConnection() as HttpURLConnection
-        try {
-            connection.requestMethod = "GET"
-            connection.instanceFollowRedirects = true
-            connection.connectTimeout = 15_000
-            connection.readTimeout = 30_000
-            connection.setRequestProperty("User-Agent", "MIC-Rhema/Android")
-            connection.connect()
-            if (connection.responseCode !in 200..299) {
-                throw IllegalArgumentException("Não foi possível baixar o link compartilhado (HTTP ${connection.responseCode}).")
-            }
-            val announced = connection.contentLengthLong
-            if (announced > MAX_BYTES) throw IllegalArgumentException("O arquivo compartilhado excede o limite de 50 MB.")
-            connection.inputStream.use { input -> copyLimited(input, destination) }
-            val disposition = connection.getHeaderField("Content-Disposition").orEmpty()
-            val nameFromDisposition = Regex("(?i)filename\\*?=(?:UTF-8''|\")?([^\";]+)")
-                .find(disposition)?.groupValues?.getOrNull(1)?.let { Uri.decode(it.trim().trim('"')) }.orEmpty()
-            val urlName = runCatching { Uri.parse(connection.url.toString()).lastPathSegment.orEmpty() }.getOrDefault("")
-            return (nameFromDisposition.ifBlank { urlName }) to connection.contentType.orEmpty().lowercase().substringBefore(';')
-        } finally {
-            connection.disconnect()
-        }
+        val (disposition, mime) = RemoteDocumentDownload.download(sourceUrl, destination)
+            val name = Regex("(?i)filename\\*?=(?:UTF-8''|\")?([^\";]+)")
+            .find(disposition)?.groupValues?.getOrNull(1)?.let { Uri.decode(it.trim().trim('"')) }.orEmpty()
+        return name to mime.lowercase().substringBefore(';')
     }
 
     private fun copyLimited(input: java.io.InputStream, destination: File) {
-        var total = 0L
-        FileOutputStream(destination).use { output ->
-            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-            while (true) {
-                val read = input.read(buffer)
-                if (read <= 0) break
-                total += read
-                if (total > MAX_BYTES) {
-                    destination.delete()
-                    throw IllegalArgumentException("O arquivo compartilhado excede o limite de 50 MB.")
-                }
-                output.write(buffer, 0, read)
-            }
-        }
-        if (total <= 0L) {
-            destination.delete()
-            throw IllegalArgumentException("O arquivo compartilhado está vazio.")
-        }
+        DocumentFiles.copy(input, destination)
     }
 
-    private fun detectType(file: File, displayName: String, mime: String): SharedDocumentType {
-        val lowerName = displayName.lowercase()
-        val normalizedMime = mime.lowercase().substringBefore(';')
-
-        if (lowerName.endsWith(".doc") || normalizedMime == "application/msword") {
-            throw IllegalArgumentException("O formato Word antigo .doc não é compatível com o leitor interno. Salve ou compartilhe como .docx.")
+    private fun detectType(file: File): SharedDocumentType = when (DocumentFiles.detect(file)) {
+        DocumentFormat.PDF -> SharedDocumentType.PDF
+        DocumentFormat.DOCX -> SharedDocumentType.DOCX
+        DocumentFormat.EPUB -> SharedDocumentType.EPUB
+        DocumentFormat.DOC -> {
+            // Other OLE documents (Excel, encrypted files) must not be accepted as Word.
+            LegacyWordText.read(file)
+            SharedDocumentType.DOC
         }
-        if (lowerName.endsWith(".pdf") || normalizedMime == "application/pdf" || hasPdfHeader(file)) return SharedDocumentType.PDF
-        if (lowerName.endsWith(".docx") || normalizedMime.contains("wordprocessingml")) return SharedDocumentType.DOCX
-        if (lowerName.endsWith(".epub") || normalizedMime.contains("epub+zip")) return SharedDocumentType.EPUB
-
-        if (isZip(file)) {
-            runCatching {
-                ZipFile(file).use { zip ->
-                    if (zip.getEntry("word/document.xml") != null) return SharedDocumentType.DOCX
-                    if (zip.getEntry("META-INF/container.xml") != null) return SharedDocumentType.EPUB
-                }
-            }
-        }
-
-        throw IllegalArgumentException("Não foi possível identificar o arquivo. Use PDF, EPUB ou Word no formato .docx.")
     }
-
-    private fun hasPdfHeader(file: File): Boolean = runCatching {
-        file.inputStream().use { input ->
-            val bytes = ByteArray(5)
-            input.read(bytes) == 5 && String(bytes, Charsets.US_ASCII) == "%PDF-"
-        }
-    }.getOrDefault(false)
-
-    private fun isZip(file: File): Boolean = runCatching {
-        file.inputStream().use { input ->
-            val first = input.read()
-            val second = input.read()
-            first == 0x50 && second == 0x4B
-        }
-    }.getOrDefault(false)
 
     private fun sanitizeBaseName(value: String): String = value
         .replace(Regex("[^\\p{L}\\p{N}._ -]+"), "")

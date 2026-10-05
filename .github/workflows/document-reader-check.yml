@@ -1,0 +1,38 @@
+name: Validate document readers
+
+on:
+  push:
+    branches: [fix/document-compatibility-20261005]
+  pull_request:
+    paths:
+      - 'app/src/**'
+      - 'app/build.gradle.kts'
+      - '.github/workflows/document-reader-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  documents:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          validate-wrappers: false
+      - name: Test document handling and build Android
+        run: |
+          cp .env.example .env
+          chmod +x gradlew
+          ./gradlew testDebugUnitTest assembleDebug --no-daemon --stacktrace
+      - name: Save test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: document-reader-tests
+          path: app/build/reports/tests/testDebugUnitTest
