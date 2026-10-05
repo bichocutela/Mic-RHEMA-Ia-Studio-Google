@@ -1266,7 +1266,7 @@ fun EditVipIbrSection() {
                         LocalUploadField(
                             value = studyDocxUrl,
                             onValueChange = { studyDocxUrl = it },
-                            label = "Conteúdo para estudo — Word .docx (opcional)",
+                            label = "Conteúdo para estudo — Word .doc ou .docx (opcional)",
                             mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                         )
                         Text(
@@ -1640,7 +1640,7 @@ fun EditVipIbrSection() {
                     LocalUploadField(
                         value = editStudyDocxUrl,
                         onValueChange = { editStudyDocxUrl = it },
-                        label = "Conteúdo para estudo — Word .docx",
+                        label = "Conteúdo para estudo — Word .doc ou .docx",
                         mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                     )
                 }

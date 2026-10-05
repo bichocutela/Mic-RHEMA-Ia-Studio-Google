@@ -113,6 +113,8 @@ android {
 }
 
 dependencies {
+    implementation("org.apache.poi:poi-scratchpad:5.5.1")
+    testImplementation("junit:junit:4.13.2")
     implementation(libs.zxing.core)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.firestore)

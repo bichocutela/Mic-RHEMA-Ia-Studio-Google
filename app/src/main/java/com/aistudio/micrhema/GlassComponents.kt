@@ -187,7 +187,9 @@ fun LocalUploadField(
                     Text("${(uploadProgress.floatValue * 100).toInt()}%", fontSize = 10.sp)
                 }
             } else {
-                IconButton(onClick = { launcher.launch(arrayOf(mimeType)) }) {
+                IconButton(onClick = { launcher.launch(if (mimeType == "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
+                    arrayOf(mimeType, "application/msword")
+                } else arrayOf(mimeType)) }) {
                     Icon(Icons.Default.Add, contentDescription = "Upload")
                 }
             }

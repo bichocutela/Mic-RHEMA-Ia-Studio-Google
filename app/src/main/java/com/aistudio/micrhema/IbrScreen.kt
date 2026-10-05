@@ -582,7 +582,7 @@ private fun IbrStudyMaterials(chapter: IbrChapter) {
                 Spacer(Modifier.width(9.dp))
                 Column(Modifier.weight(1f)) {
                     Text("Material em Word", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                    Text("Arquivo .docx disponível para esta aula", style = MaterialTheme.typography.bodySmall)
+                    Text("Arquivo Word disponível para esta aula", style = MaterialTheme.typography.bodySmall)
                 }
             }
             OutlinedButton(
