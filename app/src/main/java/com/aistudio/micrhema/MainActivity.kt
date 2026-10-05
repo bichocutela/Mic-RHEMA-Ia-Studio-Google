@@ -356,7 +356,18 @@ fun MainScreen() {
         }
         notificationDestinationState.value = null
     }
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val drawerPreferences = remember(context) {
+        context.applicationContext.getSharedPreferences("navigation_drawer", android.content.Context.MODE_PRIVATE)
+    }
+    val initialDrawerValue = remember(drawerPreferences) {
+        if (drawerPreferences.getBoolean("open", false)) DrawerValue.Open else DrawerValue.Closed
+    }
+    val drawerState = rememberDrawerState(initialValue = initialDrawerValue)
+    LaunchedEffect(drawerState) {
+        snapshotFlow { drawerState.currentValue }.collect { value ->
+            drawerPreferences.edit().putBoolean("open", value == DrawerValue.Open).apply()
+        }
+    }
     val scope = rememberCoroutineScope()
     var currentRoute by remember { mutableStateOf(Screen.Home.route) }
     var topBarTitle by remember { mutableStateOf(Screen.Home.title) }
@@ -393,9 +404,6 @@ LaunchedEffect(loggedInMemberState.value?.id, currentRoute) {
 
     ModalNavigationDrawer(
         drawerState = drawerState,
-        // Só o leitor do Discipulado impede que a rolagem abra o menu.
-        // Nas demais telas, mantém a abertura por arraste; aberto, permite fechar.
-        gesturesEnabled = currentRoute != "discipulado_pdf/{pdfId}" || drawerState.isOpen,
         drawerContent = {
             ModalDrawerSheet(
                 drawerContainerColor = MaterialTheme.colorScheme.surface,
@@ -489,7 +497,9 @@ LaunchedEffect(loggedInMemberState.value?.id, currentRoute) {
                         "Administração" to listOf("Área ADM")
                     )
                 }
-                var expandedGroups by remember { mutableStateOf(setOf("CONTEÚDO")) }
+                var expandedGroups by remember(drawerPreferences) {
+                    mutableStateOf(drawerPreferences.getStringSet("expanded_groups", setOf("CONTEÚDO"))!!.toSet())
+                }
                 
                 val groupedItems = remember(drawerItems, groupsMapping) {
                     drawerItems.groupBy { item ->
@@ -518,6 +528,7 @@ LaunchedEffect(loggedInMemberState.value?.id, currentRoute) {
                                 } else {
                                     expandedGroups + groupName
                                 }
+                                drawerPreferences.edit().putStringSet("expanded_groups", expandedGroups).apply()
                             }
                             .padding(horizontal = 16.dp, vertical = 16.dp),
                         verticalAlignment = Alignment.CenterVertically,

@@ -3,6 +3,7 @@ package com.aistudio.micrhema
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.view.MotionEvent
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -121,7 +122,7 @@ private fun RichDocumentWebView(
     AndroidView(
         modifier = modifier,
         factory = { viewContext ->
-            WebView(viewContext).apply {
+            ScrollableDocumentWebView(viewContext).apply {
                 setBackgroundColor(android.graphics.Color.TRANSPARENT)
                 settings.javaScriptEnabled = false
                 settings.domStorageEnabled = false
@@ -170,6 +171,29 @@ private fun RichDocumentWebView(
             }
         }
     )
+}
+
+/** Mantém a sequência de toque no documento, reservando a borda para o drawer. */
+private class ScrollableDocumentWebView(context: Context) : WebView(context) {
+    private val drawerEdgeWidth = 24f * resources.displayMetrics.density
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            // AndroidView pode entregar o arraste ao pai antes de o WebView rolar.
+            // Toques no texto pertencem ao leitor; a borda inicial mantém o menu.
+            val fromDrawerEdge = if (layoutDirection == android.view.View.LAYOUT_DIRECTION_RTL) {
+                event.x >= width - drawerEdgeWidth
+            } else {
+                event.x <= drawerEdgeWidth
+            }
+            parent?.requestDisallowInterceptTouchEvent(!fromDrawerEdge)
+        }
+        val handled = super.dispatchTouchEvent(event)
+        if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+            parent?.requestDisallowInterceptTouchEvent(false)
+        }
+        return handled
+    }
 }
 
 private fun cssColor(argb: Int): String = String.format("#%06X", 0xFFFFFF and argb)
