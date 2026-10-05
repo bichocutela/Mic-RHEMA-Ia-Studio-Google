@@ -17,78 +17,55 @@ import androidx.compose.runtime.mutableStateOf
 private val dataSyncScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
 object DevotionalManager {
-    fun syncDevotionals(context: Context, scope: kotlinx.coroutines.CoroutineScope) {
-        try {
-            val cachedDevotionals = IbrDatabaseHelper(context).getCachedDevotionals()
-            if (cachedDevotionals.isNotEmpty()) {
-                devotionalsState.clear()
-                devotionalsState.addAll(cachedDevotionals)
-            }
-            if (isOfflineModeState.value) return
-            
-            scope.launch {
-                DevotionalRepository.getDevotionalsFlow().collect { newList ->
-                    val sorted = newList
-                        .distinctBy { it.id }
-                        .sortedWith(
-                            compareByDescending<Devotional> { it.timestamp }
-                                .thenByDescending { DevotionalDateUtils.parse(it.date) ?: java.time.LocalDate.MIN }
-                                .thenByDescending { it.id }
-                        )
-                    devotionalsState.clear()
-                    devotionalsState.addAll(sorted)
-
-                    IbrDatabaseHelper(context).saveCachedDevotionals(sorted)
+    fun syncDevotionals(context: Context, scope: CoroutineScope) {
+        val appContext = context.applicationContext
+        scope.launch {
+            try {
+                val cached = kotlinx.coroutines.withContext(Dispatchers.IO) {
+                    IbrDatabaseHelper(appContext).getCachedDevotionals()
                 }
+                if (cached.isNotEmpty()) devotionalsState.replaceContentsIfChanged(cached)
+                if (isOfflineModeState.value) return@launch
+                DevotionalRepository.getDevotionalsFlow().collect { newList ->
+                    val sorted = newList.distinctBy { it.id }
+                    if (devotionalsState.toList() != sorted) {
+                        devotionalsState.replaceContentsIfChanged(sorted)
+                        kotlinx.coroutines.withContext(Dispatchers.IO) {
+                            IbrDatabaseHelper(appContext).saveCachedDevotionals(sorted)
+                        }
+                    }
+                }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (e: Exception) {
+                Log.e("DevotionalManager", "Firestore error", e)
             }
-        } catch (e: Exception) {
-            android.util.Log.e("DevotionalManager", "Firestore error", e)
         }
     }
 }
 
-fun loadDevotionalsFromJson(context: Context) {
-    val dbHelper = IbrDatabaseHelper(context)
-    try {
-        // Simulating a network fetch by reading from assets
-        val inputStream: java.io.InputStream = context.assets.open("devotionals.json")
-        val size: Int = inputStream.available()
-        val buffer = ByteArray(size)
-        inputStream.read(buffer)
-        inputStream.close()
-        val jsonString = String(buffer, Charsets.UTF_8)
-        val jsonArray = org.json.JSONArray(jsonString)
-        
-        val fetchedList = mutableListOf<Devotional>()
-        for (i in 0 until jsonArray.length()) {
-            val jsonObject = jsonArray.getJSONObject(i)
-            val dev = Devotional(
-                id = jsonObject.getString("id"),
-                title = jsonObject.getString("title"),
-                date = jsonObject.getString("date"),
-                verse = jsonObject.getString("verse"),
-                verseReference = jsonObject.getString("verseReference"),
-                content = jsonObject.getString("content")
-            )
-            fetchedList.add(dev)
-        }
-        
-        // Cache the newly fetched devotionals
-        if (fetchedList.isNotEmpty()) {
-            dbHelper.saveCachedDevotionals(fetchedList)
-        }
-        
-        devotionalsState.clear()
-        devotionalsState.addAll(fetchedList)
-    } catch (e: Exception) {
-        e.printStackTrace()
-        // If "network" fails, fallback to local cache
-        val cachedDevotionals = dbHelper.getCachedDevotionals()
-        if (cachedDevotionals.isNotEmpty()) {
-            devotionalsState.clear()
-            devotionalsState.addAll(cachedDevotionals)
+suspend fun loadDevotionalsFromJson(context: Context) {
+    val fetched = kotlinx.coroutines.withContext(Dispatchers.IO) {
+        val db = IbrDatabaseHelper(context.applicationContext)
+        try {
+            val json = context.assets.open("devotionals.json").bufferedReader().use { it.readText() }
+            val array = org.json.JSONArray(json)
+            val list = (0 until array.length()).map { index ->
+                val item = array.getJSONObject(index)
+                Devotional(
+                    id = item.getString("id"), title = item.getString("title"),
+                    date = item.getString("date"), verse = item.getString("verse"),
+                    verseReference = item.getString("verseReference"), content = item.getString("content")
+                )
+            }
+            if (list.isNotEmpty()) db.saveCachedDevotionals(list)
+            list
+        } catch (e: Exception) {
+            Log.w("Data", "Usando cache de devocionais", e)
+            db.getCachedDevotionals()
         }
     }
+    if (fetched.isNotEmpty()) devotionalsState.replaceContentsIfChanged(fetched)
 }
 
 data class Devotional(
@@ -415,8 +392,7 @@ object MemberManager {
                         updatedAt = updatedAt
                     ))
                 }
-                memberRequestsState.clear()
-                memberRequestsState.addAll(newList)
+                memberRequestsState.replaceContentsIfChanged(newList)
                 saveMembers(context)
                 refreshSignedStorageUrls(context, newList)
 
@@ -914,25 +890,25 @@ val contentAlbumsState = androidx.compose.runtime.mutableStateListOf<ContentPhot
 val serviceVideosState = androidx.compose.runtime.mutableStateListOf<ServiceVideoModel>()
 
 fun loadContentFromFirebase(context: Context) {
+    val appContext = context.applicationContext
     if (!ContentPreferenceManager.shouldAcceptAutomaticUpdate()) return
     if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
         try {
             val db = Firebase.firestore
-            GlobalStateManager.initializeRealtimeUpdates(context)
+            GlobalStateManager.initializeRealtimeUpdates(appContext)
             loadAdminAppSettings()
 
             // FREE CONTENT
-            db.collection("conteudos_books").addSnapshotListener { snapshot, e ->
-                if (e != null || snapshot == null) return@addSnapshotListener
+            db.collection("conteudos_books").addSharedSnapshotListener("content:conteudos_books") { snapshot, e ->
+                if (e != null || snapshot == null) return@addSharedSnapshotListener
                 val list = snapshot.documents.mapNotNull { try { it.toObject(ContentBook::class.java) } catch(ex: Exception) { null } }
-                contentBooksState.clear()
-                contentBooksState.addAll(list)
-                ContentPreferenceManager.preloadImages(context, list.map { it.coverUrl })
-                ContentPreferenceManager.backupIfEnabled(context)
+                contentBooksState.replaceContentsIfChanged(list)
+                ContentPreferenceManager.preloadImages(appContext, list.map { it.coverUrl })
+                ContentPreferenceManager.backupIfEnabled(appContext)
             }
             db.collection("discipulado_pdfs")
-                .addSnapshotListener { snapshot, e ->
-                    if (e != null || snapshot == null) return@addSnapshotListener
+                .addSharedSnapshotListener("content:discipulado_pdfs") { snapshot, e ->
+                    if (e != null || snapshot == null) return@addSharedSnapshotListener
                     val list = snapshot.documents
                         .mapNotNull { document ->
                             runCatching { document.toObject(DiscipuladoPdf::class.java) }
@@ -941,14 +917,13 @@ fun loadContentFromFirebase(context: Context) {
                         }
                         .filter { it.isPublished }
                         .sortedWith(compareBy<DiscipuladoPdf> { it.order }.thenByDescending { it.createdAt })
-                    discipuladoPdfsState.clear()
-                    discipuladoPdfsState.addAll(list)
-                    ContentPreferenceManager.preloadImages(context, list.map { it.coverUrl })
-                    ContentPreferenceManager.backupIfEnabled(context)
+                    discipuladoPdfsState.replaceContentsIfChanged(list)
+                    ContentPreferenceManager.preloadImages(appContext, list.map { it.coverUrl })
+                    ContentPreferenceManager.backupIfEnabled(appContext)
                 }
 
-            db.collection("settings").document("sync_trigger").addSnapshotListener { snapshot, e ->
-                if (e != null || snapshot == null || !snapshot.exists()) return@addSnapshotListener
+            db.collection("settings").document("sync_trigger").addSharedSnapshotListener("content:settings:sync_trigger") { snapshot, e ->
+                if (e != null || snapshot == null || !snapshot.exists()) return@addSharedSnapshotListener
                 dataSyncScope.launch {
                     try {
                         forceRefreshData()
@@ -958,11 +933,11 @@ fun loadContentFromFirebase(context: Context) {
                 }
             }
             var audiosInitialized = false
-            db.collection("conteudos_audios").addSnapshotListener { snapshot, e ->
-                if (e != null || snapshot == null) return@addSnapshotListener
+            db.collection("conteudos_audios").addSharedSnapshotListener("content:conteudos_audios") { snapshot, e ->
+                if (e != null || snapshot == null) return@addSharedSnapshotListener
                 val list = snapshot.documents.mapNotNull { try { it.toObject(ContentAudio::class.java) } catch(ex: Exception) { null } }
                 if (!audiosInitialized) {
-                    NotificationHelper.rememberMediaIds(context, list.map { it.id })
+                    NotificationHelper.rememberMediaIds(appContext, list.map { it.id })
                     audiosInitialized = true
                 } else {
                     val knownIds = context.getSharedPreferences("micrhema_prefs", Context.MODE_PRIVATE)
@@ -977,69 +952,61 @@ fun loadContentFromFirebase(context: Context) {
                                 category = NotificationHelper.Category.MEDIA,
                                 respectPreferences = true
                             )
-                            NotificationHelper.rememberMediaIds(context, listOf(change.document.id))
+                            NotificationHelper.rememberMediaIds(appContext, listOf(change.document.id))
                         }
                 }
-                contentAudiosState.clear()
-                contentAudiosState.addAll(list)
-                ContentPreferenceManager.preloadImages(context, list.map { it.coverUrl })
-                ContentPreferenceManager.backupIfEnabled(context)
+                contentAudiosState.replaceContentsIfChanged(list)
+                ContentPreferenceManager.preloadImages(appContext, list.map { it.coverUrl })
+                ContentPreferenceManager.backupIfEnabled(appContext)
             }
-            db.collection("conteudos_albums").addSnapshotListener { snapshot, e ->
-                if (e != null || snapshot == null) return@addSnapshotListener
+            db.collection("conteudos_albums").addSharedSnapshotListener("content:conteudos_albums") { snapshot, e ->
+                if (e != null || snapshot == null) return@addSharedSnapshotListener
                 val list = snapshot.documents.mapNotNull { try { it.toObject(ContentPhotoAlbum::class.java) } catch(ex: Exception) { null } }
-                contentAlbumsState.clear()
-                contentAlbumsState.addAll(list)
-                ContentPreferenceManager.backupIfEnabled(context)
+                contentAlbumsState.replaceContentsIfChanged(list)
+                ContentPreferenceManager.backupIfEnabled(appContext)
             }
             
             // IBR CONTENT
-            db.collection("vip_books").addSnapshotListener { snapshot, e ->
-                if (e != null || snapshot == null) return@addSnapshotListener
+            db.collection("vip_books").addSharedSnapshotListener("content:vip_books") { snapshot, e ->
+                if (e != null || snapshot == null) return@addSharedSnapshotListener
                 val list = snapshot.documents.mapNotNull { try { it.toObject(ContentBook::class.java) } catch(ex: Exception) { null } }
-                vipBooksState.clear()
-                    vipBooksState.addAll(list)
+                vipBooksState.replaceContentsIfChanged(list)
             }
-            db.collection("vip_audios").addSnapshotListener { snapshot, e ->
-                if (e != null || snapshot == null) return@addSnapshotListener
+            db.collection("vip_audios").addSharedSnapshotListener("content:vip_audios") { snapshot, e ->
+                if (e != null || snapshot == null) return@addSharedSnapshotListener
                 val list = snapshot.documents.mapNotNull { try { it.toObject(ContentAudio::class.java) } catch(ex: Exception) { null } }
-                vipAudiosState.clear()
-                    vipAudiosState.addAll(list)
+                vipAudiosState.replaceContentsIfChanged(list)
             }
-                        db.collection("vip_albums").addSnapshotListener { snapshot, e ->
-                if (e != null || snapshot == null) return@addSnapshotListener
+                        db.collection("vip_albums").addSharedSnapshotListener("content:vip_albums") { snapshot, e ->
+                if (e != null || snapshot == null) return@addSharedSnapshotListener
                 val list = snapshot.documents.mapNotNull { try { it.toObject(ContentPhotoAlbum::class.java) } catch(ex: Exception) { null } }
-                vipAlbumsState.clear()
-                    vipAlbumsState.addAll(list)
+                vipAlbumsState.replaceContentsIfChanged(list)
             }
-            db.collection("vip_courses").addSnapshotListener { snapshot, e ->
-            if (e != null || snapshot == null) return@addSnapshotListener
+            db.collection("vip_courses").addSharedSnapshotListener("content:vip_courses") { snapshot, e ->
+            if (e != null || snapshot == null) return@addSharedSnapshotListener
             val list = snapshot.documents.mapNotNull { try { it.toObject(IbrCourse::class.java) } catch(e: Exception) { null } }
-            vipCoursesState.clear()
-                    vipCoursesState.addAll(list)
+            vipCoursesState.replaceContentsIfChanged(list)
         }
         
-        db.collection("settings").document("about").addSnapshotListener { snapshot, e ->
-            if (e != null || snapshot == null || !snapshot.exists()) return@addSnapshotListener
+        db.collection("settings").document("about").addSharedSnapshotListener("content:settings:about") { snapshot, e ->
+            if (e != null || snapshot == null || !snapshot.exists()) return@addSharedSnapshotListener
             pastorNameState.value = snapshot.getString("pastorName") ?: pastorNameState.value
             pastorTitleState.value = snapshot.getString("pastorTitle") ?: pastorTitleState.value
             missionTaglineState.value = snapshot.getString("missionTagline") ?: missionTaglineState.value
             rhemaMeaningState.value = snapshot.getString("rhemaMeaning") ?: rhemaMeaningState.value
         }
         
-        db.collection("app_tabs").addSnapshotListener { snapshot, e ->
-            if (e != null || snapshot == null) return@addSnapshotListener
+        db.collection("app_tabs").addSharedSnapshotListener("content:app_tabs") { snapshot, e ->
+            if (e != null || snapshot == null) return@addSharedSnapshotListener
             val list = snapshot.documents.mapNotNull { try { it.toObject(AppTab::class.java) } catch(ex: Exception) { null } }
             val normalizedTabs = ensureDiscipuladoTab(list)
-            appTabsState.clear()
-                appTabsState.addAll(normalizedTabs.sortedBy { it.order })
+            appTabsState.replaceContentsIfChanged(normalizedTabs.sortedBy { it.order })
         }
         
-        db.collection("equipe").orderBy("order").addSnapshotListener { snapshot, e ->
-            if (e != null || snapshot == null) return@addSnapshotListener
+        db.collection("equipe").orderBy("order").addSharedSnapshotListener("content:equipe") { snapshot, e ->
+            if (e != null || snapshot == null) return@addSharedSnapshotListener
             val list = snapshot.documents.mapNotNull { try { it.toObject(TeamMember::class.java) } catch(ex: Exception) { null } }
-            teamMembersState.clear()
-                    teamMembersState.addAll(list)
+            teamMembersState.replaceContentsIfChanged(list)
         }
         
                 
@@ -1049,11 +1016,10 @@ fun loadContentFromFirebase(context: Context) {
         // Pedidos de oração são carregados por PrayerRepository:
         // o usuário lê somente os próprios pedidos e o ADM lê a fila completa.
         
-        db.collection("ibr_courses").addSnapshotListener { snapshot, e ->
-            if (e != null || snapshot == null) return@addSnapshotListener
+        db.collection("ibr_courses").addSharedSnapshotListener("content:ibr_courses") { snapshot, e ->
+            if (e != null || snapshot == null) return@addSharedSnapshotListener
             val list = snapshot.documents.mapNotNull { try { it.toObject(IbrCourse::class.java) } catch(ex: Exception) { null } }
-            ibrCoursesState.clear()
-                    ibrCoursesState.addAll(list)
+            ibrCoursesState.replaceContentsIfChanged(list)
         }
         
                 
@@ -1213,8 +1179,7 @@ fun loadIbrProgressFromFirestore() {
         .addSnapshotListener { snapshot, e ->
             if (e != null || snapshot == null) return@addSnapshotListener
             val list = snapshot.documents.mapNotNull { try { it.toObject(IbrProgress::class.java) } catch(ex: Exception) { null } }
-            ibrProgressState.clear()
-            ibrProgressState.addAll(list)
+            ibrProgressState.replaceContentsIfChanged(list)
         }
 }
 
@@ -1471,8 +1436,7 @@ fun syncBibleNewsAndPlans() {
                     }
                 ))
             }
-            biblePlansState.clear()
-            biblePlansState.addAll(PlansData.categories)
+            biblePlansState.replaceContentsIfChanged(PlansData.categories)
         } else {
             val list = snapshot.documents.mapNotNull { doc ->
                 try {
@@ -1490,8 +1454,7 @@ fun syncBibleNewsAndPlans() {
                     PlanCategory(name, androidx.compose.ui.graphics.Color(colorValue.toULong()), themes)
                 } catch (ex: Exception) { android.util.Log.e("BIBLE_PLANS_SYNC", "Error parsing plan", ex); planSyncErrorState.value = ex.toString(); null }
             }
-            biblePlansState.clear()
-            biblePlansState.addAll(list)
+            biblePlansState.replaceContentsIfChanged(list)
         }
     }
 }
@@ -1520,8 +1483,7 @@ fun loadFavoritesFromFirestore() {
             val merged = (favoriteItemsState.toList() + list)
                 .distinctBy { it.id }
                 .sortedByDescending { it.timestamp }
-            favoriteItemsState.clear()
-            favoriteItemsState.addAll(merged)
+            favoriteItemsState.replaceContentsIfChanged(merged)
         }
 }
 
@@ -1574,8 +1536,7 @@ fun loadBannersFromFirestore() {
         if (e != null || snapshot == null || !snapshot.exists()) return@addSnapshotListener
         val list = snapshot.get("urls") as? List<String>
         if (list != null && list.isNotEmpty()) {
-            homeBannersState.clear()
-            homeBannersState.addAll(list)
+            homeBannersState.replaceContentsIfChanged(list)
         }
     }
 }
@@ -1600,8 +1561,7 @@ suspend fun refreshHomeData() {
             val bannersSnapshot = db.collection("carousel_items").get(source).await()
             val list = bannersSnapshot.documents.mapNotNull { try { it.toObject(CarouselItem::class.java) } catch(ex: Exception) { null } }
             if (list.isNotEmpty() || bannersSnapshot.isEmpty) {
-                carouselItemsState.clear()
-                carouselItemsState.addAll(list)
+                carouselItemsState.replaceContentsIfChanged(list)
             }
         } catch (e: Exception) { e.printStackTrace() }
 
@@ -1624,8 +1584,7 @@ suspend fun refreshHomeData() {
                 } catch(ex: Exception) { null }
             }
             if (list.isNotEmpty() || devotionalsSnapshot.isEmpty) {
-                devotionalsState.clear()
-                devotionalsState.addAll(list.sortedByDescending { it.timestamp })
+                devotionalsState.replaceContentsIfChanged(list.sortedByDescending { it.timestamp })
             }
         } catch (e: Exception) { e.printStackTrace() }
 
@@ -1633,8 +1592,7 @@ suspend fun refreshHomeData() {
             val newsSnapshot = db.collection("bible_news").get(source).await()
             val list = newsSnapshot.documents.mapNotNull { try { it.toObject(BibleNews::class.java) } catch(ex: Exception) { null } }
             if (list.isNotEmpty() || newsSnapshot.isEmpty) {
-                bibleNewsState.clear()
-                bibleNewsState.addAll(list)
+                bibleNewsState.replaceContentsIfChanged(list)
             }
         } catch (e: Exception) { e.printStackTrace() }
 
@@ -1642,8 +1600,7 @@ suspend fun refreshHomeData() {
             val servicesSnapshot = db.collection("cultos_agenda").get(source).await()
             val list = servicesSnapshot.documents.mapNotNull { try { it.toObject(ChurchService::class.java) } catch(ex: Exception) { null } }
             if (list.isNotEmpty() || servicesSnapshot.isEmpty) {
-                weeklyServicesState.clear()
-                weeklyServicesState.addAll(list)
+                weeklyServicesState.replaceContentsIfChanged(list)
             }
         } catch (e: Exception) { e.printStackTrace() }
 
@@ -1666,8 +1623,7 @@ suspend fun refreshHomeData() {
                 } catch (ex: Exception) { null }
             }
             if (list.isNotEmpty() || plansSnapshot.isEmpty) {
-                biblePlansState.clear()
-                biblePlansState.addAll(list)
+                biblePlansState.replaceContentsIfChanged(list)
             }
         } catch (e: Exception) { e.printStackTrace() }
 
@@ -1675,8 +1631,7 @@ suspend fun refreshHomeData() {
             val videosSnapshot = db.collection("conteudos_videos").get(source).await()
             val list = videosSnapshot.documents.mapNotNull { try { it.toObject(ContentVideo::class.java) } catch(ex: Exception) { null } }
             if (list.isNotEmpty() || videosSnapshot.isEmpty) {
-                contentVideosState.clear()
-                contentVideosState.addAll(list)
+                contentVideosState.replaceContentsIfChanged(list)
             }
         } catch (e: Exception) { e.printStackTrace() }
 
@@ -1684,8 +1639,7 @@ suspend fun refreshHomeData() {
             val audiosSnapshot = db.collection("conteudos_audios").get(source).await()
             val list = audiosSnapshot.documents.mapNotNull { try { it.toObject(ContentAudio::class.java) } catch(ex: Exception) { null } }
             if (list.isNotEmpty() || audiosSnapshot.isEmpty) {
-                contentAudiosState.clear()
-                contentAudiosState.addAll(list)
+                contentAudiosState.replaceContentsIfChanged(list)
             }
         } catch (e: Exception) { e.printStackTrace() }
 
@@ -1693,8 +1647,7 @@ suspend fun refreshHomeData() {
             val booksSnapshot = db.collection("conteudos_books").get(source).await()
             val list = booksSnapshot.documents.mapNotNull { try { it.toObject(ContentBook::class.java) } catch(ex: Exception) { null } }
             if (list.isNotEmpty() || booksSnapshot.isEmpty) {
-                contentBooksState.clear()
-                contentBooksState.addAll(list)
+                contentBooksState.replaceContentsIfChanged(list)
             }
         } catch (e: Exception) { e.printStackTrace() }
 
@@ -1702,8 +1655,7 @@ suspend fun refreshHomeData() {
             val albumsSnapshot = db.collection("conteudos_albums").get(source).await()
             val list = albumsSnapshot.documents.mapNotNull { try { it.toObject(ContentPhotoAlbum::class.java) } catch(ex: Exception) { null } }
             if (list.isNotEmpty() || albumsSnapshot.isEmpty) {
-                contentAlbumsState.clear()
-                contentAlbumsState.addAll(list)
+                contentAlbumsState.replaceContentsIfChanged(list)
             }
         } catch (e: Exception) { e.printStackTrace() }
 

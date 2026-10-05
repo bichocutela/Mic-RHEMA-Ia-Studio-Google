@@ -152,8 +152,11 @@ private fun RichDocumentWebView(
                         if (savedY > 0) view?.post { view.scrollTo(0, savedY) }
                     }
                 }
-                setOnScrollChangeListener { _, _, scrollY, _, _ ->
+                saveReadingPosition = {
                     prefs.edit().putInt(positionKey, scrollY.coerceAtLeast(0)).apply()
+                }
+                setOnScrollChangeListener { _, _, scrollY, _, _ ->
+                    schedulePositionSave()
                     val range = ((contentHeight * scale).toInt() - height).coerceAtLeast(1)
                     XpMediaClient.recordBook(viewContext, sourceUrl, (scrollY.toFloat() / range.toFloat()).coerceIn(0f, 1f))
                 }
@@ -170,6 +173,11 @@ private fun RichDocumentWebView(
                     null
                 )
             }
+        },
+        onRelease = { webView ->
+            webView.flushPositionSave()
+            webView.stopLoading()
+            webView.destroy()
         }
     )
 }
@@ -177,6 +185,23 @@ private fun RichDocumentWebView(
 /** Mantém a sequência de toque no documento, reservando a borda para o drawer. */
 private class ScrollableDocumentWebView(context: Context) : WebView(context) {
     private val drawerEdgeWidth = 24f * resources.displayMetrics.density
+    var saveReadingPosition: (() -> Unit)? = null
+    private val savePosition = Runnable { saveReadingPosition?.invoke() }
+
+    fun schedulePositionSave() {
+        removeCallbacks(savePosition)
+        postDelayed(savePosition, 300L)
+    }
+
+    fun flushPositionSave() {
+        removeCallbacks(savePosition)
+        saveReadingPosition?.invoke()
+    }
+
+    override fun onDetachedFromWindow() {
+        flushPositionSave()
+        super.onDetachedFromWindow()
+    }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {

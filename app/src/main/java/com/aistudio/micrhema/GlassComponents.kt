@@ -1,4 +1,5 @@
 package com.aistudio.micrhema
+import androidx.compose.ui.draw.drawBehind
 
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.clickable
@@ -240,12 +241,27 @@ fun SkeletonItem(
     height: androidx.compose.ui.unit.Dp = androidx.compose.ui.unit.Dp.Unspecified,
     shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(8.dp)
 ) {
+    val transition = androidx.compose.animation.core.rememberInfiniteTransition(label = "skeleton")
+    val phase = transition.animateFloat(
+        initialValue = 0f, targetValue = 1000f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(800),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Restart
+        ), label = "skeleton_phase"
+    )
+    val colors = remember { listOf(Color.LightGray.copy(alpha = .6f), Color.LightGray.copy(alpha = .2f), Color.LightGray.copy(alpha = .6f)) }
     Box(
         modifier = modifier
             .then(if (width != androidx.compose.ui.unit.Dp.Unspecified) Modifier.width(width) else Modifier)
             .then(if (height != androidx.compose.ui.unit.Dp.Unspecified) Modifier.height(height) else Modifier)
             .clip(shape)
-            .background(shimmerBrush())
+            .drawBehind {
+                drawRect(androidx.compose.ui.graphics.Brush.linearGradient(
+                    colors = colors,
+                    start = androidx.compose.ui.geometry.Offset.Zero,
+                    end = androidx.compose.ui.geometry.Offset(phase.value, phase.value)
+                ))
+            }
     )
 }
 

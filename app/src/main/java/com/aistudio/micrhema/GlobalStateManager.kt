@@ -51,8 +51,8 @@ object GlobalStateManager {
 
         Log.d("GlobalStateManager", "Initializing real-time Firestore listeners to propagate changes across instances.")
 
-        db.collection("cultos_agenda").addSnapshotListener { snapshot, e ->
-            if (e != null || snapshot == null) return@addSnapshotListener
+        db.collection("cultos_agenda").addSharedSnapshotListener("global:cultos_agenda") { snapshot, e ->
+            if (e != null || snapshot == null) return@addSharedSnapshotListener
             val list = snapshot.documents.mapNotNull { document ->
                 try {
                     document.toObject(ChurchService::class.java)?.also {
@@ -63,13 +63,12 @@ object GlobalStateManager {
                 }
             }
             _churchServices.value = list
-            weeklyServicesState.clear()
-            weeklyServicesState.addAll(list)
+            weeklyServicesState.replaceContentsIfChanged(list)
         }
 
         var videosInitialized = false
-        db.collection("conteudos_videos").addSnapshotListener { snapshot, e ->
-            if (e != null || snapshot == null) return@addSnapshotListener
+        db.collection("conteudos_videos").addSharedSnapshotListener("global:conteudos_videos") { snapshot, e ->
+            if (e != null || snapshot == null) return@addSharedSnapshotListener
             val list = snapshot.documents.mapNotNull { try { it.toObject(ContentVideo::class.java) } catch(ex: Exception) { null } }
             if (!videosInitialized) {
                 // A primeira carga só estabelece a base conhecida. Novas pregações são notificadas
@@ -78,24 +77,21 @@ object GlobalStateManager {
                 videosInitialized = true
             }
             _contentVideos.value = list
-            contentVideosState.clear()
-            contentVideosState.addAll(list)
+            contentVideosState.replaceContentsIfChanged(list)
         }
 
-        db.collection("vip_videos").addSnapshotListener { snapshot, e ->
-            if (e != null || snapshot == null) return@addSnapshotListener
+        db.collection("vip_videos").addSharedSnapshotListener("global:vip_videos") { snapshot, e ->
+            if (e != null || snapshot == null) return@addSharedSnapshotListener
             val list = snapshot.documents.mapNotNull { try { it.toObject(ContentVideo::class.java) } catch(ex: Exception) { null } }
             _vipVideos.value = list
-            vipVideosState.clear()
-            vipVideosState.addAll(list)
+            vipVideosState.replaceContentsIfChanged(list)
         }
 
-        db.collection("cultos").addSnapshotListener { snapshot, e ->
-            if (e != null || snapshot == null) return@addSnapshotListener
+        db.collection("cultos").addSharedSnapshotListener("global:cultos") { snapshot, e ->
+            if (e != null || snapshot == null) return@addSharedSnapshotListener
             val list = snapshot.documents.mapNotNull { try { it.toObject(ServiceVideoModel::class.java) } catch(ex: Exception) { null } }
             _serviceVideos.value = list
-            serviceVideosState.clear()
-            serviceVideosState.addAll(list)
+            serviceVideosState.replaceContentsIfChanged(list)
         }
 
         // A coleção events continua sendo a fonte nativa de eventos completos.
@@ -107,8 +103,7 @@ object GlobalStateManager {
             val combined = (firestoreEvents + carouselEvents)
                 .distinctBy { it.id }
             _churchEvents.value = combined
-            churchEventsState.clear()
-            churchEventsState.addAll(combined)
+            churchEventsState.replaceContentsIfChanged(combined)
 
             val legacyEvents = combined.map { event ->
                 ChurchEvent(
@@ -120,12 +115,11 @@ object GlobalStateManager {
                 )
             }
             _events.value = legacyEvents
-            eventsState.clear()
-            eventsState.addAll(legacyEvents)
+            eventsState.replaceContentsIfChanged(legacyEvents)
         }
 
-        db.collection("events").addSnapshotListener { snapshot, e ->
-            if (e != null || snapshot == null) return@addSnapshotListener
+        db.collection("events").addSharedSnapshotListener("global:events") { snapshot, e ->
+            if (e != null || snapshot == null) return@addSharedSnapshotListener
 
             firestoreEvents = snapshot.documents.mapNotNull { document ->
                 try {
@@ -163,8 +157,8 @@ object GlobalStateManager {
             publishCombinedEvents()
         }
 
-        db.collection("carousel_items").addSnapshotListener { snapshot, e ->
-            if (e != null || snapshot == null) return@addSnapshotListener
+        db.collection("carousel_items").addSharedSnapshotListener("global:carousel_items") { snapshot, e ->
+            if (e != null || snapshot == null) return@addSharedSnapshotListener
             val list = snapshot.documents.mapNotNull { document ->
                 try {
                     document.toObject(CarouselItem::class.java)?.also {
@@ -175,8 +169,7 @@ object GlobalStateManager {
                 }
             }
             _carouselItems.value = list
-            carouselItemsState.clear()
-            carouselItemsState.addAll(list)
+            carouselItemsState.replaceContentsIfChanged(list)
 
             carouselEvents = list
                 .filter { it.eventDate.isNotBlank() }

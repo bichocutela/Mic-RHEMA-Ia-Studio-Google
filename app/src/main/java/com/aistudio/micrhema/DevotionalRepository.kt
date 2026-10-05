@@ -8,12 +8,13 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
 
 object DevotionalRepository {
+    private val listenerExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
     private val db = FirebaseFirestore.getInstance()
     private val collection = db.collection("devocionais")
 
     fun getDevotionalsFlow(): Flow<List<Devotional>> = callbackFlow {
         val listenerRegistration = collection
-            .addSnapshotListener { snapshot, error ->
+            .addSnapshotListener(listenerExecutor) { snapshot, error ->
                 if (error != null) {
                     Log.e("DevotionalRepository", "Listen failed.", error)
                     close(error)
