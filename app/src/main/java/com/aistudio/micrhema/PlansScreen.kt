@@ -165,7 +165,7 @@ fun MainPlansScreen(onCategoryClick: (PlanCategory) -> Unit, onThemeClick: (Plan
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .background(Color.Black.copy(alpha = 0.4f))
+                                .background(Color.Black.copy(alpha = 0.65f))
                         )
                         Column(
                             modifier = Modifier
@@ -180,7 +180,7 @@ fun MainPlansScreen(onCategoryClick: (PlanCategory) -> Unit, onThemeClick: (Plan
                             )
                             Text(
                                 text = "Plano em destaque",
-                                color = Color.White.copy(alpha = 0.8f),
+                                color = Color.White,
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }
@@ -216,7 +216,7 @@ fun MainPlansScreen(onCategoryClick: (PlanCategory) -> Unit, onThemeClick: (Plan
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                             Text(
                                 text = category.name.uppercase(),
-                                color = Color.White,
+                                color = contrastingContentColor(category.color),
                                 fontWeight = FontWeight.Bold,
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier.padding(7.dp),

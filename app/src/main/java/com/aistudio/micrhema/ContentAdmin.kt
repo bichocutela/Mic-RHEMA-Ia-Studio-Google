@@ -109,7 +109,7 @@ fun EditMediaSection() {
                     if (isUploading) {
                         Text("Enviando... ${(uploadProgress * 100).toInt()}%")
                         Spacer(modifier = Modifier.width(8.dp))
-                        androidx.compose.material3.CircularProgressIndicator(progress = { uploadProgress }, modifier = Modifier.size(16.dp), color = Color.White)
+                        androidx.compose.material3.CircularProgressIndicator(progress = { uploadProgress }, modifier = Modifier.size(16.dp), color = MaterialTheme.colorScheme.onPrimary)
                     } else {
                         Text("Salvar Livro")
                     }
@@ -171,7 +171,7 @@ fun EditMediaSection() {
                     if (isUploading) {
                         Text("Enviando... ${(uploadProgress * 100).toInt()}%")
                         Spacer(modifier = Modifier.width(8.dp))
-                        androidx.compose.material3.CircularProgressIndicator(progress = { uploadProgress }, modifier = Modifier.size(16.dp), color = Color.White)
+                        androidx.compose.material3.CircularProgressIndicator(progress = { uploadProgress }, modifier = Modifier.size(16.dp), color = MaterialTheme.colorScheme.onPrimary)
                     } else {
                         Text("Salvar Áudio")
                     }
@@ -254,7 +254,7 @@ fun EditMediaSection() {
                     if (isUploading) {
                         Text("Enviando... ${(uploadProgress * 100).toInt()}%")
                         Spacer(modifier = Modifier.width(8.dp))
-                        androidx.compose.material3.CircularProgressIndicator(progress = { uploadProgress }, modifier = Modifier.size(16.dp), color = Color.White)
+                        androidx.compose.material3.CircularProgressIndicator(progress = { uploadProgress }, modifier = Modifier.size(16.dp), color = MaterialTheme.colorScheme.onPrimary)
                     } else {
                         Text("Salvar Vídeo")
                     }
@@ -325,7 +325,7 @@ fun EditMediaSection() {
                 Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Button(onClick = { if (!isUploadingCover) coverPicker.launch("image/*") }) {
                         if (isUploadingCover) {
-                            androidx.compose.material3.CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White)
+                            androidx.compose.material3.CircularProgressIndicator(modifier = Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary)
                         } else {
                             Text(if (customCoverUrl != null) "Capa Pronta" else "Selecionar Capa")
                         }

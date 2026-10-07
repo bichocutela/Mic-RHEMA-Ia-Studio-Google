@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import com.aistudio.micrhema.contrastingContentColor
 import com.aistudio.micrhema.AccentColor
 import com.aistudio.micrhema.XpRewardManager
 import com.aistudio.micrhema.currentSettingsState
@@ -62,7 +63,7 @@ private val DarkColorScheme = darkColorScheme(
 
 private val GoldPlusLightColorScheme = lightColorScheme(
     primary = Color(0xFFB47B00),
-    onPrimary = Color.White,
+    onPrimary = Color(0xFF211A0D),
     primaryContainer = Color(0xFFFFEDB0),
     onPrimaryContainer = Color(0xFF332200),
     secondary = Color(0xFFFFFFFF),
@@ -135,10 +136,10 @@ fun MICRhemaTheme(
     }
 
     val primaryColor = when (accent) {
-        AccentColor.BLUE -> Color(0xFF3B82F6)
-        AccentColor.GREEN -> Color(0xFF10B981)
-        AccentColor.PURPLE -> Color(0xFF8B5CF6)
-        AccentColor.GOLD -> Color(0xFF8A6500)
+        AccentColor.BLUE -> if (darkTheme) Color(0xFF7DB3FF) else Color(0xFF1D4ED8)
+        AccentColor.GREEN -> if (darkTheme) Color(0xFF6EE7B7) else Color(0xFF047857)
+        AccentColor.PURPLE -> if (darkTheme) Color(0xFFC4B5FD) else Color(0xFF7C3AED)
+        AccentColor.GOLD -> if (darkTheme) Color(0xFFFFD66B) else Color(0xFF8A6500)
         AccentColor.WHITE -> if (darkTheme) Color.White else Color.Black
     }
 
@@ -148,7 +149,8 @@ fun MICRhemaTheme(
         baseColorScheme.copy(
             primary = primaryColor,
             secondary = primaryColor,
-            onPrimary = if (accent == AccentColor.WHITE && darkTheme) Color.Black else Color.White
+            onPrimary = contrastingContentColor(primaryColor),
+            onSecondary = contrastingContentColor(primaryColor)
         )
     }
 
