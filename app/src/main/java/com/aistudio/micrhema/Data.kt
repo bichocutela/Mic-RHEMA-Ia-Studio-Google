@@ -767,8 +767,8 @@ val adminAppSettingsState = androidx.compose.runtime.mutableStateOf(AdminAppSett
 fun loadAdminAppSettings() {
     if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isEmpty()) return
     com.google.firebase.Firebase.firestore.collection("settings").document("app")
-        .addSnapshotListener { snapshot, error ->
-            if (error != null || snapshot == null || !snapshot.exists()) return@addSnapshotListener
+        .addSharedSnapshotListener("content:settings:app") { snapshot, error ->
+            if (error != null || snapshot == null || !snapshot.exists()) return@addSharedSnapshotListener
             val settings = AdminAppSettings(
                 notificationsEnabled = snapshot.getBoolean("notificationsEnabled") ?: true,
                 showDonationsTab = snapshot.getBoolean("showDonationsTab") ?: true,
@@ -922,16 +922,9 @@ fun loadContentFromFirebase(context: Context) {
                     ContentPreferenceManager.backupIfEnabled(appContext)
                 }
 
-            db.collection("settings").document("sync_trigger").addSharedSnapshotListener("content:settings:sync_trigger") { snapshot, e ->
-                if (e != null || snapshot == null || !snapshot.exists()) return@addSharedSnapshotListener
-                dataSyncScope.launch {
-                    try {
-                        forceRefreshData()
-                    } catch (refreshError: Exception) {
-                        Log.e("Data", "Falha ao atualizar dados após sync_trigger", refreshError)
-                    }
-                }
-            }
+            // Each content collection already has its own realtime listener. A global
+            // sync_trigger previously downloaded every collection at startup and after
+            // each devotional edit. Keep full server refresh only for user actions.
             var audiosInitialized = false
             db.collection("conteudos_audios").addSharedSnapshotListener("content:conteudos_audios") { snapshot, e ->
                 if (e != null || snapshot == null) return@addSharedSnapshotListener
@@ -1414,10 +1407,10 @@ fun syncBibleNewsAndPlans() {
     BibleNewsPagination.start()
     
     // Sync Plans
-    db.collection("bible_plans").addSnapshotListener { snapshot, e ->
+    db.collection("bible_plans").addSharedSnapshotListener("content:bible_plans") { snapshot, e ->
         if (e != null || snapshot == null) {
             planSyncErrorState.value = "Listener erro: $e"
-            return@addSnapshotListener
+            return@addSharedSnapshotListener
         }
         val firstDocThemes = snapshot.documents.firstOrNull()?.get("themes") as? List<*>
         val needsUpdate = snapshot.isEmpty || (firstDocThemes != null && firstDocThemes.size < 37)
@@ -1514,8 +1507,8 @@ val pixQrCodeUrlState = androidx.compose.runtime.mutableStateOf("")
 
 fun loadDonationsFromFirestore() {
     val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
-    db.collection("settings").document("donations").addSnapshotListener { snapshot, e ->
-        if (e != null || snapshot == null || !snapshot.exists()) return@addSnapshotListener
+    db.collection("settings").document("donations").addSharedSnapshotListener("content:settings:donations") { snapshot, e ->
+        if (e != null || snapshot == null || !snapshot.exists()) return@addSharedSnapshotListener
         pixKeyState.value = snapshot.getString("pixKey") ?: ""
         pixQrCodeUrlState.value = snapshot.getString("qrCodeUrl") ?: ""
     }
@@ -1532,8 +1525,8 @@ fun saveDonationsToFirestore(pixKey: String, qrCodeUrl: String) {
 
 fun loadBannersFromFirestore() {
     val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
-    db.collection("settings").document("home_banners").addSnapshotListener { snapshot, e ->
-        if (e != null || snapshot == null || !snapshot.exists()) return@addSnapshotListener
+    db.collection("settings").document("home_banners").addSharedSnapshotListener("content:settings:home_banners") { snapshot, e ->
+        if (e != null || snapshot == null || !snapshot.exists()) return@addSharedSnapshotListener
         val list = snapshot.get("urls") as? List<String>
         if (list != null && list.isNotEmpty()) {
             homeBannersState.replaceContentsIfChanged(list)
@@ -1589,11 +1582,7 @@ suspend fun refreshHomeData() {
         } catch (e: Exception) { e.printStackTrace() }
 
         try {
-            val newsSnapshot = db.collection("bible_news").get(source).await()
-            val list = newsSnapshot.documents.mapNotNull { try { it.toObject(BibleNews::class.java) } catch(ex: Exception) { null } }
-            if (list.isNotEmpty() || newsSnapshot.isEmpty) {
-                bibleNewsState.replaceContentsIfChanged(list)
-            }
+            BibleNewsPagination.refresh()
         } catch (e: Exception) { e.printStackTrace() }
 
         try {
