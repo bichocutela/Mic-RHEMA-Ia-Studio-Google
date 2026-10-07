@@ -6,13 +6,28 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.shareIn
+import kotlinx.coroutines.flow.catch
 
 object DevotionalRepository {
     private val listenerExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
     private val db = FirebaseFirestore.getInstance()
     private val collection = db.collection("devocionais")
 
-    fun getDevotionalsFlow(): Flow<List<Devotional>> = callbackFlow {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val updates by lazy {
+        createDevotionalsFlow().catch { error ->
+            Log.e("DevotionalRepository", "A sincronização foi interrompida; mantendo os dados locais.", error)
+        }.shareIn(scope, SharingStarted.WhileSubscribed(60_000, 0), replay = 1)
+    }
+
+    fun getDevotionalsFlow(): Flow<List<Devotional>> = updates
+
+    private fun createDevotionalsFlow(): Flow<List<Devotional>> = callbackFlow {
         val listenerRegistration = collection
             .addSnapshotListener(listenerExecutor) { snapshot, error ->
                 if (error != null) {

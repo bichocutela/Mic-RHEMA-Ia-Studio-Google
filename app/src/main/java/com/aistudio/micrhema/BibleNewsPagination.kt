@@ -25,6 +25,7 @@ object BibleNewsPagination {
         private set
 
     fun start() {
+        if (firstPageListener != null && hiddenIdsListener != null) return
         val db = FirebaseFirestore.getInstance()
         firstPageListener?.remove()
         hiddenIdsListener?.remove()
@@ -40,7 +41,13 @@ object BibleNewsPagination {
 
         hiddenIdsListener = db.collection("settings")
             .document("bible_news_editorial")
-            .addSnapshotListener { snapshot, _ ->
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    hiddenIdsListener?.remove()
+                    hiddenIdsListener = null
+                    return@addSnapshotListener
+                }
+                if (snapshot == null) return@addSnapshotListener
                 val hidden = (snapshot?.get("hiddenIds") as? List<*>)
                     .orEmpty()
                     .mapNotNull { value ->
@@ -60,7 +67,12 @@ object BibleNewsPagination {
             .orderBy("publishedAt", Query.Direction.DESCENDING)
             .limit(pageSize)
             .addSnapshotListener { snapshot, error ->
-                if (error != null || snapshot == null) return@addSnapshotListener
+                if (error != null) {
+                    firstPageListener?.remove()
+                    firstPageListener = null
+                    return@addSnapshotListener
+                }
+                if (snapshot == null) return@addSnapshotListener
                 if (snapshot.isEmpty) {
                     // Migração progressiva: uma coleção remota ainda vazia não apaga o
                     // catálogo empacotado que mantém versões antigas funcionando offline.

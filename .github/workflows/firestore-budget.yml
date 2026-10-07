@@ -1,0 +1,19 @@
+name: Firestore subscription checks
+on:
+  pull_request:
+    paths:
+      - 'pwa/client/src/lib/firebase.ts'
+      - 'pwa/client/src/lib/listener-pool.ts'
+      - 'tests/listener-pool.test.mjs'
+      - '.github/workflows/firestore-budget.yml'
+permissions:
+  contents: read
+jobs:
+  subscriptions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node --test tests/listener-pool.test.mjs

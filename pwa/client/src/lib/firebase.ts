@@ -7,6 +7,7 @@ import { getApp, getApps, initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { collection, doc, getDoc, getFirestore, onSnapshot, serverTimestamp, setDoc, updateDoc, type DocumentData } from "firebase/firestore";
 import { getPrayerDeviceIdentity } from "./prayer-device";
+import { ListenerPool } from "./listener-pool";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyD-GPqTLRFmOiNATJwzKUHGqJeTPQcf0E8",
@@ -42,6 +43,13 @@ export const firestore = firebaseApp ? getFirestore(firebaseApp) : null;
 export const firebaseAdminAuth = firebaseAdminApp ? getAuth(firebaseAdminApp) : null;
 export const adminFirestore = firebaseAdminApp ? getFirestore(firebaseAdminApp) : null;
 
+const collections = new ListenerPool<Array<DocumentData & { id: string }>>();
+const documents = new ListenerPool<(DocumentData & { id: string }) | null>();
+const sharedPublicCollections = new Set([
+  "devocionais", "bible_news", "cultos_agenda", "conteudos_videos", "conteudos_audios",
+  "conteudos_books", "conteudos_albums", "carousel_items", "app_tabs", "equipe", "discipulado_pdfs",
+]);
+
 export type PwaMemberProfile = {
   id: string;
   name: string;
@@ -69,10 +77,17 @@ export function listenToCollection<T extends DocumentData>(
 ) {
   const readFirestore = firebaseAdminAuth?.currentUser && adminFirestore ? adminFirestore : firestore;
   if (!readFirestore) return () => undefined;
-  return onSnapshot(
-    collection(readFirestore, collectionName),
-    (snapshot) => onData(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as T & { id: string })),
-    (error) => onError?.(error),
+  if (!sharedPublicCollections.has(collectionName)) {
+    return onSnapshot(collection(readFirestore, collectionName),
+      snapshot => onData(snapshot.docs.map(item => ({ id: item.id, ...item.data() }) as T & { id: string })),
+      error => onError?.(error));
+  }
+  const uid = (readFirestore === adminFirestore ? firebaseAdminAuth : firebaseAuth)?.currentUser?.uid || "guest";
+  return collections.subscribe(
+    `${readFirestore.app.name}:${uid}:${collectionName}`,
+    (data, error) => onSnapshot(collection(readFirestore, collectionName),
+      snapshot => data(snapshot.docs.map(item => ({ id: item.id, ...item.data() }))), error),
+    items => onData(items as Array<T & { id: string }>), onError,
   );
 }
 
@@ -85,10 +100,17 @@ export function listenToDocument<T extends DocumentData>(
 ) {
   const readFirestore = firebaseAdminAuth?.currentUser && adminFirestore ? adminFirestore : firestore;
   if (!readFirestore) return () => undefined;
-  return onSnapshot(
-    doc(readFirestore, collectionName, documentName),
-    (snapshot) => onData(snapshot.exists() ? ({ id: snapshot.id, ...snapshot.data() } as T & { id: string }) : null),
-    (error) => onError?.(error),
+  if (collectionName !== "settings" || !["app", "donations", "home_banners", "about"].includes(documentName)) {
+    return onSnapshot(doc(readFirestore, collectionName, documentName),
+      snapshot => onData(snapshot.exists() ? ({ id: snapshot.id, ...snapshot.data() } as T & { id: string }) : null),
+      error => onError?.(error));
+  }
+  const uid = (readFirestore === adminFirestore ? firebaseAdminAuth : firebaseAuth)?.currentUser?.uid || "guest";
+  return documents.subscribe(
+    `${readFirestore.app.name}:${uid}:${collectionName}/${documentName}`,
+    (data, error) => onSnapshot(doc(readFirestore, collectionName, documentName),
+      snapshot => data(snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } : null), error),
+    item => onData(item as (T & { id: string }) | null), onError,
   );
 }
 
