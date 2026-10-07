@@ -324,7 +324,7 @@ fun HomeScreen(
                                         modifier = Modifier
                                             .align(Alignment.BottomCenter)
                                             .fillMaxWidth()
-                                            .background(Color.Black.copy(alpha = 0.58f))
+                                            .background(Color.Black.copy(alpha = 0.65f))
                                             .padding(horizontal = 12.dp, vertical = 8.dp)
                                     ) {
                                         Column {
@@ -332,7 +332,7 @@ fun HomeScreen(
                                                 Text(
                                                     text = banner.tag,
                                                     style = MaterialTheme.typography.labelSmall,
-                                                    color = Color.White.copy(alpha = 0.8f),
+                                                    color = Color.White,
                                                     fontWeight = FontWeight.Bold
                                                 )
                                             }
@@ -350,7 +350,7 @@ fun HomeScreen(
                                                 Text(
                                                     text = banner.description,
                                                     style = MaterialTheme.typography.bodySmall,
-                                                    color = Color.White.copy(alpha = 0.85f),
+                                                    color = Color.White,
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Ellipsis
                                                 )

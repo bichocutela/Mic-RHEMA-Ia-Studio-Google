@@ -190,9 +190,9 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                     enabled = !isLoading
                 ) {
                     if (isLoading) {
-                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(22.dp))
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(22.dp))
                     } else {
-                        Text("Entrar ou solicitar acesso", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("Entrar ou solicitar acesso", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
                     }
                 }
                 errorMessage?.let {

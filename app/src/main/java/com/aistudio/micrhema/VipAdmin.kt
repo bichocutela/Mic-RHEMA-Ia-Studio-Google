@@ -484,7 +484,7 @@ fun EditVipContentSection() {
                 Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Button(onClick = { if (!isUploadingCover) coverPicker.launch("image/*") }) {
                         if (isUploadingCover) {
-                            androidx.compose.material3.CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White)
+                            androidx.compose.material3.CircularProgressIndicator(modifier = Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary)
                         } else {
                             Text(if (customCoverUrl != null) "Capa Pronta" else "Selecionar Capa")
                         }
@@ -1333,7 +1333,7 @@ fun EditVipIbrSection() {
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
                             shape = RoundedCornerShape(24.dp)
                         ) {
-                            Text("Adicionar Aula", fontWeight = FontWeight.Bold, color = Color.White)
+                            Text("Adicionar Aula", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondary)
                         }
                     }
                 }

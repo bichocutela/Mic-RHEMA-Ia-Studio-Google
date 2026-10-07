@@ -553,12 +553,12 @@ private fun IbrStudyMaterials(chapter: IbrChapter) {
         Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
             Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.primaryContainer) {
-                    Icon(Icons.Default.PictureAsPdf, null, modifier = Modifier.padding(9.dp).size(24.dp))
+                    Icon(Icons.Default.Description, null, modifier = Modifier.padding(9.dp).size(24.dp))
                 }
                 Spacer(Modifier.width(9.dp))
                 Column(Modifier.weight(1f)) {
                     Text("Material complementar", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                    Text("PDF disponível para esta aula", style = MaterialTheme.typography.bodySmall)
+                    Text("Estudo disponível para esta aula", style = MaterialTheme.typography.bodySmall)
                 }
                 Icon(Icons.Default.Download, null)
             }
@@ -568,7 +568,7 @@ private fun IbrStudyMaterials(chapter: IbrChapter) {
             ) {
                 Icon(Icons.Default.Download, null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Baixar PDF")
+                Text("Baixar estudo")
             }
         }
     }
@@ -581,17 +581,17 @@ private fun IbrStudyMaterials(chapter: IbrChapter) {
                 }
                 Spacer(Modifier.width(9.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("Material em Word", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                    Text("Arquivo Word disponível para esta aula", style = MaterialTheme.typography.bodySmall)
+                    Text("Material complementar", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Text("Estudo disponível para esta aula", style = MaterialTheme.typography.bodySmall)
                 }
             }
             OutlinedButton(
-                onClick = { StudyMaterialDownload.openDocument(context, chapter.studyDocxUrl, "arquivo Word") },
+                onClick = { StudyMaterialDownload.openDocument(context, chapter.studyDocxUrl, "material de estudo") },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
             ) {
                 Icon(Icons.Default.OpenInNew, null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Abrir Word")
+                Text("Abrir estudo")
             }
             OutlinedButton(
                 onClick = { StudyMaterialDownload.enqueueDocx(context, chapter.studyDocxUrl, chapter.title) },

@@ -85,7 +85,7 @@ fun RichDocumentReader(
             ) {
                 CircularProgressIndicator()
                 Spacer(Modifier.height(12.dp))
-                Text(if (kind == RichDocumentKind.DOCX) "Preparando documento Word…" else "Preparando livro EPUB…")
+                Text("Preparando estudo…")
             }
 
             error != null -> Column(

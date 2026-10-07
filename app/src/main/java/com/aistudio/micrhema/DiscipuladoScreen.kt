@@ -20,7 +20,6 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.AutoStories
 import androidx.compose.material.icons.filled.MenuBook
-import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material3.Button
@@ -83,7 +82,7 @@ fun DiscipuladoScreen(
                     Text("Biblioteca de estudos", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        "Leia materiais em PDF ou Word e avance no seu estudo da Palavra.",
+                        "Leia os materiais e avance no seu estudo da Palavra.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -141,6 +140,8 @@ fun DiscipuladoPdfReaderScreen(
 
 @Composable
 private fun DiscipuladoHeroCard() {
+    val heroBackground = MaterialTheme.colorScheme.primaryContainer
+    val heroContent = contrastingContentColor(heroBackground)
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
@@ -152,8 +153,8 @@ private fun DiscipuladoHeroCard() {
                 .background(
                     Brush.linearGradient(
                         colors = listOf(
-                            MaterialTheme.colorScheme.primary,
-                            MaterialTheme.colorScheme.tertiary
+                            heroBackground,
+                            androidx.compose.ui.graphics.lerp(heroBackground, heroContent, 0.06f)
                         )
                     )
                 )
@@ -162,13 +163,13 @@ private fun DiscipuladoHeroCard() {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
                     Surface(
-                        color = Color.White.copy(alpha = 0.18f),
+                        color = heroContent.copy(alpha = 0.10f),
                         shape = RoundedCornerShape(50)
                     ) {
                         Text(
                             "ESTUDO ABERTO",
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                            color = Color.White,
+                            color = heroContent,
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -177,20 +178,20 @@ private fun DiscipuladoHeroCard() {
                     Text(
                         "Cresça na Palavra",
                         style = MaterialTheme.typography.headlineSmall,
-                        color = Color.White,
+                        color = heroContent,
                         fontWeight = FontWeight.ExtraBold
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         "Materiais para fortalecer sua caminhada cristã, estudar em casa e compartilhar com a família.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Color.White.copy(alpha = 0.88f)
+                        color = heroContent
                     )
                 }
                 Icon(
                     Icons.Default.AutoStories,
                     contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.92f),
+                    tint = heroContent,
                     modifier = Modifier.size(74.dp).padding(start = 12.dp)
                 )
             }
@@ -219,7 +220,7 @@ private fun DiscipuladoEmptyState() {
             Text("Novos estudos em breve", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                "A liderança está preparando materiais em PDF e Word para você estudar com calma e propósito.",
+                "A liderança está preparando novos estudos para você aprender com calma e propósito.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
@@ -230,9 +231,6 @@ private fun DiscipuladoEmptyState() {
 
 @Composable
 private fun DiscipuladoPdfCard(pdf: DiscipuladoPdf, onClick: () -> Unit) {
-    val isWord = pdf.fileType.equals("word", ignoreCase = true) ||
-        pdf.fileType.equals("docx", ignoreCase = true)
-
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
@@ -241,21 +239,13 @@ private fun DiscipuladoPdfCard(pdf: DiscipuladoPdf, onClick: () -> Unit) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(
-                    color = if (isWord) {
-                        MaterialTheme.colorScheme.primaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.errorContainer
-                    },
+                    color = MaterialTheme.colorScheme.primaryContainer,
                     shape = RoundedCornerShape(16.dp)
                 ) {
                     Icon(
-                        if (isWord) Icons.Default.Description else Icons.Default.PictureAsPdf,
-                        contentDescription = if (isWord) "Word" else "PDF",
-                        tint = if (isWord) {
-                            MaterialTheme.colorScheme.onPrimaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.onErrorContainer
-                        },
+                        Icons.Default.Description,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.padding(14.dp).size(28.dp)
                     )
                 }
@@ -263,7 +253,7 @@ private fun DiscipuladoPdfCard(pdf: DiscipuladoPdf, onClick: () -> Unit) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(pdf.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(
-                        "${if (isWord) "Word" else "PDF"} • ${pdf.category}",
+                        pdf.category,
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary
                     )

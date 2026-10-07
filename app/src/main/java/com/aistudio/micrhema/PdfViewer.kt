@@ -189,7 +189,7 @@ fun PdfRendererView(file: File, bookUrl: String) {
             }
         }
     } else {
-        Text("O PDF não contém páginas.")
+        Text("O estudo não contém páginas.")
     }
 }
 

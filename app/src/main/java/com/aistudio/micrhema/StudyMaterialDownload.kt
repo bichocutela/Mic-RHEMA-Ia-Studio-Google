@@ -31,7 +31,7 @@ object StudyMaterialDownload {
                         when (DocumentFiles.detect(probe)) {
                             DocumentFormat.DOC -> Triple(downloadUrl, "doc", "application/msword")
                             DocumentFormat.DOCX -> Triple(downloadUrl, "docx", DOCX_MIME)
-                            else -> throw IllegalArgumentException("O endereço não retornou um documento Word.")
+                            else -> throw IllegalArgumentException("Não foi possível carregar o material de estudo.")
                         }
                     } finally {
                         probe.delete()
@@ -41,7 +41,7 @@ object StudyMaterialDownload {
                 enqueue(appContext, resolved.first, baseTitle, resolved.second, resolved.third, "Word")
             } catch (error: Exception) {
                 if (error is kotlinx.coroutines.CancellationException) throw error
-                Toast.makeText(appContext, error.message ?: "Não foi possível baixar o documento Word.", Toast.LENGTH_LONG).show()
+                Toast.makeText(appContext, error.message ?: "Não foi possível baixar o material de estudo.", Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -54,12 +54,12 @@ object StudyMaterialDownload {
     fun openDocument(context: Context, sourceUrl: String, label: String) {
         val clean = sourceUrl.trim()
         if (clean.isBlank()) {
-            Toast.makeText(context, "O $label não possui um arquivo válido para abrir.", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "O material de estudo não possui um arquivo válido para abrir.", Toast.LENGTH_LONG).show()
             return
         }
         val normalized = "$label $clean".lowercase()
         val contentType = if (normalized.contains("epub")) "epub" else "word"
-        val title = if (contentType == "epub") "Material EPUB" else "Material em Word"
+        val title = "Material de estudo"
         context.startActivity(
             DocumentReaderActivity.intent(context, clean, title, contentType)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -98,7 +98,7 @@ object StudyMaterialDownload {
         if (!resolvedUrl.startsWith("http://", ignoreCase = true) &&
             !resolvedUrl.startsWith("https://", ignoreCase = true)
         ) {
-            Toast.makeText(context, "O arquivo $label não possui um link válido para download.", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "O estudo não possui um link válido para download.", Toast.LENGTH_LONG).show()
             return
         }
 
@@ -125,9 +125,9 @@ object StudyMaterialDownload {
             val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
             manager.enqueue(request)
         }.onSuccess {
-            Toast.makeText(context, "Download do arquivo $label iniciado.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Download do estudo iniciado.", Toast.LENGTH_SHORT).show()
         }.onFailure {
-            Toast.makeText(context, "Não foi possível iniciar o download do arquivo $label.", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "Não foi possível iniciar o download do estudo.", Toast.LENGTH_LONG).show()
         }
     }
 }
