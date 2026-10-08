@@ -1,3 +1,4 @@
+import { useNotificationItem } from "@/lib/notification-target";
 import { useEffect, useMemo, useState } from "react";
 import { BookOpen, CalendarDays, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { listenToCollection } from "@/lib/firebase";
@@ -68,6 +69,7 @@ export function DevotionalsParityView() {
     return () => { window.clearInterval(timer); window.removeEventListener("scroll", check); };
   }, [selected?.id]);
 
+  useNotificationItem(items,setSelected);
   if (selected) return <section className="parity-page devotional-reader">
     <button className="back-link" onClick={() => setSelected(null)}><ChevronLeft size={18}/> Voltar aos devocionais</button>
     <div className="parity-title"><div><p>DEVOCIONAL</p><h1>{selected.title || "Palavra para hoje"}</h1><span>{formatAppDate(selected.date)}</span></div><BookOpen size={30}/></div>

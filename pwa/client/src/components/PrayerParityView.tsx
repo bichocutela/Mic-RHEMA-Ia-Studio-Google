@@ -1,3 +1,4 @@
+import { useNotificationQuery } from "@/lib/notification-target";
 import { useEffect, useMemo, useState } from "react";
 import { BellRing, CheckCircle2, Clock3, HandHeart, RefreshCcw, Send } from "lucide-react";
 import { toast } from "sonner";
@@ -28,6 +29,11 @@ export function PrayerParityView({ session }: { session?: { uid: string; name: s
     return () => { window.removeEventListener("micrhema:prayer-updated", update); document.removeEventListener("visibilitychange", visible); };
   }, [session?.uid]);
 
+  const focusedId=useNotificationQuery().get("request")||"";
+  useEffect(()=>{
+    if(!focusedId||!history.some(item=>item.id===focusedId))return;
+    document.getElementById(`prayer-${focusedId}`)?.scrollIntoView({behavior:"smooth",block:"center"});
+  },[focusedId,history]);
   const pending = useMemo(() => history.filter((item) => item.status !== "respondida" && !item.answeredAt).length, [history]);
   const answered = useMemo(() => history.filter((item) => item.status === "respondida" || item.answeredAt > 0).length, [history]);
 
@@ -61,7 +67,7 @@ export function PrayerParityView({ session }: { session?: { uid: string; name: s
     <section className="prayer-history-section"><header><div><p>SEU HISTÓRICO</p><h2>Pedidos e respostas</h2></div><button onClick={() => void refresh()} disabled={historyBusy} aria-label="Atualizar histórico"><RefreshCcw className={historyBusy ? "spin" : ""} size={18}/></button></header>
       {historyBusy && !history.length ? <div className="prayer-history-empty">Carregando seus pedidos…</div> : !history.length ? <div className="prayer-history-empty">Seu primeiro pedido aparecerá aqui depois do envio.</div> : <div className="prayer-history-list">{history.map((item) => {
         const done = item.status === "respondida" || item.answeredAt > 0;
-        return <article key={item.id} className={done ? "is-answered" : "is-pending"}><div className="prayer-history-icon">{done ? <CheckCircle2/> : <Clock3/>}</div><div className="prayer-history-copy"><div><strong>{done ? "Oração respondida" : "Oração pendente"}</strong><time>{done ? item.answeredDate || item.date : item.date}</time></div><p>{item.request}</p>{done && <aside><b>🙏 A equipe pastoral orou por você.</b><span>{item.responseMessage || `Oração respondida em ${item.answeredDate || item.date}.`}</span></aside>}</div></article>;
+        return <article id={`prayer-${item.id}`} key={item.id} style={item.id===focusedId?{outline:"2px solid #143454",outlineOffset:3}:undefined} className={done ? "is-answered" : "is-pending"}><div className="prayer-history-icon">{done ? <CheckCircle2/> : <Clock3/>}</div><div className="prayer-history-copy"><div><strong>{done ? "Oração respondida" : "Oração pendente"}</strong><time>{done ? item.answeredDate || item.date : item.date}</time></div><p>{item.request}</p>{done && <aside><b>🙏 A equipe pastoral orou por você.</b><span>{item.responseMessage || `Oração respondida em ${item.answeredDate || item.date}.`}</span></aside>}</div></article>;
       })}</div>}
     </section>
     <aside className="prayer-parity-footer">Seus pedidos são visíveis à equipe pastoral responsável. O seu histórico não é exibido para outros membros.</aside>

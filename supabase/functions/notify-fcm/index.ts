@@ -1,3 +1,4 @@
+import { notificationPresentation } from "./notification-presentation.ts";
 import { importPKCS8, SignJWT } from "npm:jose@5.10.0";
 
 const GOOGLE_SCOPE = "https://www.googleapis.com/auth/firebase.messaging https://www.googleapis.com/auth/datastore";
@@ -69,28 +70,12 @@ function acceptsWebToken(doc: WebToken, category: string, topic: string) {
   return !preference || bool(doc.fields, preference, true);
 }
 
-function pwaLink(data: Record<string, string>) {
-  const collection = (data.collection || "").toLowerCase();
-  const category = (data.category || "").toLowerCase();
-  const destination = (data.destination || "").toLowerCase();
-  const id = data.documentId || "";
-  if (collection === "prayer_requests" || destination.startsWith("admin_prayer")) return `${DEFAULT_LINK}?view=admin&section=prayers&request=${encodeURIComponent(id)}`;
-  if (collection === "prayer_response" || destination === "prayer") return `${DEFAULT_LINK}?view=prayer&request=${encodeURIComponent(id)}`;
-  if (collection === "discipulado_pdfs" || destination === "discipulado") return `${DEFAULT_LINK}?view=discipulado`;
-  if (destination === "ibr" || category.includes("ibr") || category.includes("course")) return `${DEFAULT_LINK}?view=ibr`;
-  if (destination === "content" || /sermon|media|audio|video|book/.test(category)) return `${DEFAULT_LINK}?view=media`;
-  if (destination === "services" || /event|service|culto/.test(category)) return `${DEFAULT_LINK}?view=cultos`;
-  if (category.includes("devotional")) return `${DEFAULT_LINK}?view=devotionals`;
-  if (category.includes("news") || category.includes("noticia")) return `${DEFAULT_LINK}?view=news`;
-  return DEFAULT_LINK;
-}
-
 async function send(projectId: string, accessToken: string, target: Record<string, string>, title: string, body: string, data: Record<string, string>, includeWeb = true) {
   const message: Record<string, unknown> = { ...target, data, android: { priority: "high", ttl: "86400s" } };
   if (includeWeb) message.webpush = {
     headers: { Urgency: "high" },
-    notification: { title, body, icon: `${DEFAULT_LINK}icons/icon-192.png`, tag: `micrhema-${data.category || "general"}-${data.documentId || "update"}` },
-    fcm_options: { link: pwaLink(data) },
+    notification: { title, body, icon: notificationPresentation(data, DEFAULT_LINK).icon, badge: notificationPresentation(data, DEFAULT_LINK).badge, tag: `micrhema-${data.category || "general"}-${data.documentId || "update"}` },
+    fcm_options: { link: notificationPresentation(data, DEFAULT_LINK).link },
   };
   const response = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
     method: "POST", headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json; UTF-8" },

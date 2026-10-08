@@ -1,3 +1,4 @@
+import { notificationPresentation } from "../notify-fcm/notification-presentation.ts";
 import { importPKCS8, SignJWT } from "npm:jose@5.10.0";
 
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -131,8 +132,8 @@ async function send(projectId: string, accessToken: string, registrationToken: s
       },
       webpush: {
         headers: { Urgency: "high" },
-        notification: { title: message.title, body: message.body, icon: `${DEFAULT_LINK}icons/icon-192.png`, tag: message.tag },
-        fcm_options: { link: message.link },
+        notification: { title: message.title, body: message.body, icon: notificationPresentation({category:message.category},DEFAULT_LINK).icon, badge: notificationPresentation({category:message.category},DEFAULT_LINK).badge, tag: message.tag },
+        fcm_options: { link: notificationPresentation({category:message.category,documentId:message.documentId||"",destination:message.destination||""},DEFAULT_LINK).link },
       },
     } }),
   });

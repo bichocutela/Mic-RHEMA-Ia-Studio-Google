@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { AndroidLoginParity } from "@/components/AndroidLoginParity";
 import { PwaShell, type AppView } from "@/components/PwaShell";
 import { firebaseAdminAuth, firebaseAuth } from "@/lib/firebase";
+import { notificationPresentation } from "@/lib/notification-presentation";
 import type { PwaSession } from "@/lib/pwa-auth";
 
 const MEMBER_SESSION_KEY="mic-rhema-pwa-session";
@@ -23,22 +24,6 @@ function readStoredSession(key:string): PwaSession | null {
     localStorage.removeItem(key);
     return null;
   }
-}
-
-type PushRoute={view:AppView;adminPrayer?:boolean;requestId?:string};
-function routeForPush(data:Record<string,string>):PushRoute|null{
-  const collection=String(data.collection||"").toLowerCase();
-  const category=String(data.category||"").toLowerCase();
-  const destination=String(data.destination||"").toLowerCase();
-  const documentId=String(data.documentId||"");
-  if(collection==="prayer_requests"||destination.startsWith("admin_prayer"))return{view:"admin",adminPrayer:true,requestId:documentId};
-  if(collection==="prayer_response"||category==="prayer_response"||destination==="prayer")return{view:"prayer",requestId:documentId};
-  if(destination==="ibr"||category.includes("ibr")||category.includes("course"))return{view:"ibr"};
-  if(destination==="content"||category.includes("sermon")||category.includes("media")||category.includes("audio")||category.includes("video")||category.includes("book"))return{view:"media"};
-  if(destination==="services"||category.includes("event")||category.includes("service")||category.includes("culto"))return{view:"cultos"};
-  if(category.includes("devotional"))return{view:"devotionals"};
-  if(category.includes("news")||category.includes("noticia"))return{view:"news"};
-  return null;
 }
 
 export default function Home() {
@@ -114,15 +99,17 @@ export default function Home() {
           const isAdminPrayer=collection==="prayer_requests";
           const isPrayerResponse=collection==="prayer_response"||category==="prayer_response";
           if(isAdminPrayer||isPrayerResponse)window.dispatchEvent(new CustomEvent("micrhema:prayer-updated"));
-          const target=routeForPush(data);
+          const target=notificationPresentation(data);
           toast.message(title,{
             description:body,
+            icon:<img src={target.icon} alt="" width={28} height={28} style={{borderRadius:7}}/>,
             action:target?{label:"Abrir",onClick:()=>{
               const params=new URLSearchParams();params.set("view",target.view);
-              if(target.adminPrayer){params.set("section","prayers");if(documentId)params.set("request",documentId);window.dispatchEvent(new CustomEvent("micrhema:open-admin-prayer"));}
-              else if(target.view==="prayer"&&target.requestId)params.set("request",target.requestId);
+              Object.entries(target.params).forEach(([key,value])=>params.set(key,value));
               window.history.replaceState({},"",`${window.location.pathname}?${params.toString()}`);
-              setView(target.view);
+              window.dispatchEvent(new CustomEvent("micrhema:notification-target"));
+              if(target.view==="admin"&&target.params.section==="prayers")window.dispatchEvent(new CustomEvent("micrhema:open-admin-prayer"));
+              setView(target.view as AppView);
             }}:undefined,
           });
         });

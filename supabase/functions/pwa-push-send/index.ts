@@ -1,3 +1,4 @@
+import { notificationPresentation } from "../notify-fcm/notification-presentation.ts";
 import { importPKCS8, SignJWT } from "npm:jose@5.10.0";
 
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -91,7 +92,7 @@ Deno.serve(async (request) => {
       const response = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
         method: "POST",
         headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json; UTF-8" },
-        body: JSON.stringify({ message: { token: registrationToken, notification: { title, body }, data: { category, title, body }, webpush: { headers: { Urgency: "high" }, notification: { title, body, icon: `${DEFAULT_LINK}icons/icon-192.png` }, fcm_options: { link } } } }),
+        body: JSON.stringify({ message: { token: registrationToken, notification: { title, body }, data: { category, title, body }, webpush: { headers: { Urgency: "high" }, notification: { title, body, icon: notificationPresentation({category},DEFAULT_LINK).icon, badge: notificationPresentation({category},DEFAULT_LINK).badge }, fcm_options: { link } } } }),
       });
       return response.ok;
     }));

@@ -1,4 +1,7 @@
 import { useEffect, useState } from "react";
+import { doc, getDoc } from "firebase/firestore";
+import { firestore } from "@/lib/firebase";
+import { useNotificationQuery, consumeNotificationTarget } from "@/lib/notification-target";
 import { ArrowRight, BookOpen, CheckCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import androidPlans from "@/data/android-plans.json";
@@ -11,6 +14,25 @@ type Theme=Category["themes"][number];
 
 export function PlansParityView(){
   const[category,setCategory]=useState<Category|null>(null);const[theme,setTheme]=useState<Theme|null>(null);
+  const notificationQuery=useNotificationQuery();
+  useEffect(()=>{
+    const name=notificationQuery.get("theme")||"", planId=notificationQuery.get("planId")||"";
+    if(!name&&!planId)return;
+    let active=true;
+    const open=(candidate:Category)=>{
+      if(!active)return;
+      setCategory(candidate);setTheme(candidate.themes.find(item=>item.title===name)||null);
+      consumeNotificationTarget("theme","planId","id");
+    };
+    const local=androidPlans.find(item=>item.name===name||item.themes.some(theme=>theme.title===name));
+    if(local)open(local);
+    else if(planId&&firestore)void getDoc(doc(firestore,"bible_plans",planId)).then(snapshot=>{
+      const value=snapshot.data();if(!value||!active||value.approved===false||value.isApproved===false)return;
+      const themes:Array<Theme>=Array.isArray(value.themes)?value.themes.map((item:Record<string,unknown>)=>({title:String(item.title||"Tema"),content:String(item.content||""),verses:Array.isArray(item.verses)?item.verses.map(String):[],imageUrl:String(item.imageUrl||"")})):[];
+      open({name:String(value.name||"Plano de leitura"),color:String(value.color||"#143454"),themes});
+    }).catch(()=>undefined);
+    return()=>{active=false};
+  },[notificationQuery]);
   if(theme&&category)return <ThemeReader category={category} theme={theme} onBack={()=>setTheme(null)} onDone={async()=>{
     const localThemeId=`${category.name}:${theme.title}`;
     const centralThemeId=`${category.name}::${theme.title}`;

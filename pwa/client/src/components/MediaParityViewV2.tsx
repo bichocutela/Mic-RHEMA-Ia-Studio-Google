@@ -1,3 +1,4 @@
+import { useNotificationItem, useNotificationQuery } from "@/lib/notification-target";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BookOpen, Check, ChevronLeft, Download, ExternalLink, Headphones, Image as ImageIcon, Play, Search, SortAsc, Video, X } from "lucide-react";
 import { listenToCollection } from "@/lib/firebase";
@@ -48,6 +49,10 @@ export function MediaParityViewV2(){
     ...albums.filter(approved).map(i=>({...i,kind:"Fotos" as const})),
   ],[books,audios,videos,albums]);
   const visible=useMemo(()=>{const match=all.filter(item=>item.kind===tab).filter(item=>!query.trim()||normalizeSearch(item.title||"").includes(normalizeSearch(query))||normalizeSearch(secondary(item)).includes(normalizeSearch(query)));return match.sort((a,b)=>{if(sort==="name")return String(a.title||"").localeCompare(String(b.title||""),"pt-BR");if(sort==="presenter")return secondary(a).localeCompare(secondary(b),"pt-BR");if(sort==="oldest")return itemTime(a)-itemTime(b);if(sort==="relevant"&&query.trim())return relevance(query,b)-relevance(query,a)||itemTime(b)-itemTime(a);return itemTime(b)-itemTime(a)})},[all,tab,query,sort]);
+  const notificationQuery = useNotificationQuery();
+  const notificationKind = ({book:"Livro",audio:"Áudio",video:"Vídeo",album:"Fotos"} as Record<string,Kind>)[notificationQuery.get("type") || ""];
+  useEffect(() => { if(notificationKind) setTab(notificationKind); }, [notificationKind,notificationQuery]);
+  useNotificationItem(all.filter(item => !notificationKind || item.kind === notificationKind),item => {setTab(item.kind);setSelected(item)});
   const openItem=(item:ViewItem)=>setSelected(item);
   if(selected)return <MediaReaderV2 item={selected} onBack={()=>setSelected(null)}/>;
   return <section className="parity-page media-parity"><div className="parity-title"><div><p>MÍDIA</p><h1>Conteúdo da igreja</h1><span>Livros, áudios, vídeos e fotos sincronizados em tempo real com o Android.</span></div><Play size={30}/></div>

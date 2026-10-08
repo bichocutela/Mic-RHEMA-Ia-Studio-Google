@@ -1,3 +1,4 @@
+import { useNotificationQuery } from "@/lib/notification-target";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -79,8 +80,10 @@ const modules: Array<{ group: string; items: Array<{ id: Section; title: string;
 ];
 
 export function AdminParityView({ session }: { session: Session }) {
-  const [section, setSection] = useState<Section>(() => { const requested = new URLSearchParams(window.location.search).get("section"); return requested === "prayers" ? "prayers" : requested === "ibr" ? "ibr" : "dashboard"; });
+  const [section, setSection] = useState<Section>(() => { const requested = new URLSearchParams(window.location.search).get("section"); return requested === "members" ? "members" : requested === "prayers" ? "prayers" : requested === "ibr" ? "ibr" : "dashboard"; });
   useEffect(() => { const open = () => setSection("prayers"); window.addEventListener("micrhema:open-admin-prayer", open); return () => window.removeEventListener("micrhema:open-admin-prayer", open); }, []);
+  const notificationQuery=useNotificationQuery();
+  useEffect(()=>{const section=notificationQuery.get("section");if(section==="prayers"||section==="members")setSection(section)},[notificationQuery]);
   if (!session?.isAdmin) return <section className="parity-page"><div className="parity-empty"><LockKeyhole size={48}/><h1>Área Administrativa</h1><p>Use o login administrativo para acessar o painel.</p></div></section>;
   return <section className="admin-parity-root">{section !== "dashboard" && <button className="admin-back" onClick={() => setSection("dashboard")}><ArrowLeft size={18}/> Painel</button>}{section === "dashboard" ? <AdminDashboardView onOpen={setSection}/> : <AdminSectionView section={section}/>}</section>;
 }
@@ -126,7 +129,7 @@ function AdminSectionView({ section }: { section: Exclude<Section, "dashboard"> 
 
 function PrayerAdmin() {
   const items = useAdminCollection("prayer_requests");
-  const focusedId = new URLSearchParams(window.location.search).get("request") || "";
+  const focusedId = useNotificationQuery().get("request") || "";
   const pending = items.filter((item) => item.status !== "respondida" && Number(item.answeredAt || 0) <= 0).slice().sort((a,b) => Number(b.id === focusedId) - Number(a.id === focusedId) || Number(b.createdAt || 0) - Number(a.createdAt || 0));
   const answered = items.filter((item) => item.status === "respondida" || Number(item.answeredAt || 0) > 0).slice().sort((a,b) => Number(b.answeredAt || 0) - Number(a.answeredAt || 0)).slice(0,30);
   const [busyId,setBusyId]=useState("");

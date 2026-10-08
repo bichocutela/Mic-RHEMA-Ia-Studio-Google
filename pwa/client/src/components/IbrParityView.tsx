@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useNotificationQuery, consumeNotificationTarget } from "@/lib/notification-target";
 import { BadgeCheck, BookOpen, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, Headphones, LockKeyhole, Mail, Minus, Play, Plus, School, Video } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -29,15 +30,18 @@ function CourseCover({course,locked}:{course:Course;locked:boolean}){
 export function IbrParityView({ session, onLogin }: { session: PwaSessionLike; onLogin: () => void }) {
   const[courses,setCourses]=useState<Course[]>([]);const[progress,setProgress]=useState<Progress[]>([]);const[profile,setProfile]=useState<PwaMemberProfile|null>(null);const[profileError,setProfileError]=useState("");
   const[courseId,setCourseId]=useState<string|null>(null);const[lessonKey,setLessonKey]=useState<{courseId:string;chapterId:string}|null>(null);
+  const notificationQuery=useNotificationQuery();
+  const consumedNotification=useRef<URLSearchParams|null>(null);
+  const[progressLoaded,setProgressLoaded]=useState(false);
   const sessionAccess=Boolean(session&&(session.isIbr||session.isAdmin));
   useEffect(()=>sessionAccess?listenToCollection<Course>("ibr_courses",setCourses,()=>setCourses([])):()=>undefined,[sessionAccess]);
   useEffect(()=>{if(!session)return;let active=true;setProfileError("");loadPwaMemberProfile().then(value=>{if(active)setProfile(value)}).catch(error=>{if(active)setProfileError(error instanceof Error?error.message:"Não foi possível carregar seu perfil IBR.")});return()=>{active=false}},[session?.uid]);
   const memberId=profile?.id||session?.uid||"";const access=Boolean(sessionAccess||(profile&&(profile.isIbr||profile.isAdmin)));
-  useEffect(()=>memberId&&access?listenToIbrProgress<Progress>(memberId,setProgress,()=>setProgress([])):()=>undefined,[memberId,access]);
-  if(!session)return <section className="parity-page"><div className="parity-empty"><School size={46}/><h1>Instituto Bíblico Rhema</h1><p>Entre para acessar sua matrícula, cursos e progresso.</p><button className="parity-primary" onClick={onLogin}>Entrar para acessar</button></div></section>;
-  if(!access)return <section className="parity-page"><div className="parity-empty"><LockKeyhole size={46}/><h1>Instituto Bíblico Rhema</h1><p>Você não está matriculado no IBR. Procure a secretaria para mais informações.</p><button className="parity-primary" onClick={onLogin}>Ver meu perfil</button></div></section>;
-  if(profileError&&session.isAdmin&&session.uid==="admin")return <section className="parity-page"><div className="parity-empty"><School size={46}/><h1>Renove a sessão do Administrador</h1><p>O IBR agora usa o mesmo ID do perfil Android. Saia e entre novamente como administrador uma única vez para concluir a vinculação.</p><button className="parity-primary" onClick={onLogin}>Abrir perfil</button></div></section>;
-
+  useEffect(()=>{
+    setProgressLoaded(false);
+    if(!memberId||!access)return;
+    return listenToIbrProgress<Progress>(memberId,items=>{setProgress(items);setProgressLoaded(true)},()=>{setProgress([]);setProgressLoaded(false)});
+  },[memberId,access]);
   const ordered=courses.slice().sort((a,b)=>String(a.id).localeCompare(String(b.id),undefined,{numeric:true}));
   const progressFor=(course:string,chapter:string)=>progress.find(item=>item.courseId===course&&item.chapterId===chapter);
   const completeCourse=(course:Course)=>Boolean(course.chapters?.length)&&course.chapters!.every(chapter=>progressFor(course.id,chapter.id)?.isCompleted);
@@ -91,6 +95,23 @@ export function IbrParityView({ session, onLogin }: { session: PwaSessionLike; o
     setLessonKey({courseId:course.id,chapterId:chapter.id});
   };
   const complete=async()=>{if(!lessonCourse||!lesson||!memberId)return;try{await saveIbrProgress(memberId,{courseId:lessonCourse.id,chapterId:lesson.id,lastPositionSeconds:Number(lesson.durationMinutes||0)*60,totalDurationSeconds:Number(lesson.durationMinutes||0)*60,isCompleted:true});await reconcilePwaBadges().catch(()=>undefined);toast.success("Aula concluída e sincronizada com o Android.");}catch(error){toast.error(error instanceof Error?error.message:"Não foi possível salvar o progresso.")}};
+
+  useEffect(()=>{
+    const targetCourse=notificationQuery.get("courseId"), targetChapter=notificationQuery.get("chapterId");
+    if(!targetCourse||!access||!progressLoaded||consumedNotification.current===notificationQuery)return;
+    const index=ordered.findIndex(item=>item.id===targetCourse);
+    if(index<0)return;
+    consumedNotification.current=notificationQuery;
+    consumeNotificationTarget("courseId","chapterId","id");
+    if(courseLocked(index)){toast.info("Este módulo ainda está bloqueado. Confira seu progresso no IBR.");return;}
+    setLessonKey(null);setCourseId(targetCourse);
+    const chapter=ordered[index].chapters?.find(item=>item.id===targetChapter);
+    if(chapter)void openLesson(ordered[index],chapter);
+  },[notificationQuery,access,progressLoaded,courses,progress]);
+
+  if(!session)return <section className="parity-page"><div className="parity-empty"><School size={46}/><h1>Instituto Bíblico Rhema</h1><p>Entre para acessar sua matrícula, cursos e progresso.</p><button className="parity-primary" onClick={onLogin}>Entrar para acessar</button></div></section>;
+  if(!access)return <section className="parity-page"><div className="parity-empty"><LockKeyhole size={46}/><h1>Instituto Bíblico Rhema</h1><p>Você não está matriculado no IBR. Procure a secretaria para mais informações.</p><button className="parity-primary" onClick={onLogin}>Ver meu perfil</button></div></section>;
+  if(profileError&&session.isAdmin&&session.uid==="admin")return <section className="parity-page"><div className="parity-empty"><School size={46}/><h1>Renove a sessão do Administrador</h1><p>O IBR agora usa o mesmo ID do perfil Android. Saia e entre novamente como administrador uma única vez para concluir a vinculação.</p><button className="parity-primary" onClick={onLogin}>Abrir perfil</button></div></section>;
 
   if(lessonCourse&&lesson)return <IbrLesson course={lessonCourse} lesson={lesson} done={Boolean(progressFor(lessonCourse.id,lesson.id)?.isCompleted)} onBack={()=>setLessonKey(null)} onComplete={()=>void complete()}/>;
   if(selectedCourse){const index=ordered.findIndex(item=>item.id===selectedCourse.id);if(courseLocked(index)){setCourseId(null);return null;}return <section className="parity-page"><button className="back-link" onClick={()=>setCourseId(null)}><ChevronLeft size={18}/> Voltar ao IBR</button><div className="parity-title"><div><p>{selectedCourse.theme||"MÓDULO IBR"}</p><h1>{selectedCourse.title||"Curso IBR"}</h1><span>{selectedCourse.description||"Formação bíblica"}</span></div><School size={30}/></div>{resolveDisplayImageUrl(selectedCourse.imageUrl)&&<img src={resolveDisplayImageUrl(selectedCourse.imageUrl)} alt="" style={{width:"100%",maxHeight:210,objectFit:"cover",borderRadius:18,marginBottom:15}}/>}<div className="android-list-cards">{(selectedCourse.chapters||[]).map((chapter,lessonIndex)=>{const done=Boolean(progressFor(selectedCourse.id,chapter.id)?.isCompleted);const unlocked=chapterUnlocked(selectedCourse,chapter);const type=(chapter.type||"AULA").toUpperCase();return <button key={chapter.id} className={unlocked?undefined:"is-locked"} onClick={()=>void openLesson(selectedCourse,chapter)}><span>{String(lessonIndex+1).padStart(2,"0")}</span><div><strong>{chapter.title||"Aula IBR"}</strong><small>{type==="VIDEO"?"Vídeo":type==="AUDIO"?"Áudio":type==="TEXT"?"Leitura":"Aula"} · {Number(chapter.durationMinutes||0)} min</small></div>{!unlocked?<LockKeyhole size={19}/>:done?<BadgeCheck size={20}/>:<ChevronRight size={19}/>}</button>})}</div></section>}
