@@ -663,7 +663,8 @@ object MemberManager {
     fun setLoggedInMember(
         context: android.content.Context,
         member: MemberRequest?,
-        bindFirebaseIdentity: Boolean = true
+        bindFirebaseIdentity: Boolean = true,
+        preserveAdminFirebaseOnLogout: Boolean = false
     ) {
         loggedInMemberState.value = member
         member?.let { BadgeActivityTracker.reconcile(context, it) }
@@ -681,7 +682,9 @@ object MemberManager {
         val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
         if (member == null) {
             prefs.edit().remove(KEY_LOGGED_IN_ID).apply()
-            runCatching { com.google.firebase.auth.FirebaseAuth.getInstance().signOut() }
+            if (!preserveAdminFirebaseOnLogout) {
+                runCatching { com.google.firebase.auth.FirebaseAuth.getInstance().signOut() }
+            }
             runCatching { MemberFirebaseAuth.get().signOut() }
         } else {
             prefs.edit().putString(KEY_LOGGED_IN_ID, member.id).apply()
