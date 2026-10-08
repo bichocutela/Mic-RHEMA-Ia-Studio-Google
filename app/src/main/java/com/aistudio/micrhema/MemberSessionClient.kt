@@ -140,6 +140,8 @@ object MemberSessionClient {
             auth.signOut()
             throw IllegalStateException("Não foi possível validar a identidade do membro.")
         }
+        // Cache only after the backend and Firebase both confirmed this identity.
+        MemberOfflineCache.save(context, member)
 
         return RecoveryResult(
             found = true,
@@ -178,7 +180,7 @@ object MemberSessionClient {
         map.forEach { (key, values) -> put(key, JSONArray(values.distinct())) }
     }
 
-    private fun memberFromJson(json: JSONObject): MemberRequest {
+    internal fun memberFromJson(json: JSONObject): MemberRequest {
         val activities = mutableMapOf<String, List<String>>()
         json.optJSONObject("badgeActivityIds")?.let { activityJson ->
             val keys = activityJson.keys()
