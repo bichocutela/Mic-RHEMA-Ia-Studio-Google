@@ -20,9 +20,9 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 /**
- * Last server-validated member identity, encrypted with a non-exportable
- * Android Keystore key. Offline login is permitted ONLY while that same
- * Firebase user still has a persisted session on this device.
+ * Last trusted member profile encrypted with a non-exportable Android
+ * Keystore key. Offline access is tied to the previously active account ID
+ * on this device. Older installations may migrate their Firestore disk cache.
  *
  * An offline snapshot never grants administrator permissions. It cannot
  * approve a new registration or mint Firebase tokens without the backend.
@@ -104,8 +104,8 @@ object MemberOfflineCache {
     }
 
     /**
-     * Does not authenticate based on a typed phone alone: a matching Firebase
-     * UID that was already signed in on this device is mandatory.
+     * Never authenticates from a typed phone alone. The encrypted snapshot
+     * must belong to the previously active account, with no explicit logout.
      */
     fun restoreTrusted(context: Context, requestedPhone: String? = null): MemberRequest? {
         val memberPrefs = context.applicationContext.getSharedPreferences(MEMBER_PREFS, Context.MODE_PRIVATE)
