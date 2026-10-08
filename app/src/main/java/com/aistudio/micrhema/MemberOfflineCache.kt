@@ -25,6 +25,9 @@ import javax.crypto.spec.GCMParameterSpec
 object MemberOfflineCache {
     private const val PREFS = "micrhema_verified_member_offline_v1"
     private const val KEY = "encrypted_member"
+    private const val TRUSTED_ID = "trusted_session_id"
+    private const val MEMBER_PREFS = "micrhema_members_prefs"
+    private const val LOGGED_IN_ID = "logged_in_member_id"
     private const val KEY_ALIAS = "micrhema_member_offline_aes_v1"
 
     private fun cipherKey(): SecretKey {
@@ -86,7 +89,10 @@ object MemberOfflineCache {
             val encrypted = cipher.iv + cipher.doFinal(serialize(member).toByteArray(Charsets.UTF_8))
             val packed = Base64.encodeToString(encrypted, Base64.NO_WRAP)
             context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                .edit().putString(KEY, packed).apply()
+                .edit()
+                .putString(KEY, packed)
+                .putString(TRUSTED_ID, member.id)
+                .apply()
         } catch (error: Exception) {
             Log.w("MemberOfflineCache", "Não foi possível proteger o cache local", error)
         }
@@ -97,8 +103,12 @@ object MemberOfflineCache {
      * UID that was already signed in on this device is mandatory.
      */
     fun restoreTrusted(context: Context, requestedPhone: String? = null): MemberRequest? {
-        val stored = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString(KEY, null) ?: return null
+        val memberPrefs = context.applicationContext.getSharedPreferences(MEMBER_PREFS, Context.MODE_PRIVATE)
+        val activeId = memberPrefs.getString(LOGGED_IN_ID, "").orEmpty()
+        // A phone alone must never turn a signed-out or new device into an account.
+        if (activeId.isBlank()) return null
+        val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val stored = prefs.getString(KEY, null) ?: return null
         return try {
             val bytes = Base64.decode(stored, Base64.DEFAULT)
             require(bytes.size > 12 + 16)
@@ -109,9 +119,18 @@ object MemberOfflineCache {
             )
             val member = MemberSessionClient.memberFromJson(decoded)
             if (member.id.isBlank() || phone(member.phone).length !in 10..11) return null
+            if (member.id != activeId) return null
             if (requestedPhone != null && phone(requestedPhone) != phone(member.phone)) return null
-            // Never unlock a different user's profile or elevate local admin rights.
-            if (MemberFirebaseAuth.forMember(member.id)?.currentUser?.uid != member.id) return null
+            val trustedId = prefs.getString(TRUSTED_ID, null)
+            if (trustedId != member.id) {
+                // Upgrade compatibility for an encrypted snapshot created by v712.
+                // Its original Firebase login must still match before it is trusted.
+                if (MemberFirebaseAuth.forMember(member.id)?.currentUser?.uid != member.id) return null
+                prefs.edit().putString(TRUSTED_ID, member.id).apply()
+            }
+            // The Android Keystore snapshot + persisted active account are sufficient
+            // for LOCAL use. Firebase token expiry must not block offline UI.
+            // APIs still require their own server-side Firebase authentication.
             member.copy(isAdmin = false)
         } catch (error: Exception) {
             Log.w("MemberOfflineCache", "Cache local indisponível; exigida validação online", error)
@@ -121,6 +140,6 @@ object MemberOfflineCache {
 
     fun clear(context: Context) {
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit().remove(KEY).apply()
+            .edit().remove(KEY).remove(TRUSTED_ID).apply()
     }
 }
