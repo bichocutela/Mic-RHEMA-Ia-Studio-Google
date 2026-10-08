@@ -13,7 +13,7 @@ const ADMIN_SESSION_KEY="mic-rhema-pwa-admin-session";
 function initialViewFromUrl(): AppView {
   const requested = new URLSearchParams(window.location.search).get("view") || "";
   const allowed = new Set<AppView>(["home","bible","news","devotionals","media","ibr","menu","profile","settings","admin","xp-admin","discipulado","cultos","plans","prayer","members","team","donations","about"]);
-  return allowed.has(requested as AppView) ? requested as AppView : "home";
+  return (allowed.has(requested as AppView)||requested.startsWith("custom_tab/")) ? requested as AppView : "home";
 }
 
 function readStoredSession(key:string): PwaSession | null {
@@ -181,6 +181,7 @@ export default function Home() {
       onProfile={openProfile}
       onAdminLogin={()=>setShowAdminLogin(true)}
       session={shellSession}
+      hasAdminAccess={adminSession?.isAdmin===true}
       onNotifications={enableNotifications}
     />
     {adminSession?.isAdmin&&adminView&&<button

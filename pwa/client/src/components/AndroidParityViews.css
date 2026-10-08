@@ -101,3 +101,19 @@ body { -webkit-text-size-adjust: 100%; }
   .parity-page { padding-top: 20px; padding-right: 16px; padding-left: 16px; }
   .page-pad, .bible-view { padding-right: 16px; padding-left: 16px; }
 }
+
+/* Abas configuradas pelo Android podem ocupar mais espaço que o dock padrão. */
+.android-bottom-dock { overflow-x: auto; justify-content: flex-start; scrollbar-width: none; }
+.android-bottom-dock::-webkit-scrollbar { display: none; }
+.android-bottom-dock button { flex: 1 0 auto; }
+.android-bottom-dock button span { white-space: nowrap; }
+.parity-title > div, .android-module-card > div, .android-list-cards button > div { min-width: 0; overflow-wrap: anywhere; }
+.parity-title > svg, .android-list-cards button > svg { flex-shrink: 0; }
+.discipulado-hero { display: flex; align-items: center; gap: 12px; padding: 22px; margin-bottom: 24px; border-radius: 28px; background: linear-gradient(135deg, #f1e8ca, #e7ddbd); color: #352c17; }
+.discipulado-hero h2 { margin: 14px 0 6px; }
+.discipulado-hero p { margin: 0; }
+.discipulado-hero small { display: inline-block; padding: 6px 12px; border-radius: 50px; background: #352c1719; font-weight: 800; }
+.discipulado-hero > div { min-width: 0; }
+.discipulado-hero > svg { flex-shrink: 0; }
+html[data-pwa-theme="dark"] .parity-title span, html[data-pwa-theme="dark"] .parity-status { color: #d2c9bc; }
+html[data-pwa-theme="dark"] .discipulado-hero { background: linear-gradient(135deg, #4b4024, #30291a); color: #f4e5bf; }

@@ -7,11 +7,12 @@
     "dev": "vite --host",
     "sync:android-plans": "node scripts/sync-android-plans.mjs",
     "sync:android-devotionals": "node scripts/sync-android-devotionals-2027.mjs",
-    "build": "pnpm sync:android-plans && pnpm sync:android-devotionals && vite build --config vite.production.config.ts && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
+    "build": "pnpm sync:android-tabs && pnpm sync:android-plans && pnpm sync:android-devotionals && vite build --config vite.production.config.ts && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "NODE_ENV=production node dist/index.js",
     "preview": "vite preview --host",
-    "check": "pnpm sync:android-plans && pnpm sync:android-devotionals && tsc --noEmit",
-    "format": "prettier --write ."
+    "check": "pnpm sync:android-tabs && pnpm sync:android-plans && pnpm sync:android-devotionals && tsc --noEmit",
+    "format": "prettier --write .",
+    "sync:android-tabs": "node scripts/sync-android-tabs.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

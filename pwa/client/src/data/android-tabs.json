@@ -1,0 +1,167 @@
+[
+  {
+    "id": "1",
+    "title": "Início",
+    "iconName": "Home",
+    "isPrivate": false,
+    "isVisible": true,
+    "showInBottomBar": true,
+    "order": 0,
+    "type": "SYSTEM",
+    "systemRoute": "home"
+  },
+  {
+    "id": "bible_tab",
+    "title": "Bíblia",
+    "iconName": "MenuBook",
+    "isPrivate": false,
+    "isVisible": true,
+    "showInBottomBar": false,
+    "order": 1,
+    "type": "SYSTEM",
+    "systemRoute": "bible"
+  },
+  {
+    "id": "2",
+    "title": "Cultos",
+    "iconName": "DateRange",
+    "isPrivate": false,
+    "isVisible": true,
+    "showInBottomBar": true,
+    "order": 2,
+    "type": "SYSTEM",
+    "systemRoute": "services"
+  },
+  {
+    "id": "3",
+    "title": "Devocionais",
+    "iconName": "Book",
+    "isPrivate": false,
+    "isVisible": true,
+    "showInBottomBar": false,
+    "order": 3,
+    "type": "SYSTEM",
+    "systemRoute": "devocionais"
+  },
+  {
+    "id": "4",
+    "title": "Cursos IBR",
+    "iconName": "School",
+    "isPrivate": false,
+    "isVisible": true,
+    "showInBottomBar": false,
+    "order": 4,
+    "type": "SYSTEM",
+    "systemRoute": "ibr"
+  },
+  {
+    "id": "discipulado_tab",
+    "title": "Discipulado",
+    "iconName": "MenuBook",
+    "isPrivate": false,
+    "isVisible": true,
+    "showInBottomBar": false,
+    "order": 5,
+    "type": "SYSTEM",
+    "systemRoute": "discipulado"
+  },
+  {
+    "id": "5",
+    "title": "Mídia",
+    "iconName": "PlayArrow",
+    "isPrivate": false,
+    "isVisible": true,
+    "showInBottomBar": false,
+    "order": 6,
+    "type": "SYSTEM",
+    "systemRoute": "content"
+  },
+  {
+    "id": "6",
+    "title": "Pedidos de Oração",
+    "iconName": "Favorite",
+    "isPrivate": false,
+    "isVisible": true,
+    "showInBottomBar": true,
+    "order": 7,
+    "type": "SYSTEM",
+    "systemRoute": "prayer"
+  },
+  {
+    "id": "plans_tab",
+    "title": "Planos",
+    "iconName": "List",
+    "isPrivate": false,
+    "isVisible": true,
+    "showInBottomBar": true,
+    "order": 8,
+    "type": "SYSTEM",
+    "systemRoute": "plans"
+  },
+  {
+    "id": "team_tab",
+    "title": "Equipe",
+    "iconName": "Groups",
+    "isPrivate": false,
+    "isVisible": true,
+    "showInBottomBar": false,
+    "order": 9,
+    "type": "SYSTEM",
+    "systemRoute": "equipe"
+  },
+  {
+    "id": "7",
+    "title": "Membros",
+    "iconName": "Person",
+    "isPrivate": false,
+    "isVisible": true,
+    "showInBottomBar": false,
+    "order": 10,
+    "type": "SYSTEM",
+    "systemRoute": "members"
+  },
+  {
+    "id": "8",
+    "title": "Sobre",
+    "iconName": "Info",
+    "isPrivate": false,
+    "isVisible": true,
+    "showInBottomBar": false,
+    "order": 11,
+    "type": "SYSTEM",
+    "systemRoute": "about"
+  },
+  {
+    "id": "settings_tab",
+    "title": "Configurações",
+    "iconName": "Settings",
+    "isPrivate": false,
+    "isVisible": true,
+    "showInBottomBar": false,
+    "order": 12,
+    "type": "SYSTEM",
+    "systemRoute": "settings"
+  },
+  {
+    "id": "10",
+    "title": "Dízimos e Ofertas",
+    "iconName": "VolunteerActivism",
+    "isPrivate": false,
+    "isVisible": true,
+    "showInBottomBar": true,
+    "order": 13,
+    "type": "SYSTEM",
+    "systemRoute": "donations"
+  },
+  {
+    "id": "admin_tab",
+    "title": "Área ADM",
+    "iconName": "Lock",
+    "isPrivate": false,
+    "isVisible": true,
+    "showInBottomBar": false,
+    "order": 14,
+    "type": "SYSTEM",
+    "systemRoute": "admin"
+  }
+]

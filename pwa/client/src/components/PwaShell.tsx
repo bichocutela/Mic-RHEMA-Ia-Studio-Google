@@ -13,6 +13,8 @@ import { BadgeUnlockCelebration } from "./BadgeUnlockCelebration";
 import { BiblicalBadgeAvatar } from "./BiblicalBadgeAvatar";
 import { LiveStreamSurface } from "./LiveStreamSurface";
 import "./AndroidParityViews.css";
+import androidTabs from "@/data/android-tabs.json";
+import { ensureDiscipuladoTab } from "@/lib/app-tabs";
 
 const AdminParityView=lazy(()=>import("./AdminParityView").then(module=>({default:module.AdminParityView})));
 const PwaXpAdminPanel=lazy(()=>import("./PwaXpAdminPanel").then(module=>({default:module.PwaXpAdminPanel})));
@@ -33,35 +35,26 @@ const MembersParityView=lazy(()=>import("./AndroidParityViews").then(module=>({d
 export type AppView =
   | "home" | "bible" | "news" | "devotionals" | "media" | "ibr" | "menu" | "profile"
   | "settings" | "admin" | "xp-admin" | "discipulado" | "cultos" | "plans" | "prayer"
-  | "members" | "team" | "donations" | "about";
+  | "members" | "team" | "donations" | "about" | `custom_tab/${string}`;
 
 type TeamMember = { id:string; name?:string; role?:string; category?:string; imageUrl?:string; order?:number };
 type DonationSettings = { pixKey?:string; qrCodeUrl?:string };
 
-type AppTabConfig = {
+export type AppTabConfig = {
   id:string; title?:string; iconName?:string; isPrivate?:boolean; isVisible?:boolean;
   showInBottomBar?:boolean; order?:number; type?:string; systemRoute?:string|null;
+  webUrl?:string; customContents?:Array<{id:string;title?:string;subtitle?:string;fileUrl?:string;type?:string}>;
 };
 type GlobalAppSettings = { showDonationsTab?:boolean; notificationsEnabled?:boolean };
 
-const fallbackTabs:AppTabConfig[]=[
-  {id:"1",title:"Início",iconName:"Home",isVisible:true,showInBottomBar:true,order:0,systemRoute:"home"},
-  {id:"bible_tab",title:"Bíblia",iconName:"MenuBook",isVisible:true,showInBottomBar:false,order:1,systemRoute:"bible"},
-  {id:"2",title:"Cultos",iconName:"DateRange",isVisible:true,showInBottomBar:true,order:2,systemRoute:"services"},
-  {id:"3",title:"Devocionais",iconName:"Book",isVisible:true,showInBottomBar:false,order:3,systemRoute:"devocionais"},
-  {id:"4",title:"Cursos IBR",iconName:"School",isVisible:true,showInBottomBar:false,order:4,systemRoute:"ibr"},
-  {id:"discipulado_tab",title:"Discipulado",iconName:"MenuBook",isVisible:true,showInBottomBar:false,order:5,systemRoute:"discipulado"},
-  {id:"5",title:"Mídia",iconName:"PlayArrow",isVisible:true,showInBottomBar:false,order:6,systemRoute:"content"},
-  {id:"6",title:"Pedidos de Oração",iconName:"Favorite",isVisible:true,showInBottomBar:true,order:7,systemRoute:"prayer"},
-  {id:"plans_tab",title:"Planos",iconName:"List",isVisible:true,showInBottomBar:true,order:8,systemRoute:"plans"},
-  {id:"team_tab",title:"Equipe",iconName:"Groups",isVisible:true,showInBottomBar:false,order:9,systemRoute:"equipe"},
-  {id:"7",title:"Membros",iconName:"Person",isVisible:true,showInBottomBar:false,order:10,systemRoute:"members"},
-  {id:"8",title:"Sobre",iconName:"Info",isVisible:true,showInBottomBar:false,order:11,systemRoute:"about"},
-  {id:"settings_tab",title:"Configurações",iconName:"Settings",isVisible:true,showInBottomBar:false,order:12,systemRoute:"settings"},
-  {id:"10",title:"Dízimos e Ofertas",iconName:"VolunteerActivism",isVisible:true,showInBottomBar:true,order:13,systemRoute:"donations"},
-  {id:"admin_tab",title:"Área ADM",iconName:"Lock",isVisible:true,showInBottomBar:false,order:14,systemRoute:"admin"},
-];
+const fallbackTabs:AppTabConfig[]=androidTabs;
 
+function CustomTabParityView({tab}:{tab?:AppTabConfig}){
+  if(!tab)return <section className="parity-page"><p className="parity-status">Aba não encontrada.</p></section>;
+  return <section className="parity-page"><div className="parity-title"><h1>{tab.title}</h1></div>
+    {!tab.customContents?.length?<p className="parity-status">Nenhum conteúdo disponível nesta aba ainda.</p>:<div className="android-list-cards">{tab.customContents.map(item=><article className="android-module-card" key={item.id}><FileText size={28}/><div><strong>{item.title}</strong><small>{item.subtitle}</small>{item.fileUrl&&/^https?:\/\//i.test(item.fileUrl)&&<a href={item.fileUrl} target="_blank" rel="noopener noreferrer">Abrir conteúdo</a>}</div></article>)}</div>}
+  </section>;
+}
 const tabRouteMap:Record<string,AppView>={
   home:"home", bible:"bible", devocionais:"devotionals", services:"cultos", ibr:"ibr",
   discipulado:"discipulado", content:"media", prayer:"prayer", plans:"plans", equipe:"team",
@@ -74,7 +67,7 @@ const tabIdRouteMap:Record<string,AppView>={
 };
 function tabView(tab:AppTabConfig):AppView|null{
   const route=String(tab.systemRoute||"").trim();
-  return tabRouteMap[route]||tabIdRouteMap[tab.id]||null;
+  return tabRouteMap[route]||tabIdRouteMap[tab.id]||(!route ? `custom_tab/${tab.id}` : null);
 }
 function tabIcon(tab:AppTabConfig):LucideIcon{
   const title=String(tab.title||"");
@@ -137,7 +130,8 @@ function DonationsParityView(){
 }
 
 function AndroidDrawer({active,onNavigate,onProfile,onClose,session,onNotifications,drawerTabs,notificationsEnabled}:{active:AppView;onNavigate:(view:AppView)=>void;onProfile:()=>void;onClose:()=>void;session:PwaSessionLike;onNotifications:()=>void;drawerTabs:AppTabConfig[];notificationsEnabled:boolean}){
-  const[expanded,setExpanded]=useState<Set<string>>(()=>new Set(["CONTEÚDO"]));
+  const[expanded,setExpanded]=useState<Set<string>>(()=>{try{const saved=JSON.parse(localStorage.getItem("micrhema:pwa:drawer-groups")||"null");return new Set(Array.isArray(saved)?saved:["CONTEÚDO"])}catch{return new Set(["CONTEÚDO"])}});
+  useEffect(()=>{try{localStorage.setItem("micrhema:pwa:drawer-groups",JSON.stringify([...expanded]))}catch{}},[expanded]);
   const[drawerProfile,setDrawerProfile]=useState<PwaMemberProfile|null>(null);
   useEffect(()=>{
     if(!session){setDrawerProfile(null);return;}
@@ -167,19 +161,22 @@ function AndroidDrawer({active,onNavigate,onProfile,onClose,session,onNotificati
   </aside>;
 }
 
-export function PwaShell({active,onNavigate,drawerOpen,onCloseDrawer,onOpenDrawer,onProfile,onAdminLogin,session,onNotifications}:{active:AppView;onNavigate:(view:AppView)=>void;drawerOpen:boolean;onCloseDrawer:()=>void;onOpenDrawer:()=>void;onProfile:()=>void;onAdminLogin:()=>void;session:PwaSessionLike;onNotifications:()=>void}){
+export function PwaShell({active,onNavigate,drawerOpen,onCloseDrawer,onOpenDrawer,onProfile,onAdminLogin,session,onNotifications,hasAdminAccess=false}:{active:AppView;onNavigate:(view:AppView)=>void;drawerOpen:boolean;onCloseDrawer:()=>void;onOpenDrawer:()=>void;onProfile:()=>void;onAdminLogin:()=>void;session:PwaSessionLike;onNotifications:()=>void;hasAdminAccess?:boolean}){
   useEffect(()=>startPwaActiveMinuteTracker(),[]);
   const[remoteTabs,setRemoteTabs]=useState<AppTabConfig[]|null>(null);
   const[globalSettings,setGlobalSettings]=useState<GlobalAppSettings>({});
   useEffect(()=>listenToCollection<AppTabConfig>("app_tabs",items=>setRemoteTabs(items),()=>setRemoteTabs(null)),[]);
   useEffect(()=>listenToDocument<GlobalAppSettings>("settings","app",value=>setGlobalSettings(value||{}),()=>setGlobalSettings({})),[]);
   const visibleTabs=useMemo(()=>{
-    const source=(remoteTabs??fallbackTabs).slice().sort((a,b)=>Number(a.order||0)-Number(b.order||0));
+    const source=ensureDiscipuladoTab(remoteTabs?.length?remoteTabs:fallbackTabs).sort((a,b)=>Number(a.order||0)-Number(b.order||0));
     return source.filter(tab=>tab.isVisible!==false&&(tab.id!=="10"||globalSettings.showDonationsTab!==false)&&Boolean(tabView(tab)));
   },[remoteTabs,globalSettings.showDonationsTab]);
   const bottomTabs=useMemo(()=>visibleTabs.filter(tab=>tab.showInBottomBar===true),[visibleTabs]);
   const drawerTabs=useMemo(()=>visibleTabs.filter(tab=>tab.showInBottomBar!==true),[visibleTabs]);
-  const content=active==="home"?<HomeParityView session={session} onNavigate={onNavigate}/>
+  const activeTab=visibleTabs.find(tab=>tabView(tab)===active);
+  const content=activeTab?.isPrivate&&!session?.isAdmin&&!hasAdminAccess?<AccessPrompt admin onAction={onAdminLogin}/>
+    :active.startsWith("custom_tab/")?<CustomTabParityView tab={activeTab}/>
+    :active==="home"?<HomeParityView session={session} onNavigate={onNavigate}/>
     :active==="bible"?<BibleParityViewV2/>
     :active==="news"?<NewsParityView onNavigate={onNavigate}/>
     :active==="devotionals"?<DevotionalsParityView/>
@@ -203,7 +200,7 @@ export function PwaShell({active,onNavigate,drawerOpen,onCloseDrawer,onOpenDrawe
     :<HomeParityView session={session} onNavigate={onNavigate}/>;
   return <div className="android-app-shell">
     <main className="android-app-content"><LiveStreamSurface visible={active==="home"}/><Suspense fallback={<RouteFallback/>}>{content}</Suspense></main>
-    {active!=="admin"&&active!=="xp-admin"&&<nav className="android-bottom-dock" aria-label="Navegação principal">{bottomTabs.map(tab=>{const id=tabView(tab)!;const Icon=tabIcon(tab);const selected=active===id;return <button className={selected?"is-active":""} key={tab.id} onClick={()=>onNavigate(id)} aria-current={selected?"page":undefined}><Icon size={20} strokeWidth={selected?2.4:1.9}/>{selected&&<span>{tab.title||"Aba"}</span>}</button>})}<button onClick={onOpenDrawer} aria-label="Abrir menu"><MenuIcon size={22}/></button></nav>}
+    {active!=="admin"&&active!=="xp-admin"&&<nav className="android-bottom-dock" aria-label="Navegação principal">{bottomTabs.map(tab=>{const id=tabView(tab)!;const Icon=tabIcon(tab);const selected=active===id;return <button className={selected?"is-active":""} key={tab.id} onClick={()=>onNavigate(id)} aria-label={tab.title||"Aba"} aria-current={selected?"page":undefined}><Icon size={20} strokeWidth={selected?2.4:1.9}/>{selected&&<span>{tab.title||"Aba"}</span>}</button>})}<button onClick={onOpenDrawer} aria-label="Abrir menu"><MenuIcon size={22}/></button></nav>}
     {drawerOpen&&<AndroidDrawer active={active} onNavigate={onNavigate} onProfile={onProfile} onClose={onCloseDrawer} session={session} onNotifications={onNotifications} drawerTabs={drawerTabs} notificationsEnabled={globalSettings.notificationsEnabled!==false}/>} 
     <BadgeUnlockCelebration onOpenBadges={()=>{onCloseDrawer();onNavigate("profile")}}/>
   </div>;

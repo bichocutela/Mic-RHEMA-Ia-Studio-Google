@@ -60,7 +60,7 @@ export function RichDocumentReader({ sourceUrl, type, title, onClose }: { source
       <div className="rich-reader-title">
         {onClose && <button type="button" onClick={onClose} aria-label="Voltar"><ChevronLeft size={21}/></button>}
         <FileText size={22}/>
-        <span><strong>{documentTitle || title}</strong><small>{type === "docx" ? "Documento Word" : "Livro EPUB"}</small></span>
+        <span><strong>{documentTitle || title}</strong><small>Leitura</small></span>
       </div>
       <div className="rich-reader-actions">
         <button type="button" onClick={() => setFontScale((value) => Math.max(.78, Number((value - .1).toFixed(2))))} aria-label="Diminuir texto"><Minus size={18}/></button>
