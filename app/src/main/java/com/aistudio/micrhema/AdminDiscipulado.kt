@@ -612,4 +612,36 @@ fun EditDiscipuladoSection() {
             }
         )
     }
+
+    pendingDelete?.let { material ->
+        AlertDialog(
+            onDismissRequest = { if (actionInFlight == null) pendingDelete = null },
+            title = { Text("Excluir estudo?") },
+            text = { Text("O estudo \"${material.title}\" será removido da biblioteca e dos agendamentos. Esta ação não pode ser desfeita.") },
+            confirmButton = {
+                TextButton(enabled = actionInFlight == null, onClick = {
+                    actionInFlight = material.id
+                    scope.launch {
+                        try {
+                            val db = Firebase.firestore
+                            db.batch()
+                                .delete(db.collection("discipulado_pdfs").document(material.id))
+                                .delete(db.collection("discipulado_schedules").document(material.id))
+                                .commit().await()
+                            pendingDelete = null
+                            android.widget.Toast.makeText(context, "Estudo excluído.", android.widget.Toast.LENGTH_SHORT).show()
+                        } catch (error: Exception) {
+                            android.util.Log.w("AdminDiscipulado", "Falha ao excluir", error)
+                            android.widget.Toast.makeText(context, "Não foi possível excluir. Tente novamente.", android.widget.Toast.LENGTH_LONG).show()
+                        } finally {
+                            actionInFlight = null
+                        }
+                    }
+                }) { Text("Excluir", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(enabled = actionInFlight == null, onClick = { pendingDelete = null }) { Text("Cancelar") }
+            }
+        )
+    }
 }
