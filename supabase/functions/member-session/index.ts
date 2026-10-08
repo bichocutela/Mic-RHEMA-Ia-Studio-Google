@@ -114,17 +114,32 @@ async function firebaseCustomToken(account: ServiceAccount, uid: string) {
 function baseUrl(projectId: string) {
   return `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
 }
+// Firestore can briefly return 429/503 during quota bursts. These operations are
+// reads (including runQuery), so a bounded backoff is safe and avoids failing login
+// on a short transient throttle.
+async function firestoreRead(url: string, init: RequestInit): Promise<Response> {
+  const retryable = new Set([429, 503, 504]);
+  for (let attempt = 0; ; attempt++) {
+    const response = await fetch(url, init);
+    if (!retryable.has(response.status) || attempt >= 3) return response;
+    const retryAfter = Number(response.headers.get("retry-after"));
+    const delayMs = Number.isFinite(retryAfter) && retryAfter > 0
+      ? Math.min(retryAfter * 1000, 4000)
+      : Math.min(400 * (2 ** attempt), 3200);
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+}
 async function getDocument(projectId: string, token: string, collection: string, id: string): Promise<FirestoreDocument | null> {
-  const response = await fetch(`${baseUrl(projectId)}/${collection}/${encodeURIComponent(id)}`, { headers: { Authorization: `Bearer ${token}` } });
+  const response = await firestoreRead(`${baseUrl(projectId)}/${collection}/${encodeURIComponent(id)}`, { headers: { Authorization: `Bearer ${token}` } });
   if (response.status === 404) return null;
   if (!response.ok) throw new Error(`Falha ao ler ${collection}: ${response.status}`);
   return await response.json() as FirestoreDocument;
 }
-async function queryByPhone(projectId: string, token: string, phone: string): Promise<FirestoreDocument[]> {
-  const response = await fetch(`${baseUrl(projectId)}:runQuery`, {
+async function queryByPhones(projectId: string, token: string, phones: string[]): Promise<FirestoreDocument[]> {
+  const response = await firestoreRead(`${baseUrl(projectId)}:runQuery`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ structuredQuery: { from: [{ collectionId: "acessos_pendentes" }], where: { fieldFilter: { field: { fieldPath: "phone" }, op: "EQUAL", value: { stringValue: phone } } }, limit: 20 } }),
+    body: JSON.stringify({ structuredQuery: { from: [{ collectionId: "acessos_pendentes" }], where: { fieldFilter: { field: { fieldPath: "phone" }, op: "IN", value: { arrayValue: { values: phones.map((phone) => ({ stringValue: phone })) } } } }, limit: 20 } }),
   });
   if (!response.ok) throw new Error(`Falha ao localizar membro: ${response.status}`);
   const rows = await response.json() as Array<{ document?: FirestoreDocument }>;
@@ -134,7 +149,7 @@ async function findMembers(projectId: string, token: string, phone: string) {
   const candidates: FirestoreDocument[] = [];
   const exact = await getDocument(projectId, token, "acessos_pendentes", `phone_${phone}`);
   if (exact) candidates.push(exact);
-  for (const variant of [phone, `55${phone}`]) candidates.push(...await queryByPhone(projectId, token, variant));
+  candidates.push(...await queryByPhones(projectId, token, [phone, `55${phone}`]));
   const unique = new Map<string, FirestoreDocument>();
   candidates.forEach((doc) => unique.set(memberIdFromDocument(doc), doc));
   return [...unique.values()].filter((doc) => normalizePhone(documentData(doc).phone) === phone);
