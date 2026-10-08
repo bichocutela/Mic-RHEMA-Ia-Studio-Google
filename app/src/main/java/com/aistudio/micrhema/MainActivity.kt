@@ -327,7 +327,10 @@ fun MainScreen() {
         loadDonationsFromFirestore()
         syncBibleNewsAndPlans()
         MemberManager.loadMembers(context)
-        MemberManager.syncFromFirestore(context)
+        // The full private member collection is ADM-only. Loading it for
+        // every ordinary member consumes quota and can interrupt offline use.
+        // Admin panels explicitly start their own authorized listener.
+        if (adminAuthenticatedState.value) MemberManager.syncFromFirestore(context)
         
         // A rede é habilitada sem criar um escopo global de longa duração.
         launch {
