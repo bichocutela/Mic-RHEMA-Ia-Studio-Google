@@ -126,7 +126,10 @@ fun EditDiscipuladoSection() {
     var scheduledMaterials by remember { mutableStateOf<List<DiscipuladoPdf>>(emptyList()) }
     var editingMaterial by remember { mutableStateOf<DiscipuladoPdf?>(null) }
     var schedulePublication by remember { mutableStateOf(false) }
+    var keepHidden by remember { mutableStateOf(false) }
     var scheduledPublishAt by remember { mutableStateOf(0L) }
+    var pendingDelete by remember { mutableStateOf<DiscipuladoPdf?>(null) }
+    var actionInFlight by remember { mutableStateOf<String?>(null) }
     var listError by remember { mutableStateOf<String?>(null) }
 
     DisposableEffect(Unit) {
@@ -160,6 +163,7 @@ fun EditDiscipuladoSection() {
         uploadProgress = 0f
         editingMaterial = null
         schedulePublication = false
+        keepHidden = false
         scheduledPublishAt = 0L
     }
 
@@ -191,6 +195,40 @@ fun EditDiscipuladoSection() {
 
     val materials = (adminMaterials + scheduledMaterials).distinctBy { it.id }
         .sortedWith(compareBy<DiscipuladoPdf> { it.order }.thenByDescending { it.createdAt })
+
+    fun changeVisibility(material: DiscipuladoPdf, publish: Boolean) {
+        if (actionInFlight != null) return
+        actionInFlight = material.id
+        scope.launch {
+            try {
+                val now = System.currentTimeMillis()
+                val updated = material.copy(
+                    isPublished = publish,
+                    scheduledPublishAt = 0L,
+                    releaseNotificationPending = publish,
+                    releaseNotificationState = if (publish) "pending" else "",
+                    releaseNotificationLeaseUntil = "",
+                    publishedAt = if (publish) now else material.publishedAt
+                )
+                val db = Firebase.firestore
+                db.batch()
+                    .set(db.collection("discipulado_pdfs").document(material.id), updated)
+                    .delete(db.collection("discipulado_schedules").document(material.id))
+                    .commit().await()
+                if (publish) scope.launch { wakeDiscipuladoPublisher() }
+                android.widget.Toast.makeText(
+                    context,
+                    if (publish) "Estudo publicado para todos." else "Estudo ocultado para os usuários.",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            } catch (error: Exception) {
+                android.util.Log.w("AdminDiscipulado", "Falha ao alterar publicação", error)
+                android.widget.Toast.makeText(context, "Não foi possível alterar o estudo. Tente novamente.", android.widget.Toast.LENGTH_LONG).show()
+            } finally {
+                actionInFlight = null
+            }
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         AdminActionHeader(
@@ -242,8 +280,9 @@ fun EditDiscipuladoSection() {
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                     ) {
+                        Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(14.dp),
+                            modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
