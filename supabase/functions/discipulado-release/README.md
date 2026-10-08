@@ -1,6 +1,6 @@
 # Publicação de Discipulado
 
-O painel Android/PWA grava futuros estudos em `discipulado_schedules`, acessível somente ao administrador. `scheduledPublishAt` é um instante em milissegundos; os seletores usam America/Fortaleza. A biblioteca pública continua lendo apenas `discipulado_pdfs`.
+O painel Android/PWA grava futuros estudos em `discipulado_schedules`, acessível somente ao administrador. Cada estudo pode ser publicado imediatamente, ocultado sem apagar, editado ou excluído no painel; editar preserva a visibilidade existente. `scheduledPublishAt` é um instante em milissegundos; os seletores usam America/Fortaleza. A biblioteca pública continua lendo apenas `discipulado_pdfs`.
 
 A função move cada estudo vencido para a biblioteca em um commit atômico com precondições, depois envia título e aviso pelo gateway `notify-fcm`. A fila de notificação tem lease e retoma falhas. Publicações imediatas acordam a mesma função com o ID token Firebase do administrador. O processamento também funciona com o aparelho fechado.
 
@@ -10,7 +10,7 @@ A função move cada estudo vencido para a biblioteca em um commit atômico com 
 
 ## Cron nativo
 
-O job `micrhema-discipulado-daily-release` roda a cada minuto e processa os horários cadastrados, inclusive após outubro de 2026. A chave está no Vault como `micrhema_discipulado_scheduler_key`; o valor não pertence ao código nem ao cliente.
+O job `micrhema-discipulado-daily-release` roda a cada minuto (verificado em produção em 08/10/2026) e processa os horários cadastrados, inclusive após outubro de 2026. A chave está no Vault como `micrhema_discipulado_scheduler_key`; o valor não pertence ao código nem ao cliente.
 
 ```sql
 select cron.schedule('micrhema-discipulado-daily-release', '* * * * *', $job$
