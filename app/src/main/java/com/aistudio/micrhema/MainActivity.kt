@@ -116,14 +116,14 @@ val drawerItems = listOf(
 
 class MainActivity : ComponentActivity() {
     private fun captureNotificationDestination(source: Intent?) {
-        val destination = source
-            ?.getStringExtra(NotificationHelper.EXTRA_NOTIFICATION_DESTINATION)
-            ?.takeIf {
-                it == Screen.About.route || it == Screen.Prayer.route || it == Screen.Admin.route || it == Screen.Devotionals.route || it.startsWith("admin_prayer/")
-            }
+        val stored = source?.getStringExtra(NotificationHelper.EXTRA_NOTIFICATION_DESTINATION)
+        val payload = listOf("category", "collection", "documentId", "document_id", "destination", "route", "courseId", "chapterId", "theme", "planId")
+            .mapNotNull { key -> source?.getStringExtra(key)?.let { key to it } }.toMap()
+        val destination = NotificationNavigation.safeRoute(stored)
+            ?: payload.takeIf { it.isNotEmpty() }?.let { NotificationNavigation.resolve(it).route }
         notificationDestinationState.value = destination
         if (destination?.startsWith("admin_prayer/") == true) {
-            adminPrayerTargetState.value = destination.substringAfter("admin_prayer/").takeIf { it.isNotBlank() }
+            adminPrayerTargetState.value = android.net.Uri.decode(destination.substringAfter("admin_prayer/")).takeIf { it.isNotBlank() }
         }
     }
 
@@ -338,25 +338,6 @@ fun MainScreen() {
     }
 
     val navController = rememberNavController()
-    LaunchedEffect(notificationDestinationState.value) {
-        val destination = notificationDestinationState.value ?: return@LaunchedEffect
-        val route = when {
-            destination.startsWith("admin_prayer/") -> Screen.Admin.route
-            destination == Screen.Prayer.route -> Screen.Prayer.route
-            destination == Screen.Admin.route -> Screen.Admin.route
-            destination == Screen.Devotionals.route -> Screen.Devotionals.route
-            destination == Screen.Discipulado.route -> Screen.Discipulado.route
-            destination == Screen.About.route -> Screen.About.route
-            else -> null
-        }
-        route?.let {
-            navController.navigate(it) {
-                popUpTo(navController.graph.startDestinationId)
-                launchSingleTop = true
-            }
-        }
-        notificationDestinationState.value = null
-    }
     val drawerPreferences = remember(context) {
         context.applicationContext.getSharedPreferences("navigation_drawer", android.content.Context.MODE_PRIVATE)
     }
@@ -364,6 +345,18 @@ fun MainScreen() {
         if (drawerPreferences.getBoolean("open", false)) DrawerValue.Open else DrawerValue.Closed
     }
     val drawerState = rememberDrawerState(initialValue = initialDrawerValue)
+    LaunchedEffect(notificationDestinationState.value) {
+        val destination = notificationDestinationState.value ?: return@LaunchedEffect
+        val route = if (destination.startsWith("admin_prayer/")) Screen.Admin.route else NotificationNavigation.safeRoute(destination)
+        route?.let {
+            drawerState.close()
+            navController.navigate(it) {
+                popUpTo(navController.graph.startDestinationId)
+                launchSingleTop = true
+            }
+        }
+        notificationDestinationState.value = null
+    }
     LaunchedEffect(drawerState) {
         snapshotFlow { drawerState.currentValue }.collect { value ->
             drawerPreferences.edit().putBoolean("open", value == DrawerValue.Open).apply()
@@ -730,8 +723,12 @@ LaunchedEffect(loggedInMemberState.value?.id, currentRoute) {
                     DevotionalsScreen(initialDevotionalId = backStackEntry.arguments?.getString("id"))
                 }
                 composable("devotionals") { DevotionalsScreen() }
-                composable(Screen.Services.route) { ServicesScreen() }
-                composable(Screen.Prayer.route) { PrayerScreen() }
+                composable("services?id={id}", arguments = listOf(navArgument("id") { nullable = true; defaultValue = null })) { entry ->
+                    ServicesScreen(initialServiceId = entry.arguments?.getString("id"))
+                }
+                composable("prayer?request={request}", arguments = listOf(navArgument("request") { nullable = true; defaultValue = null })) { entry ->
+                    PrayerScreen(initialRequestId = entry.arguments?.getString("request"))
+                }
                 composable(Screen.Members.route) { MembersScreen() }
                 composable(Screen.Ibr.route) { 
                     IbrMainScreen(
@@ -750,9 +747,10 @@ LaunchedEffect(loggedInMemberState.value?.id, currentRoute) {
                 
                 composable("ibr_course/{courseId}") { backStackEntry ->
                     val courseId = backStackEntry.arguments?.getString("courseId") ?: return@composable
-                    IbrCourseScreen(
+                    NotificationIbrDestination(
                         courseId = courseId,
                         onBack = { navController.popBackStack() },
+                        onNavigateToCourse = { navController.navigate("ibr_course/$it") },
                         onNavigateToLesson = { cid, chid -> navController.navigate("ibr_lesson/$cid/$chid") }
                     )
                 }
@@ -760,17 +758,20 @@ LaunchedEffect(loggedInMemberState.value?.id, currentRoute) {
                 composable("ibr_lesson/{courseId}/{chapterId}") { backStackEntry ->
                     val courseId = backStackEntry.arguments?.getString("courseId") ?: return@composable
                     val chapterId = backStackEntry.arguments?.getString("chapterId") ?: return@composable
-                    IbrLessonScreen(
+                    NotificationIbrDestination(
                         courseId = courseId,
                         chapterId = chapterId,
-                        onBack = { navController.popBackStack() }
+                        onBack = { navController.popBackStack() },
+                        onNavigateToCourse = { navController.navigate("ibr_course/$it") },
+                        onNavigateToLesson = { cid, chid -> navController.navigate("ibr_lesson/$cid/$chid") }
                     )
                 }
                 composable("equipe") { TeamScreen() }
                 composable("team") { TeamScreen() }
                 composable(
-                    route = "plans?theme={theme}",
+                    route = "plans?theme={theme}&planId={planId}",
                     arguments = listOf(
+                        navArgument("planId") { type = androidx.navigation.NavType.StringType; nullable = true; defaultValue = null },
                         navArgument("theme") {
                             type = androidx.navigation.NavType.StringType
                             nullable = true
@@ -779,7 +780,7 @@ LaunchedEffect(loggedInMemberState.value?.id, currentRoute) {
                     )
                 ) { backStackEntry ->
                     val theme = backStackEntry.arguments?.getString("theme")
-                    PlansScreen(initialThemeName = theme, onNavigateToBible = { book, chap ->
+                    PlansScreen(initialThemeName = theme, initialPlanId = backStackEntry.arguments?.getString("planId"), onNavigateToBible = { book, chap ->
                         navController.navigate(YouVersionLinks.internalRoute(book, chap))
                     })
                 }
@@ -799,7 +800,9 @@ LaunchedEffect(loggedInMemberState.value?.id, currentRoute) {
                     val id = backStackEntry.arguments?.getString("id")
                     ContentScreen(initialType = type, initialId = id)
                 }
-                composable(Screen.Admin.route) { AdminScreen() }
+                composable("admin?section={section}", arguments = listOf(navArgument("section") { nullable = true; defaultValue = null })) { entry ->
+                    AdminScreen(initialSection = entry.arguments?.getString("section"))
+                }
         composable(Screen.Profile.route) {
             ProfileScreen(
                 onNavigateBack = { navController.popBackStack() },

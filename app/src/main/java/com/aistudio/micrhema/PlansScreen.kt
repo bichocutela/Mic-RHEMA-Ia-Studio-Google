@@ -28,10 +28,11 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PlansScreen(initialThemeName: String? = null, onNavigateToBible: (String, Int) -> Unit = { _, _ -> }) {
+fun PlansScreen(initialThemeName: String? = null, initialPlanId: String? = null, onNavigateToBible: (String, Int) -> Unit = { _, _ -> }) {
     val allPlans = if (biblePlansState.isEmpty()) PlansData.categories else biblePlansState
     var selectedCategory by remember { mutableStateOf<PlanCategory?>(null) }
     var selectedTheme by remember { mutableStateOf<PlanTheme?>(null) }
@@ -44,22 +45,34 @@ fun PlansScreen(initialThemeName: String? = null, onNavigateToBible: (String, In
         }
     }
 
-    LaunchedEffect(initialThemeName, biblePlansState.size) {
-        if (initialThemeName != null) {
-            val category = allPlans.find { it.name.equals(initialThemeName, ignoreCase = true) }
+    var targetName by remember(initialThemeName, initialPlanId) { mutableStateOf(initialThemeName) }
+    LaunchedEffect(initialPlanId) {
+        if (targetName == null && !initialPlanId.isNullOrBlank()) {
+            targetName = runCatching {
+                com.google.firebase.firestore.FirebaseFirestore.getInstance().collection("bible_plans")
+                    .document(initialPlanId).get().await().getString("name")
+            }.getOrNull()
+        }
+    }
+    var notificationOpened by remember(initialThemeName, initialPlanId) { mutableStateOf(false) }
+    LaunchedEffect(targetName, biblePlansState.toList()) {
+        if (targetName != null && !notificationOpened) {
+            val category = allPlans.find { it.name.equals(targetName, ignoreCase = true) }
             val themeOwner = allPlans.firstOrNull { categoryItem ->
-                categoryItem.themes.any { it.title.equals(initialThemeName, ignoreCase = true) }
+                categoryItem.themes.any { it.title.equals(targetName, ignoreCase = true) }
             }
-            val theme = themeOwner?.themes?.find { it.title.equals(initialThemeName, ignoreCase = true) }
+            val theme = themeOwner?.themes?.find { it.title.equals(targetName, ignoreCase = true) }
 
             when {
                 theme != null -> {
                     selectedCategory = themeOwner
                     selectedTheme = theme
+                    notificationOpened = true
                 }
                 category != null -> {
                     selectedTheme = null
                     selectedCategory = category
+                    notificationOpened = true
                 }
             }
         }

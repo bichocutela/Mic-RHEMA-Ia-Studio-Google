@@ -17,12 +17,12 @@ class IbrContentWorker(
             if (!NotificationHelper.isIbrMember(context)) return Result.success()
             if (com.google.firebase.FirebaseApp.getApps(context).isEmpty()) return Result.success()
 
-            val courses = FirebaseFirestore.getInstance()
+            val courseDocuments = FirebaseFirestore.getInstance()
                 .collection("ibr_courses")
                 .get()
                 .await()
                 .documents
-                .map { document ->
+            val courses = courseDocuments.map { document ->
                     val chapters = document.get("chapters") as? List<*> ?: emptyList<Any>()
                     Triple(document.id, document.getString("title") ?: "Novo módulo", chapters.size)
                 }
@@ -50,6 +50,12 @@ class IbrContentWorker(
             val hasNewLessonsInExistingCourses = courseCount == previousCourseCount && totalLessons > previousLessonCount
             if (hasNewLessonsInExistingCourses) {
                 val addedLessons = totalLessons - previousLessonCount
+                val oldCounts = previousSignature.split("|").associate { it.substringBeforeLast(":") to (it.substringAfterLast(":").toIntOrNull() ?: 0) }
+                val changed = courses.filter { it.third > (oldCounts[it.first] ?: it.third) }
+                val courseId = changed.singleOrNull()?.first
+                val chapterId = if (addedLessons == 1 && courseId != null) {
+                    ((courseDocuments.find { it.id == courseId }?.get("chapters") as? List<*>)?.lastOrNull() as? Map<*, *>)?.get("id") as? String
+                } else null
                 NotificationHelper.showNotification(
                     context = context,
                     title = if (addedLessons == 1) "Nova aula no IBR" else "Novas aulas no IBR",
@@ -59,7 +65,8 @@ class IbrContentWorker(
                         "$addedLessons novas aulas foram adicionadas aos seus cursos do IBR.",
                     category = NotificationHelper.Category.IBR_CONTENT,
                     respectPreferences = true,
-                    destinationRoute = "ibr"
+                    destinationRoute = "ibr",
+                    notificationData = buildMap { courseId?.let { put("courseId", it) }; chapterId?.let { put("chapterId", it) } }
                 )
             }
 

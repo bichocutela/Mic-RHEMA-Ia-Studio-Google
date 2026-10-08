@@ -81,7 +81,10 @@ fun ContentScreen(initialType: String? = null, initialId: String? = null) {
         selectedAlbum = null
     }
 
-    LaunchedEffect(initialType, initialId) {
+    var notificationOpened by remember(initialType, initialId) { mutableStateOf(false) }
+    LaunchedEffect(initialType, initialId, contentVideosState.toList(), contentAudiosState.toList(), contentBooksState.toList(), contentAlbumsState.toList()) {
+        if (notificationOpened) return@LaunchedEffect
+        when (initialType) { "video" -> selectedTab = 2; "audio" -> selectedTab = 1; "book" -> selectedTab = 0; "album" -> selectedTab = 3 }
         if (initialType != null && initialId != null) {
             when (initialType) {
                 "video" -> {
@@ -102,6 +105,7 @@ fun ContentScreen(initialType: String? = null, initialId: String? = null) {
                 }
             }
         }
+        notificationOpened = selectedVideo != null || selectedAudio != null || selectedBook != null || selectedAlbum != null
     }
     var isRefreshing by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }

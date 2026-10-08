@@ -42,7 +42,8 @@ class ServiceMomentNotificationWorker(
                 message = "Prepare-se: amanhã teremos $title$timeText.",
                 category = NotificationHelper.Category.NEXT_SERVICE,
                 respectPreferences = true,
-                destinationRoute = "services"
+                destinationRoute = "services",
+                destinationDocumentId = serviceId
             )
             KIND_TODAY -> NotificationHelper.showNotification(
                 context = context,
@@ -50,7 +51,8 @@ class ServiceMomentNotificationWorker(
                 message = "Hoje é dia de $title$timeText. Esperamos você!",
                 category = NotificationHelper.Category.NEXT_SERVICE,
                 respectPreferences = true,
-                destinationRoute = "services"
+                destinationRoute = "services",
+                destinationDocumentId = serviceId
             )
             else -> return Result.success()
         }

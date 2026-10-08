@@ -943,7 +943,9 @@ fun loadContentFromFirebase(context: Context) {
                                 title = "Novo áudio em Mídia",
                                 message = change.document.getString("title") ?: "Novo áudio disponível",
                                 category = NotificationHelper.Category.MEDIA,
-                                respectPreferences = true
+                                respectPreferences = true,
+                                destinationDocumentId = change.document.id,
+                                notificationData = mapOf("collection" to "conteudos_audios")
                             )
                             NotificationHelper.rememberMediaIds(appContext, listOf(change.document.id))
                         }

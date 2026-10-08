@@ -37,7 +37,9 @@ class DevotionalSyncWorker(
                         title = "Novo Devocional Disponível!",
                         message = latestTitle,
                         category = NotificationHelper.Category.DAILY_DEVOTIONAL,
-                        respectPreferences = true
+                        respectPreferences = true,
+                        destinationRoute = "devotionals",
+                        destinationDocumentId = latestId
                     )
                 }
 

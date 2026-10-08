@@ -79,7 +79,9 @@ class FirestoreObserverService : Service() {
                                 title = "Novo Pedido de Acesso",
                                 message = "Existem ${unapproved.size} nova(s) solicitação(ões) de acesso aguardando aprovação.",
                                 category = NotificationHelper.Category.CONTENT_UPDATES,
-                                respectPreferences = true
+                                respectPreferences = true,
+                                destinationRoute = "admin",
+                                notificationData = mapOf("collection" to "acessos_pendentes")
                             )
                         }
                     }
@@ -107,7 +109,9 @@ class FirestoreObserverService : Service() {
                             title = "$name Atualizado",
                             message = "O conteúdo foi modificado (Novos: $added, Editados: $modified, Removidos: $removed)",
                             category = NotificationHelper.Category.CONTENT_UPDATES,
-                            respectPreferences = true
+                            respectPreferences = true,
+                            notificationData = mapOf("collection" to collection),
+                            destinationDocumentId = if (added + modified == 1) snapshot.documentChanges.firstOrNull { it.type != DocumentChange.Type.REMOVED }?.document?.id else null
                         )
                     }
                 }

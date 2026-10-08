@@ -67,7 +67,9 @@ class MediaUpdateWorker(
                                 ?: "Nova pregação disponível na aba Mídia.",
                             category = NotificationHelper.Category.SERMONS,
                             respectPreferences = true,
-                            destinationRoute = "content"
+                            destinationRoute = "content",
+                            destinationDocumentId = item.id,
+                            notificationData = mapOf("collection" to item.collection)
                         )
                     } else {
                         NotificationHelper.showNotification(
@@ -76,7 +78,9 @@ class MediaUpdateWorker(
                             message = item.title,
                             category = NotificationHelper.Category.MEDIA,
                             respectPreferences = true,
-                            destinationRoute = "content"
+                            destinationRoute = "content",
+                            destinationDocumentId = item.id,
+                            notificationData = mapOf("collection" to item.collection)
                         )
                     }
                 }

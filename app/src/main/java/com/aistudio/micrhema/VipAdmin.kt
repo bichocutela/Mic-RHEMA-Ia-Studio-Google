@@ -1108,7 +1108,10 @@ fun EditVipIbrSection() {
                                 NotificationHelper.showNotification(
                                     context,
                                     "Curso Criado! 🎓",
-                                    "O curso '$courseTitle' foi adicionado com sucesso."
+                                    "O curso '$courseTitle' foi adicionado com sucesso.",
+                                    category = NotificationHelper.Category.COURSES,
+                                    respectPreferences = false,
+                                    notificationData = mapOf("collection" to "ibr_courses", "documentId" to newCourse.id)
                                 )
                                 courseTitle = ""
                                 courseDescription = ""
@@ -1311,7 +1314,10 @@ fun EditVipIbrSection() {
                                     NotificationHelper.showNotification(
                                         context,
                                         "Aula Adicionada! 🎓",
-                                        "A aula '$chapterTitle' foi adicionada ao curso '${targetCourse?.title}'"
+                                        "A aula '$chapterTitle' foi adicionada ao curso '${targetCourse?.title}'",
+                                        category = NotificationHelper.Category.IBR_CONTENT,
+                                        respectPreferences = false,
+                                        notificationData = mapOf("courseId" to selectedCourseForChapter!!.id, "chapterId" to newChapter.id)
                                     )
                                     // Clear form
                                     chapterTitle = ""

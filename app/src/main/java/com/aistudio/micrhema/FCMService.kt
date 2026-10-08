@@ -88,7 +88,8 @@ class FCMService : FirebaseMessagingService() {
             category = category,
             respectPreferences = category != NotificationHelper.Category.PRAYER,
             destinationRoute = destinationRoute,
-            destinationDocumentId = destinationDocumentId
+            destinationDocumentId = destinationDocumentId,
+            notificationData = remoteMessage.data
         )
 
         if (collection in mediaCollections && !destinationDocumentId.isNullOrBlank()) {

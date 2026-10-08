@@ -42,7 +42,8 @@ class DevotionalReminderWorker(
                     ?: "Separe alguns minutos para fortalecer sua fé com a Palavra de Deus.",
                 category = NotificationHelper.Category.DAILY_DEVOTIONAL,
                 respectPreferences = true,
-                destinationRoute = "devotionals"
+                destinationRoute = "devotionals",
+                destinationDocumentId = devotional?.id
             )
             prefs.edit().putString("last_daily_devotional_date", dateKey).apply()
             Result.success()

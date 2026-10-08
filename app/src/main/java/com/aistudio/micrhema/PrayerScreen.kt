@@ -24,7 +24,7 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PrayerScreen() {
+fun PrayerScreen(initialRequestId: String? = null) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val member = loggedInMemberState.value
@@ -38,6 +38,23 @@ fun PrayerScreen() {
     }
     DisposableEffect(Unit) {
         onDispose { PrayerRepository.stopUserListener() }
+    }
+
+    var openedRequest by remember { mutableStateOf<PrayerRequest?>(null) }
+    var notificationOpened by remember(initialRequestId) { mutableStateOf(false) }
+    LaunchedEffect(initialRequestId, userPrayerRequestsState.toList()) {
+        if (!initialRequestId.isNullOrBlank() && !notificationOpened) {
+            openedRequest = userPrayerRequestsState.find { it.id == initialRequestId }
+            notificationOpened = openedRequest != null
+        }
+    }
+    openedRequest?.let { item ->
+        AlertDialog(onDismissRequest = { openedRequest = null },
+            title = { Text(if (item.status == "respondida" || item.answeredAt > 0) "Oração respondida" else "Pedido de oração") },
+            text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(item.request)
+                if (item.responseMessage.isNotBlank()) { HorizontalDivider(); Text(item.responseMessage) }
+            } }, confirmButton = { TextButton(onClick = { openedRequest = null }) { Text("Fechar") } })
     }
 
     Scaffold(containerColor = MaterialTheme.colorScheme.background) { paddingValues ->

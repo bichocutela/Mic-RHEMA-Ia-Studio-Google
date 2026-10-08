@@ -20,7 +20,7 @@ import java.time.LocalDate
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ServicesScreen() {
+fun ServicesScreen(initialServiceId: String? = null) {
     var selectedService by remember { mutableStateOf<ChurchService?>(null) }
     var selectedEvent by remember { mutableStateOf<ChurchEventModel?>(null) }
     var isRefreshing by remember { mutableStateOf(false) }
@@ -34,6 +34,15 @@ fun ServicesScreen() {
             end == null || !end.isBefore(today)
         }
         .sortedWith(compareBy<ChurchEventModel> { parseChurchEventDate(it.startDate) ?: LocalDate.MAX }.thenBy { it.time })
+
+    var notificationOpened by remember(initialServiceId) { mutableStateOf(false) }
+    LaunchedEffect(initialServiceId, weeklyServicesState.toList(), churchEventsState.toList()) {
+        if (!initialServiceId.isNullOrBlank() && !notificationOpened) {
+            selectedService = weeklyServicesState.find { it.id == initialServiceId }
+            selectedEvent = churchEventsState.find { it.id == initialServiceId && it.isPublished }
+            notificationOpened = selectedService != null || selectedEvent != null
+        }
+    }
 
     Scaffold(containerColor = MaterialTheme.colorScheme.background) { paddingValues ->
         androidx.compose.material3.pulltorefresh.PullToRefreshBox(

@@ -83,7 +83,7 @@ jobs:
           KEY_PASSWORD: ${{ secrets.MICRHEMA_KEY_PASSWORD }}
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon --stacktrace
+          ./gradlew testReleaseUnitTest assembleRelease --no-daemon --stacktrace
 
       - name: Remover arquivos temporários de configuração
         if: always()

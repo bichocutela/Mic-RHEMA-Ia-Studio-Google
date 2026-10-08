@@ -169,7 +169,7 @@ fun MembersScreen() {
 }
 
 @Composable
-fun AdminScreen() {
+fun AdminScreen(initialSection: String? = null) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val loggedIn = loggedInMemberState.value
     var isAuthenticated by adminAuthenticatedState
@@ -409,10 +409,13 @@ fun AdminScreen() {
             }
 
             var currentSection by remember {
-                mutableStateOf(if (!adminPrayerTargetState.value.isNullOrBlank()) AdminSection.PRAYERS else AdminSection.DASHBOARD)
+                mutableStateOf(if (!adminPrayerTargetState.value.isNullOrBlank()) AdminSection.PRAYERS else if (initialSection == "members") AdminSection.MEMBERS else AdminSection.DASHBOARD)
             }
             var openNewDevotionalOnEnter by remember { mutableStateOf(false) }
 
+            LaunchedEffect(initialSection) {
+                if (initialSection == "members") currentSection = AdminSection.MEMBERS
+            }
             LaunchedEffect(adminPrayerTargetState.value) {
                 if (!adminPrayerTargetState.value.isNullOrBlank()) currentSection = AdminSection.PRAYERS
             }

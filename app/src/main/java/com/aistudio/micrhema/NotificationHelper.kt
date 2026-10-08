@@ -28,7 +28,6 @@ object NotificationHelper {
     private const val DEDUPE_EVENTS_KEY = "recent_events"
     private const val DEFAULT_DEDUPE_TTL_MS = 6L * 60L * 60L * 1000L
     const val EXTRA_NOTIFICATION_DESTINATION = "notification_destination"
-    private var notificationId = 100
 
     fun scheduleDailyReminder(context: Context) {
         val currentDate = Calendar.getInstance()
@@ -197,20 +196,33 @@ object NotificationHelper {
         }
     }
 
-    private fun smallIconFor(category: Category): Int = when (category) {
-        Category.DAILY_DEVOTIONAL -> R.drawable.ic_notif_devotional
-        Category.EVENTS -> R.drawable.ic_notif_event
-        Category.COURSES -> R.drawable.ic_notif_course
-        Category.SERMONS -> R.drawable.ic_notif_sermon
-        Category.MEDIA -> R.drawable.ic_notif_media
-        Category.NEXT_SERVICE -> R.drawable.ic_notif_service
-        Category.DAILY_NEWS -> R.drawable.ic_notif_news
-        Category.IBR_CONTENT -> R.drawable.ic_notif_ibr
-        Category.PRAYER, Category.GENERAL, Category.CONTENT_UPDATES -> R.drawable.ic_notification
+    private fun smallIconFor(kind: NotificationKind): Int = when (kind) {
+        NotificationKind.DEVOTIONAL -> R.drawable.ic_notif_devotional
+        NotificationKind.DISCIPULADO -> R.drawable.ic_notif_discipulado
+        NotificationKind.PLAN -> R.drawable.ic_notif_plan
+        NotificationKind.COURSE -> R.drawable.ic_notif_course
+        NotificationKind.LESSON -> R.drawable.ic_notif_ibr
+        NotificationKind.SERMON -> R.drawable.ic_notif_sermon
+        NotificationKind.MEDIA -> R.drawable.ic_notif_media
+        NotificationKind.VIDEO -> R.drawable.ic_notif_video
+        NotificationKind.AUDIO -> R.drawable.ic_notif_audio
+        NotificationKind.BOOK -> R.drawable.ic_notif_book
+        NotificationKind.ALBUM -> R.drawable.ic_notif_album
+        NotificationKind.EVENT -> R.drawable.ic_notif_event
+        NotificationKind.SERVICE -> R.drawable.ic_notif_service
+        NotificationKind.NEWS -> R.drawable.ic_notif_news
+        NotificationKind.PRAYER -> R.drawable.ic_notif_prayer
+        NotificationKind.UPDATE -> R.drawable.ic_notif_update
+        NotificationKind.BIBLE -> R.drawable.ic_notif_book
+        NotificationKind.LIVE -> R.drawable.ic_notif_video
+        NotificationKind.MEMBER -> R.drawable.ic_notif_member
+        NotificationKind.GENERAL -> R.drawable.ic_notification
     }
 
-    private fun appLogoBitmap(context: Context) = runCatching {
-        ContextCompat.getDrawable(context, R.drawable.img_rhema_logo)?.toBitmap(width = 128, height = 128)
+    private fun notificationIconBitmap(context: Context, kind: NotificationKind) = runCatching {
+        ContextCompat.getDrawable(context, smallIconFor(kind))?.mutate()?.apply {
+            setTint(android.graphics.Color.rgb(20, 52, 84))
+        }?.toBitmap(width = 128, height = 128)
     }.getOrNull()
 
     private fun localUserSettings(context: Context): UserSettings {
@@ -313,7 +325,8 @@ object NotificationHelper {
         category: Category = Category.GENERAL,
         respectPreferences: Boolean = true,
         destinationRoute: String? = null,
-        destinationDocumentId: String? = null
+        destinationDocumentId: String? = null,
+        notificationData: Map<String, String> = emptyMap()
     ) {
         // Esses dois títulos pertenciam a listeners locais legados que duplicavam o FCM oficial.
         // O fallback em segundo plano usa títulos próprios e continua funcionando normalmente.
@@ -322,7 +335,15 @@ object NotificationHelper {
         createNotificationChannel(context)
         if (!hasNotificationPermission(context)) return
 
-        val newsId = destinationRoute
+        val navigation = NotificationNavigation.resolve(buildMap {
+            putAll(notificationData)
+            putIfAbsent("category", category.name.lowercase())
+            destinationRoute?.takeIf(String::isNotBlank)?.let { put("destination", it) }
+            destinationDocumentId?.takeIf(String::isNotBlank)?.let { put("documentId", it) }
+        })
+        val route = navigation.route
+        val id = ("$route|$title|$message".hashCode() and Int.MAX_VALUE)
+        val newsId = route
             ?.takeIf { it.startsWith("news_detail/") }
             ?.substringAfter("news_detail/")
             ?.substringBefore('/')
@@ -339,19 +360,20 @@ object NotificationHelper {
         } else {
             android.content.Intent(context, MainActivity::class.java).apply {
                 flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
-                destinationRoute?.takeIf { it.isNotBlank() }?.let { putExtra(EXTRA_NOTIFICATION_DESTINATION, it) }
+                putExtra(EXTRA_NOTIFICATION_DESTINATION, route)
+                destinationDocumentId?.let { putExtra("notification_document_id", it) }
             }
         }
         val pendingIntent = android.app.PendingIntent.getActivity(
             context,
-            notificationId,
-            intent,
+            id,
+            intent.apply { data = android.net.Uri.parse("micrhema://notification/$id") },
             android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT
         )
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(smallIconFor(category))
-            .setColor(ContextCompat.getColor(context, android.R.color.black))
+            .setSmallIcon(smallIconFor(navigation.kind))
+            .setColor(android.graphics.Color.rgb(20, 52, 84))
             .setContentTitle(title)
             .setContentText(message)
             .setStyle(NotificationCompat.BigTextStyle().bigText(message))
@@ -359,10 +381,10 @@ object NotificationHelper {
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
 
-        appLogoBitmap(context)?.let { builder.setLargeIcon(it) }
+        notificationIconBitmap(context, navigation.kind)?.let { builder.setLargeIcon(it) }
 
         try {
-            NotificationManagerCompat.from(context).notify(notificationId++, builder.build())
+            NotificationManagerCompat.from(context).notify(id, builder.build())
         } catch (e: SecurityException) {
             android.util.Log.w("NotificationHelper", "Permissão de notificação não concedida", e)
         }
