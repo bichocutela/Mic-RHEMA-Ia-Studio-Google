@@ -632,11 +632,11 @@ object MemberManager {
                 }
                 MemberOfflineSync.schedule(context)
             } else {
-                // One-time migration for existing installations: Firebase may
-                // already have a validated local document from an older APK.
-                // CACHE never triggers a remote read or consumes Firestore quota.
-                if (MemberFirebaseAuth.forMember(loggedInId) != null) {
-                    dataSyncScope.launch {
+                // Upgrade existing logged-in installations using only the
+                // on-device Firestore document cache. Earlier ADM Firebase sign-in
+                // may have replaced the member token, so do not demand that token.
+                // Never migrate a signed-out account: loggedInId must still exist.
+                dataSyncScope.launch {
                         runCatching {
                             Firebase.firestore.collection("acessos_pendentes")
                                 .document(loggedInId)
@@ -657,7 +657,6 @@ object MemberManager {
                                     }
                                 }
                             }
-                    }
                 }
             }
         }
@@ -710,6 +709,8 @@ object MemberManager {
         val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
         if (member == null) {
             prefs.edit().remove(KEY_LOGGED_IN_ID).apply()
+            // Explicit logout and remote revocation must invalidate offline access.
+            MemberOfflineCache.clear(context)
             if (!preserveAdminFirebaseOnLogout) {
                 runCatching { com.google.firebase.auth.FirebaseAuth.getInstance().signOut() }
             }
