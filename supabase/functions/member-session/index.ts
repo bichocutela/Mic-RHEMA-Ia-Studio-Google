@@ -146,10 +146,33 @@ async function queryByPhones(projectId: string, token: string, phones: string[])
   return rows.map((row) => row.document).filter((doc): doc is FirestoreDocument => Boolean(doc));
 }
 async function findMembers(projectId: string, token: string, phone: string) {
-  const candidates: FirestoreDocument[] = [];
-  const exact = await getDocument(projectId, token, "acessos_pendentes", `phone_${phone}`);
-  if (exact) candidates.push(exact);
-  candidates.push(...await queryByPhones(projectId, token, [phone, `55${phone}`]));
+  let queried: FirestoreDocument[] = [];
+  let queryError: unknown;
+  try {
+    queried = await queryByPhones(projectId, token, [phone, `55${phone}`]);
+  } catch (error) {
+    queryError = error;
+  }
+
+  // Prefer the indexed phone query. The legacy document read is only needed for
+  // older records that have no searchable phone field, and can be throttled
+  // independently by Firestore.
+  const matchingQueryRows = queried.filter((doc) => normalizePhone(documentData(doc).phone) === phone);
+  if (matchingQueryRows.length) {
+    const unique = new Map<string, FirestoreDocument>();
+    matchingQueryRows.forEach((doc) => unique.set(memberIdFromDocument(doc), doc));
+    return [...unique.values()];
+  }
+
+  let exact: FirestoreDocument | null = null;
+  try {
+    exact = await getDocument(projectId, token, "acessos_pendentes", `phone_${phone}`);
+  } catch (error) {
+    if (queryError) throw queryError;
+    throw error;
+  }
+  if (queryError && !exact) throw queryError;
+  const candidates = [...queried, ...(exact ? [exact] : [])];
   const unique = new Map<string, FirestoreDocument>();
   candidates.forEach((doc) => unique.set(memberIdFromDocument(doc), doc));
   return [...unique.values()].filter((doc) => normalizePhone(documentData(doc).phone) === phone);
