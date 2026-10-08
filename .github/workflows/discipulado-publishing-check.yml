@@ -1,0 +1,28 @@
+name: Validar publicação do Discipulado
+
+on:
+  pull_request:
+    paths:
+      - "supabase/functions/discipulado-release/**"
+      - ".github/workflows/discipulado-publishing-check.yml"
+  push:
+    branches: [main]
+    paths:
+      - "supabase/functions/discipulado-release/**"
+      - ".github/workflows/discipulado-publishing-check.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  publishing:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Testar agendamento e notificação
+        run: node --test supabase/functions/discipulado-release/tests/publishing.test.mjs
