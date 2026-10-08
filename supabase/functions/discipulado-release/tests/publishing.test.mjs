@@ -10,7 +10,7 @@ const now = Date.parse('2026-10-08T15:00:00Z');
 const prefix = 'projects/mic-rhema/databases/(default)/documents/';
 const value = v => typeof v === 'boolean' ? {booleanValue:v} : typeof v === 'number' ? {integerValue:String(v)} : {stringValue:v};
 const doc = (collection, id, data) => ({name:prefix+collection+'/'+id, fields:Object.fromEntries(Object.entries(data).map(([k,v])=>[k,value(v)])), updateTime:'v1'});
-function fixture({future=false, failNotification=false}={}) {
+function fixture({future=false, failNotification=false, hideBeforeNotification=false}={}) {
   const docs = new Map(); let version = 1, deliveries=0, commits=0, handler;
   const scheduled = doc('discipulado_schedules','study',{title:'Fundamentos da Fé',description:'Descrição completa',fileUrl:'https://drive.google.com/file/d/source/view',isPublished:false,scheduledPublishAt:now+(future?60000:0),releaseNotificationPending:false});
   docs.set(scheduled.name, scheduled);
@@ -46,6 +46,10 @@ function fixture({future=false, failNotification=false}={}) {
     if(init.method==='PATCH') {
       if(url.searchParams.get('currentDocument.updateTime')!==existing?.updateTime)return reply({},409);
       const updated={...existing,fields:{...existing.fields,...body.fields},updateTime:'v'+(++version)};
+      if (hideBeforeNotification && body.fields?.releaseNotificationState?.stringValue==='sending') {
+        updated.fields.isPublished={booleanValue:false};
+        updated.fields.releaseNotificationPending={booleanValue:false};
+      }
       docs.set(name,updated);return reply(updated);
     }
     return existing?reply(structuredClone(existing)):reply({},404);
@@ -61,3 +65,5 @@ test('publishes full metadata, then notifies once and consumes the schedule',asy
 test('retries a failed notification without republishing the study',async()=>{const f=fixture({failNotification:true});const first=await f.run();assert.equal(first.failed.length,1);assert.equal(f.docs.get(prefix+'discipulado_pdfs/study').fields.releaseNotificationPending.booleanValue,true);await f.run();assert.deepEqual(f.counts(),{deliveries:1,commits:1});});
 test('concurrent schedulers use atomic preconditions to avoid duplicates',async()=>{const f=fixture();await Promise.all([f.run(),f.run()]);assert.deepEqual(f.counts(),{deliveries:1,commits:1});});
 test('rejects an unauthenticated publication request',async()=>{const f=fixture();const r=await f.handler()(new Request('https://example/discipulado-release',{method:'POST',body:JSON.stringify({action:'release'})}));assert.equal(r.status,401);assert.deepEqual(f.counts(),{deliveries:0,commits:0});});
+
+test('never sends a notification for a study hidden while processing',async()=>{const f=fixture({hideBeforeNotification:true});await f.run();const d=f.docs.get(prefix+'discipulado_pdfs/study');assert.equal(d.fields.isPublished.booleanValue,false);assert.equal(f.counts().deliveries,0);});

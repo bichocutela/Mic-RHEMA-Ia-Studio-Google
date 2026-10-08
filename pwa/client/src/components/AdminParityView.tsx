@@ -9,7 +9,7 @@ import {
 import { listenToCollection, listenToDocument, markPrayerAsAnswered } from "@/lib/firebase";
 import {
   createAdminDocumentId, deleteAdminDocument, forceAdminSync, replaceAdminDocument,
-  saveAdminDocument, saveAdminSetting, saveDiscipuladoDocument, deleteDiscipuladoDocument,
+  saveAdminDocument, saveAdminSetting, saveDiscipuladoDocument, setDiscipuladoPublication, deleteDiscipuladoDocument,
 } from "@/lib/admin-firestore";
 import { deleteAdminStoredAssetsFromDocument, uploadAdminMedia } from "@/lib/admin-storage";
 import { publicationEpoch, publicationLabel, scheduleParts } from "@/lib/discipulado-schedule";
@@ -214,6 +214,17 @@ function DiscipuladoAdmin() {
   const items = useMemo(() => [...new Map([...published, ...scheduled].map(item => [item.id, item])).values()]
     .sort((a, b) => Number(a.order || 0) - Number(b.order || 0)), [published, scheduled]);
   const [editing, setEditing] = useState<AnyDoc | null>(null);
+  const [busyId, setBusyId] = useState("");
+  const changeVisibility = async (item: AnyDoc, publish: boolean) => {
+    if (busyId) return;
+    setBusyId(item.id);
+    try {
+      await setDiscipuladoPublication(item, publish);
+      toast.success(publish ? "Estudo publicado para todos." : "Estudo oculto para os usuários.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível atualizar a publicação.");
+    } finally { setBusyId(""); }
+  };
   const removeStudy = async (item: AnyDoc) => {
     if (!window.confirm(`Excluir “${item.title}”?`)) return;
     try { await deleteDiscipuladoDocument(item.id); toast.success("Estudo excluído."); }
@@ -222,9 +233,30 @@ function DiscipuladoAdmin() {
   return <div className="admin-section">
     <SectionHeader title="Estudos de Discipulado" subtitle="Organize os estudos e publique agora ou escolha uma data e horário."
       onAdd={() => setEditing({ id: createAdminDocumentId("discipulado_schedules"), order: Math.max(-1, ...items.map(i => Number(i.order || 0))) + 1 })} addLabel="Novo estudo"/>
-    <AdminRows items={items} title={item => item.title || "Estudo"}
-      subtitle={item => `${item.category || "Estudos bíblicos"} · ${item.scheduledPublishAt > 0 && item.isPublished === false ? `Agendado: ${publicationLabel(item.scheduledPublishAt)}` : item.isPublished === false ? "Oculto" : "Publicado"}`}
-      onEdit={setEditing} onDelete={removeStudy}/>
+    <div className="admin-discipulado-list">
+      {items.map(item => (
+        <article key={item.id} className="admin-discipulado-study">
+          <div>
+            <strong>{item.title || "Estudo"}</strong>
+            <small>{item.category || "Estudos bíblicos"} · {
+              Number(item.scheduledPublishAt) > 0 && item.isPublished === false
+                ? `Agendado: ${publicationLabel(Number(item.scheduledPublishAt))}`
+                : item.isPublished === false ? "Oculto" : "Publicado"
+            }</small>
+          </div>
+          <div className="admin-discipulado-actions">
+            {item.isPublished === true ? (
+              <button type="button" disabled={!!busyId} onClick={() => void changeVisibility(item, false)}>Ocultar</button>
+            ) : (
+              <button type="button" disabled={!!busyId} onClick={() => void changeVisibility(item, true)}>Publicar agora</button>
+            )}
+            <button type="button" disabled={!!busyId} onClick={() => setEditing(item)}><Pencil size={15}/>Editar</button>
+            <button type="button" disabled={!!busyId} className="delete" onClick={() => void removeStudy(item)}><Trash2 size={15}/>Excluir</button>
+          </div>
+        </article>
+      ))}
+      {items.length === 0 && <p className="admin-empty">Nenhum estudo cadastrado.</p>}
+    </div>
     {editing && <DiscipuladoForm item={editing} onClose={() => setEditing(null)}/>}
   </div>;
 }
@@ -232,7 +264,12 @@ function DiscipuladoAdmin() {
 function DiscipuladoForm({ item, onClose }: { item: AnyDoc; onClose: () => void }) {
   const [d, setD] = useState({ title: item.title || "", subtitle: item.subtitle || "", description: item.description || "",
     category: item.category || "Estudos bíblicos", fileUrl: item.fileUrl || "", order: String(item.order || 0), fileType: item.fileType || "word" });
-  const [scheduled, setScheduled] = useState(item.isPublished === false && Number(item.scheduledPublishAt) > 0);
+  const [mode, setMode] = useState<"published" | "scheduled" | "hidden">(
+    item.isPublished === false
+      ? (Number(item.scheduledPublishAt) > 0 ? "scheduled" : "hidden")
+      : "published"
+  );
+  const scheduled = mode === "scheduled";
   const [when, setWhen] = useState(() => scheduleParts(Number(item.scheduledPublishAt || 0)));
   const save = async () => {
     if (!d.title.trim() || !d.fileUrl.trim()) throw new Error("Informe o título e o arquivo do estudo.");
@@ -242,11 +279,14 @@ function DiscipuladoForm({ item, onClose }: { item: AnyDoc; onClose: () => void 
     await saveDiscipuladoDocument(item.id, {
       ...item, ...d, title: d.title.trim(), subtitle: d.subtitle.trim(), description: d.description.trim(),
       category: d.category.trim() || "Estudos bíblicos", fileUrl: url.href, order: Number(d.order) || 0,
-      isPublished: !scheduled, scheduledPublishAt: epoch,
-      releaseNotificationPending: !scheduled && (!item.fileUrl || item.isPublished === false || item.releaseNotificationPending === true),
+      isPublished: mode === "published", scheduledPublishAt: epoch,
+      releaseNotificationPending: mode === "published" && (!item.fileUrl || item.isPublished === false || item.releaseNotificationPending === true),
+      releaseNotificationState: mode === "published" && (!item.fileUrl || item.isPublished === false || item.releaseNotificationPending === true) ? "pending" : "",
+      releaseNotificationLeaseUntil: "",
+      publishedAt: mode === "published" && item.isPublished !== true ? Date.now() : Number(item.publishedAt || 0),
       createdAt: item.createdAt || Date.now(),
     });
-    toast.success(scheduled ? `Estudo agendado para ${publicationLabel(epoch)}.` : "Estudo publicado.");
+    toast.success(scheduled ? `Estudo agendado para ${publicationLabel(epoch)}.` : mode === "hidden" ? "Estudo salvo como oculto." : "Estudo publicado.");
     onClose();
   };
   return <AdminModal title={item.fileUrl ? "Editar estudo" : "Novo estudo"} onClose={onClose}><div className="admin-form">
@@ -258,8 +298,9 @@ function DiscipuladoForm({ item, onClose }: { item: AnyDoc; onClose: () => void 
     <Field label="Ou usar link do Google Drive" value={d.fileUrl} onChange={value => setD({ ...d, fileUrl: value })}/>
     <Field label="Ordem" type="number" value={d.order} onChange={value => setD({ ...d, order: value })}/>
     <fieldset><legend>Disponibilização</legend>
-      <label className="admin-check"><input type="radio" name="publication" checked={!scheduled} onChange={() => setScheduled(false)}/>Publicar agora</label>
-      <label className="admin-check"><input type="radio" name="publication" checked={scheduled} onChange={() => setScheduled(true)}/>Agendar publicação</label>
+      <label className="admin-check"><input type="radio" name="publication" checked={mode === "published"} onChange={() => setMode("published")}/>Publicar agora</label>
+      <label className="admin-check"><input type="radio" name="publication" checked={mode === "scheduled"} onChange={() => setMode("scheduled")}/>Agendar publicação</label>
+      <label className="admin-check"><input type="radio" name="publication" checked={mode === "hidden"} onChange={() => setMode("hidden")}/>Manter oculto</label>
     </fieldset>
     {scheduled && <><Field label="Data de publicação" type="date" value={when.date} onChange={date => setWhen({ ...when, date })}/>
       <Field label="Horário" type="time" value={when.time} onChange={time => setWhen({ ...when, time })}/>

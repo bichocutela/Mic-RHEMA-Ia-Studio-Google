@@ -64,6 +64,11 @@ async function notify(token: string, d: Doc) {
   if (str(d,"releaseNotificationState")==="sending" && Date.parse(str(d,"releaseNotificationLeaseUntil"))>Date.now()) return false;
   const lock=await patch(token,d,{releaseNotificationState:"sending",releaseNotificationLeaseUntil:new Date(Date.now()+180000).toISOString()}); if(!lock)return false;
   try {
+    // Do not announce hidden/deleted studies. The canonical PUBLIC collection
+    // is the only source of truth. This also respects a concurrent "Ocultar".
+    const current=await get(token,"discipulado_pdfs",d.name.split("/").pop()!);
+    if (!current || current.fields?.isPublished?.booleanValue!==true ||
+        current.fields?.releaseNotificationPending?.booleanValue!==true) return false;
     const r=await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/notify-fcm`,{method:"POST",headers:{"content-type":"application/json",apikey:Deno.env.get("SUPABASE_ANON_KEY")||""},body:JSON.stringify(pushData(d)),signal:AbortSignal.timeout(30000)});
     const b=await r.json(); if(!r.ok||b.ok!==true)throw new Error(`Aviso não aceito: ${r.status}`);
     if(!await patch(token,lock,{releaseNotificationPending:false,releaseNotificationState:"sent",releaseNotificationSentAt:new Date().toISOString(),releaseNotificationLeaseUntil:""}))throw new Error("Confirmação de envio não registrada");

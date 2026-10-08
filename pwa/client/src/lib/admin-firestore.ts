@@ -25,6 +25,23 @@ export async function saveDiscipuladoDocument(id: string, data: Record<string, u
   }
 }
 
+/** Explicit administrative visibility, never inferred from editing content. */
+export async function setDiscipuladoPublication(
+  study: Record<string, unknown> & { id: string },
+  publish: boolean,
+) {
+  const now = Date.now();
+  await saveDiscipuladoDocument(study.id, {
+    ...study,
+    isPublished: publish,
+    scheduledPublishAt: 0,
+    releaseNotificationPending: publish,
+    releaseNotificationState: publish ? "pending" : "",
+    releaseNotificationLeaseUntil: "",
+    publishedAt: publish ? now : Number(study.publishedAt || 0),
+  });
+}
+
 export async function deleteDiscipuladoDocument(id: string) {
   const database = db();
   const batch = writeBatch(database);

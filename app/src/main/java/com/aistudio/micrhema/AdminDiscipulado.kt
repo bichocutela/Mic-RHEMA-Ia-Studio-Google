@@ -126,7 +126,10 @@ fun EditDiscipuladoSection() {
     var scheduledMaterials by remember { mutableStateOf<List<DiscipuladoPdf>>(emptyList()) }
     var editingMaterial by remember { mutableStateOf<DiscipuladoPdf?>(null) }
     var schedulePublication by remember { mutableStateOf(false) }
+    var keepHidden by remember { mutableStateOf(false) }
     var scheduledPublishAt by remember { mutableStateOf(0L) }
+    var pendingDelete by remember { mutableStateOf<DiscipuladoPdf?>(null) }
+    var actionInFlight by remember { mutableStateOf<String?>(null) }
     var listError by remember { mutableStateOf<String?>(null) }
 
     DisposableEffect(Unit) {
@@ -160,6 +163,7 @@ fun EditDiscipuladoSection() {
         uploadProgress = 0f
         editingMaterial = null
         schedulePublication = false
+        keepHidden = false
         scheduledPublishAt = 0L
     }
 
@@ -191,6 +195,40 @@ fun EditDiscipuladoSection() {
 
     val materials = (adminMaterials + scheduledMaterials).distinctBy { it.id }
         .sortedWith(compareBy<DiscipuladoPdf> { it.order }.thenByDescending { it.createdAt })
+
+    fun changeVisibility(material: DiscipuladoPdf, publish: Boolean) {
+        if (actionInFlight != null) return
+        actionInFlight = material.id
+        scope.launch {
+            try {
+                val now = System.currentTimeMillis()
+                val updated = material.copy(
+                    isPublished = publish,
+                    scheduledPublishAt = 0L,
+                    releaseNotificationPending = publish,
+                    releaseNotificationState = if (publish) "pending" else "",
+                    releaseNotificationLeaseUntil = "",
+                    publishedAt = if (publish) now else material.publishedAt
+                )
+                val db = Firebase.firestore
+                db.batch()
+                    .set(db.collection("discipulado_pdfs").document(material.id), updated, com.google.firebase.firestore.SetOptions.merge())
+                    .delete(db.collection("discipulado_schedules").document(material.id))
+                    .commit().await()
+                if (publish) scope.launch { wakeDiscipuladoPublisher() }
+                android.widget.Toast.makeText(
+                    context,
+                    if (publish) "Estudo publicado para todos." else "Estudo ocultado para os usuários.",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            } catch (error: Exception) {
+                android.util.Log.w("AdminDiscipulado", "Falha ao alterar publicação", error)
+                android.widget.Toast.makeText(context, "Não foi possível alterar o estudo. Tente novamente.", android.widget.Toast.LENGTH_LONG).show()
+            } finally {
+                actionInFlight = null
+            }
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         AdminActionHeader(
@@ -242,8 +280,9 @@ fun EditDiscipuladoSection() {
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                     ) {
+                        Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(14.dp),
+                            modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
@@ -279,7 +318,7 @@ fun EditDiscipuladoSection() {
                                     )
                                 }
                             }
-                            IconButton(onClick = {
+                            IconButton(enabled = actionInFlight == null, onClick = {
                                 resetForm()
                                 editingMaterial = material
                                 title = material.title
@@ -288,23 +327,28 @@ fun EditDiscipuladoSection() {
                                 category = material.category
                                 driveUrl = material.fileUrl
                                 schedulePublication = !material.isPublished && material.scheduledPublishAt > 0
+                                keepHidden = !material.isPublished && material.scheduledPublishAt <= 0
                                 scheduledPublishAt = material.scheduledPublishAt
                                 showDialog = true
                             }) { Icon(Icons.Default.Edit, contentDescription = "Editar estudo e agendamento") }
-                            IconButton(onClick = { scope.launch {
-                                runCatching {
-                                    val db = Firebase.firestore
-                                    db.batch().delete(db.collection("discipulado_pdfs").document(material.id))
-                                        .delete(db.collection("discipulado_schedules").document(material.id)).commit().await()
-                                }
-                                    .onFailure { android.widget.Toast.makeText(context, "Não foi possível excluir o estudo.", android.widget.Toast.LENGTH_SHORT).show() }
-                            } }) {
-                                Icon(
-                                    Icons.Default.Delete,
-                                    contentDescription = "Excluir material",
-                                    tint = MaterialTheme.colorScheme.error
-                                )
+                            IconButton(enabled = actionInFlight == null, onClick = { pendingDelete = material }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Excluir estudo", tint = MaterialTheme.colorScheme.error)
                             }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (material.isPublished) {
+                                OutlinedButton(
+                                    enabled = actionInFlight == null,
+                                    onClick = { changeVisibility(material, false) }
+                                ) { Text("Ocultar") }
+                            } else {
+                                Button(
+                                    enabled = actionInFlight == null,
+                                    onClick = { changeVisibility(material, true) }
+                                ) { Text("Publicar agora") }
+                            }
+                        }
                         }
                     }
                 }
@@ -405,13 +449,29 @@ fun EditDiscipuladoSection() {
                         maxLines = 6
                     )
                     Text("Disponibilização", fontWeight = FontWeight.SemiBold)
-                    Row(modifier = Modifier.fillMaxWidth().clickable(enabled = !isUploading) { schedulePublication = false }, verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = !schedulePublication, enabled = !isUploading, onClick = { schedulePublication = false })
+                    Row(modifier = Modifier.fillMaxWidth().clickable(enabled = !isUploading) {
+                        schedulePublication = false; keepHidden = false
+                    }, verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = !schedulePublication && !keepHidden, enabled = !isUploading, onClick = {
+                            schedulePublication = false; keepHidden = false
+                        })
                         Text("Publicar agora")
                     }
-                    Row(modifier = Modifier.fillMaxWidth().clickable(enabled = !isUploading) { schedulePublication = true }, verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = schedulePublication, enabled = !isUploading, onClick = { schedulePublication = true })
+                    Row(modifier = Modifier.fillMaxWidth().clickable(enabled = !isUploading) {
+                        schedulePublication = true; keepHidden = false
+                    }, verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = schedulePublication, enabled = !isUploading, onClick = {
+                            schedulePublication = true; keepHidden = false
+                        })
                         Text("Agendar publicação")
+                    }
+                    Row(modifier = Modifier.fillMaxWidth().clickable(enabled = !isUploading) {
+                        schedulePublication = false; keepHidden = true
+                    }, verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = keepHidden, enabled = !isUploading, onClick = {
+                            schedulePublication = false; keepHidden = true
+                        })
+                        Text("Manter oculto")
                     }
                     if (schedulePublication) {
                         OutlinedButton(enabled = !isUploading, modifier = Modifier.fillMaxWidth(), onClick = {
@@ -478,6 +538,9 @@ fun EditDiscipuladoSection() {
                                     uploadProgress = 1f
                                 }
 
+                                val publishNow = !schedulePublication && !keepHidden
+                                val shouldNotify = publishNow &&
+                                    (editingMaterial?.isPublished != true || editingMaterial?.releaseNotificationPending == true)
                                 val item = DiscipuladoPdf(
                                     id = editingMaterial?.id ?: java.util.UUID.randomUUID().toString(),
                                     title = title.trim(),
@@ -490,9 +553,12 @@ fun EditDiscipuladoSection() {
                                     fileUrl = fileUrl,
                                     fileType = materialType,
                                     order = editingMaterial?.order ?: ((materials.maxOfOrNull { it.order } ?: -1) + 1),
-                                    isPublished = !schedulePublication,
+                                    isPublished = publishNow,
                                     scheduledPublishAt = if (schedulePublication) scheduledPublishAt else 0L,
-                                    releaseNotificationPending = !schedulePublication && (editingMaterial?.isPublished != true || editingMaterial?.releaseNotificationPending == true),
+                                    releaseNotificationPending = shouldNotify,
+                                    releaseNotificationState = if (shouldNotify) "pending" else if (publishNow) editingMaterial?.releaseNotificationState.orEmpty() else "",
+                                    releaseNotificationLeaseUntil = "",
+                                    publishedAt = if (publishNow && editingMaterial?.isPublished != true) System.currentTimeMillis() else editingMaterial?.publishedAt ?: 0L,
                                     createdAt = editingMaterial?.createdAt ?: System.currentTimeMillis()
                                 )
                                 val db = Firebase.firestore
@@ -500,14 +566,15 @@ fun EditDiscipuladoSection() {
                                 val other = if (schedulePublication) "discipulado_pdfs" else "discipulado_schedules"
                                 db.batch().set(db.collection(target).document(item.id), item, com.google.firebase.firestore.SetOptions.merge())
                                     .delete(db.collection(other).document(item.id)).commit().await()
-                                if (!schedulePublication && item.releaseNotificationPending) {
+                                if (item.releaseNotificationPending) {
                                     scope.launch { wakeDiscipuladoPublisher() }
                                 }
                                 // O listener do Firestore já atualiza a lista, inclusive antes
                                 // do await retornar. Inserir aqui repete a chave da LazyColumn.
                                 android.widget.Toast.makeText(
                                     context,
-                                    if (schedulePublication) "Estudo agendado para ${formatDiscipuladoSchedule(scheduledPublishAt)}." else "Estudo publicado.",
+                                    if (schedulePublication) "Estudo agendado para ${formatDiscipuladoSchedule(scheduledPublishAt)}."
+                                    else if (keepHidden) "Estudo salvo como oculto." else "Estudo publicado.",
                                     android.widget.Toast.LENGTH_SHORT
                                 ).show()
                                 showDialog = false
@@ -528,7 +595,7 @@ fun EditDiscipuladoSection() {
                     if (isUploading) {
                         CircularProgressIndicator(modifier = Modifier.size(18.dp))
                     } else {
-                        Text(if (schedulePublication) "Agendar" else if (editingMaterial != null) "Salvar" else "Publicar")
+                        Text(if (schedulePublication) "Agendar" else if (keepHidden) "Salvar oculto" else if (editingMaterial != null) "Salvar" else "Publicar")
                     }
                 }
             },
@@ -542,6 +609,38 @@ fun EditDiscipuladoSection() {
                 ) {
                     Text("Cancelar")
                 }
+            }
+        )
+    }
+
+    pendingDelete?.let { material ->
+        AlertDialog(
+            onDismissRequest = { if (actionInFlight == null) pendingDelete = null },
+            title = { Text("Excluir estudo?") },
+            text = { Text("O estudo \"${material.title}\" será removido da biblioteca e dos agendamentos. Esta ação não pode ser desfeita.") },
+            confirmButton = {
+                TextButton(enabled = actionInFlight == null, onClick = {
+                    actionInFlight = material.id
+                    scope.launch {
+                        try {
+                            val db = Firebase.firestore
+                            db.batch()
+                                .delete(db.collection("discipulado_pdfs").document(material.id))
+                                .delete(db.collection("discipulado_schedules").document(material.id))
+                                .commit().await()
+                            pendingDelete = null
+                            android.widget.Toast.makeText(context, "Estudo excluído.", android.widget.Toast.LENGTH_SHORT).show()
+                        } catch (error: Exception) {
+                            android.util.Log.w("AdminDiscipulado", "Falha ao excluir", error)
+                            android.widget.Toast.makeText(context, "Não foi possível excluir. Tente novamente.", android.widget.Toast.LENGTH_LONG).show()
+                        } finally {
+                            actionInFlight = null
+                        }
+                    }
+                }) { Text("Excluir", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(enabled = actionInFlight == null, onClick = { pendingDelete = null }) { Text("Cancelar") }
             }
         )
     }
