@@ -19,6 +19,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private fun shortMemberName(fullName: String): String {
     return fullName.trim()
@@ -58,6 +60,20 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
         errorMessage = null
 
         scope.launch {
+            // Previously verified identity opens locally, even when 429/offline.
+            // A fresh user or a signed-out account must still validate online.
+            val local = withContext(Dispatchers.IO) {
+                MemberOfflineCache.restoreTrusted(context, cleanPhone)
+            }
+            if (local != null) {
+                MemberManager.setLoggedInMember(context, local, bindFirebaseIdentity = false)
+                XpAccountCache.restore(context, local)
+                MemberOfflineSync.schedule(context)
+                isLoading = false
+                onLoginSuccess()
+                return@launch
+            }
+
             val recovery = runCatching { MemberSessionClient.recover(context, cleanPhone) }
                 .getOrElse { error ->
                     android.util.Log.w("LoginScreen", "Falha ao verificar cadastro", error)
@@ -75,6 +91,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                 }
 
                 MemberManager.setLoggedInMember(context, existing, bindFirebaseIdentity = false)
+                MemberOfflineSync.schedule(context, immediate = false)
                 loadFavoritesFromFirestore()
                 isLoading = false
                 val message = if (recovery.duplicateCount > 0) {
