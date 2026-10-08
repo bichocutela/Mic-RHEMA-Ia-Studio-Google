@@ -632,31 +632,19 @@ object MemberManager {
                 }
                 MemberOfflineSync.schedule(context)
             } else {
-                // Upgrade existing logged-in installations using only the
-                // on-device Firestore document cache. Earlier ADM Firebase sign-in
-                // may have replaced the member token, so do not demand that token.
-                // Never migrate a signed-out account: loggedInId must still exist.
+                // Existing signed-in devices can migrate from Firestore's disk
+                // cache without requiring their old Firebase Auth token or quota.
                 dataSyncScope.launch {
-                        runCatching {
-                            Firebase.firestore.collection("acessos_pendentes")
-                                .document(loggedInId)
-                                .get(com.google.firebase.firestore.Source.CACHE)
-                                .await()
-                        }.getOrNull()?.toObject(MemberRequest::class.java)
-                            ?.copy(id = loggedInId, firebaseUid = loggedInId, isAdmin = false)
-                            ?.takeIf { it.phone.filter(Char::isDigit).length in 10..13 }
-                            ?.let { restored ->
-                                if (prefs.getString(KEY_LOGGED_IN_ID, "") == loggedInId) {
-                                    MemberOfflineCache.save(context, restored)
-                                    kotlinx.coroutines.withContext(Dispatchers.Main.immediate) {
-                                        if (loggedInMemberState.value == null) {
-                                            setLoggedInMember(context, restored, bindFirebaseIdentity = false)
-                                            XpAccountCache.restore(context, restored)
-                                            MemberOfflineSync.schedule(context)
-                                        }
-                                    }
-                                }
+                    val restored = MemberOfflineCache.restoreLegacy(context)
+                    if (restored != null && prefs.getString(KEY_LOGGED_IN_ID, "") == restored.id) {
+                        kotlinx.coroutines.withContext(Dispatchers.Main.immediate) {
+                            if (loggedInMemberState.value == null) {
+                                setLoggedInMember(context, restored, bindFirebaseIdentity = false)
+                                XpAccountCache.restore(context, restored)
+                                MemberOfflineSync.schedule(context)
                             }
+                        }
+                    }
                 }
             }
         }
