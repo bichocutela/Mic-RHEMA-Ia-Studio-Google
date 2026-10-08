@@ -1,7 +1,6 @@
 package com.aistudio.micrhema
 
 import android.content.Context
-import com.google.firebase.auth.FirebaseAuth
 
 /**
  * Garante que a conta XP seja carregada para o membro canônico antes de exibir
@@ -17,20 +16,25 @@ object XpSessionSynchronizer {
         // volta para 0 XP enquanto aguarda rede/servidor.
         XpAccountCache.restore(appContext, member)
 
-        if (FirebaseAuth.getInstance().currentUser?.uid != member.id) {
+        val memberAuth = MemberFirebaseAuth.get()
+        if (memberAuth.currentUser?.uid != member.id) {
             val phone = member.phone.filter(Char::isDigit)
             if (phone.length in 10..13) {
-                val recovered = runCatching { MemberSessionClient.recover(appContext, phone) }
+                val recovered = runCatching { MemberSessionClient.recover(appContext, phone, memberAuth) }
                     .getOrNull()
                     ?.member
                 if (recovered != null) {
                     member = recovered
-                    MemberManager.setLoggedInMember(appContext, recovered)
+                    MemberManager.setLoggedInMember(appContext, recovered, bindFirebaseIdentity = false)
                     // O telefone é a identidade portátil da conta. Se houve troca de
                     // UID, reaproveitamos imediatamente o mesmo cache confirmado.
                     XpAccountCache.restore(appContext, recovered)
                 }
             }
+        }
+
+        if (memberAuth.currentUser?.uid != member.id) {
+            throw IllegalStateException("Não foi possível validar a sessão do membro. Entre novamente para acessar a Jornada XP.")
         }
 
         runCatching { XpEngineClient.flushPendingNow(appContext, member) }

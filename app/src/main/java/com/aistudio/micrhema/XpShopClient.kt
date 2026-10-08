@@ -2,7 +2,6 @@ package com.aistudio.micrhema
 
 import android.content.Context
 import androidx.compose.runtime.mutableStateOf
-import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
@@ -69,7 +68,7 @@ object XpShopClient {
         .build()
 
     private suspend fun firebaseToken(member: MemberRequest, forceRefresh: Boolean): String {
-        val user = FirebaseAuth.getInstance().currentUser
+        val user = MemberFirebaseAuth.get().currentUser
             ?: throw XpShopHttpException(401, "Sua sessão de membro expirou. Entre novamente no MIC Rhema.")
         if (user.uid != member.id) {
             throw XpShopHttpException(401, "A sessão Firebase não pertence ao membro ativo. Entre novamente.")

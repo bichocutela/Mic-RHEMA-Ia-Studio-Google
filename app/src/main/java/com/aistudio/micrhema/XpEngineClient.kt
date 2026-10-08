@@ -3,7 +3,6 @@ package com.aistudio.micrhema
 import android.content.Context
 import android.util.Log
 import androidx.compose.runtime.mutableStateOf
-import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -147,7 +146,7 @@ object XpEngineClient {
     @Volatile private var lastRefreshMemberId = ""
 
     private suspend fun firebaseToken(member: MemberRequest, forceRefresh: Boolean): String {
-        val user = FirebaseAuth.getInstance().currentUser
+        val user = MemberFirebaseAuth.get().currentUser
             ?: throw XpHttpException(401, "Sua sessão de membro expirou. Entre novamente no MIC Rhema.")
         if (user.uid != member.id) {
             throw XpHttpException(401, "A sessão Firebase não pertence ao membro ativo. Entre novamente.")

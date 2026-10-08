@@ -647,7 +647,11 @@ object MemberManager {
         }
     }
 
-    fun setLoggedInMember(context: android.content.Context, member: MemberRequest?) {
+    fun setLoggedInMember(
+        context: android.content.Context,
+        member: MemberRequest?,
+        bindFirebaseIdentity: Boolean = true
+    ) {
         loggedInMemberState.value = member
         member?.let { BadgeActivityTracker.reconcile(context, it) }
         loadIbrProgressFromFirestore()
@@ -665,17 +669,20 @@ object MemberManager {
         if (member == null) {
             prefs.edit().remove(KEY_LOGGED_IN_ID).apply()
             runCatching { com.google.firebase.auth.FirebaseAuth.getInstance().signOut() }
+            runCatching { MemberFirebaseAuth.get().signOut() }
         } else {
             prefs.edit().putString(KEY_LOGGED_IN_ID, member.id).apply()
             UserSettingsManager.loadSettings(context)
-            dataSyncScope.launch {
-                runCatching {
-                    val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
-                    val firebaseUser = auth.currentUser
-                        ?: auth.signInAnonymously().await().user
-                    firebaseUser?.let { bindFirebaseUidToLoggedInMember(context, it.uid) }
-                }.onFailure { error ->
-                    Log.w("MemberManager", "Não foi possível preparar a sessão Firebase do perfil", error)
+            if (bindFirebaseIdentity) {
+                dataSyncScope.launch {
+                    runCatching {
+                        val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
+                        val firebaseUser = auth.currentUser
+                            ?: auth.signInAnonymously().await().user
+                        firebaseUser?.let { bindFirebaseUidToLoggedInMember(context, it.uid) }
+                    }.onFailure { error ->
+                        Log.w("MemberManager", "Não foi possível preparar a sessão Firebase do perfil", error)
+                    }
                 }
             }
         }

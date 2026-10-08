@@ -1,6 +1,7 @@
 package com.aistudio.micrhema
 
 import android.content.Context
+import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -119,14 +120,25 @@ object MemberSessionClient {
         }
     }
 
-    suspend fun recover(context: Context, phone: String): RecoveryResult {
+    suspend fun recover(
+        context: Context,
+        phone: String,
+        auth: FirebaseAuth = FirebaseAuth.getInstance()
+    ): RecoveryResult {
         val cleanPhone = normalizePhone(phone)
         val response = call(JSONObject().put("action", "recover").put("phone", cleanPhone))
         if (!response.optBoolean("found", false)) return RecoveryResult(found = false)
 
         val customToken = response.optString("customToken")
         if (customToken.isBlank()) throw IllegalStateException("O servidor não retornou uma sessão válida.")
-        FirebaseAuth.getInstance().signInWithCustomToken(customToken).await()
+        auth.signInWithCustomToken(customToken).await()
+        if (auth.app.name == FirebaseApp.DEFAULT_APP_NAME) {
+            runCatching {
+                MemberFirebaseAuth.get().signInWithCustomToken(customToken).await()
+            }.onFailure {
+                android.util.Log.w("MemberSessionClient", "Não foi possível preparar a sessão isolada do membro", it)
+            }
+        }
 
         val memberJson = response.optJSONObject("member")
             ?: throw IllegalStateException("O perfil recuperado está incompleto.")
