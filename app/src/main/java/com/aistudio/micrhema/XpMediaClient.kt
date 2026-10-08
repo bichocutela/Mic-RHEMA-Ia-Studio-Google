@@ -121,7 +121,7 @@ object XpMediaClient {
     }
 
     private suspend fun firebaseToken(member: MemberRequest, forceRefresh: Boolean): String {
-        val user = MemberFirebaseAuth.get().currentUser
+        val user = MemberFirebaseAuth.forMember(member.id)?.currentUser
             ?: throw IllegalStateException("Sua sessão de membro expirou. Entre novamente no MIC Rhema.")
         if (user.uid != member.id) throw IllegalStateException("A sessão Firebase não pertence ao membro ativo. Entre novamente.")
         return user.getIdToken(forceRefresh).await().token

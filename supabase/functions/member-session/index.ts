@@ -114,14 +114,14 @@ async function firebaseCustomToken(account: ServiceAccount, uid: string) {
 function baseUrl(projectId: string) {
   return `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
 }
-// Firestore can briefly return 429/503 during quota bursts. These operations are
-// reads (including runQuery), so a bounded backoff is safe and avoids failing login
-// on a short transient throttle.
+// Firestore 429 is commonly a spent read quota. Retrying it immediately
+// only consumes more capacity and delays the error shown to the member.
+// Retry short-lived server errors only, with bounded backoff.
 async function firestoreRead(url: string, init: RequestInit): Promise<Response> {
-  const retryable = new Set([429, 503, 504]);
+  const retryable = new Set([503, 504]);
   for (let attempt = 0; ; attempt++) {
     const response = await fetch(url, init);
-    if (!retryable.has(response.status) || attempt >= 3) return response;
+    if (!retryable.has(response.status) || attempt >= 2) return response;
     const retryAfter = Number(response.headers.get("retry-after"));
     const delayMs = Number.isFinite(retryAfter) && retryAfter > 0
       ? Math.min(retryAfter * 1000, 4000)
@@ -151,6 +151,9 @@ async function findMembers(projectId: string, token: string, phone: string) {
   try {
     queried = await queryByPhones(projectId, token, [phone, `55${phone}`]);
   } catch (error) {
+    // A quota-exhausted database will also reject the legacy lookup. Avoid
+    // doubling requests while the project is already over its limit.
+    if (/\b429\b/.test(String(error))) throw error;
     queryError = error;
   }
 
@@ -198,7 +201,7 @@ async function deleteDocument(projectId: string, token: string, collection: stri
   if (!response.ok && response.status !== 404) throw new Error(`Falha ao remover duplicado em ${collection}: ${response.status}`);
 }
 
-async function consolidateMatches(projectId: string, token: string, phone: string, matches: FirestoreDocument[]) {
+async function consolidateMatches(projectId: string, token: string, phone: string, matches: FirestoreDocument[], persist = true) {
   const sorted = [...matches].sort((a, b) => rankMember(b) - rankMember(a));
   const selected = sorted[0];
   const memberId = memberIdFromDocument(selected);
@@ -239,12 +242,16 @@ async function consolidateMatches(projectId: string, token: string, phone: strin
     createdAt: createdCandidates.length ? Math.min(...createdCandidates) : Date.now(),
     updatedAt: Date.now(),
   };
-  await patchDocument(projectId, token, "acessos_pendentes", memberId, merged);
-  await patchDocument(projectId, token, "users", memberId, merged);
+  // A sessão normal é somente leitura; apenas uma recuperação de duplicados
+  // precisa consolidar documentos e remover registros redundantes.
   const duplicateIds = sorted.slice(1).map(memberIdFromDocument);
-  for (const duplicateId of duplicateIds) {
-    await deleteDocument(projectId, token, "acessos_pendentes", duplicateId);
-    await deleteDocument(projectId, token, "users", duplicateId);
+  if (persist) {
+    await patchDocument(projectId, token, "acessos_pendentes", memberId, merged);
+    await patchDocument(projectId, token, "users", memberId, merged);
+    for (const duplicateId of duplicateIds) {
+      await deleteDocument(projectId, token, "acessos_pendentes", duplicateId);
+      await deleteDocument(projectId, token, "users", duplicateId);
+    }
   }
   return { memberId, merged, duplicateIds };
 }
@@ -273,7 +280,9 @@ Deno.serve(async (request) => {
     if (action === "recover") {
       if (matches.length === 0) return json({ ok: true, found: false });
       const beforeDuplicateCount = Math.max(0, matches.length - 1);
-      const consolidated = await consolidateMatches(projectId, token, phone, matches);
+      // Mesma composição de perfil (inclusive badges e histórico), mas sem
+      // regravar a conta em cada login quando não existem duplicados.
+      const consolidated = await consolidateMatches(projectId, token, phone, matches, matches.length > 1);
       const customToken = await firebaseCustomToken(account, consolidated.memberId);
       return json({
         ok: true,
@@ -354,6 +363,10 @@ Deno.serve(async (request) => {
     return json({ error: "Ação inválida." }, 400);
   } catch (error) {
     console.error("member-session failed", error);
-    return json({ error: error instanceof Error ? error.message : "Erro ao recuperar a conta." }, 500);
+    const detail = error instanceof Error ? error.message : String(error);
+    if (/\b429\b|RESOURCE_EXHAUSTED/i.test(detail)) {
+      return json({ error: "O serviço de cadastro está temporariamente indisponível. Tente novamente mais tarde. Sua conta permanece intacta." }, 503);
+    }
+    return json({ error: "Não foi possível verificar o cadastro agora. Tente novamente mais tarde." }, 500);
   }
 });

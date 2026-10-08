@@ -61,8 +61,7 @@ object QuizAuthorityClient {
      * aceitamos o memberId canônico devolvido pelo servidor e substituímos a sessão.
      */
     private suspend fun firebaseToken(member: MemberRequest, forceRefresh: Boolean): String {
-        val auth = FirebaseAuth.getInstance()
-        var user = auth.currentUser
+        var user = MemberFirebaseAuth.forMember(member.id)?.currentUser
 
         if (user?.uid != member.id) {
             val phone = member.phone.filter(Char::isDigit)
@@ -99,7 +98,7 @@ object QuizAuthorityClient {
             member.isAdmin = recoveredMember.isAdmin
 
             withContext(Dispatchers.Main.immediate) {
-                MemberManager.setLoggedInMember(appContext, recoveredMember)
+                MemberManager.setLoggedInMember(appContext, recoveredMember, bindFirebaseIdentity = false)
                 xpSyncErrorState.value = ""
             }
 
@@ -107,7 +106,7 @@ object QuizAuthorityClient {
             // Jornada mostrando 0 XP. Como a sessão acabou de ser corrigida,
             // pedimos uma atualização do ledger sem bloquear a abertura do Quiz.
             XpEngineClient.refresh(appContext, recoveredMember, force = true)
-            user = auth.currentUser
+            user = MemberFirebaseAuth.forMember(member.id)?.currentUser
         }
 
         if (user == null || user.uid != member.id) {

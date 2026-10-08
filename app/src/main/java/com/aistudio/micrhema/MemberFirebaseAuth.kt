@@ -22,4 +22,16 @@ object MemberFirebaseAuth {
             ?: throw IllegalStateException("Não foi possível preparar a sessão segura do membro.")
         return FirebaseAuth.getInstance(memberApp)
     }
+
+    /** Compatibility with APKs that signed in members on the default app.
+     * Never return a different member's or the administrator's token.
+     * A new sign-in always uses the dedicated member app instead.
+     */
+    fun forMember(memberId: String): FirebaseAuth? {
+        if (memberId.isBlank()) return null
+        val isolated = get()
+        if (isolated.currentUser?.uid == memberId) return isolated
+        val legacy = FirebaseAuth.getInstance()
+        return legacy.takeIf { it.currentUser?.uid == memberId }
+    }
 }

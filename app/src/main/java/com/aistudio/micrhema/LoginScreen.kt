@@ -60,8 +60,9 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
         scope.launch {
             val recovery = runCatching { MemberSessionClient.recover(context, cleanPhone) }
                 .getOrElse { error ->
+                    android.util.Log.w("LoginScreen", "Falha ao verificar cadastro", error)
                     isLoading = false
-                    errorMessage = "Não foi possível verificar seu cadastro agora: ${error.message ?: "verifique sua conexão"}. Nenhuma nova solicitação foi criada."
+                    errorMessage = "O serviço de cadastro está temporariamente indisponível. Tente novamente mais tarde. Nenhuma nova solicitação foi criada."
                     return@launch
                 }
 
@@ -73,13 +74,8 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                     return@launch
                 }
 
-                MemberManager.setLoggedInMember(context, existing)
+                MemberManager.setLoggedInMember(context, existing, bindFirebaseIdentity = false)
                 loadFavoritesFromFirestore()
-                MemberSessionClient.syncMemberState(
-                    context = context,
-                    member = existing,
-                    identityPhone = existing.phone
-                )
                 isLoading = false
                 val message = if (recovery.duplicateCount > 0) {
                     "Acesso recuperado. Registros antigos duplicados foram ignorados."
@@ -115,7 +111,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                 },
                 onFailure = { error ->
                     isLoading = false
-                    errorMessage = "Não foi possível enviar sua solicitação: ${error.message ?: "verifique sua conexão"}"
+                    errorMessage = "Não foi possível enviar a solicitação agora. Tente novamente mais tarde."
                 }
             )
         }
