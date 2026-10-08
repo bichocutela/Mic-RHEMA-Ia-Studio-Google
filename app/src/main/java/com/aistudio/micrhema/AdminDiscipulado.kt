@@ -212,7 +212,7 @@ fun EditDiscipuladoSection() {
                 )
                 val db = Firebase.firestore
                 db.batch()
-                    .set(db.collection("discipulado_pdfs").document(material.id), updated)
+                    .set(db.collection("discipulado_pdfs").document(material.id), updated, com.google.firebase.firestore.SetOptions.merge())
                     .delete(db.collection("discipulado_schedules").document(material.id))
                     .commit().await()
                 if (publish) scope.launch { wakeDiscipuladoPublisher() }
