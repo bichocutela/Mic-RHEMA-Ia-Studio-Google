@@ -1075,6 +1075,8 @@ data class DiscipuladoPdf(
     var pageCount: Int = 0,
     var order: Int = 0,
     var isPublished: Boolean = true,
+    var scheduledPublishAt: Long = 0,
+    var releaseNotificationPending: Boolean = false,
     var createdAt: Long = System.currentTimeMillis()
 )
 

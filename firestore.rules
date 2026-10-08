@@ -45,6 +45,9 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+    match /discipulado_schedules/{document} {
+      allow read, write: if isAdmin();
+    }
     match /conteudos_audios/{document} {
       allow read: if true;
       allow write: if isAdmin();

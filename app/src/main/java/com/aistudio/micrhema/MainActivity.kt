@@ -345,6 +345,7 @@ fun MainScreen() {
             destination == Screen.Prayer.route -> Screen.Prayer.route
             destination == Screen.Admin.route -> Screen.Admin.route
             destination == Screen.Devotionals.route -> Screen.Devotionals.route
+            destination == Screen.Discipulado.route -> Screen.Discipulado.route
             destination == Screen.About.route -> Screen.About.route
             else -> null
         }

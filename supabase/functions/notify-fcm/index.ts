@@ -76,6 +76,7 @@ function pwaLink(data: Record<string, string>) {
   const id = data.documentId || "";
   if (collection === "prayer_requests" || destination.startsWith("admin_prayer")) return `${DEFAULT_LINK}?view=admin&section=prayers&request=${encodeURIComponent(id)}`;
   if (collection === "prayer_response" || destination === "prayer") return `${DEFAULT_LINK}?view=prayer&request=${encodeURIComponent(id)}`;
+  if (collection === "discipulado_pdfs" || destination === "discipulado") return `${DEFAULT_LINK}?view=discipulado`;
   if (destination === "ibr" || category.includes("ibr") || category.includes("course")) return `${DEFAULT_LINK}?view=ibr`;
   if (destination === "content" || /sermon|media|audio|video|book/.test(category)) return `${DEFAULT_LINK}?view=media`;
   if (destination === "services" || /event|service|culto/.test(category)) return `${DEFAULT_LINK}?view=cultos`;

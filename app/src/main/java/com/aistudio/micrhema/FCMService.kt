@@ -42,7 +42,7 @@ class FCMService : FirebaseMessagingService() {
         val silentlySyncedCollections = setOf(
             "conteudos_books", "conteudos_audios", "conteudos_videos", "conteudos_albums",
             "devocionais", "events", "cultos_agenda", "carousel_items", "ibr_courses",
-            "bible_news", "app_tabs"
+            "bible_news", "app_tabs", "discipulado_pdfs"
         )
         if (collection in silentlySyncedCollections) {
             SilentContentSyncManager.enqueueImmediate(this, force = true)

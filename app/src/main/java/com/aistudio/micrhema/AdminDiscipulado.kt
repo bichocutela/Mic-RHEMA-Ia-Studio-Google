@@ -3,6 +3,9 @@ package com.aistudio.micrhema
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,6 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -28,9 +32,11 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -46,6 +52,15 @@ import com.google.firebase.Firebase
 import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+
+private val discipuladoTimeZone = ZoneId.of("America/Fortaleza")
+private fun formatDiscipuladoSchedule(epochMillis: Long): String =
+    DateTimeFormatter.ofPattern("dd/MM/yyyy 'às' HH:mm", Locale("pt", "BR"))
+        .withZone(discipuladoTimeZone).format(Instant.ofEpochMilli(epochMillis))
 
 private const val DISCIPULADO_PDF_MIME = "application/pdf"
 private const val DISCIPULADO_DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -107,6 +122,32 @@ fun EditDiscipuladoSection() {
     var category by remember { mutableStateOf("Estudos bíblicos") }
     var isUploading by remember { mutableStateOf(false) }
     var uploadProgress by remember { mutableFloatStateOf(0f) }
+    var adminMaterials by remember { mutableStateOf<List<DiscipuladoPdf>>(emptyList()) }
+    var scheduledMaterials by remember { mutableStateOf<List<DiscipuladoPdf>>(emptyList()) }
+    var editingMaterial by remember { mutableStateOf<DiscipuladoPdf?>(null) }
+    var schedulePublication by remember { mutableStateOf(false) }
+    var scheduledPublishAt by remember { mutableStateOf(0L) }
+    var listError by remember { mutableStateOf<String?>(null) }
+
+    DisposableEffect(Unit) {
+        val registration = Firebase.firestore.collection("discipulado_pdfs")
+            .addSnapshotListener { snapshot, error ->
+                listError = if (error != null) "Não foi possível carregar os estudos. Tente novamente." else null
+                if (snapshot != null) {
+                    adminMaterials = snapshot.documents.mapNotNull { document ->
+                        runCatching { document.toObject(DiscipuladoPdf::class.java)?.also { it.id = document.id } }.getOrNull()
+                    }.sortedWith(compareBy<DiscipuladoPdf> { it.order }.thenByDescending { it.createdAt })
+                }
+            }
+        val schedules = Firebase.firestore.collection("discipulado_schedules")
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) listError = "Não foi possível carregar os agendamentos. Tente novamente."
+                if (snapshot != null) scheduledMaterials = snapshot.documents.mapNotNull { document ->
+                    runCatching { document.toObject(DiscipuladoPdf::class.java)?.also { it.id = document.id } }.getOrNull()
+                }
+            }
+        onDispose { registration.remove(); schedules.remove() }
+    }
 
     fun resetForm() {
         selectedUri = null
@@ -117,6 +158,9 @@ fun EditDiscipuladoSection() {
         description = ""
         category = "Estudos bíblicos"
         uploadProgress = 0f
+        editingMaterial = null
+        schedulePublication = false
+        scheduledPublishAt = 0L
     }
 
     val documentPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -148,7 +192,7 @@ fun EditDiscipuladoSection() {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         AdminActionHeader(
             title = "Estudos de Discipulado",
-            subtitle = "Publique PDFs e arquivos Word para todos os usuários do aplicativo.",
+            subtitle = "Organize os estudos e publique agora ou escolha uma data e horário.",
             actionText = "Novo material",
             onAction = {
                 resetForm()
@@ -162,7 +206,10 @@ fun EditDiscipuladoSection() {
             Text("Publicando material com segurança…", style = MaterialTheme.typography.bodySmall)
             Spacer(Modifier.height(12.dp))
         }
-        if (discipuladoPdfsState.isEmpty()) {
+        listError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        val materials = (adminMaterials + scheduledMaterials).distinctBy { it.id }
+            .sortedWith(compareBy<DiscipuladoPdf> { it.order }.thenByDescending { it.createdAt })
+        if (materials.isEmpty()) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -187,7 +234,7 @@ fun EditDiscipuladoSection() {
             }
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(discipuladoPdfsState, key = { it.id }) { material ->
+                items(materials, key = { it.id }) { material ->
                     val isWord = material.fileType.equals("word", ignoreCase = true) ||
                         material.fileType.equals("docx", ignoreCase = true)
                     Card(
@@ -208,8 +255,17 @@ fun EditDiscipuladoSection() {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(material.title, fontWeight = FontWeight.Bold)
                                 Text(
-                                    "${if (isWord) "Word" else "PDF"} • ${material.category}",
+                                    material.category,
                                     style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    when {
+                                        material.scheduledPublishAt > 0 && !material.isPublished -> "Agendado: ${formatDiscipuladoSchedule(material.scheduledPublishAt)}"
+                                        material.isPublished -> "Publicado"
+                                        else -> "Oculto"
+                                    },
+                                    style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.primary
                                 )
                                 if (material.description.isNotBlank()) {
@@ -223,9 +279,25 @@ fun EditDiscipuladoSection() {
                                 }
                             }
                             IconButton(onClick = {
-                                Firebase.firestore.collection("discipulado_pdfs").document(material.id).delete()
-                                discipuladoPdfsState.removeIf { it.id == material.id }
-                            }) {
+                                resetForm()
+                                editingMaterial = material
+                                title = material.title
+                                subtitle = material.subtitle
+                                description = material.description
+                                category = material.category
+                                driveUrl = material.fileUrl
+                                schedulePublication = !material.isPublished && material.scheduledPublishAt > 0
+                                scheduledPublishAt = material.scheduledPublishAt
+                                showDialog = true
+                            }) { Icon(Icons.Default.Edit, contentDescription = "Editar estudo e agendamento") }
+                            IconButton(onClick = { scope.launch {
+                                runCatching {
+                                    val db = Firebase.firestore
+                                    db.batch().delete(db.collection("discipulado_pdfs").document(material.id))
+                                        .delete(db.collection("discipulado_schedules").document(material.id)).commit().await()
+                                }
+                                    .onFailure { android.widget.Toast.makeText(context, "Não foi possível excluir o estudo.", android.widget.Toast.LENGTH_SHORT).show() }
+                            } }) {
                                 Icon(
                                     Icons.Default.Delete,
                                     contentDescription = "Excluir material",
@@ -247,9 +319,9 @@ fun EditDiscipuladoSection() {
                     resetForm()
                 }
             },
-            title = { Text("Publicar material de estudo") },
+            title = { Text(if (editingMaterial == null) "Publicar estudo" else "Editar estudo") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedButton(
                         enabled = !isUploading,
                         onClick = {
@@ -331,6 +403,26 @@ fun EditDiscipuladoSection() {
                         minLines = 4,
                         maxLines = 6
                     )
+                    Text("Disponibilização", fontWeight = FontWeight.SemiBold)
+                    Row(modifier = Modifier.fillMaxWidth().clickable(enabled = !isUploading) { schedulePublication = false }, verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = !schedulePublication, enabled = !isUploading, onClick = { schedulePublication = false })
+                        Text("Publicar agora")
+                    }
+                    Row(modifier = Modifier.fillMaxWidth().clickable(enabled = !isUploading) { schedulePublication = true }, verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = schedulePublication, enabled = !isUploading, onClick = { schedulePublication = true })
+                        Text("Agendar publicação")
+                    }
+                    if (schedulePublication) {
+                        OutlinedButton(enabled = !isUploading, modifier = Modifier.fillMaxWidth(), onClick = {
+                            val initial = Instant.ofEpochMilli(scheduledPublishAt.takeIf { it > 0 } ?: System.currentTimeMillis()).atZone(discipuladoTimeZone)
+                            android.app.DatePickerDialog(context, { _, year, month, day ->
+                                android.app.TimePickerDialog(context, { _, hour, minute ->
+                                    scheduledPublishAt = java.time.LocalDateTime.of(year, month + 1, day, hour, minute).atZone(discipuladoTimeZone).toInstant().toEpochMilli()
+                                }, if (scheduledPublishAt > 0) initial.hour else 12, if (scheduledPublishAt > 0) initial.minute else 0, true).show()
+                            }, initial.year, initial.monthValue - 1, initial.dayOfMonth).show()
+                        }) { Text(if (scheduledPublishAt > 0) formatDiscipuladoSchedule(scheduledPublishAt) else "Escolher data e horário") }
+                        Text("Horário de Fortaleza (Brasília). O estudo será liberado automaticamente, mesmo com o aplicativo fechado.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             },
             confirmButton = {
@@ -338,6 +430,10 @@ fun EditDiscipuladoSection() {
                 Button(
                     enabled = !isUploading && hasSource && title.isNotBlank(),
                     onClick = {
+                        if (schedulePublication && scheduledPublishAt <= System.currentTimeMillis()) {
+                            android.widget.Toast.makeText(context, "Escolha uma data e horário futuros.", android.widget.Toast.LENGTH_LONG).show()
+                            return@Button
+                        }
                         isUploading = true
                         scope.launch {
                             try {
@@ -359,6 +455,10 @@ fun EditDiscipuladoSection() {
                                     materialType = localFile.fileType
                                     storagePath = uploaded.storagePath
                                     fileUrl = uploaded.signedUrl
+                                } else if (editingMaterial != null && driveUrl.trim() == editingMaterial?.fileUrl) {
+                                    materialType = editingMaterial!!.fileType
+                                    storagePath = editingMaterial!!.storagePath
+                                    fileUrl = editingMaterial!!.fileUrl
                                 } else {
                                     val link = driveUrl.trim()
                                     if (!isWebLink(link)) {
@@ -378,23 +478,35 @@ fun EditDiscipuladoSection() {
                                 }
 
                                 val item = DiscipuladoPdf(
-                                    id = java.util.UUID.randomUUID().toString(),
+                                    id = editingMaterial?.id ?: java.util.UUID.randomUUID().toString(),
                                     title = title.trim(),
                                     subtitle = subtitle.trim(),
                                     description = description.trim(),
                                     category = category.trim().ifBlank { "Estudos bíblicos" },
+                                    coverUrl = editingMaterial?.coverUrl.orEmpty(),
+                                    pageCount = editingMaterial?.pageCount ?: 0,
                                     storagePath = storagePath,
                                     fileUrl = fileUrl,
                                     fileType = materialType,
-                                    order = discipuladoPdfsState.size,
-                                    isPublished = true
+                                    order = editingMaterial?.order ?: ((materials.maxOfOrNull { it.order } ?: -1) + 1),
+                                    isPublished = !schedulePublication,
+                                    scheduledPublishAt = if (schedulePublication) scheduledPublishAt else 0L,
+                                    releaseNotificationPending = !schedulePublication && (editingMaterial?.isPublished != true || editingMaterial?.releaseNotificationPending == true),
+                                    createdAt = editingMaterial?.createdAt ?: System.currentTimeMillis()
                                 )
-                                Firebase.firestore.collection("discipulado_pdfs").document(item.id).set(item).await()
+                                val db = Firebase.firestore
+                                val target = if (schedulePublication) "discipulado_schedules" else "discipulado_pdfs"
+                                val other = if (schedulePublication) "discipulado_pdfs" else "discipulado_schedules"
+                                db.batch().set(db.collection(target).document(item.id), item, com.google.firebase.firestore.SetOptions.merge())
+                                    .delete(db.collection(other).document(item.id)).commit().await()
+                                if (!schedulePublication && item.releaseNotificationPending) {
+                                    scope.launch { wakeDiscipuladoPublisher() }
+                                }
                                 // O listener do Firestore já atualiza a lista, inclusive antes
                                 // do await retornar. Inserir aqui repete a chave da LazyColumn.
                                 android.widget.Toast.makeText(
                                     context,
-                                    "Material publicado para todos os usuários.",
+                                    if (schedulePublication) "Estudo agendado para ${formatDiscipuladoSchedule(scheduledPublishAt)}." else "Estudo publicado.",
                                     android.widget.Toast.LENGTH_SHORT
                                 ).show()
                                 showDialog = false
@@ -415,7 +527,7 @@ fun EditDiscipuladoSection() {
                     if (isUploading) {
                         CircularProgressIndicator(modifier = Modifier.size(18.dp))
                     } else {
-                        Text("Publicar")
+                        Text(if (schedulePublication) "Agendar" else if (editingMaterial != null) "Salvar" else "Publicar")
                     }
                 }
             },

@@ -1,5 +1,37 @@
 import { arrayRemove, arrayUnion, collection, deleteDoc, doc, getDocs, query, serverTimestamp, setDoc, where, writeBatch } from "firebase/firestore";
-import { adminFirestore } from "./firebase";
+import { adminFirestore, firebaseAdminAuth } from "./firebase";
+
+export async function saveDiscipuladoDocument(id: string, data: Record<string, unknown>) {
+  const database = db();
+  const scheduled = data.isPublished === false && Number(data.scheduledPublishAt) > 0;
+  const target = scheduled ? "discipulado_schedules" : "discipulado_pdfs";
+  const other = scheduled ? "discipulado_pdfs" : "discipulado_schedules";
+  const batch = writeBatch(database);
+  batch.set(doc(database, target, id), documentPayload(target, id, data), { merge: true });
+  batch.delete(doc(database, other, id));
+  await batch.commit();
+  if (!scheduled && data.releaseNotificationPending === true) {
+    // Publication is durable before the server sends the notification. The
+    // persistent server queue retries if this immediate wake request fails.
+    void (async () => {
+      const token = await firebaseAdminAuth?.currentUser?.getIdToken();
+      if (!token) return;
+      const url = import.meta.env.VITE_SUPABASE_URL || "https://cwphbkdtorfpgmnlafqb.supabase.co";
+      await fetch(`${url}/functions/v1/discipulado-release`, {
+        method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: "release" }), signal: AbortSignal.timeout(30000),
+      });
+    })().catch(() => undefined);
+  }
+}
+
+export async function deleteDiscipuladoDocument(id: string) {
+  const database = db();
+  const batch = writeBatch(database);
+  batch.delete(doc(database, "discipulado_pdfs", id));
+  batch.delete(doc(database, "discipulado_schedules", id));
+  await batch.commit();
+}
 
 function db() {
   if (!adminFirestore) throw new Error("Entre novamente como administrador.");

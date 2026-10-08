@@ -8,9 +8,10 @@ import {
 import { listenToCollection, listenToDocument, markPrayerAsAnswered } from "@/lib/firebase";
 import {
   createAdminDocumentId, deleteAdminDocument, forceAdminSync, replaceAdminDocument,
-  saveAdminDocument, saveAdminSetting,
+  saveAdminDocument, saveAdminSetting, saveDiscipuladoDocument, deleteDiscipuladoDocument,
 } from "@/lib/admin-firestore";
 import { deleteAdminStoredAssetsFromDocument, uploadAdminMedia } from "@/lib/admin-storage";
+import { publicationEpoch, publicationLabel, scheduleParts } from "@/lib/discipulado-schedule";
 import { LiveStreamAdmin } from "./LiveStreamAdmin";
 import { SharedIbrImportCard } from "./SharedIbrImportCard";
 import "./AdminParityView.css";
@@ -55,7 +56,7 @@ const modules: Array<{ group: string; items: Array<{ id: Section; title: string;
     { id: "news", title: "Notícias", subtitle: "Informativos e avisos", icon: Newspaper },
     { id: "media", title: "Mídia", subtitle: "Vídeos, áudios e livros", icon: Video },
     { id: "plans", title: "Planos Bíblicos", subtitle: "Planos e jornadas de leitura", icon: FileText },
-    { id: "discipulado", title: "Discipulado", subtitle: "Biblioteca pública em PDF", icon: FileText },
+    { id: "discipulado", title: "Discipulado", subtitle: "Estudos e publicações agendadas", icon: FileText },
   ] },
   { group: "ENSINO", items: [{ id: "ibr", title: "Instituto Bíblico Rhema", subtitle: "Cursos, módulos e aulas", icon: School }] },
   { group: "IGREJA", items: [
@@ -204,8 +205,65 @@ function DonationsAdmin(){const current=useAdminDocument("settings","donations")
 function TeamAdmin(){const items=useAdminCollection("equipe").sort((a,b)=>Number(a.order||0)-Number(b.order||0));const[editing,setEditing]=useState<AnyDoc|null>(null);return <div className="admin-section"><SectionHeader title="Gerenciar Equipe" subtitle="Líderes, pastores e ministérios." onAdd={()=>setEditing({id:createAdminDocumentId("equipe")})} addLabel="Adicionar membro"/><AdminRows items={items} title={i=>i.name||"Membro"} subtitle={i=>[i.role,i.category].filter(Boolean).join(" · ")} onEdit={setEditing} onDelete={i=>remove("equipe",i)}/>{editing&&<TeamForm item={editing} onClose={()=>setEditing(null)}/>}</div>}
 function TeamForm({item,onClose}:{item:AnyDoc;onClose:()=>void}){const[d,setD]=useState({name:item.name||"",role:item.role||"",category:item.category||"Geral",imageUrl:item.imageUrl||"",order:String(item.order||0)});const save=async()=>{if(!d.name.trim())return toast.error("Informe o nome.");await saveAdminDocument("equipe",item.id,{name:d.name,role:d.role,category:d.category,imageUrl:d.imageUrl,order:Number(d.order)||0});toast.success("Equipe atualizada.");onClose();};return <AdminModal title="Membro da Equipe" onClose={onClose}><div className="admin-form"><Field label="Nome" value={d.name} onChange={v=>setD({...d,name:v})}/><Field label="Cargo / Função" value={d.role} onChange={v=>setD({...d,role:v})}/><Field label="Categoria" value={d.category} onChange={v=>setD({...d,category:v})}/><Field label="URL da foto" value={d.imageUrl} onChange={v=>setD({...d,imageUrl:v})}/><Field label="Ordem" value={d.order} onChange={v=>setD({...d,order:v})} type="number"/><SaveButton onClick={save}/></div></AdminModal>}
 
-function DiscipuladoAdmin(){const items=useAdminCollection("discipulado_pdfs").sort((a,b)=>Number(a.order||0)-Number(b.order||0));const[editing,setEditing]=useState<AnyDoc|null>(null);return <div className="admin-section"><SectionHeader title="Estudos de Discipulado" subtitle="PDFs públicos disponíveis no Android e PWA." onAdd={()=>setEditing({id:createAdminDocumentId("discipulado_pdfs")})} addLabel="Novo PDF"/><AdminRows items={items} title={item=>item.title||"Estudo"} subtitle={item=>`${item.category||"Estudos bíblicos"}${item.isPublished===false?" · Oculto":""}`} onEdit={setEditing} onDelete={item=>remove("discipulado_pdfs",item)}/>{editing&&<DiscipuladoForm item={editing} onClose={()=>setEditing(null)}/>}</div>}
-function DiscipuladoForm({item,onClose}:{item:AnyDoc;onClose:()=>void}){const[d,setD]=useState({title:item.title||"",subtitle:item.subtitle||"",description:item.description||"",category:item.category||"Estudos bíblicos",fileUrl:item.fileUrl||"",order:String(item.order||0),isPublished:item.isPublished!==false});const save=async()=>{if(!d.title.trim()||!d.fileUrl.trim())return toast.error("Informe título e PDF.");await saveAdminDocument("discipulado_pdfs",item.id,{...d,order:Number(d.order)||0});toast.success("Estudo sincronizado.");onClose();};return <AdminModal title="Estudo em PDF" onClose={onClose}><div className="admin-form"><Field label="Título" value={d.title} onChange={value=>setD({...d,title:value})}/><Field label="Subtítulo" value={d.subtitle} onChange={value=>setD({...d,subtitle:value})}/><Field label="Categoria" value={d.category} onChange={value=>setD({...d,category:value})}/><Field label="Descrição" value={d.description} onChange={value=>setD({...d,description:value})} multiline/><UploadField label="Enviar PDF" accept="application/pdf" onUploaded={url=>setD({...d,fileUrl:url})}/><Field label="Ou usar URL do PDF" value={d.fileUrl} onChange={value=>setD({...d,fileUrl:value})}/><Field label="Ordem" value={d.order} onChange={value=>setD({...d,order:value})}/><Check label="Publicado" checked={d.isPublished} onChange={value=>setD({...d,isPublished:value})}/><SaveButton onClick={save}/></div></AdminModal>}
+function DiscipuladoAdmin() {
+  const published = useAdminCollection("discipulado_pdfs");
+  const scheduled = useAdminCollection("discipulado_schedules");
+  const items = useMemo(() => [...new Map([...published, ...scheduled].map(item => [item.id, item])).values()]
+    .sort((a, b) => Number(a.order || 0) - Number(b.order || 0)), [published, scheduled]);
+  const [editing, setEditing] = useState<AnyDoc | null>(null);
+  const removeStudy = async (item: AnyDoc) => {
+    if (!window.confirm(`Excluir “${item.title}”?`)) return;
+    try { await deleteDiscipuladoDocument(item.id); toast.success("Estudo excluído."); }
+    catch { toast.error("Não foi possível excluir o estudo."); }
+  };
+  return <div className="admin-section">
+    <SectionHeader title="Estudos de Discipulado" subtitle="Organize os estudos e publique agora ou escolha uma data e horário."
+      onAdd={() => setEditing({ id: createAdminDocumentId("discipulado_schedules"), order: Math.max(-1, ...items.map(i => Number(i.order || 0))) + 1 })} addLabel="Novo estudo"/>
+    <AdminRows items={items} title={item => item.title || "Estudo"}
+      subtitle={item => `${item.category || "Estudos bíblicos"} · ${item.scheduledPublishAt > 0 && item.isPublished === false ? `Agendado: ${publicationLabel(item.scheduledPublishAt)}` : item.isPublished === false ? "Oculto" : "Publicado"}`}
+      onEdit={setEditing} onDelete={removeStudy}/>
+    {editing && <DiscipuladoForm item={editing} onClose={() => setEditing(null)}/>}
+  </div>;
+}
+
+function DiscipuladoForm({ item, onClose }: { item: AnyDoc; onClose: () => void }) {
+  const [d, setD] = useState({ title: item.title || "", subtitle: item.subtitle || "", description: item.description || "",
+    category: item.category || "Estudos bíblicos", fileUrl: item.fileUrl || "", order: String(item.order || 0), fileType: item.fileType || "word" });
+  const [scheduled, setScheduled] = useState(item.isPublished === false && Number(item.scheduledPublishAt) > 0);
+  const [when, setWhen] = useState(() => scheduleParts(Number(item.scheduledPublishAt || 0)));
+  const save = async () => {
+    if (!d.title.trim() || !d.fileUrl.trim()) throw new Error("Informe o título e o arquivo do estudo.");
+    const url = new URL(d.fileUrl.trim());
+    if (!["https:", "http:"].includes(url.protocol)) throw new Error("Informe um link válido para o estudo.");
+    const epoch = scheduled ? publicationEpoch(when.date, when.time) : 0;
+    await saveDiscipuladoDocument(item.id, {
+      ...item, ...d, title: d.title.trim(), subtitle: d.subtitle.trim(), description: d.description.trim(),
+      category: d.category.trim() || "Estudos bíblicos", fileUrl: url.href, order: Number(d.order) || 0,
+      isPublished: !scheduled, scheduledPublishAt: epoch,
+      releaseNotificationPending: !scheduled && (!item.fileUrl || item.isPublished === false || item.releaseNotificationPending === true),
+      createdAt: item.createdAt || Date.now(),
+    });
+    toast.success(scheduled ? `Estudo agendado para ${publicationLabel(epoch)}.` : "Estudo publicado.");
+    onClose();
+  };
+  return <AdminModal title={item.fileUrl ? "Editar estudo" : "Novo estudo"} onClose={onClose}><div className="admin-form">
+    <Field label="Título" value={d.title} onChange={value => setD({ ...d, title: value })}/>
+    <Field label="Subtítulo" value={d.subtitle} onChange={value => setD({ ...d, subtitle: value })}/>
+    <Field label="Categoria" value={d.category} onChange={value => setD({ ...d, category: value })}/>
+    <Field label="Descrição" value={d.description} onChange={value => setD({ ...d, description: value })} multiline/>
+    <UploadField label="Enviar PDF ou Word" accept=".pdf,.doc,.docx" onUploaded={url => setD({ ...d, fileUrl: url, fileType: /\.pdf(?:$|[?])/i.test(url) ? "pdf" : "word" })}/>
+    <Field label="Ou usar link do Google Drive" value={d.fileUrl} onChange={value => setD({ ...d, fileUrl: value })}/>
+    <Field label="Ordem" type="number" value={d.order} onChange={value => setD({ ...d, order: value })}/>
+    <fieldset><legend>Disponibilização</legend>
+      <label className="admin-check"><input type="radio" name="publication" checked={!scheduled} onChange={() => setScheduled(false)}/>Publicar agora</label>
+      <label className="admin-check"><input type="radio" name="publication" checked={scheduled} onChange={() => setScheduled(true)}/>Agendar publicação</label>
+    </fieldset>
+    {scheduled && <><Field label="Data de publicação" type="date" value={when.date} onChange={date => setWhen({ ...when, date })}/>
+      <Field label="Horário" type="time" value={when.time} onChange={time => setWhen({ ...when, time })}/>
+      <small>Horário de Fortaleza (Brasília). A publicação é automática, mesmo com o aplicativo fechado.</small></>}
+    <SaveButton onClick={save}/>
+  </div></AdminModal>;
+}
 
 function MembersAdmin({profilesOnly}:{profilesOnly:boolean}){const items=useAdminCollection("acessos_pendentes").sort((a,b)=>Number(b.createdAt||0)-Number(a.createdAt||0));const[editing,setEditing]=useState<AnyDoc|null>(null);const visible=profilesOnly?items.filter(i=>i.isApproved===true||i.status==="aprovado"):items;return <div className="admin-section"><SectionHeader title={profilesOnly?"Perfis dos Membros":"Membros"} subtitle={profilesOnly?"Dados e informações dos usuários aprovados.":"Aprovações e permissões de acesso."}/><AdminRows items={visible} title={i=>i.name||"Membro"} subtitle={i=>`${i.phone||"Sem telefone"} · ${i.isApproved||i.status==="aprovado"?"Aprovado":"Pendente"}${i.isIbr?" · IBR":""}`} onEdit={setEditing}/>{editing&&<MemberForm item={editing} onClose={()=>setEditing(null)}/>}</div>}
 function MemberForm({item,onClose}:{item:AnyDoc;onClose:()=>void}){const[d,setD]=useState({name:item.name||"",phone:item.phone||"",email:item.email||"",address:item.address||"",birthDate:item.birthDate||"",isApproved:item.isApproved===true||item.status==="aprovado",isIbr:item.isIbr===true,isAdmin:item.isAdmin===true});const save=async()=>{if(!d.name.trim())return toast.error("Informe o nome.");await saveAdminDocument("acessos_pendentes",item.id,{...d,status:d.isApproved?"aprovado":"pendente",firebaseUid:item.firebaseUid||"",avatarId:item.avatarId||"davi",unlockedBadgeIds:item.unlockedBadgeIds||["caminhante"],equippedBadgeId:item.equippedBadgeId||"caminhante",badgeActivityIds:item.badgeActivityIds||{}});toast.success("Membro sincronizado.");onClose();};return <AdminModal title="Membro" onClose={onClose}><div className="admin-form"><Field label="Nome" value={d.name} onChange={v=>setD({...d,name:v})}/><Field label="Telefone" value={d.phone} onChange={v=>setD({...d,phone:v})}/><Field label="E-mail" value={d.email} onChange={v=>setD({...d,email:v})}/><Field label="Endereço" value={d.address} onChange={v=>setD({...d,address:v})}/><Field label="Nascimento" value={d.birthDate} onChange={v=>setD({...d,birthDate:v})}/><Check label="Acesso aprovado" checked={d.isApproved} onChange={v=>setD({...d,isApproved:v})}/><Check label="Aluno IBR" checked={d.isIbr} onChange={v=>setD({...d,isIbr:v})}/><Check label="Administrador" checked={d.isAdmin} onChange={v=>setD({...d,isAdmin:v})}/><SaveButton onClick={save}/></div></AdminModal>}
