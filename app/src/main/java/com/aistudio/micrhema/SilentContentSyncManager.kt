@@ -37,6 +37,7 @@ object SilentContentSyncManager {
     private const val KEY_APPLIED_VERSION = "applied_content_version"
     private const val PERIODIC_WORK = "SilentContentSyncV1"
     private const val IMMEDIATE_WORK = "SilentContentSyncImmediateV1"
+    private const val DISCIPULADO_IMMEDIATE_WORK = "SilentDiscipuladoSyncImmediateV1"
 
     private val networkConstraint = Constraints.Builder()
         .setRequiredNetworkType(NetworkType.CONNECTED)
@@ -49,13 +50,19 @@ object SilentContentSyncManager {
         enqueueImmediate(appContext)
     }
 
-    fun enqueueImmediate(context: Context, force: Boolean = false) {
+    fun enqueueImmediate(context: Context, force: Boolean = false, collection: String? = null) {
+        val targeted = collection == "discipulado_pdfs"
         val request = OneTimeWorkRequestBuilder<SilentContentSyncWorker>()
             .setConstraints(networkConstraint)
-            .setInputData(androidx.work.workDataOf(SilentContentSyncWorker.KEY_FORCE to force))
+            .setInputData(
+                androidx.work.workDataOf(
+                    SilentContentSyncWorker.KEY_FORCE to force,
+                    SilentContentSyncWorker.KEY_COLLECTION to (if (targeted) "discipulado_pdfs" else "")
+                )
+            )
             .build()
         WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
-            IMMEDIATE_WORK,
+            if (targeted) DISCIPULADO_IMMEDIATE_WORK else IMMEDIATE_WORK,
             ExistingWorkPolicy.REPLACE,
             request
         )
@@ -113,7 +120,7 @@ object SilentContentSyncManager {
         val collections = listOf(
             "conteudos_books", "conteudos_audios", "conteudos_videos", "conteudos_albums",
             "devocionais", "events", "cultos_agenda", "carousel_items", "ibr_courses",
-            "bible_news", "app_tabs"
+            "bible_news", "app_tabs", "discipulado_pdfs"
         )
         collections.forEach { collection ->
             // Uma falha isolada não invalida dados que já estão armazenados no aparelho.
@@ -158,6 +165,15 @@ class SilentContentSyncWorker(
     override suspend fun doWork(): Result {
         if (BuildConfig.FIREBASE_PROJECT_ID.isEmpty()) return Result.success()
         return try {
+            // A push for a published discipleship study only needs one collection.
+            // It must not reload the entire catalog and exhaust Firestore quota.
+            if (inputData.getString(KEY_COLLECTION) == "discipulado_pdfs") {
+                FirebaseFirestore.getInstance()
+                    .collection("discipulado_pdfs")
+                    .get(Source.SERVER)
+                    .await()
+                return Result.success()
+            }
             val force = inputData.getBoolean(KEY_FORCE, false)
             if (SilentContentSyncManager.synchronize(applicationContext, force)) {
                 Result.success()
@@ -172,5 +188,6 @@ class SilentContentSyncWorker(
 
     companion object {
         const val KEY_FORCE = "force"
+        const val KEY_COLLECTION = "collection"
     }
 }

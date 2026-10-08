@@ -45,7 +45,11 @@ class FCMService : FirebaseMessagingService() {
             "bible_news", "app_tabs", "discipulado_pdfs"
         )
         if (collection in silentlySyncedCollections) {
-            SilentContentSyncManager.enqueueImmediate(this, force = true)
+            SilentContentSyncManager.enqueueImmediate(
+                this,
+                force = true,
+                collection = if (collection == "discipulado_pdfs") collection else null
+            )
         }
 
         if (remoteMessage.notification == null && remoteMessage.data.isEmpty()) return
