@@ -5,7 +5,12 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import android.util.Log
-import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.Firebase
+import com.google.firebase.firestore.Source
+import com.google.firebase.firestore.firestore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.security.KeyStore
@@ -137,6 +142,39 @@ object MemberOfflineCache {
             null
         }
     }
+
+    /**
+     * One-time migration for older APKs which saved the active member ID but
+     * did not yet create the encrypted snapshot. Cache-only: no network read.
+     * No identity can be created from a name/phone alone.
+     */
+    suspend fun restoreLegacy(context: Context, requestedPhone: String? = null): MemberRequest? =
+        withContext(Dispatchers.IO) {
+            val appContext = context.applicationContext
+            val memberPrefs = appContext.getSharedPreferences(MEMBER_PREFS, Context.MODE_PRIVATE)
+            val activeId = memberPrefs.getString(LOGGED_IN_ID, "").orEmpty()
+            if (activeId.isBlank()) return@withContext null
+
+            val snapshot = runCatching {
+                Firebase.firestore.collection("acessos_pendentes")
+                    .document(activeId)
+                    .get(Source.CACHE)
+                    .await()
+            }.getOrNull() ?: return@withContext null
+
+            val oldMember = runCatching {
+                snapshot.toObject(MemberRequest::class.java)
+            }.getOrNull()?.copy(id = activeId, firebaseUid = activeId, isAdmin = false)
+                ?: return@withContext null
+            if (phone(oldMember.phone).length !in 10..11) return@withContext null
+            if (requestedPhone != null && phone(requestedPhone) != phone(oldMember.phone)) {
+                return@withContext null
+            }
+            // Recheck for logout or account switch while cache was being read.
+            if (memberPrefs.getString(LOGGED_IN_ID, "") != activeId) return@withContext null
+            save(appContext, oldMember)
+            restoreTrusted(appContext, requestedPhone)
+        }
 
     fun clear(context: Context) {
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
