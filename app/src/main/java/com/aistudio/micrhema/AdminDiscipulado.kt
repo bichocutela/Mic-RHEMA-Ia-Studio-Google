@@ -318,7 +318,7 @@ fun EditDiscipuladoSection() {
                                     )
                                 }
                             }
-                            IconButton(onClick = {
+                            IconButton(enabled = actionInFlight == null, onClick = {
                                 resetForm()
                                 editingMaterial = material
                                 title = material.title
@@ -327,23 +327,28 @@ fun EditDiscipuladoSection() {
                                 category = material.category
                                 driveUrl = material.fileUrl
                                 schedulePublication = !material.isPublished && material.scheduledPublishAt > 0
+                                keepHidden = !material.isPublished && material.scheduledPublishAt <= 0
                                 scheduledPublishAt = material.scheduledPublishAt
                                 showDialog = true
                             }) { Icon(Icons.Default.Edit, contentDescription = "Editar estudo e agendamento") }
-                            IconButton(onClick = { scope.launch {
-                                runCatching {
-                                    val db = Firebase.firestore
-                                    db.batch().delete(db.collection("discipulado_pdfs").document(material.id))
-                                        .delete(db.collection("discipulado_schedules").document(material.id)).commit().await()
-                                }
-                                    .onFailure { android.widget.Toast.makeText(context, "Não foi possível excluir o estudo.", android.widget.Toast.LENGTH_SHORT).show() }
-                            } }) {
-                                Icon(
-                                    Icons.Default.Delete,
-                                    contentDescription = "Excluir material",
-                                    tint = MaterialTheme.colorScheme.error
-                                )
+                            IconButton(enabled = actionInFlight == null, onClick = { pendingDelete = material }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Excluir estudo", tint = MaterialTheme.colorScheme.error)
                             }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (material.isPublished) {
+                                OutlinedButton(
+                                    enabled = actionInFlight == null,
+                                    onClick = { changeVisibility(material, false) }
+                                ) { Text("Ocultar") }
+                            } else {
+                                Button(
+                                    enabled = actionInFlight == null,
+                                    onClick = { changeVisibility(material, true) }
+                                ) { Text("Publicar agora") }
+                            }
+                        }
                         }
                     }
                 }
