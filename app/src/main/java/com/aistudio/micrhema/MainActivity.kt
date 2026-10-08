@@ -239,6 +239,20 @@ fun MainScreen() {
         GlobalAudioPlayer.restoreLastPlaybackIfEnabled(context)
     }
 
+    // Keep cosmetic catalogs fresh with one app-level poller. Previously every
+    // visible avatar started its own polling coroutine when it entered composition.
+    LaunchedEffect(Unit) {
+        while (true) {
+            try { XpLightEffectsAdminClient.refreshPublicCatalog() }
+            catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (error: Exception) { android.util.Log.w("AvatarLight", "Não foi possível atualizar efeitos", error) }
+            try { DistinctiveCatalog.refresh() }
+            catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (error: Exception) { android.util.Log.w("Distinctives", "Não foi possível atualizar distintivos", error) }
+            kotlinx.coroutines.delay(60_000L)
+        }
+    }
+
     LaunchedEffect(loggedInMemberState.value?.id) {
         UserSettingsManager.loadSettings(context)
     }
@@ -479,7 +493,7 @@ LaunchedEffect(loggedInMemberState.value?.id, currentRoute) {
                 Spacer(Modifier.height(8.dp))
                 HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
 
-                if (drawerState.isOpen || drawerState.targetValue == DrawerValue.Open) {
+                if (drawerState.isOpen) {
                     DrawerBadgesSection(member = member)
                 }
                 HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))

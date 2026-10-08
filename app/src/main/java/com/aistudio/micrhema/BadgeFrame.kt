@@ -5,9 +5,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.runtime.LaunchedEffect
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.CancellationException
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
@@ -42,17 +39,6 @@ fun BiblicalAvatarWithBadge(
     previewDistinctives: List<AdminProfileCosmetic>? = null,
     previewPrimaryDistinctive: AdminProfileCosmetic? = null
 ) {
-    LaunchedEffect(Unit) {
-        while (true) {
-            try { XpLightEffectsAdminClient.refreshPublicCatalog() }
-            catch (cancelled: CancellationException) { throw cancelled }
-            catch (error: Exception) { android.util.Log.w("AvatarLight", "Não foi possível atualizar efeitos", error) }
-            try { DistinctiveCatalog.refresh() }
-            catch (cancelled: CancellationException) { throw cancelled }
-            catch (error: Exception) { android.util.Log.w("Distinctives", "Não foi possível atualizar distintivos", error) }
-            delay(60_000L)
-        }
-    }
     val context = LocalContext.current
     val remoteEmblem = remoteProfileBadgeForId(badge.id)
     val remoteEmblemUrl by produceState<String?>(initialValue = null, remoteEmblem?.imageRef) {
