@@ -146,7 +146,7 @@ object XpEngineClient {
     @Volatile private var lastRefreshMemberId = ""
 
     private suspend fun firebaseToken(member: MemberRequest, forceRefresh: Boolean): String {
-        val user = MemberFirebaseAuth.get().currentUser
+        val user = MemberFirebaseAuth.forMember(member.id)?.currentUser
             ?: throw XpHttpException(401, "Sua sessão de membro expirou. Entre novamente no MIC Rhema.")
         if (user.uid != member.id) {
             throw XpHttpException(401, "A sessão Firebase não pertence ao membro ativo. Entre novamente.")
