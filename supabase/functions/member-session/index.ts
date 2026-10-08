@@ -114,14 +114,14 @@ async function firebaseCustomToken(account: ServiceAccount, uid: string) {
 function baseUrl(projectId: string) {
   return `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
 }
-// Firestore can briefly return 429/503 during quota bursts. These operations are
-// reads (including runQuery), so a bounded backoff is safe and avoids failing login
-// on a short transient throttle.
+// Firestore 429 is commonly a spent read quota. Retrying it immediately
+// only consumes more capacity and delays the error shown to the member.
+// Retry short-lived server errors only, with bounded backoff.
 async function firestoreRead(url: string, init: RequestInit): Promise<Response> {
-  const retryable = new Set([429, 503, 504]);
+  const retryable = new Set([503, 504]);
   for (let attempt = 0; ; attempt++) {
     const response = await fetch(url, init);
-    if (!retryable.has(response.status) || attempt >= 3) return response;
+    if (!retryable.has(response.status) || attempt >= 2) return response;
     const retryAfter = Number(response.headers.get("retry-after"));
     const delayMs = Number.isFinite(retryAfter) && retryAfter > 0
       ? Math.min(retryAfter * 1000, 4000)
@@ -151,6 +151,9 @@ async function findMembers(projectId: string, token: string, phone: string) {
   try {
     queried = await queryByPhones(projectId, token, [phone, `55${phone}`]);
   } catch (error) {
+    // A quota-exhausted database will also reject the legacy lookup. Avoid
+    // doubling requests while the project is already over its limit.
+    if (/\b429\b/.test(String(error))) throw error;
     queryError = error;
   }
 
@@ -273,16 +276,42 @@ Deno.serve(async (request) => {
     if (action === "recover") {
       if (matches.length === 0) return json({ ok: true, found: false });
       const beforeDuplicateCount = Math.max(0, matches.length - 1);
-      const consolidated = await consolidateMatches(projectId, token, phone, matches);
-      const customToken = await firebaseCustomToken(account, consolidated.memberId);
+      // A normal login is read-only. Previously every recovery rewrote both
+      // documents, even for a single account, increasing Firestore quota use.
+      // Only the genuine duplicate-repair path is allowed to write/delete.
+      let memberId: string;
+      let memberData: Record<string, unknown>;
+      let duplicatesRemoved: string[] = [];
+      if (matches.length === 1) {
+        memberId = memberIdFromDocument(matches[0]);
+        memberData = documentData(matches[0]);
+        // Legacy profiles may store progress only in users/{memberId}.
+        // Consult it only when the access document lacks progress fields.
+        if (memberData.unlockedBadgeIds === undefined || memberData.badgeActivityIds === undefined) {
+          const userDoc = await getDocument(projectId, token, "users", memberId);
+          const user = documentData(userDoc);
+          memberData = {
+            ...user,
+            ...memberData,
+            unlockedBadgeIds: unionStringLists(user.unlockedBadgeIds, memberData.unlockedBadgeIds),
+            badgeActivityIds: unionActivitySources(user.badgeActivityIds, memberData.badgeActivityIds),
+          };
+        }
+      } else {
+        const consolidated = await consolidateMatches(projectId, token, phone, matches);
+        memberId = consolidated.memberId;
+        memberData = consolidated.merged;
+        duplicatesRemoved = consolidated.duplicateIds;
+      }
+      const customToken = await firebaseCustomToken(account, memberId);
       return json({
         ok: true,
         found: true,
-        memberId: consolidated.memberId,
+        memberId,
         customToken,
-        member: { ...consolidated.merged, id: consolidated.memberId, phone },
+        member: { ...memberData, id: memberId, firebaseUid: memberId, phone },
         duplicateCount: beforeDuplicateCount,
-        duplicatesRemoved: consolidated.duplicateIds,
+        duplicatesRemoved,
       });
     }
 
@@ -354,6 +383,10 @@ Deno.serve(async (request) => {
     return json({ error: "Ação inválida." }, 400);
   } catch (error) {
     console.error("member-session failed", error);
-    return json({ error: error instanceof Error ? error.message : "Erro ao recuperar a conta." }, 500);
+    const detail = error instanceof Error ? error.message : String(error);
+    if (/\b429\b|RESOURCE_EXHAUSTED/i.test(detail)) {
+      return json({ error: "O serviço de cadastro está temporariamente indisponível. Tente novamente mais tarde. Sua conta permanece intacta." }, 503);
+    }
+    return json({ error: "Não foi possível verificar o cadastro agora. Tente novamente mais tarde." }, 500);
   }
 });
