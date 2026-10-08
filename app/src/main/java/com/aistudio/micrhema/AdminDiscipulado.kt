@@ -189,6 +189,9 @@ fun EditDiscipuladoSection() {
         }
     }
 
+    val materials = (adminMaterials + scheduledMaterials).distinctBy { it.id }
+        .sortedWith(compareBy<DiscipuladoPdf> { it.order }.thenByDescending { it.createdAt })
+
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         AdminActionHeader(
             title = "Estudos de Discipulado",
@@ -207,8 +210,6 @@ fun EditDiscipuladoSection() {
             Spacer(Modifier.height(12.dp))
         }
         listError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        val materials = (adminMaterials + scheduledMaterials).distinctBy { it.id }
-            .sortedWith(compareBy<DiscipuladoPdf> { it.order }.thenByDescending { it.createdAt })
         if (materials.isEmpty()) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
