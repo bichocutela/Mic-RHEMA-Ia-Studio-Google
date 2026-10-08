@@ -400,8 +400,12 @@ object MemberManager {
                         .getString(KEY_LOGGED_IN_ID, "") ?: ""
                 if (loggedInId.isNotEmpty()) {
                     val member = memberRequestsState.find { it.id == loggedInId }
-                    loggedInMemberState.value = member
-                    if (member != null) loadIbrProgressFromFirestore()
+                    // Never drop a verified offline profile because a listener
+                    // returned an empty/partial list during cache or quota issues.
+                    if (member != null) {
+                        loggedInMemberState.value = member
+                        loadIbrProgressFromFirestore()
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -618,7 +622,41 @@ object MemberManager {
         prefs.edit().remove(KEY_MEMBERS).apply()
         val loggedInId = prefs.getString(KEY_LOGGED_IN_ID, "") ?: ""
         if (loggedInId.isNotEmpty()) {
-            memberRequestsState.find { it.id == loggedInId }?.let { setLoggedInMember(context, it) }
+            val trusted = MemberOfflineCache.restoreTrusted(context)
+                ?.takeIf { it.id == loggedInId }
+            if (trusted != null) {
+                setLoggedInMember(context, trusted, bindFirebaseIdentity = false)
+                XpAccountCache.restore(context, trusted)
+                MemberOfflineSync.schedule(context)
+            } else {
+                // One-time migration for existing installations: Firebase may
+                // already have a validated local document from an older APK.
+                // CACHE never triggers a remote read or consumes Firestore quota.
+                if (MemberFirebaseAuth.forMember(loggedInId) != null) {
+                    dataSyncScope.launch {
+                        runCatching {
+                            Firebase.firestore.collection("acessos_pendentes")
+                                .document(loggedInId)
+                                .get(com.google.firebase.firestore.Source.CACHE)
+                                .await()
+                        }.getOrNull()?.toObject(MemberRequest::class.java)
+                            ?.copy(id = loggedInId, firebaseUid = loggedInId, isAdmin = false)
+                            ?.takeIf { it.phone.filter(Char::isDigit).length in 10..13 }
+                            ?.let { restored ->
+                                if (prefs.getString(KEY_LOGGED_IN_ID, "") == loggedInId) {
+                                    MemberOfflineCache.save(context, restored)
+                                    kotlinx.coroutines.withContext(Dispatchers.Main.immediate) {
+                                        if (loggedInMemberState.value == null) {
+                                            setLoggedInMember(context, restored, bindFirebaseIdentity = false)
+                                            XpAccountCache.restore(context, restored)
+                                            MemberOfflineSync.schedule(context)
+                                        }
+                                    }
+                                }
+                            }
+                    }
+                }
+            }
         }
     }
 
@@ -650,7 +688,8 @@ object MemberManager {
     fun setLoggedInMember(
         context: android.content.Context,
         member: MemberRequest?,
-        bindFirebaseIdentity: Boolean = true
+        bindFirebaseIdentity: Boolean = true,
+        preserveAdminFirebaseOnLogout: Boolean = false
     ) {
         loggedInMemberState.value = member
         member?.let { BadgeActivityTracker.reconcile(context, it) }
@@ -668,7 +707,9 @@ object MemberManager {
         val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
         if (member == null) {
             prefs.edit().remove(KEY_LOGGED_IN_ID).apply()
-            runCatching { com.google.firebase.auth.FirebaseAuth.getInstance().signOut() }
+            if (!preserveAdminFirebaseOnLogout) {
+                runCatching { com.google.firebase.auth.FirebaseAuth.getInstance().signOut() }
+            }
             runCatching { MemberFirebaseAuth.get().signOut() }
         } else {
             prefs.edit().putString(KEY_LOGGED_IN_ID, member.id).apply()
