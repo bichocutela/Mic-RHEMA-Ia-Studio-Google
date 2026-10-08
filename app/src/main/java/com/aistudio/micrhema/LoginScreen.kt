@@ -60,6 +60,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
         scope.launch {
             val recovery = runCatching { MemberSessionClient.recover(context, cleanPhone) }
                 .getOrElse { error ->
+                    android.util.Log.w("LoginScreen", "Falha ao verificar cadastro", error)
                     isLoading = false
                     errorMessage = "O serviço de cadastro está temporariamente indisponível. Tente novamente mais tarde. Nenhuma nova solicitação foi criada."
                     return@launch
@@ -110,7 +111,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                 },
                 onFailure = { error ->
                     isLoading = false
-                    errorMessage = "Não foi possível enviar sua solicitação: ${error.message ?: "verifique sua conexão"}"
+                    errorMessage = "Não foi possível enviar a solicitação agora. Tente novamente mais tarde."
                 }
             )
         }
