@@ -449,13 +449,29 @@ fun EditDiscipuladoSection() {
                         maxLines = 6
                     )
                     Text("Disponibilização", fontWeight = FontWeight.SemiBold)
-                    Row(modifier = Modifier.fillMaxWidth().clickable(enabled = !isUploading) { schedulePublication = false }, verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = !schedulePublication, enabled = !isUploading, onClick = { schedulePublication = false })
+                    Row(modifier = Modifier.fillMaxWidth().clickable(enabled = !isUploading) {
+                        schedulePublication = false; keepHidden = false
+                    }, verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = !schedulePublication && !keepHidden, enabled = !isUploading, onClick = {
+                            schedulePublication = false; keepHidden = false
+                        })
                         Text("Publicar agora")
                     }
-                    Row(modifier = Modifier.fillMaxWidth().clickable(enabled = !isUploading) { schedulePublication = true }, verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = schedulePublication, enabled = !isUploading, onClick = { schedulePublication = true })
+                    Row(modifier = Modifier.fillMaxWidth().clickable(enabled = !isUploading) {
+                        schedulePublication = true; keepHidden = false
+                    }, verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = schedulePublication, enabled = !isUploading, onClick = {
+                            schedulePublication = true; keepHidden = false
+                        })
                         Text("Agendar publicação")
+                    }
+                    Row(modifier = Modifier.fillMaxWidth().clickable(enabled = !isUploading) {
+                        schedulePublication = false; keepHidden = true
+                    }, verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = keepHidden, enabled = !isUploading, onClick = {
+                            schedulePublication = false; keepHidden = true
+                        })
+                        Text("Manter oculto")
                     }
                     if (schedulePublication) {
                         OutlinedButton(enabled = !isUploading, modifier = Modifier.fillMaxWidth(), onClick = {
@@ -522,6 +538,9 @@ fun EditDiscipuladoSection() {
                                     uploadProgress = 1f
                                 }
 
+                                val publishNow = !schedulePublication && !keepHidden
+                                val shouldNotify = publishNow &&
+                                    (editingMaterial?.isPublished != true || editingMaterial?.releaseNotificationPending == true)
                                 val item = DiscipuladoPdf(
                                     id = editingMaterial?.id ?: java.util.UUID.randomUUID().toString(),
                                     title = title.trim(),
@@ -534,9 +553,12 @@ fun EditDiscipuladoSection() {
                                     fileUrl = fileUrl,
                                     fileType = materialType,
                                     order = editingMaterial?.order ?: ((materials.maxOfOrNull { it.order } ?: -1) + 1),
-                                    isPublished = !schedulePublication,
+                                    isPublished = publishNow,
                                     scheduledPublishAt = if (schedulePublication) scheduledPublishAt else 0L,
-                                    releaseNotificationPending = !schedulePublication && (editingMaterial?.isPublished != true || editingMaterial?.releaseNotificationPending == true),
+                                    releaseNotificationPending = shouldNotify,
+                                    releaseNotificationState = if (shouldNotify) "pending" else if (publishNow) editingMaterial?.releaseNotificationState.orEmpty() else "",
+                                    releaseNotificationLeaseUntil = "",
+                                    publishedAt = if (publishNow && editingMaterial?.isPublished != true) System.currentTimeMillis() else editingMaterial?.publishedAt ?: 0L,
                                     createdAt = editingMaterial?.createdAt ?: System.currentTimeMillis()
                                 )
                                 val db = Firebase.firestore
@@ -544,14 +566,15 @@ fun EditDiscipuladoSection() {
                                 val other = if (schedulePublication) "discipulado_pdfs" else "discipulado_schedules"
                                 db.batch().set(db.collection(target).document(item.id), item, com.google.firebase.firestore.SetOptions.merge())
                                     .delete(db.collection(other).document(item.id)).commit().await()
-                                if (!schedulePublication && item.releaseNotificationPending) {
+                                if (item.releaseNotificationPending) {
                                     scope.launch { wakeDiscipuladoPublisher() }
                                 }
                                 // O listener do Firestore já atualiza a lista, inclusive antes
                                 // do await retornar. Inserir aqui repete a chave da LazyColumn.
                                 android.widget.Toast.makeText(
                                     context,
-                                    if (schedulePublication) "Estudo agendado para ${formatDiscipuladoSchedule(scheduledPublishAt)}." else "Estudo publicado.",
+                                    if (schedulePublication) "Estudo agendado para ${formatDiscipuladoSchedule(scheduledPublishAt)}."
+                                    else if (keepHidden) "Estudo salvo como oculto." else "Estudo publicado.",
                                     android.widget.Toast.LENGTH_SHORT
                                 ).show()
                                 showDialog = false
@@ -572,7 +595,7 @@ fun EditDiscipuladoSection() {
                     if (isUploading) {
                         CircularProgressIndicator(modifier = Modifier.size(18.dp))
                     } else {
-                        Text(if (schedulePublication) "Agendar" else if (editingMaterial != null) "Salvar" else "Publicar")
+                        Text(if (schedulePublication) "Agendar" else if (keepHidden) "Salvar oculto" else if (editingMaterial != null) "Salvar" else "Publicar")
                     }
                 }
             },
