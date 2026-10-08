@@ -68,7 +68,7 @@ class MemberOfflineSyncWorker(context: Context, params: WorkerParameters) :
                 MemberOfflineCache.clear(context)
                 withContext(Dispatchers.Main) {
                     if (loggedInMemberState.value?.id == local.id) {
-                        MemberManager.setLoggedInMember(context, null)
+                        MemberManager.setLoggedInMember(context, null, preserveAdminFirebaseOnLogout = true)
                     } else {
                         prefs.edit().remove("logged_in_member_id").apply()
                     }
