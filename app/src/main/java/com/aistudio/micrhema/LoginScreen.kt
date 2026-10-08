@@ -64,6 +64,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
             // A fresh user or a signed-out account must still validate online.
             val local = withContext(Dispatchers.IO) {
                 MemberOfflineCache.restoreTrusted(context, cleanPhone)
+                    ?: MemberOfflineCache.restoreLegacy(context, cleanPhone)
             }
             if (local != null) {
                 MemberManager.setLoggedInMember(context, local, bindFirebaseIdentity = false)

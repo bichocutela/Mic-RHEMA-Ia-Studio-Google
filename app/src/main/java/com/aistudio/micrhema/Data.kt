@@ -632,31 +632,18 @@ object MemberManager {
                 }
                 MemberOfflineSync.schedule(context)
             } else {
-                // One-time migration for existing installations: Firebase may
-                // already have a validated local document from an older APK.
-                // CACHE never triggers a remote read or consumes Firestore quota.
-                if (MemberFirebaseAuth.forMember(loggedInId) != null) {
-                    dataSyncScope.launch {
-                        runCatching {
-                            Firebase.firestore.collection("acessos_pendentes")
-                                .document(loggedInId)
-                                .get(com.google.firebase.firestore.Source.CACHE)
-                                .await()
-                        }.getOrNull()?.toObject(MemberRequest::class.java)
-                            ?.copy(id = loggedInId, firebaseUid = loggedInId, isAdmin = false)
-                            ?.takeIf { it.phone.filter(Char::isDigit).length in 10..13 }
-                            ?.let { restored ->
-                                if (prefs.getString(KEY_LOGGED_IN_ID, "") == loggedInId) {
-                                    MemberOfflineCache.save(context, restored)
-                                    kotlinx.coroutines.withContext(Dispatchers.Main.immediate) {
-                                        if (loggedInMemberState.value == null) {
-                                            setLoggedInMember(context, restored, bindFirebaseIdentity = false)
-                                            XpAccountCache.restore(context, restored)
-                                            MemberOfflineSync.schedule(context)
-                                        }
-                                    }
-                                }
+                // Existing signed-in devices can migrate from Firestore's disk
+                // cache without requiring their old Firebase Auth token or quota.
+                dataSyncScope.launch {
+                    val restored = MemberOfflineCache.restoreLegacy(context)
+                    if (restored != null && prefs.getString(KEY_LOGGED_IN_ID, "") == restored.id) {
+                        kotlinx.coroutines.withContext(Dispatchers.Main.immediate) {
+                            if (loggedInMemberState.value == null) {
+                                setLoggedInMember(context, restored, bindFirebaseIdentity = false)
+                                XpAccountCache.restore(context, restored)
+                                MemberOfflineSync.schedule(context)
                             }
+                        }
                     }
                 }
             }
@@ -710,6 +697,8 @@ object MemberManager {
         val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
         if (member == null) {
             prefs.edit().remove(KEY_LOGGED_IN_ID).apply()
+            // Explicit logout and remote revocation must invalidate offline access.
+            MemberOfflineCache.clear(context)
             if (!preserveAdminFirebaseOnLogout) {
                 runCatching { com.google.firebase.auth.FirebaseAuth.getInstance().signOut() }
             }
