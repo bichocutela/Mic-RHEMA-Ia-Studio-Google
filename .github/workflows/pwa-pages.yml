@@ -6,6 +6,7 @@ on:
     paths:
       - "pwa/**"
       - "app/src/main/java/com/aistudio/micrhema/PlansData.kt"
+      - "app/src/main/java/com/aistudio/micrhema/Data.kt"
       - ".github/workflows/pwa-pages.yml"
   workflow_dispatch:
 
