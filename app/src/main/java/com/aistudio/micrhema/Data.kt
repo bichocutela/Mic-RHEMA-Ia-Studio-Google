@@ -626,7 +626,10 @@ object MemberManager {
                 ?.takeIf { it.id == loggedInId }
             if (trusted != null) {
                 setLoggedInMember(context, trusted, bindFirebaseIdentity = false)
-                XpAccountCache.restore(context, trusted)
+                // Restore the verified XP balance asynchronously: this API is suspend.
+                dataSyncScope.launch {
+                    XpAccountCache.restore(context, trusted)
+                }
                 MemberOfflineSync.schedule(context)
             } else {
                 // One-time migration for existing installations: Firebase may
