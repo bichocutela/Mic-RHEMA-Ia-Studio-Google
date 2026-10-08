@@ -629,8 +629,33 @@ object MemberManager {
                 XpAccountCache.restore(context, trusted)
                 MemberOfflineSync.schedule(context)
             } else {
-                memberRequestsState.find { it.id == loggedInId }
-                    ?.let { setLoggedInMember(context, it, bindFirebaseIdentity = false) }
+                // One-time migration for existing installations: Firebase may
+                // already have a validated local document from an older APK.
+                // CACHE never triggers a remote read or consumes Firestore quota.
+                if (MemberFirebaseAuth.forMember(loggedInId) != null) {
+                    dataSyncScope.launch {
+                        runCatching {
+                            Firebase.firestore.collection("acessos_pendentes")
+                                .document(loggedInId)
+                                .get(com.google.firebase.firestore.Source.CACHE)
+                                .await()
+                        }.getOrNull()?.toObject(MemberRequest::class.java)
+                            ?.copy(id = loggedInId, firebaseUid = loggedInId, isAdmin = false)
+                            ?.takeIf { it.phone.filter(Char::isDigit).length in 10..13 }
+                            ?.let { restored ->
+                                if (prefs.getString(KEY_LOGGED_IN_ID, "") == loggedInId) {
+                                    MemberOfflineCache.save(context, restored)
+                                    kotlinx.coroutines.withContext(Dispatchers.Main.immediate) {
+                                        if (loggedInMemberState.value == null) {
+                                            setLoggedInMember(context, restored, bindFirebaseIdentity = false)
+                                            XpAccountCache.restore(context, restored)
+                                            MemberOfflineSync.schedule(context)
+                                        }
+                                    }
+                                }
+                            }
+                    }
+                }
             }
         }
     }
