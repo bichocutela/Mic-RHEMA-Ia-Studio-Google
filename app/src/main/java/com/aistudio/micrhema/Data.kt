@@ -1119,6 +1119,9 @@ data class DiscipuladoPdf(
     var isPublished: Boolean = true,
     var scheduledPublishAt: Long = 0,
     var releaseNotificationPending: Boolean = false,
+    var releaseNotificationState: String = "",
+    var releaseNotificationLeaseUntil: String = "",
+    var publishedAt: Long = 0,
     var createdAt: Long = System.currentTimeMillis()
 )
 
