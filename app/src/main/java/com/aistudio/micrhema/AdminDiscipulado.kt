@@ -347,6 +347,12 @@ fun EditDiscipuladoSection() {
                                     enabled = actionInFlight == null,
                                     onClick = { changeVisibility(material, true) }
                                 ) { Text("Publicar agora") }
+                                if (material.scheduledPublishAt > 0L) {
+                                    OutlinedButton(
+                                        enabled = actionInFlight == null,
+                                        onClick = { changeVisibility(material, false) }
+                                    ) { Text("Ocultar") }
+                                }
                             }
                         }
                         }

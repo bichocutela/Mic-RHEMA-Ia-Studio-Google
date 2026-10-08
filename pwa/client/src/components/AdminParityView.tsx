@@ -248,7 +248,12 @@ function DiscipuladoAdmin() {
             {item.isPublished === true ? (
               <button type="button" disabled={!!busyId} onClick={() => void changeVisibility(item, false)}>Ocultar</button>
             ) : (
-              <button type="button" disabled={!!busyId} onClick={() => void changeVisibility(item, true)}>Publicar agora</button>
+              <>
+                <button type="button" disabled={!!busyId} onClick={() => void changeVisibility(item, true)}>Publicar agora</button>
+                {Number(item.scheduledPublishAt) > 0 && (
+                  <button type="button" disabled={!!busyId} onClick={() => void changeVisibility(item, false)}>Ocultar</button>
+                )}
+              </>
             )}
             <button type="button" disabled={!!busyId} onClick={() => setEditing(item)}><Pencil size={15}/>Editar</button>
             <button type="button" disabled={!!busyId} className="delete" onClick={() => void removeStudy(item)}><Trash2 size={15}/>Excluir</button>
