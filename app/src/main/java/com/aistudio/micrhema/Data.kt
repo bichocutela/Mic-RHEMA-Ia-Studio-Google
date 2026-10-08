@@ -400,8 +400,12 @@ object MemberManager {
                         .getString(KEY_LOGGED_IN_ID, "") ?: ""
                 if (loggedInId.isNotEmpty()) {
                     val member = memberRequestsState.find { it.id == loggedInId }
-                    loggedInMemberState.value = member
-                    if (member != null) loadIbrProgressFromFirestore()
+                    // Never drop a verified offline profile because a listener
+                    // returned an empty/partial list during cache or quota issues.
+                    if (member != null) {
+                        loggedInMemberState.value = member
+                        loadIbrProgressFromFirestore()
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -618,7 +622,16 @@ object MemberManager {
         prefs.edit().remove(KEY_MEMBERS).apply()
         val loggedInId = prefs.getString(KEY_LOGGED_IN_ID, "") ?: ""
         if (loggedInId.isNotEmpty()) {
-            memberRequestsState.find { it.id == loggedInId }?.let { setLoggedInMember(context, it) }
+            val trusted = MemberOfflineCache.restoreTrusted(context)
+                ?.takeIf { it.id == loggedInId }
+            if (trusted != null) {
+                setLoggedInMember(context, trusted, bindFirebaseIdentity = false)
+                XpAccountCache.restore(context, trusted)
+                MemberOfflineSync.schedule(context)
+            } else {
+                memberRequestsState.find { it.id == loggedInId }
+                    ?.let { setLoggedInMember(context, it, bindFirebaseIdentity = false) }
+            }
         }
     }
 
