@@ -22,7 +22,7 @@ object MemberOfflineSync {
     private const val PERIODIC = "micrhema_member_sync_periodic_v1"
     private val online = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
 
-    fun schedule(context: Context) {
+    fun schedule(context: Context, immediate: Boolean = true) {
         val app = context.applicationContext
         val manager = WorkManager.getInstance(app)
         manager.enqueueUniquePeriodicWork(
@@ -33,7 +33,9 @@ object MemberOfflineSync {
                 .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 15, TimeUnit.MINUTES)
                 .build()
         )
-        // Let the user enter immediately, then reconcile without blocking UI.
+        // After an online login there is nothing to recheck immediately.
+        if (!immediate) return
+        // Let a cached member enter immediately, then reconcile quietly.
         manager.enqueueUniqueWork(
             IMMEDIATE,
             ExistingWorkPolicy.KEEP,
