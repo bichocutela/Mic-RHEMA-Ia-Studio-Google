@@ -113,7 +113,7 @@ object SilentContentSyncManager {
         val collections = listOf(
             "conteudos_books", "conteudos_audios", "conteudos_videos", "conteudos_albums",
             "devocionais", "events", "cultos_agenda", "carousel_items", "ibr_courses",
-            "bible_news", "app_tabs"
+            "bible_news", "app_tabs", "discipulado_pdfs"
         )
         collections.forEach { collection ->
             // Uma falha isolada não invalida dados que já estão armazenados no aparelho.
