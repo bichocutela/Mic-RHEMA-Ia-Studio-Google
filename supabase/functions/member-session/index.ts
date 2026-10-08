@@ -201,7 +201,7 @@ async function deleteDocument(projectId: string, token: string, collection: stri
   if (!response.ok && response.status !== 404) throw new Error(`Falha ao remover duplicado em ${collection}: ${response.status}`);
 }
 
-async function consolidateMatches(projectId: string, token: string, phone: string, matches: FirestoreDocument[]) {
+async function consolidateMatches(projectId: string, token: string, phone: string, matches: FirestoreDocument[], persist = true) {
   const sorted = [...matches].sort((a, b) => rankMember(b) - rankMember(a));
   const selected = sorted[0];
   const memberId = memberIdFromDocument(selected);
@@ -242,12 +242,16 @@ async function consolidateMatches(projectId: string, token: string, phone: strin
     createdAt: createdCandidates.length ? Math.min(...createdCandidates) : Date.now(),
     updatedAt: Date.now(),
   };
-  await patchDocument(projectId, token, "acessos_pendentes", memberId, merged);
-  await patchDocument(projectId, token, "users", memberId, merged);
+  // A sessão normal é somente leitura; apenas uma recuperação de duplicados
+  // precisa consolidar documentos e remover registros redundantes.
   const duplicateIds = sorted.slice(1).map(memberIdFromDocument);
-  for (const duplicateId of duplicateIds) {
-    await deleteDocument(projectId, token, "acessos_pendentes", duplicateId);
-    await deleteDocument(projectId, token, "users", duplicateId);
+  if (persist) {
+    await patchDocument(projectId, token, "acessos_pendentes", memberId, merged);
+    await patchDocument(projectId, token, "users", memberId, merged);
+    for (const duplicateId of duplicateIds) {
+      await deleteDocument(projectId, token, "acessos_pendentes", duplicateId);
+      await deleteDocument(projectId, token, "users", duplicateId);
+    }
   }
   return { memberId, merged, duplicateIds };
 }
@@ -276,42 +280,18 @@ Deno.serve(async (request) => {
     if (action === "recover") {
       if (matches.length === 0) return json({ ok: true, found: false });
       const beforeDuplicateCount = Math.max(0, matches.length - 1);
-      // A normal login is read-only. Previously every recovery rewrote both
-      // documents, even for a single account, increasing Firestore quota use.
-      // Only the genuine duplicate-repair path is allowed to write/delete.
-      let memberId: string;
-      let memberData: Record<string, unknown>;
-      let duplicatesRemoved: string[] = [];
-      if (matches.length === 1) {
-        memberId = memberIdFromDocument(matches[0]);
-        memberData = documentData(matches[0]);
-        // Legacy profiles may store progress only in users/{memberId}.
-        // Consult it only when the access document lacks progress fields.
-        if (memberData.unlockedBadgeIds === undefined || memberData.badgeActivityIds === undefined) {
-          const userDoc = await getDocument(projectId, token, "users", memberId);
-          const user = documentData(userDoc);
-          memberData = {
-            ...user,
-            ...memberData,
-            unlockedBadgeIds: unionStringLists(user.unlockedBadgeIds, memberData.unlockedBadgeIds),
-            badgeActivityIds: unionActivitySources(user.badgeActivityIds, memberData.badgeActivityIds),
-          };
-        }
-      } else {
-        const consolidated = await consolidateMatches(projectId, token, phone, matches);
-        memberId = consolidated.memberId;
-        memberData = consolidated.merged;
-        duplicatesRemoved = consolidated.duplicateIds;
-      }
-      const customToken = await firebaseCustomToken(account, memberId);
+      // Mesma composição de perfil (inclusive badges e histórico), mas sem
+      // regravar a conta em cada login quando não existem duplicados.
+      const consolidated = await consolidateMatches(projectId, token, phone, matches, matches.length > 1);
+      const customToken = await firebaseCustomToken(account, consolidated.memberId);
       return json({
         ok: true,
         found: true,
-        memberId,
+        memberId: consolidated.memberId,
         customToken,
-        member: { ...memberData, id: memberId, firebaseUid: memberId, phone },
+        member: { ...consolidated.merged, id: consolidated.memberId, phone },
         duplicateCount: beforeDuplicateCount,
-        duplicatesRemoved,
+        duplicatesRemoved: consolidated.duplicateIds,
       });
     }
 
