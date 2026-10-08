@@ -16,11 +16,10 @@ object XpSessionSynchronizer {
         // volta para 0 XP enquanto aguarda rede/servidor.
         XpAccountCache.restore(appContext, member)
 
-        val memberAuth = MemberFirebaseAuth.get()
-        if (memberAuth.currentUser?.uid != member.id) {
+        if (MemberFirebaseAuth.forMember(member.id) == null) {
             val phone = member.phone.filter(Char::isDigit)
             if (phone.length in 10..13) {
-                val recovered = runCatching { MemberSessionClient.recover(appContext, phone, memberAuth) }
+                val recovered = runCatching { MemberSessionClient.recover(appContext, phone) }
                     .getOrNull()
                     ?.member
                 if (recovered != null) {
@@ -33,7 +32,7 @@ object XpSessionSynchronizer {
             }
         }
 
-        if (memberAuth.currentUser?.uid != member.id) {
+        if (MemberFirebaseAuth.forMember(member.id) == null) {
             throw IllegalStateException("Não foi possível validar a sessão do membro. Entre novamente para acessar a Jornada XP.")
         }
 
