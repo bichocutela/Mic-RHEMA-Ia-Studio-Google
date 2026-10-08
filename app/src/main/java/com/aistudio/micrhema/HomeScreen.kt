@@ -47,6 +47,35 @@ import java.time.DayOfWeek
 import java.time.LocalTime
 import java.time.LocalDateTime
 
+private val homeServiceDays = mapOf(
+    "Domingo" to DayOfWeek.SUNDAY,
+    "Segunda" to DayOfWeek.MONDAY,
+    "Segunda-feira" to DayOfWeek.MONDAY,
+    "Terça" to DayOfWeek.TUESDAY,
+    "Terça-feira" to DayOfWeek.TUESDAY,
+    "Quarta" to DayOfWeek.WEDNESDAY,
+    "Quarta-feira" to DayOfWeek.WEDNESDAY,
+    "Quinta" to DayOfWeek.THURSDAY,
+    "Quinta-feira" to DayOfWeek.THURSDAY,
+    "Sexta" to DayOfWeek.FRIDAY,
+    "Sexta-feira" to DayOfWeek.FRIDAY,
+    "Sábado" to DayOfWeek.SATURDAY
+)
+
+private data class ScheduledHomeService(
+    val service: ChurchService,
+    val time: LocalTime,
+    val nextOccurrence: LocalDateTime
+)
+
+private fun homeServiceTime(value: String): LocalTime = try {
+    val clean = value.replace("h", ":", ignoreCase = true).filter { it.isDigit() || it == ':' }
+    val parts = clean.split(":")
+    if (parts.size >= 2) LocalTime.of(parts[0].toInt(), parts[1].take(2).toInt()) else LocalTime.of(23, 59)
+} catch (_: Exception) {
+    LocalTime.of(23, 59)
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
@@ -66,18 +95,19 @@ fun HomeScreen(
     var selectedEventInfo by remember { mutableStateOf<String?>(null) }
     
     val today = LocalDate.now()
-    val validBanners = carouselItemsState.filter { banner ->
-        if (banner.eventDate.isBlank()) return@filter true
-        try {
-            val date = LocalDate.parse(banner.eventDate)
-            !date.isBefore(today)
-        } catch (e: DateTimeParseException) {
-            true
+    val validBanners = remember(carouselItemsState.toList(), today) {
+        carouselItemsState.filter { banner ->
+            if (banner.eventDate.isBlank()) return@filter true
+            try {
+                !LocalDate.parse(banner.eventDate).isBefore(today)
+            } catch (_: DateTimeParseException) {
+                true
+            }
         }
     }
     
     val bannerListState = rememberLazyListState()
-    val bannerIds = validBanners.map { it.id }
+    val bannerIds = remember(validBanners) { validBanners.map { it.id } }
     val bannerRotationMillis = adminAppSettingsState.value.bannerRotationSeconds.coerceIn(3L, 12L) * 1_000L
 
     LaunchedEffect(bannerIds, bannerRotationMillis) {
@@ -92,53 +122,37 @@ fun HomeScreen(
         }
     }
 
-    val dayMap = mapOf(
-        "Domingo" to DayOfWeek.SUNDAY,
-        "Segunda" to DayOfWeek.MONDAY,
-        "Segunda-feira" to DayOfWeek.MONDAY,
-        "Terça" to DayOfWeek.TUESDAY,
-        "Terça-feira" to DayOfWeek.TUESDAY,
-        "Quarta" to DayOfWeek.WEDNESDAY,
-        "Quarta-feira" to DayOfWeek.WEDNESDAY,
-        "Quinta" to DayOfWeek.THURSDAY,
-        "Quinta-feira" to DayOfWeek.THURSDAY,
-        "Sexta" to DayOfWeek.FRIDAY,
-        "Sexta-feira" to DayOfWeek.FRIDAY,
-        "Sábado" to DayOfWeek.SATURDAY
-    )
     val currentTime = java.time.LocalTime.now()
+    val currentMinute = currentTime.withSecond(0).withNano(0)
     val currentDayOfWeek = today.dayOfWeek
-    val validServices = weeklyServicesState.sortedBy { service ->
-        val serviceDay = dayMap[service.day] ?: DayOfWeek.SUNDAY
-        var diff = serviceDay.value - currentDayOfWeek.value
-        
-        var parsedTime = LocalTime.of(23, 59)
-        try {
-            val cleanTime = service.time.replace("h", ":", ignoreCase = true).filter { it.isDigit() || it == ':' }
-            val timeParts = cleanTime.split(":")
-            if (timeParts.size >= 2) {
-                parsedTime = LocalTime.of(timeParts[0].toInt(), timeParts[1].take(2).toInt())
+    val scheduledServices = remember(weeklyServicesState.toList(), today, currentMinute) {
+        weeklyServicesState.map { service ->
+            val serviceDay = homeServiceDays[service.day] ?: DayOfWeek.SUNDAY
+            val serviceTime = homeServiceTime(service.time)
+            var daysUntil = serviceDay.value - currentDayOfWeek.value
+            if (daysUntil < 0 || (daysUntil == 0 && serviceTime.isBefore(currentMinute))) {
+                daysUntil += 7
             }
-        } catch (e: Exception) {
+            ScheduledHomeService(
+                service = service,
+                time = serviceTime,
+                nextOccurrence = today.plusDays(daysUntil.toLong()).atTime(serviceTime)
+            )
         }
-
-        if (diff < 0) {
-            diff += 7
-        } else if (diff == 0) {
-            if (parsedTime.isBefore(currentTime)) {
-                diff += 7
-            }
-        }
-        
-        today.plusDays(diff.toLong()).atTime(parsedTime)
-    }.take(3)
+            .sortedBy { it.nextOccurrence }
+    }
+    val validServices = remember(scheduledServices) { scheduledServices.take(3).map { it.service } }
     
-    val todayDevotional = DevotionalDateUtils.todayOrLatest(devotionalsState.toList(), today)
+    val todayDevotional = remember(devotionalsState.toList(), today) {
+        DevotionalDateUtils.todayOrLatest(devotionalsState.toList(), today)
+    }
     
-    val editorialNews = BibleNewsEditorial.withEditorialCatalog(
-        if (bibleNewsState.isEmpty()) BibleNewsData.newsList else bibleNewsState.toList()
-    )
-    val latestNews = HomeNewsSession.select(editorialNews, limit = 5)
+    val newsSource = if (bibleNewsState.isEmpty()) BibleNewsData.newsList else bibleNewsState.toList()
+    val hiddenNewsIds = hiddenBibleNewsIdsState.toList()
+    val editorialNews = remember(newsSource, hiddenNewsIds) {
+        BibleNewsEditorial.withEditorialCatalog(newsSource)
+    }
+    val latestNews = remember(editorialNews) { HomeNewsSession.select(editorialNews, limit = 5) }
     
     var showMoodSelector by remember { mutableStateOf(false) }
     val prefs = context.getSharedPreferences("mic_rhema_prefs", Context.MODE_PRIVATE)
@@ -228,20 +242,13 @@ fun HomeScreen(
             }
         }
         
-        val todayServices = weeklyServicesState.filter { service -> 
-            val serviceDay = dayMap[service.day] ?: DayOfWeek.SUNDAY
-            serviceDay == currentDayOfWeek
-        }.map { service ->
-            var parsedTime = LocalTime.of(23, 59)
-            try {
-                val cleanTime = service.time.replace("h", ":", ignoreCase = true).filter { it.isDigit() || it == ':' }
-                val timeParts = cleanTime.split(":")
-                if (timeParts.size >= 2) {
-                    parsedTime = LocalTime.of(timeParts[0].toInt(), timeParts[1].take(2).toInt())
-                }
-            } catch (e: Exception) {}
-            Pair(service, parsedTime)
-        }.sortedBy { it.second }
+        val todayServices = remember(scheduledServices) {
+            scheduledServices.asSequence()
+                .filter { homeServiceDays[it.service.day] == currentDayOfWeek }
+                .map { it.service to it.time }
+                .sortedBy { it.second }
+                .toList()
+        }
         
         if (todayServices.isNotEmpty()) {
             var targetServicePair = todayServices.find { it.second.isAfter(currentTime) || it.second == currentTime }
@@ -497,15 +504,15 @@ fun HomeScreen(
             }
         }
         
-        val recentVideos = contentVideosState
-            .sortedByDescending { it.id.toLongOrNull() ?: Long.MIN_VALUE }
-            .take(3)
-        val recentAudios = contentAudiosState
-            .sortedByDescending { it.id.toLongOrNull() ?: Long.MIN_VALUE }
-            .take(3)
-        val recentBooks = contentBooksState
-            .sortedByDescending { it.id.toLongOrNull() ?: Long.MIN_VALUE }
-            .take(3)
+        val recentVideos = remember(contentVideosState.toList()) {
+            contentVideosState.sortedByDescending { it.id.toLongOrNull() ?: Long.MIN_VALUE }.take(3)
+        }
+        val recentAudios = remember(contentAudiosState.toList()) {
+            contentAudiosState.sortedByDescending { it.id.toLongOrNull() ?: Long.MIN_VALUE }.take(3)
+        }
+        val recentBooks = remember(contentBooksState.toList()) {
+            contentBooksState.sortedByDescending { it.id.toLongOrNull() ?: Long.MIN_VALUE }.take(3)
+        }
         val hasMedia = recentVideos.isNotEmpty() || recentAudios.isNotEmpty() || recentBooks.isNotEmpty()
         if (hasMedia) {
             HomeSectionHeader(title = "Mídia", action = "Ver todas", onAction = { onNavigate(Screen.Content.route) })
