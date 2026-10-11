@@ -41,7 +41,7 @@ class FirestoreObserverService : Service() {
         val notification: Notification = NotificationCompat.Builder(this, channelId)
             .setContentTitle("Sincronizando Conteúdo")
             .setContentText("Aguardando atualizações em tempo real...")
-            .setSmallIcon(R.drawable.ic_notification)
+            .setSmallIcon(R.drawable.ic_notif_update)
             .build()
             
         startForeground(1001, notification)

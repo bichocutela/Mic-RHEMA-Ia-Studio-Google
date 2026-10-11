@@ -41,6 +41,23 @@ class NotificationNavigationTest {
         assertEquals("content", target("category" to "media").route)
         assertEquals("news_list", target("category" to "news").route)
     }
+    @Test fun immediateTestsUseTheRealCategoryIcons() {
+        for ((category, kind) in listOf(
+            "daily_devotional" to NotificationKind.DEVOTIONAL,
+            "next_service" to NotificationKind.SERVICE,
+            "daily_news" to NotificationKind.NEWS,
+            "discipulado" to NotificationKind.DISCIPULADO,
+            "media" to NotificationKind.MEDIA,
+            "app_update" to NotificationKind.UPDATE,
+            "ibr_content" to NotificationKind.LESSON,
+            "book" to NotificationKind.BOOK,
+            "audio" to NotificationKind.AUDIO,
+            "video" to NotificationKind.VIDEO,
+            "prayer" to NotificationKind.PRAYER)) {
+            assertEquals(kind, target("category" to "notification_test", "testCategory" to category).kind)
+        }
+        assertEquals(NotificationKind.GENERAL, target("category" to "notification_test").kind)
+    }
     @Test fun refusesExternalAndUnregisteredRoutes() {
         assertNull(NotificationNavigation.safeRoute("https://example.com"))
         assertNull(NotificationNavigation.safeRoute("unknown/123"))

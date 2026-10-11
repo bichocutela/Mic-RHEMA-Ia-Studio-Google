@@ -25,7 +25,9 @@ internal object NotificationNavigation {
 
     fun resolve(data: Map<String, String>): NotificationDestination {
         fun field(vararg keys: String) = keys.firstNotNullOfOrNull { data[it]?.trim()?.takeIf(String::isNotBlank) }.orEmpty()
-        val category = field("category").lowercase()
+        val rawCategory = field("category").lowercase()
+        // Test delivery keeps normal reminder scheduling untouched while showing its real icon.
+        val category = if (rawCategory == "notification_test") field("testCategory").lowercase() else rawCategory
         val collection = field("collection").lowercase()
         val destination = field("destination", "route")
         val id = field("documentId", "document_id", "id")
