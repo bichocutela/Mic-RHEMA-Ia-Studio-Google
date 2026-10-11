@@ -118,7 +118,7 @@ Deno.serve(async (request) => {
     const slot = notificationSlot(data);
     if (!directToken && !internal && isDailySlot(slot)) return json({ ok: true, silent: true, reason: "daily_reminder_owned_by_scheduler" });
     if (!directToken && !internal && slot !== null) {
-      const identity = `${topic}:${data.collection || data.category}:${data.documentId || data.version || title}:${slot === 19 ? body : ""}`;
+      const identity = `${topic}:${data.collection || data.category}:${data.chapterId || data.documentId || data.version || title}:${slot === 19 ? body : ""}`;
       const id = await eventDigest(identity);
       const url = new URL(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/notification_outbox/${id}`);
       url.searchParams.set("currentDocument.exists", "false");

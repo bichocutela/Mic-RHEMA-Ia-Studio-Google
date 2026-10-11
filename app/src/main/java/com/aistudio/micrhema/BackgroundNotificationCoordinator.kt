@@ -68,7 +68,7 @@ object BackgroundNotificationCoordinator {
         reconcileDailyDevotional(wm, globallyEnabled && settings.notifDailyDevotional)
         reconcileDailyNews(wm, globallyEnabled && settings.notifDailyNews)
         reconcileServiceAlerts(appContext, wm, globallyEnabled && settings.notifNextService)
-        reconcileMedia(wm, globallyEnabled && settings.notifNewMedia)
+        reconcileMedia(wm, globallyEnabled && (settings.notifNewMedia || settings.notifNewSermons))
         reconcileIbr(wm, globallyEnabled && settings.notifIbrContent && NotificationHelper.isIbrMember(appContext))
         scheduleAppUpdate(wm)
     }
@@ -140,7 +140,7 @@ object BackgroundNotificationCoordinator {
 
     private fun scheduleAppUpdate(wm: WorkManager) {
         // A consulta de versão acontece em segundo plano, sem incomodar o usuário.
-        // O primeiro ciclo só roda depois de 12h e então permanece nessa cadência.
+        // O primeiro aviso fica ancorado às 18h; os outros ciclos apenas consultam a versão.
         val request = PeriodicWorkRequestBuilder<AppUpdateWorker>(1, TimeUnit.HOURS)
             .setInitialDelay(delayUntil(18, 0), TimeUnit.MILLISECONDS)
             .setConstraints(networkConstraint)

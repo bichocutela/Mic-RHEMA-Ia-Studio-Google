@@ -245,6 +245,7 @@ object NotificationHelper {
         return title == "Novo vídeo em Mídia" || title == "Novo áudio em Mídia"
     }
 
+    @Synchronized
     fun showNotification(
         context: Context,
         title: String,
@@ -273,6 +274,8 @@ object NotificationHelper {
         val eventKey = when {
             NotificationTiming.isReminder(slot) -> "daily:$slot:${now.toLocalDate()}"
             notificationData["collection"]?.startsWith("conteudos_") == true && !destinationDocumentId.isNullOrBlank() -> "content:${notificationData["collection"]}:$destinationDocumentId"
+            !notificationData["chapterId"].isNullOrBlank() -> "lesson:${notificationData["courseId"] ?: destinationDocumentId}:${notificationData["chapterId"]}"
+            !notificationData["collection"].isNullOrBlank() && !destinationDocumentId.isNullOrBlank() -> "content:${notificationData["collection"]}:$destinationDocumentId"
             notificationData["eventKey"].isNullOrBlank().not() -> notificationData.getValue("eventKey")
             !destinationDocumentId.isNullOrBlank() -> "content:${notificationData["collection"] ?: category.name}:$destinationDocumentId"
             else -> "notice:${category.name}:$title:$message"
@@ -304,7 +307,7 @@ object NotificationHelper {
             destinationDocumentId?.takeIf(String::isNotBlank)?.let { put("documentId", it) }
         })
         val route = navigation.route
-        val grouped = slot == 14 || slot == 15 || slot == 19
+        val grouped = slot == 14 || slot == 15 || slot == 17 || slot == 19
         val id = ((if (grouped) "digest:$slot:${now.toLocalDate()}" else eventKey).hashCode() and Int.MAX_VALUE)
         val newsId = route
             ?.takeIf { it.startsWith("news_detail/") }

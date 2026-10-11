@@ -213,12 +213,14 @@ async function drainOutbox(projectId: string, accessToken: string, now: Date) {
     try {
       const payloads = items.map(d => JSON.parse(str(d.fields || {}, "payload")));
       const latest = payloads[payloads.length - 1];
-      const contentKeys = payloads.filter(p => p.data.collection?.startsWith("conteudos_") && p.data.documentId).map(p => `content:${p.data.collection}:${p.data.documentId}`);
+      const contentKeys = payloads.filter(p => p.data.collection && p.data.documentId).map(p => p.data.chapterId ? `lesson:${p.data.courseId || p.data.documentId}:${p.data.chapterId}` : `content:${p.data.collection}:${p.data.documentId}`);
       const batch = { ...latest, data: { ...latest.data, eventKey: `digest:${clock.date}:${group}`, contentKeys: JSON.stringify(contentKeys), digestTag: `micrhema-digest-${clock.date}-${clock.hour}`, expiresAt: String(Date.now() + 3600000) } };
       if (items.length > 1 && clock.hour !== 18) {
         batch.title = `${items.length} novidades no MIC Rhema`;
         batch.body = payloads.map(p => p.title).join(" • ").slice(0, 180);
         delete batch.data.documentId;
+        delete batch.data.chapterId;
+        delete batch.data.courseId;
         batch.data.title = batch.title; batch.data.body = batch.body;
       }
       const response = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/notify-fcm`, { method: "POST", headers: { "content-type": "application/json", apikey: Deno.env.get("SUPABASE_ANON_KEY") || "", "x-internal-scheduler": Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "" }, body: JSON.stringify(batch) });
@@ -251,10 +253,10 @@ Deno.serve(async (request) => {
         const cloudToken = await googleAccessToken(account, "https://www.googleapis.com/auth/cloud-platform");
         const response = await fetch(`https://cloudfunctions.googleapis.com/v1/projects/${projectId}/locations/-/functions`, { headers: { authorization: `Bearer ${cloudToken}` } });
         const result = await response.json();
-        firebaseFunctions = { status: response.status, functions: (result.functions || []).map((f: { name: string; status: string }) => ({ name: f.name, status: f.status })) };
+        firebaseFunctions = { status: response.status, reason: result.error?.message || "", functions: (result.functions || []).map((f: { name: string; status: string }) => ({ name: f.name, status: f.status })) };
         const jobs = await fetch(`https://cloudscheduler.googleapis.com/v1/projects/${projectId}/locations/us-central1/jobs`, { headers: { authorization: `Bearer ${cloudToken}` } });
         const jobData = await jobs.json();
-        firebaseSchedules = { status: jobs.status, jobs: (jobData.jobs || []).map((j: { name: string; schedule: string; timeZone: string; state: string }) => ({ name: j.name, schedule: j.schedule, timeZone: j.timeZone, state: j.state })) };
+        firebaseSchedules = { status: jobs.status, reason: jobData.error?.message || "", jobs: (jobData.jobs || []).map((j: { name: string; schedule: string; timeZone: string; state: string }) => ({ name: j.name, schedule: j.schedule, timeZone: j.timeZone, state: j.state })) };
       } catch { firebaseFunctions = { status: "unavailable" }; }
       return json({ firebaseFunctions, firebaseSchedules, ok: validation.ok, firebaseProject: projectId, firestoreReadable: true, tokenCount: tokens.length, fcmValidationStatus: validation.status, clock: fortalezaClock(now), slots: { devotional: 8, services: 10, news: 12, discipulado: 14, media: 15, updates: 18, ibr: 19, announcements: 17 } });
     }

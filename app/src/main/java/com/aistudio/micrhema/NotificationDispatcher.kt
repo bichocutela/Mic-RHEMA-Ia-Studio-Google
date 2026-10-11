@@ -21,8 +21,8 @@ object NotificationDispatcher {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val client = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS).build()
 
-    fun enqueue(topic: String, title: String, body: String, collection: String, documentId: String) {
-        dispatch(topic, null, title, body, collection, documentId, null)
+    fun enqueue(topic: String, title: String, body: String, collection: String, documentId: String, chapterId: String? = null) {
+        dispatch(topic, null, title, body, collection, documentId, null, chapterId)
     }
 
     fun enqueueToken(token: String, title: String, body: String, collection: String, documentId: String, destination: String) {
@@ -37,7 +37,8 @@ object NotificationDispatcher {
         body: String,
         collection: String,
         documentId: String,
-        requestedDestination: String?
+        requestedDestination: String?,
+        chapterId: String? = null
     ) {
         if (deviceToken == null && collection in scheduledOnlyCollections) return
         val baseUrl = BuildConfig.SUPABASE_URL.trim().trimEnd('/')
@@ -55,9 +56,9 @@ object NotificationDispatcher {
                         "daily_devotional"
                     }
                     "ibr_courses" -> {
-                        finalTitle = "Novo curso no IBR"
+                        finalTitle = if (chapterId.isNullOrBlank()) "Novo curso no IBR" else "Nova aula no IBR"
                         destination = "ibr"
-                        "courses"
+                        if (chapterId.isNullOrBlank()) "courses" else "ibr_content"
                     }
                     "conteudos_videos" -> {
                         destination = "content"
@@ -100,7 +101,9 @@ object NotificationDispatcher {
                         .put("collection", collection)
                         .put("documentId", documentId)
                         .put("category", category)
-                        .put("destination", destination))
+                        .put("destination", destination).apply {
+                            if (!chapterId.isNullOrBlank()) { put("chapterId", chapterId); put("courseId", documentId) }
+                        })
                 topic?.takeIf { it.isNotBlank() }?.let { payload.put("topic", it) }
                 deviceToken?.takeIf { it.isNotBlank() }?.let { payload.put("token", it) }
 

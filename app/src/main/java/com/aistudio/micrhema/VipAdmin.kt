@@ -1300,6 +1300,7 @@ fun EditVipIbrSection() {
                                         val index = ibrCoursesState.indexOf(targetCourse)
                                         if (index != -1) {
                                             addIbrCourse(updatedCourse, notifyUsers = false)
+                                            NotificationDispatcher.enqueue("ibr_users", "Nova aula no IBR", newChapter.title, "ibr_courses", updatedCourse.id, newChapter.id)
                                         }
                                         selectedCourseForChapter = updatedCourse
                                     }
