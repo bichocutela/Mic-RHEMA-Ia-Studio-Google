@@ -21,7 +21,7 @@ import java.util.concurrent.TimeUnit
 import java.util.Calendar
 
 object NotificationHelper {
-    private const val CHANNEL_ID = "micrhema_notifications"
+    private const val CHANNEL_ID = "micrhema_reminders_v2"
     private const val CHANNEL_NAME = "Notificações MIC Rhema"
     private const val CHANNEL_DESCRIPTION = "Alertas de novos devocionais, eventos e notícias"
     private const val DEDUPE_PREFS = "micrhema_notification_dedupe"
@@ -29,89 +29,13 @@ object NotificationHelper {
     private const val DEFAULT_DEDUPE_TTL_MS = 6L * 60L * 60L * 1000L
     const val EXTRA_NOTIFICATION_DESTINATION = "notification_destination"
 
-    fun scheduleDailyReminder(context: Context) {
-        val currentDate = Calendar.getInstance()
-        val dueDate = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 8)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-        }
-        if (dueDate.before(currentDate)) dueDate.add(Calendar.HOUR_OF_DAY, 24)
-        val timeDiff = dueDate.timeInMillis - currentDate.timeInMillis
-        val dailyWorkRequest = PeriodicWorkRequestBuilder<DevotionalReminderWorker>(24, TimeUnit.HOURS)
-            .setInitialDelay(timeDiff, TimeUnit.MILLISECONDS)
-            .build()
-        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-            "DailyDevotionalReminder",
-            androidx.work.ExistingPeriodicWorkPolicy.UPDATE,
-            dailyWorkRequest
-        )
-    }
-
-    fun scheduleServiceAlert(context: Context) {
-        val syncRequest = androidx.work.PeriodicWorkRequestBuilder<ServiceAlertWorker>(4, TimeUnit.HOURS).build()
-        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-            "ServiceAlertWorker",
-            androidx.work.ExistingPeriodicWorkPolicy.KEEP,
-            syncRequest
-        )
-    }
-
-    fun scheduleDevotionalSync(context: Context) {
-        val syncRequest = androidx.work.PeriodicWorkRequestBuilder<DevotionalSyncWorker>(1, TimeUnit.HOURS).build()
-        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-            "DevotionalSyncWorker",
-            androidx.work.ExistingPeriodicWorkPolicy.KEEP,
-            syncRequest
-        )
-    }
-
-    fun scheduleDailyNews(context: Context) {
-        val now = Calendar.getInstance()
-        val nextNoon = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 12)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-            if (!after(now)) add(Calendar.DAY_OF_YEAR, 1)
-        }
-        val delay = (nextNoon.timeInMillis - now.timeInMillis).coerceAtLeast(0L)
-        val request = PeriodicWorkRequestBuilder<MiddayNewsWorker>(24, TimeUnit.HOURS)
-            .setInitialDelay(delay, TimeUnit.MILLISECONDS)
-            .build()
-        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-            "MiddayNewsWorker",
-            androidx.work.ExistingPeriodicWorkPolicy.UPDATE,
-            request
-        )
-    }
-
-    fun scheduleMediaSync(context: Context) {
-        val request = PeriodicWorkRequestBuilder<MediaUpdateWorker>(30, TimeUnit.MINUTES).build()
-        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-            "MediaUpdateWorker",
-            androidx.work.ExistingPeriodicWorkPolicy.KEEP,
-            request
-        )
-    }
-
-    fun scheduleIbrContentSync(context: Context) {
-        val request = androidx.work.PeriodicWorkRequestBuilder<IbrContentWorker>(1, TimeUnit.HOURS).build()
-        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-            "IbrContentWorker",
-            androidx.work.ExistingPeriodicWorkPolicy.KEEP,
-            request
-        )
-    }
-
-    fun scheduleAppUpdateCheck(context: Context) {
-        val request = androidx.work.PeriodicWorkRequestBuilder<AppUpdateWorker>(12, TimeUnit.HOURS).build()
-        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-            "AppUpdateWorker",
-            androidx.work.ExistingPeriodicWorkPolicy.KEEP,
-            request
-        )
-    }
+    fun scheduleDailyReminder(context: Context) = BackgroundNotificationCoordinator.reconcile(context)
+    fun scheduleServiceAlert(context: Context) = BackgroundNotificationCoordinator.reconcile(context)
+    fun scheduleDevotionalSync(context: Context) = SilentContentSyncManager.enqueueImmediate(context)
+    fun scheduleDailyNews(context: Context) = BackgroundNotificationCoordinator.reconcile(context)
+    fun scheduleMediaSync(context: Context) = BackgroundNotificationCoordinator.reconcile(context)
+    fun scheduleIbrContentSync(context: Context) = BackgroundNotificationCoordinator.reconcile(context)
+    fun scheduleAppUpdateCheck(context: Context) = BackgroundNotificationCoordinator.reconcile(context)
 
     fun applyAdminNotificationPolicy(context: Context, enabled: Boolean) {
         context.getSharedPreferences("micrhema_admin_settings", Context.MODE_PRIVATE)
@@ -128,6 +52,9 @@ object NotificationHelper {
             }
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
+            notificationManager.createNotificationChannel(NotificationChannel("micrhema_content_v2", "Novos conteúdos", NotificationManager.IMPORTANCE_DEFAULT))
+            notificationManager.createNotificationChannel(NotificationChannel("micrhema_updates_v2", "Atualizações do aplicativo", NotificationManager.IMPORTANCE_LOW))
+            notificationManager.createNotificationChannel(NotificationChannel("micrhema_prayer_v2", "Pedidos e respostas de oração", NotificationManager.IMPORTANCE_DEFAULT))
         }
     }
 
@@ -219,9 +146,14 @@ object NotificationHelper {
         NotificationKind.GENERAL -> R.drawable.ic_notification
     }
 
+    private fun notificationColor(context: Context): Int {
+        val dark = context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK == android.content.res.Configuration.UI_MODE_NIGHT_YES
+        return if (dark) android.graphics.Color.rgb(144, 202, 249) else android.graphics.Color.rgb(21, 101, 192)
+    }
+
     private fun notificationIconBitmap(context: Context, kind: NotificationKind) = runCatching {
         ContextCompat.getDrawable(context, smallIconFor(kind))?.mutate()?.apply {
-            setTint(android.graphics.Color.rgb(20, 52, 84))
+            setTint(notificationColor(context))
         }?.toBitmap(width = 128, height = 128)
     }.getOrNull()
 
@@ -237,17 +169,12 @@ object NotificationHelper {
         return prefs.getBoolean("notificationsEnabled", adminAppSettingsState.value.notificationsEnabled)
     }
 
-    fun rememberMediaIds(context: Context, ids: Collection<String>) {
-        if (ids.isEmpty()) return
+    fun rememberMediaIds(context: Context, ids: Collection<String>, collection: String = "") {
+        if (ids.isEmpty() || collection.isBlank()) return
         val prefs = context.getSharedPreferences("micrhema_prefs", Context.MODE_PRIVATE)
-        val known = prefs.getStringSet("notified_media_ids", emptySet())?.toMutableSet() ?: mutableSetOf()
-        known.addAll(ids)
-        if (known.size > 100) {
-            val trimmed = known.toList().sortedByDescending { it.toLongOrNull() ?: 0L }.take(100).toSet()
-            known.clear()
-            known.addAll(trimmed)
-        }
-        prefs.edit().putStringSet("notified_media_ids", known).apply()
+        val known = prefs.getStringSet("notified_media_keys_v2", emptySet()).orEmpty().toMutableSet()
+        known.addAll(ids.map { "$collection:$it" })
+        prefs.edit().putStringSet("notified_media_keys_v2", known).apply()
     }
 
     /**
@@ -327,13 +254,48 @@ object NotificationHelper {
         destinationRoute: String? = null,
         destinationDocumentId: String? = null,
         notificationData: Map<String, String> = emptyMap()
-    ) {
+    ): Boolean {
         // Esses dois títulos pertenciam a listeners locais legados que duplicavam o FCM oficial.
         // O fallback em segundo plano usa títulos próprios e continua funcionando normalmente.
-        if (isDeprecatedRealtimeDuplicate(title)) return
-        if (respectPreferences && !isAllowed(context, category)) return
+        if (isDeprecatedRealtimeDuplicate(title)) return false
+        if (respectPreferences && !isAllowed(context, category)) return false
         createNotificationChannel(context)
-        if (!hasNotificationPermission(context)) return
+        if (!hasNotificationPermission(context)) return false
+
+        val now = NotificationTiming.now()
+        val slot = NotificationTiming.slot(category.name, notificationData["collection"].orEmpty(), destinationRoute.orEmpty())
+        val expired = notificationData["expiresAt"]?.toLongOrNull()?.let { it < System.currentTimeMillis() } == true
+        if (expired && NotificationTiming.isReminder(slot)) return false
+        if (NotificationTiming.isReminder(slot)) {
+            if (now.hour != slot) return false
+            if (notificationData["notificationDate"]?.let { it != now.toLocalDate().toString() } == true) return false
+        }
+        val eventKey = when {
+            NotificationTiming.isReminder(slot) -> "daily:$slot:${now.toLocalDate()}"
+            notificationData["collection"]?.startsWith("conteudos_") == true && !destinationDocumentId.isNullOrBlank() -> "content:${notificationData["collection"]}:$destinationDocumentId"
+            notificationData["eventKey"].isNullOrBlank().not() -> notificationData.getValue("eventKey")
+            !destinationDocumentId.isNullOrBlank() -> "content:${notificationData["collection"] ?: category.name}:$destinationDocumentId"
+            else -> "notice:${category.name}:$title:$message"
+        }
+        val effectiveSlot = slot ?: if (category != Category.PRAYER && (now.hour < 7 || now.hour >= 22)) 9 else null
+        if (effectiveSlot != null && now.hour != effectiveSlot) {
+            val data = androidx.work.Data.Builder().putString("title", title).putString("message", message)
+                .putString("category", category.name).putBoolean("respect", respectPreferences)
+                .putString("route", destinationRoute).putString("documentId", destinationDocumentId)
+                .putString("data", Gson().toJson(notificationData)).build()
+            val request = androidx.work.OneTimeWorkRequestBuilder<PendingNotificationWorker>()
+                .setInitialDelay(NotificationTiming.delayMillis(effectiveSlot, now), TimeUnit.MILLISECONDS).setInputData(data).build()
+            WorkManager.getInstance(context).enqueueUniqueWork("PendingNotice:$eventKey", androidx.work.ExistingWorkPolicy.REPLACE, request)
+            return true
+        }
+        val contentKeys: List<String> = runCatching {
+            val type = object : com.google.gson.reflect.TypeToken<List<String>>() {}.type
+            Gson().fromJson<List<String>>(notificationData["contentKeys"] ?: "[]", type)
+        }.getOrDefault(emptyList())
+        if (contentKeys.isNotEmpty()) {
+            val fresh = contentKeys.map { claimNotificationEvent(context, it, TimeUnit.DAYS.toMillis(8)) }.any { it }
+            if (!fresh) return false
+        } else if (!claimNotificationEvent(context, eventKey, TimeUnit.DAYS.toMillis(8))) return false
 
         val navigation = NotificationNavigation.resolve(buildMap {
             putAll(notificationData)
@@ -342,7 +304,8 @@ object NotificationHelper {
             destinationDocumentId?.takeIf(String::isNotBlank)?.let { put("documentId", it) }
         })
         val route = navigation.route
-        val id = ("$route|$title|$message".hashCode() and Int.MAX_VALUE)
+        val grouped = slot == 14 || slot == 15 || slot == 19
+        val id = ((if (grouped) "digest:$slot:${now.toLocalDate()}" else eventKey).hashCode() and Int.MAX_VALUE)
         val newsId = route
             ?.takeIf { it.startsWith("news_detail/") }
             ?.substringAfter("news_detail/")
@@ -371,9 +334,17 @@ object NotificationHelper {
             android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT
         )
 
-        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
+        val channelId = when {
+            destinationRoute == "about" -> "micrhema_updates_v2"
+            category == Category.PRAYER -> "micrhema_prayer_v2"
+            grouped -> "micrhema_content_v2"
+            else -> CHANNEL_ID
+        }
+        val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(smallIconFor(navigation.kind))
-            .setColor(android.graphics.Color.rgb(20, 52, 84))
+            .setColor(notificationColor(context))
+            .setOnlyAlertOnce(true)
+            .setGroup("micrhema-$channelId")
             .setContentTitle(title)
             .setContentText(message)
             .setStyle(NotificationCompat.BigTextStyle().bigText(message))
@@ -381,12 +352,34 @@ object NotificationHelper {
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
 
+        if (grouped) {
+            val prefs = context.getSharedPreferences("micrhema_notice_digests", Context.MODE_PRIVATE)
+            val digestKey = "$slot:${now.toLocalDate()}"
+            val lines = prefs.getStringSet(digestKey, emptySet()).orEmpty().toMutableSet()
+            lines.add("$title — $message")
+            // The digest state is only needed for today's notifications.
+            prefs.edit().clear().putStringSet(digestKey, lines.toList().takeLast(10).toSet()).apply()
+            if (lines.size > 1) {
+                val style = NotificationCompat.InboxStyle().setBigContentTitle("${lines.size} novidades no MIC Rhema")
+                lines.forEach { style.addLine(it) }
+                builder.setContentTitle("${lines.size} novidades no MIC Rhema").setContentText(lines.joinToString(" • ")).setStyle(style)
+                val summaryIntent = android.content.Intent(context, MainActivity::class.java).apply {
+                    flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    data = android.net.Uri.parse("micrhema://notification/$id")
+                    putExtra(EXTRA_NOTIFICATION_DESTINATION, destinationRoute ?: route)
+                }
+                builder.setContentIntent(android.app.PendingIntent.getActivity(context, id, summaryIntent,
+                    android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT))
+            }
+        }
         notificationIconBitmap(context, navigation.kind)?.let { builder.setLargeIcon(it) }
 
         try {
             NotificationManagerCompat.from(context).notify(id, builder.build())
+            return true
         } catch (e: SecurityException) {
             android.util.Log.w("NotificationHelper", "Permissão de notificação não concedida", e)
+            return false
         }
     }
 }

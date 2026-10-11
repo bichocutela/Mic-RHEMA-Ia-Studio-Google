@@ -17,7 +17,8 @@ class DevotionalReminderWorker(
 ) : CoroutineWorker(context, workerParams) {
 
     override suspend fun doWork(): Result {
-        val today = LocalDate.now()
+        if (NotificationTiming.now().hour != 8) return Result.success()
+        val today = NotificationTiming.now().toLocalDate()
         val prefs = context.getSharedPreferences("micrhema_prefs", Context.MODE_PRIVATE)
         val dateKey = today.toString()
         if (prefs.getString("last_daily_devotional_date", null) == dateKey) return Result.success()

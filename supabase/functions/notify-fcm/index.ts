@@ -1,3 +1,4 @@
+import { notificationSlot, isDailySlot, eventDigest } from "./notification-policy.ts";
 import { notificationPresentation } from "./notification-presentation.ts";
 import { importPKCS8, SignJWT } from "npm:jose@5.10.0";
 
@@ -71,10 +72,10 @@ function acceptsWebToken(doc: WebToken, category: string, topic: string) {
 }
 
 async function send(projectId: string, accessToken: string, target: Record<string, string>, title: string, body: string, data: Record<string, string>, includeWeb = true) {
-  const message: Record<string, unknown> = { ...target, data, android: { priority: "high", ttl: "86400s" } };
+  const message: Record<string, unknown> = { ...target, data, android: { priority: "high", ttl: "3600s" } };
   if (includeWeb) message.webpush = {
-    headers: { Urgency: "high" },
-    notification: { title, body, icon: notificationPresentation(data, DEFAULT_LINK).icon, badge: notificationPresentation(data, DEFAULT_LINK).badge, tag: `micrhema-${data.category || "general"}-${data.documentId || "update"}` },
+    headers: { Urgency: "normal", TTL: "3600" },
+    notification: { title, body, icon: notificationPresentation(data, DEFAULT_LINK).icon, badge: notificationPresentation(data, DEFAULT_LINK).badge, tag: data.digestTag || `micrhema-${data.category || "general"}-${data.documentId || "update"}` },
     fcm_options: { link: notificationPresentation(data, DEFAULT_LINK).link },
   };
   const response = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
@@ -113,6 +114,21 @@ Deno.serve(async (request) => {
     data.category = data.category || "content_updates";
     const androidOnly = isAndroidOnlyCategory(data.category);
 
+    const internal = request.headers.get("x-internal-scheduler") === Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") && Boolean(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"));
+    const slot = notificationSlot(data);
+    if (!directToken && !internal && isDailySlot(slot)) return json({ ok: true, silent: true, reason: "daily_reminder_owned_by_scheduler" });
+    if (!directToken && !internal && slot !== null) {
+      const identity = `${topic}:${data.collection || data.category}:${data.documentId || data.version || title}:${slot === 19 ? body : ""}`;
+      const id = await eventDigest(identity);
+      const url = new URL(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/notification_outbox/${id}`);
+      url.searchParams.set("currentDocument.exists", "false");
+      const response = await fetch(url, { method: "PATCH", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify({ fields: {
+        payload: { stringValue: JSON.stringify({ topic, title, body, data }) },
+        slot: { integerValue: String(slot) }, createdAt: { timestampValue: new Date().toISOString() }, state: { stringValue: "pending" },
+      } }) });
+      if (!response.ok && response.status !== 409 && response.status !== 412) throw new Error(`Fila de avisos indisponível: ${response.status}`);
+      return json({ ok: true, queued: true, duplicate: response.status === 409 || response.status === 412, slot });
+    }
     const primary = await send(projectId, token, directToken ? { token: directToken } : { topic }, title, body, data, !androidOnly);
     if (!primary.ok) {
       console.error("FCM rejected notification", primary.status, primary.body);

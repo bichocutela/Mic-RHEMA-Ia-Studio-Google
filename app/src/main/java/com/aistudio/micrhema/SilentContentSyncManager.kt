@@ -134,14 +134,14 @@ object SilentContentSyncManager {
         if (!isNewerVersion(BuildConfig.VERSION_NAME, manifest.minimumAppVersion)) return
 
         val eventKey = "minimum_app_version:${manifest.minimumAppVersion}"
-        if (!NotificationHelper.claimNotificationEvent(context, eventKey)) return
         NotificationHelper.showNotification(
             context = context,
             title = "Atualização necessária",
             message = "Atualize o MIC Rhema para continuar recebendo todos os recursos.",
             category = NotificationHelper.Category.CONTENT_UPDATES,
             respectPreferences = false,
-            destinationRoute = Screen.About.route
+            destinationRoute = Screen.About.route,
+            notificationData = mapOf("eventKey" to eventKey)
         )
     }
 

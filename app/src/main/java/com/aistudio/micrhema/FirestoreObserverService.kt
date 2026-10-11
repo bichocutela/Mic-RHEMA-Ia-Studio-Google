@@ -104,15 +104,7 @@ class FirestoreObserverService : Service() {
                     val removed = snapshot.documentChanges.count { it.type == DocumentChange.Type.REMOVED }
                     
                     if (added > 0 || modified > 0 || removed > 0) {
-                        NotificationHelper.showNotification(
-                            context = this,
-                            title = "$name Atualizado",
-                            message = "O conteúdo foi modificado (Novos: $added, Editados: $modified, Removidos: $removed)",
-                            category = NotificationHelper.Category.CONTENT_UPDATES,
-                            respectPreferences = true,
-                            notificationData = mapOf("collection" to collection),
-                            destinationDocumentId = if (added + modified == 1) snapshot.documentChanges.firstOrNull { it.type != DocumentChange.Type.REMOVED }?.document?.id else null
-                        )
+                        SilentContentSyncManager.enqueueImmediate(this, force = true)
                     }
                 }
                 isFirst = false

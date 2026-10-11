@@ -15,8 +15,9 @@ class MiddayNewsWorker(
 ) : CoroutineWorker(context, workerParams) {
 
     override suspend fun doWork(): Result {
+        if (NotificationTiming.now().hour != 12) return Result.success()
         val prefs = context.getSharedPreferences("micrhema_prefs", Context.MODE_PRIVATE)
-        val today = LocalDate.now().toString()
+        val today = NotificationTiming.now().toLocalDate().toString()
         if (prefs.getString("last_daily_news_date", null) == today) return Result.success()
 
         return try {

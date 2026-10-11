@@ -24,6 +24,7 @@ class ServiceAlertWorker(
 ) : CoroutineWorker(context, workerParams) {
 
     override suspend fun doWork(): Result {
+        if (NotificationTiming.now().hour != 10) return Result.success()
         return try {
             if (com.google.firebase.FirebaseApp.getApps(context).isEmpty()) return Result.retry()
 
@@ -41,21 +42,16 @@ class ServiceAlertWorker(
                 }
                 .filter { it.isApproved }
 
-            val workManager = WorkManager.getInstance(context)
-            val desiredNames = linkedSetOf<String>()
-            val today = LocalDate.now()
-
-            services.forEach { service ->
-                val serviceDate = resolveNextServiceDate(service, today) ?: return@forEach
-                if (serviceDate.isBefore(today) || serviceDate.isAfter(today.plusDays(8))) return@forEach
-
-                scheduleMoment(workManager, service, serviceDate.minusDays(1), ServiceMomentNotificationWorker.KIND_DAY_BEFORE)
-                    ?.let(desiredNames::add)
-                scheduleMoment(workManager, service, serviceDate, ServiceMomentNotificationWorker.KIND_TODAY)
-                    ?.let(desiredNames::add)
+            val today = NotificationTiming.now().toLocalDate()
+            val lines = services.mapNotNull { service ->
+                val date = resolveNextServiceDate(service, today) ?: return@mapNotNull null
+                val label = when (date) { today -> "Hoje"; today.plusDays(1) -> "Amanhã"; else -> return@mapNotNull null }
+                "$label: ${service.title}${service.time.takeIf { it.isNotBlank() }?.let { " às $it" }.orEmpty()}"
             }
-
-            reconcileStaleMoments(context, workManager, desiredNames)
+            if (lines.isNotEmpty()) NotificationHelper.showNotification(
+                context, "Programação dos cultos", lines.joinToString(" • "),
+                NotificationHelper.Category.NEXT_SERVICE, destinationRoute = "services"
+            )
             Result.success()
         } catch (e: Exception) {
             Log.e("ServiceAlertWorker", "Falha ao planejar notificações de culto", e)

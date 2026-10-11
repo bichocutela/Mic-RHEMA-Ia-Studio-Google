@@ -13,6 +13,7 @@ class IbrContentWorker(
 ) : CoroutineWorker(context, workerParams) {
 
     override suspend fun doWork(): Result {
+        if (NotificationTiming.now().hour != 19) return Result.success()
         return try {
             if (!NotificationHelper.isIbrMember(context)) return Result.success()
             if (com.google.firebase.FirebaseApp.getApps(context).isEmpty()) return Result.success()

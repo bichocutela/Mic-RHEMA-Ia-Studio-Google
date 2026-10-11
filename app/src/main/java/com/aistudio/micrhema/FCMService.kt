@@ -64,28 +64,13 @@ class FCMService : FirebaseMessagingService() {
             return
         }
 
-        // Conteúdo pode chegar pelo FCM e também pelo WorkManager. A chave abaixo garante
-        // que apenas uma dessas fontes mostre a notificação daquele documento.
         val mediaCollections = setOf("conteudos_videos", "conteudos_audios", "conteudos_books", "conteudos_albums")
-        val eventKey = when {
-            collection in mediaCollections && !destinationDocumentId.isNullOrBlank() ->
-                "content:$collection:$destinationDocumentId"
-            version.isNotBlank() && isAppUpdate ->
-                "app_update:$version"
-            collection.isNotBlank() && !destinationDocumentId.isNullOrBlank() ->
-                "fcm:$collection:$destinationDocumentId:${category.name}"
-            remoteMessage.messageId?.isNotBlank() == true -> "fcm_message:${remoteMessage.messageId}"
-            else -> ""
-        }
-
         if (version.isNotBlank() && isAppUpdate) {
             val prefs = getSharedPreferences("micrhema_update_notifications", Context.MODE_PRIVATE)
             if (prefs.getString("last_notified_version", "") == version) return
         }
 
-        if (eventKey.isNotBlank() && !NotificationHelper.claimNotificationEvent(this, eventKey)) return
-
-        NotificationHelper.showNotification(
+        val accepted = NotificationHelper.showNotification(
             context = this,
             title = title,
             message = message,
@@ -96,10 +81,10 @@ class FCMService : FirebaseMessagingService() {
             notificationData = remoteMessage.data
         )
 
-        if (collection in mediaCollections && !destinationDocumentId.isNullOrBlank()) {
-            NotificationHelper.rememberMediaIds(this, listOf(destinationDocumentId))
+        if (accepted && collection in mediaCollections && !destinationDocumentId.isNullOrBlank()) {
+            NotificationHelper.rememberMediaIds(this, listOf(destinationDocumentId), collection)
         }
-        if (version.isNotBlank() && isAppUpdate && NotificationHelper.hasNotificationPermission(this)) {
+        if (accepted && version.isNotBlank() && isAppUpdate && NotificationTiming.now().hour == 18 && NotificationHelper.hasNotificationPermission(this)) {
             getSharedPreferences("micrhema_update_notifications", Context.MODE_PRIVATE)
                 .edit()
                 .putString("last_notified_version", version)

@@ -30,6 +30,8 @@ class AppUpdateWorker(
                     PREFS_NAME,
                     Context.MODE_PRIVATE
                 )
+                if (NotificationTiming.now().hour != 18) return Result.success()
+                if (prefs.getString(KEY_LAST_NOTIFIED_VERSION, "") == info.latestVersion) return Result.success()
                 val now = System.currentTimeMillis()
                 val lastNotifiedAt = prefs.getLong(KEY_LAST_NOTIFIED_AT, 0L)
                 val elapsed = now - lastNotifiedAt
@@ -42,14 +44,16 @@ class AppUpdateWorker(
                     return Result.success()
                 }
 
-                NotificationHelper.showNotification(
+                val accepted = NotificationHelper.showNotification(
                     context = applicationContext,
                     title = "Tem atualização nova!",
                     message = "O MIC Rhema ${info.latestVersion} já está disponível.",
                     category = NotificationHelper.Category.CONTENT_UPDATES,
                     respectPreferences = true,
-                    destinationRoute = Screen.About.route
+                    destinationRoute = Screen.About.route,
+                    notificationData = mapOf("version" to info.latestVersion, "eventKey" to "app_update:${info.latestVersion}")
                 )
+                if (!accepted) return Result.success()
                 prefs.edit()
                     .putString(KEY_LAST_NOTIFIED_VERSION, info.latestVersion)
                     .putLong(KEY_LAST_NOTIFIED_AT, now)

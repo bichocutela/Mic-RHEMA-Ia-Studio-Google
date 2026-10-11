@@ -1105,20 +1105,13 @@ fun EditVipIbrSection() {
                                     chapters = mutableStateListOf()
                                 )
                                 addIbrCourse(newCourse)
-                                NotificationHelper.showNotification(
-                                    context,
-                                    "Curso Criado! 🎓",
-                                    "O curso '$courseTitle' foi adicionado com sucesso.",
-                                    category = NotificationHelper.Category.COURSES,
-                                    respectPreferences = false,
-                                    notificationData = mapOf("collection" to "ibr_courses", "documentId" to newCourse.id)
-                                )
+                                android.widget.Toast.makeText(context, "Curso criado com sucesso.", android.widget.Toast.LENGTH_SHORT).show()
                                 courseTitle = ""
                                 courseDescription = ""
                                 courseImageUrl = ""
                                 showCreateCourseForm = false
                             } else {
-                                NotificationHelper.showNotification(context, "Erro", "Preencha o título do curso.")
+                                android.widget.Toast.makeText(context, "Preencha o título do curso.", android.widget.Toast.LENGTH_SHORT).show()
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
@@ -1306,19 +1299,12 @@ fun EditVipIbrSection() {
                                         val updatedCourse = targetCourse.copy(chapters = updatedChapters)
                                         val index = ibrCoursesState.indexOf(targetCourse)
                                         if (index != -1) {
-                                            addIbrCourse(updatedCourse)
+                                            addIbrCourse(updatedCourse, notifyUsers = false)
                                         }
                                         selectedCourseForChapter = updatedCourse
                                     }
                                     
-                                    NotificationHelper.showNotification(
-                                        context,
-                                        "Aula Adicionada! 🎓",
-                                        "A aula '$chapterTitle' foi adicionada ao curso '${targetCourse?.title}'",
-                                        category = NotificationHelper.Category.IBR_CONTENT,
-                                        respectPreferences = false,
-                                        notificationData = mapOf("courseId" to selectedCourseForChapter!!.id, "chapterId" to newChapter.id)
-                                    )
+                                    android.widget.Toast.makeText(context, "Aula adicionada com sucesso.", android.widget.Toast.LENGTH_SHORT).show()
                                     // Clear form
                                     chapterTitle = ""
                                     chapterDescription = ""
@@ -1332,7 +1318,7 @@ fun EditVipIbrSection() {
                                     isYoutube = false
                                     showAddChapterForm = false
                                 } else {
-                                    NotificationHelper.showNotification(context, "Erro", "Preencha o título da aula.")
+                                    android.widget.Toast.makeText(context, "Preencha o título da aula.", android.widget.Toast.LENGTH_SHORT).show()
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),

@@ -1270,10 +1270,10 @@ fun removeContentPhotoAlbum(item: ContentPhotoAlbum) {
     }
 }
 
-fun addIbrCourse(item: IbrCourse) {
+fun addIbrCourse(item: IbrCourse, notifyUsers: Boolean = true) {
     if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isNotEmpty()) {
         Firebase.firestore.collection("ibr_courses").document(item.id).set(item)
-            .addOnSuccessListener { NotificationDispatcher.enqueue("ibr_users", "Novo conteúdo IBR disponível", item.title, "ibr_courses", item.id) }
+            .addOnSuccessListener { if (notifyUsers) NotificationDispatcher.enqueue("ibr_users", "Novo conteúdo IBR disponível", item.title, "ibr_courses", item.id) }
     }
 }
 fun removeIbrCourse(item: IbrCourse) {

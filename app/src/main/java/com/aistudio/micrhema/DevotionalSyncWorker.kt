@@ -31,18 +31,6 @@ class DevotionalSyncWorker(
                 val prefs = context.getSharedPreferences("micrhema_prefs", Context.MODE_PRIVATE)
                 val lastSeenId = prefs.getString("last_notified_devotional_id", null)
 
-                if (lastSeenId != null && lastSeenId != latestId) {
-                    NotificationHelper.showNotification(
-                        context = context,
-                        title = "Novo Devocional Disponível!",
-                        message = latestTitle,
-                        category = NotificationHelper.Category.DAILY_DEVOTIONAL,
-                        respectPreferences = true,
-                        destinationRoute = "devotionals",
-                        destinationDocumentId = latestId
-                    )
-                }
-
                 prefs.edit().putString("last_notified_devotional_id", latestId).apply()
             }
             return Result.success()

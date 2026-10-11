@@ -4,16 +4,14 @@ const admin = require("firebase-admin");
 admin.initializeApp();
 
 async function sendTopicNotification(topic, title, body, data = {}) {
-  const message = {
-    topic,
-      notification: { title, body },
-    data: Object.fromEntries(
-      Object.entries({ ...data, category: data.category || "content_updates" })
-        .map(([key, value]) => [key, String(value)])
-    ),
-  };
-
-  return admin.messaging().send(message);
+  // All publication triggers use the same durable queue as Android and PWA.
+  // FIREBASE_SERVICE_ACCOUNT_JSON already identifies this project on Supabase.
+  const response = await fetch("https://cwphbkdtorfpgmnlafqb.supabase.co/functions/v1/notify-fcm", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ topic, title, body, data }),
+  });
+  if (!response.ok) throw new Error(`Notification queue rejected request: ${response.status}`);
+  return response.json();
 }
 
 function collectionUpdate(collection, topic, title, body) {
@@ -21,45 +19,24 @@ function collectionUpdate(collection, topic, title, body) {
     .document(`${collection}/{documentId}`)
     .onCreate(async (snapshot) => {
       const data = snapshot.data() || {};
+      if (data.isApproved === false || data.isPublished === false || Number(data.scheduledPublishAt || 0) > Date.now()) return null;
+      const category = collection === "ibr_courses" ? "courses" : collection.startsWith("conteudos_") ? (collection === "conteudos_videos" ? "sermons" : "media") : "content_updates";
       const itemTitle = data.title || data.name || title;
       const resolvedTitle = title.replace("{title}", itemTitle);
       const itemBody = body.replace("{title}", itemTitle);
       await sendTopicNotification(topic, resolvedTitle, itemBody, {
         documentId: snapshot.id,
-        collection,
+        collection, category,
       });
       return null;
     });
 }
 
+// Kept as no-op exports for a safe deployment over legacy functions.
+// The Android fallback owns its daily 08h reminder; the Supabase cron owns PWA.
 exports.dailyDevotionalReminder = functions.pubsub.schedule("0 8 * * *")
-  .timeZone("America/Sao_Paulo")
-  .onRun(async () => {
-    const snapshot = await admin.firestore()
-      .collection("devocionais")
-      .orderBy("date", "desc")
-      .limit(1)
-      .get();
-
-    if (snapshot.empty) return null;
-
-    const doc = snapshot.docs[0];
-    const dev = doc.data();
-    await sendTopicNotification(
-      "all_users",
-      `Devocional Diário: ${dev.title || "Nova Palavra"}`,
-      dev.verse || "Tempo para se fortalecer com a Palavra.",
-      { collection: "devocionais", documentId: doc.id, category: "daily_devotional" }
-    );
-    return null;
-  });
-
-exports.notifyNewDevotional = collectionUpdate(
-  "devocionais",
-  "all_users",
-  "Novo devocional disponível",
-  "Confira agora: {title}"
-);
+  .timeZone("America/Fortaleza").onRun(async () => null);
+exports.notifyNewDevotional = functions.firestore.document("devocionais/{documentId}").onCreate(async () => null);
 
 exports.notifyNewBook = collectionUpdate(
   "conteudos_books",
@@ -96,12 +73,7 @@ exports.notifyNewIbrContent = collectionUpdate(
   "Confira o novo conteúdo: {title}"
 );
 
-exports.notifyNewEvent = collectionUpdate(
-  "cultos_agenda",
-  "all_users",
-  "Hoje tem {title}",
-  "Confira a programação e os horários."
-);
+exports.notifyNewEvent = functions.firestore.document("cultos_agenda/{documentId}").onCreate(async () => null);
 
 exports.notifyNewMemberContent = collectionUpdate(
   "membros_conteudos",

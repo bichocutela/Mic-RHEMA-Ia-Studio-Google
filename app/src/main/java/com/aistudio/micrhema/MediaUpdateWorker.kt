@@ -27,7 +27,7 @@ class MediaUpdateWorker(
 
             val db = FirebaseFirestore.getInstance()
             val prefs = context.getSharedPreferences("micrhema_prefs", Context.MODE_PRIVATE)
-            val knownIds = prefs.getStringSet("notified_media_ids", emptySet())?.toMutableSet() ?: mutableSetOf()
+            val knownIds = prefs.getStringSet("notified_media_keys_v2", emptySet())?.toMutableSet() ?: mutableSetOf()
 
             val videos = db.collection("conteudos_videos").get().await().documents.map { document ->
                 MediaCandidate(
@@ -49,15 +49,13 @@ class MediaUpdateWorker(
             val allItems = (videos + audios).sortedByDescending { it.id.toLongOrNull() ?: 0L }
 
             if (allItems.isEmpty()) return Result.success()
-            if (knownIds.isEmpty()) {
-                prefs.edit().putStringSet("notified_media_ids", allItems.map { it.id }.toSet()).apply()
+            if (!prefs.getBoolean("media_baseline_v2", false)) {
+                prefs.edit().putStringSet("notified_media_keys_v2", knownIds + allItems.map { "${it.collection}:${it.id}" }).putBoolean("media_baseline_v2", true).apply()
                 return Result.success()
             }
 
-            val newItems = allItems.filter { it.id !in knownIds }.take(4)
+            val newItems = allItems.filter { "${it.collection}:${it.id}" !in knownIds }
             newItems.forEach { item ->
-                val eventKey = "content:${item.collection}:${item.id}"
-                if (NotificationHelper.claimNotificationEvent(context, eventKey)) {
                     if (item.type == "video") {
                         NotificationHelper.showNotification(
                             context = context,
@@ -83,17 +81,11 @@ class MediaUpdateWorker(
                             notificationData = mapOf("collection" to item.collection)
                         )
                     }
-                }
                 // Mesmo quando o FCM ganhou a corrida, este ID deixa de ser candidato local.
-                knownIds.add(item.id)
+                knownIds.add("${item.collection}:${item.id}")
             }
 
-            if (knownIds.size > 100) {
-                val trimmed = allItems.map { it.id }.filter { it in knownIds }.take(100).toSet()
-                knownIds.clear()
-                knownIds.addAll(trimmed)
-            }
-            prefs.edit().putStringSet("notified_media_ids", knownIds).apply()
+            prefs.edit().putStringSet("notified_media_keys_v2", knownIds).apply()
             Result.success()
         } catch (e: Exception) {
             Log.e("MediaUpdateWorker", "Falha ao verificar novas mídias", e)

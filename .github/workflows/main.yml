@@ -52,6 +52,14 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
+      - name: Configurar Node para testes de notificações
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Validar horários e envios de notificações
+        run: node --test tests/notification-policy.test.mjs supabase/functions/discipulado-release/tests/publishing.test.mjs
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
