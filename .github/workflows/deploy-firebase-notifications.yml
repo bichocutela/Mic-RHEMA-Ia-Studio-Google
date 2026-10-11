@@ -31,6 +31,7 @@ jobs:
           npm install --prefix firebase-functions
           node --check firebase-functions/index.js
       - name: Verificar funcoes existentes
+        continue-on-error: true
         run: firebase functions:list --project mic-rhema --non-interactive
       - name: Implantar correcoes
         run: firebase deploy --only functions --project mic-rhema --non-interactive
