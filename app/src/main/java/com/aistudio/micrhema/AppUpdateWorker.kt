@@ -12,6 +12,10 @@ class AppUpdateWorker(
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
+        val checkPrefs = applicationContext.getSharedPreferences("micrhema_update_status", Context.MODE_PRIVATE)
+        val lastCheck = checkPrefs.getLong("last_check_at", 0L)
+        // Hourly scheduling catches the 18h window without performing hourly HTTP requests.
+        if (NotificationTiming.now().hour != 18 && lastCheck > 0 && System.currentTimeMillis() - lastCheck < TimeUnit.HOURS.toMillis(12)) return Result.success()
         // ADM logado recebe o aviso imediato da Release via FCM. Não repetimos o mesmo
         // fluxo no verificador silencioso usado pelos usuários comuns.
         val hasAdminSession = adminAuthenticatedState.value || loggedInMemberState.value?.isAdmin == true
