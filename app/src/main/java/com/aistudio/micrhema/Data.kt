@@ -1168,7 +1168,13 @@ fun addRecentlyViewed(context: Context, item: RecentlyViewedItem) {
 val appTabsState = androidx.compose.runtime.mutableStateListOf<AppTab>()
 
 fun ensureDiscipuladoTab(tabs: List<AppTab>): List<AppTab> {
-    if (tabs.any { it.id == "discipulado_tab" || it.systemRoute == Screen.Discipulado.route }) return tabs
+    if (tabs.any { it.id == "discipulado_tab" || it.systemRoute == Screen.Discipulado.route }) {
+        return tabs.map { tab ->
+            if (tab.id == "discipulado_tab" || tab.systemRoute == Screen.Discipulado.route)
+                tab.copy(isPrivate = false, isVisible = true, type = TabContentType.SYSTEM, systemRoute = Screen.Discipulado.route)
+            else tab
+        }
+    }
     val insertOrder = (tabs.firstOrNull { it.systemRoute == Screen.Ibr.route }?.order ?: 4) + 1
     val shifted = tabs.map { tab ->
         if (tab.order >= insertOrder) tab.copy(order = tab.order + 1) else tab
