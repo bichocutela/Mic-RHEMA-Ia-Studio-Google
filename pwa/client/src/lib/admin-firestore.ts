@@ -7,7 +7,7 @@ export async function saveDiscipuladoDocument(id: string, data: Record<string, u
   const target = scheduled ? "discipulado_schedules" : "discipulado_pdfs";
   const other = scheduled ? "discipulado_pdfs" : "discipulado_schedules";
   const batch = writeBatch(database);
-  batch.set(doc(database, target, id), documentPayload(target, id, data), { merge: true });
+  batch.set(doc(database, target, id), documentPayload(target, id, { ...data, published: data.isPublished !== false }), { merge: true });
   batch.delete(doc(database, other, id));
   await batch.commit();
   if (!scheduled && data.releaseNotificationPending === true) {

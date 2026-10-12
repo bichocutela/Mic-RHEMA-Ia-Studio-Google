@@ -213,6 +213,7 @@ fun EditDiscipuladoSection() {
                 val db = Firebase.firestore
                 db.batch()
                     .set(db.collection("discipulado_pdfs").document(material.id), updated, com.google.firebase.firestore.SetOptions.merge())
+                    .set(db.collection("discipulado_pdfs").document(material.id), mapOf("published" to publish), com.google.firebase.firestore.SetOptions.merge())
                     .delete(db.collection("discipulado_schedules").document(material.id))
                     .commit().await()
                 if (publish) scope.launch { wakeDiscipuladoPublisher() }
@@ -571,6 +572,7 @@ fun EditDiscipuladoSection() {
                                 val target = if (schedulePublication) "discipulado_schedules" else "discipulado_pdfs"
                                 val other = if (schedulePublication) "discipulado_pdfs" else "discipulado_schedules"
                                 db.batch().set(db.collection(target).document(item.id), item, com.google.firebase.firestore.SetOptions.merge())
+                                    .set(db.collection(target).document(item.id), mapOf("published" to item.isPublished), com.google.firebase.firestore.SetOptions.merge())
                                     .delete(db.collection(other).document(item.id)).commit().await()
                                 if (item.releaseNotificationPending) {
                                     scope.launch { wakeDiscipuladoPublisher() }

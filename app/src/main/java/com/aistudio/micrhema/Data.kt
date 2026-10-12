@@ -1116,6 +1116,8 @@ data class DiscipuladoPdf(
     var fileType: String = "pdf",
     var pageCount: Int = 0,
     var order: Int = 0,
+    @get:com.google.firebase.firestore.PropertyName("isPublished")
+    @set:com.google.firebase.firestore.PropertyName("isPublished")
     var isPublished: Boolean = true,
     var scheduledPublishAt: Long = 0,
     var releaseNotificationPending: Boolean = false,

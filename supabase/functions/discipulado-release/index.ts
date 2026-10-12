@@ -82,7 +82,7 @@ async function release(token: string) {
   for(const d of due){
     const id=d.name.split("/").pop()!; const existing=await get(token,"discipulado_pdfs",id);
     const name=`projects/mic-rhema/databases/(default)/documents/discipulado_pdfs/${id}`;
-    const fields={...d.fields,...encode({isPublished:true,scheduledPublishAt:0,releaseNotificationPending:true,publishedAt:now,releaseNotificationState:"pending"})};
+    const fields={...d.fields,...encode({isPublished:true,published:true,scheduledPublishAt:0,releaseNotificationPending:true,publishedAt:now,releaseNotificationState:"pending"})};
     const r=await fetch(`${BASE}:commit`,{method:"POST",headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},body:JSON.stringify({writes:[{update:{name,fields},currentDocument:existing?{updateTime:existing.updateTime}:{exists:false}},{delete:d.name,currentDocument:{updateTime:d.updateTime}}]})});
     if(r.status===409||r.status===412)continue; if(!r.ok){failed.push(id);continue;}published.push(str(d,"title"));
   }
@@ -90,6 +90,18 @@ async function release(token: string) {
   const notified:string[]=[];
   for(const d of pending){try{if(await notify(token,d))notified.push(str(d,"title"));}catch(e){console.error("notification pending",d.name,e instanceof Error?e.message:"unknown");failed.push(d.name.split("/").pop()!);}}
   return {ok:failed.length===0,published,notified,failed,checkedAt:new Date(now).toISOString()};
+}
+async function normalizePublicationFields(token: string) {
+  const normalized: string[] = [];
+  for (const collection of ["discipulado_pdfs", "discipulado_schedules"]) {
+    for (const d of await list(token, collection)) {
+      // Android's old Boolean getter wrote "published" instead of "isPublished".
+      if (d.fields?.isPublished?.booleanValue !== undefined) continue;
+      const published = d.fields?.published?.booleanValue ?? (collection === "discipulado_pdfs");
+      if (await patch(token, d, { isPublished: published, published })) normalized.push(d.name.split("/").pop()!);
+    }
+  }
+  return { ok: true, normalized };
 }
 async function importStudies(token:string){
   const existing=await list(token,"discipulado_pdfs"); const schedules=await list(token,"discipulado_schedules"); const imported:string[]=[];
@@ -108,6 +120,7 @@ Deno.serve(async(request)=>{
     if(!isScheduler&&(input.action!=="release"||!await admin(request)))return json({error:"Não autorizado"},401);
     const token=await googleToken();
     if(input.action==="release")return json(await release(token));
+    if(input.action==="normalize")return json(await normalizePublicationFields(token));
     if(input.action==="import")return json(await importStudies(token));
     if(input.action==="inspect"||input.action==="preview"){
       const [published,scheduled]=await Promise.all([list(token,"discipulado_pdfs"),list(token,"discipulado_schedules")]);
