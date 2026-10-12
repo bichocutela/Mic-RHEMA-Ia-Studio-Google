@@ -226,6 +226,7 @@ fun MainScreen() {
                 .sortedBy { it.order }
         }
     }
+    ForcedUpdateGate()
     val bottomBarItems = remember(visibleTabs) { visibleTabs.filter { it.showInBottomBar } }
     val drawerItems = remember(visibleTabs) { visibleTabs.filter { !it.showInBottomBar } }
     

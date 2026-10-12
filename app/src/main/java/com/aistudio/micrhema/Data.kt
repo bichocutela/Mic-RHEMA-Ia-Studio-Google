@@ -799,12 +799,21 @@ data class AdminAppSettings(
     var notificationsEnabled: Boolean = true,
     var showDonationsTab: Boolean = true,
     var bannerRotationSeconds: Long = 6L,
+    var forceUpdateEnabled: Boolean = false,
+    var minimumVersionName: String = "",
     var updatedAt: Long = 0L
 )
 
 val adminAppSettingsState = androidx.compose.runtime.mutableStateOf(AdminAppSettings())
 
 fun loadAdminAppSettings() {
+    runCatching {
+        val prefs = com.google.firebase.FirebaseApp.getInstance().applicationContext
+            .getSharedPreferences("micrhema_update_policy", android.content.Context.MODE_PRIVATE)
+        adminAppSettingsState.value = adminAppSettingsState.value.copy(
+            forceUpdateEnabled = prefs.getBoolean("enabled", false),
+            minimumVersionName = prefs.getString("minimum", "").orEmpty())
+    }
     if (com.aistudio.micrhema.BuildConfig.FIREBASE_PROJECT_ID.isEmpty()) return
     com.google.firebase.Firebase.firestore.collection("settings").document("app")
         .addSharedSnapshotListener("content:settings:app") { snapshot, error ->
@@ -813,9 +822,17 @@ fun loadAdminAppSettings() {
                 notificationsEnabled = snapshot.getBoolean("notificationsEnabled") ?: true,
                 showDonationsTab = snapshot.getBoolean("showDonationsTab") ?: true,
                 bannerRotationSeconds = (snapshot.getLong("bannerRotationSeconds") ?: 6L).coerceIn(3L, 12L),
+                forceUpdateEnabled = snapshot.getBoolean("forceUpdateEnabled") ?: false,
+                minimumVersionName = snapshot.getString("minimumVersionName").orEmpty(),
                 updatedAt = snapshot.getLong("updatedAt") ?: 0L
             )
             adminAppSettingsState.value = settings
+            runCatching {
+                com.google.firebase.FirebaseApp.getInstance().applicationContext
+                    .getSharedPreferences("micrhema_update_policy", android.content.Context.MODE_PRIVATE)
+                    .edit().putBoolean("enabled", settings.forceUpdateEnabled)
+                    .putString("minimum", settings.minimumVersionName).apply()
+            }
             runCatching {
                 com.google.firebase.FirebaseApp.getInstance().applicationContext
                     .getSharedPreferences("micrhema_admin_settings", android.content.Context.MODE_PRIVATE)

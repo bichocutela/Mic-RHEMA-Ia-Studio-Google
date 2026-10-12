@@ -1,5 +1,6 @@
 package com.aistudio.micrhema
 
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -607,7 +608,7 @@ fun EditSettingsSection() {
     var showDonationsTab by remember(remoteSettings.updatedAt) { mutableStateOf(remoteSettings.showDonationsTab) }
     var savingSettings by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(16.dp)) {
         Text("Configurações Adicionais", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Text("Estas opções são sincronizadas pelo Firebase para todos os aparelhos.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(16.dp))
@@ -622,11 +623,13 @@ fun EditSettingsSection() {
         }
 
         Spacer(Modifier.height(16.dp))
+        ForcedUpdateSettingsCard()
+        Spacer(Modifier.height(16.dp))
         Button(
             onClick = {
                 savingSettings = true
                 saveAdminAppSettings(
-                    settings = AdminAppSettings(
+                    settings = remoteSettings.copy(
                         notificationsEnabled = notificationsEnabled,
                         showDonationsTab = showDonationsTab,
                         bannerRotationSeconds = remoteSettings.bannerRotationSeconds
