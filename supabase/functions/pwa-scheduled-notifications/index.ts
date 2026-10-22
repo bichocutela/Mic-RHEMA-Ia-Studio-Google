@@ -2,6 +2,32 @@ import { fortalezaClock, eventDigest } from "../notify-fcm/notification-policy.t
 import { notificationPresentation } from "../notify-fcm/notification-presentation.ts";
 import { importPKCS8, SignJWT } from "npm:jose@5.10.0";
 
+// BEGIN UPSTREAM QUOTA GUARD
+// Per-isolate circuit breaker: no immediate retries and no automatic replay of writes.
+// A cold isolate can still make one probe; this is not a project-wide quota guarantee.
+let firestoreRetryAt = 0;
+async function firestoreQuotaFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const target = new URL(input instanceof Request ? input.url : String(input));
+  const guarded = target.hostname === "firestore.googleapis.com";
+  if (guarded && Date.now() < firestoreRetryAt) throw new Error("FIRESTORE_RESOURCE_EXHAUSTED");
+  const response = await fetch(input, init);
+  if (guarded && response.status === 429) {
+    const retry = Number(response.headers.get("retry-after"));
+    const seconds = Number.isFinite(retry) && retry > 0 ? Math.max(900, Math.min(retry, 3600)) : 900;
+    firestoreRetryAt = Date.now() + seconds * 1000;
+  } else if (guarded && response.ok) firestoreRetryAt = 0;
+  return response;
+}
+function upstreamQuotaResponse(error: unknown, responseHeaders: Record<string, string>): Response | null {
+  const message = error instanceof Error ? error.message : String(error);
+  if (!/\b429\b|RESOURCE_EXHAUSTED/i.test(message)) return null;
+  const seconds = Math.max(1, Math.ceil((firestoreRetryAt - Date.now()) / 1000)) || 900;
+  return new Response(JSON.stringify({ error: "Serviço temporariamente limitado. Os dados pendentes permanecem preservados.", code: "UPSTREAM_RATE_LIMITED", retryable: true }), {
+    status: 503, headers: { ...responseHeaders, "retry-after": String(seconds), "cache-control": "no-store" }
+  });
+}
+// END UPSTREAM QUOTA GUARD
+
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_SCOPE = "https://www.googleapis.com/auth/firebase.messaging https://www.googleapis.com/auth/datastore";
 const DEFAULT_PROJECT_ID = "mic-rhema";
@@ -41,7 +67,7 @@ async function googleAccessToken(account: ServiceAccount, scope = GOOGLE_SCOPE) 
   const privateKey = await importPKCS8(account.private_key.replace(/\\n/g, "\n"), "RS256");
   const assertion = await new SignJWT({ iss: account.client_email, scope, aud: GOOGLE_TOKEN_URL })
     .setProtectedHeader({ alg: "RS256", typ: "JWT" }).setIssuedAt(now).setExpirationTime(now + 3600).sign(privateKey);
-  const response = await fetch(GOOGLE_TOKEN_URL, {
+  const response = await firestoreQuotaFetch(GOOGLE_TOKEN_URL, {
     method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion }),
   });
@@ -86,7 +112,7 @@ async function listCollection(projectId: string, accessToken: string, collection
     const url = new URL(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${collection}`);
     url.searchParams.set("pageSize", String(pageSize));
     if (pageToken) url.searchParams.set("pageToken", pageToken);
-    const response = await fetch(url, { headers: { authorization: `Bearer ${accessToken}` } });
+    const response = await firestoreQuotaFetch(url, { headers: { authorization: `Bearer ${accessToken}` } });
     if (response.status === 404) return result;
     if (!response.ok) throw new Error(`Falha ao consultar ${collection}: ${response.status}`);
     const payload = await response.json() as { documents?: FireDoc[]; nextPageToken?: string };
@@ -97,7 +123,7 @@ async function listCollection(projectId: string, accessToken: string, collection
 }
 
 async function getDocument(projectId: string, accessToken: string, path: string): Promise<FireDoc | null> {
-  const response = await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${path}`, { headers: { authorization: `Bearer ${accessToken}` } });
+  const response = await firestoreQuotaFetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${path}`, { headers: { authorization: `Bearer ${accessToken}` } });
   if (response.status === 404) return null;
   if (!response.ok) throw new Error(`Falha ao consultar ${path}: ${response.status}`);
   return await response.json() as FireDoc;
@@ -106,7 +132,7 @@ async function getDocument(projectId: string, accessToken: string, path: string)
 async function patchStringFields(documentName: string, accessToken: string, values: Record<string, string>) {
   const url = new URL(`https://firestore.googleapis.com/v1/${documentName}`);
   Object.keys(values).forEach((key) => url.searchParams.append("updateMask.fieldPaths", key));
-  const response = await fetch(url, {
+  const response = await firestoreQuotaFetch(url, {
     method: "PATCH", headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json" },
     body: JSON.stringify({ fields: Object.fromEntries(Object.entries(values).map(([key, value]) => [key, { stringValue: value }])) }),
   });
@@ -116,11 +142,11 @@ async function patchStringFields(documentName: string, accessToken: string, valu
 async function disableToken(documentName: string, accessToken: string) {
   const url = new URL(`https://firestore.googleapis.com/v1/${documentName}`);
   url.searchParams.append("updateMask.fieldPaths", "enabled");
-  await fetch(url, { method: "PATCH", headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json" }, body: JSON.stringify({ fields: { enabled: { booleanValue: false } } }) }).catch(() => undefined);
+  await firestoreQuotaFetch(url, { method: "PATCH", headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json" }, body: JSON.stringify({ fields: { enabled: { booleanValue: false } } }) }).catch(() => undefined);
 }
 
 async function send(projectId: string, accessToken: string, registrationToken: string, message: ScheduledMessage, validateOnly = false) {
-  const response = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
+  const response = await firestoreQuotaFetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
     method: "POST",
     headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json; UTF-8" },
     body: JSON.stringify({ validate_only: validateOnly, message: {
@@ -178,7 +204,7 @@ async function claimDelivery(projectId: string, accessToken: string, key: string
   const name = `projects/${projectId}/databases/(default)/documents/notification_deliveries/${id}`;
   const url = new URL(`https://firestore.googleapis.com/v1/${name}`);
   url.searchParams.set("currentDocument.exists", "false");
-  const response = await fetch(url, { method: "PATCH", headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json" }, body: JSON.stringify({ fields: { eventKey: { stringValue: key }, createdAt: { timestampValue: new Date().toISOString() } } }) });
+  const response = await firestoreQuotaFetch(url, { method: "PATCH", headers: { authorization: `Bearer ${accessToken}`, "content-type": "application/json" }, body: JSON.stringify({ fields: { eventKey: { stringValue: key }, createdAt: { timestampValue: new Date().toISOString() } } }) });
   if (response.status === 409 || response.status === 412) return null;
   if (!response.ok) throw new Error(`Reserva de envio falhou: ${response.status}`);
   return await response.json() as FireDoc;
@@ -186,7 +212,7 @@ async function claimDelivery(projectId: string, accessToken: string, key: string
 async function releaseClaim(accessToken: string, claim: FireDoc) {
   const url = new URL(`https://firestore.googleapis.com/v1/${claim.name}`);
   if (claim.updateTime) url.searchParams.set("currentDocument.updateTime", claim.updateTime);
-  await fetch(url, { method: "DELETE", headers: { authorization: `Bearer ${accessToken}` } });
+  await firestoreQuotaFetch(url, { method: "DELETE", headers: { authorization: `Bearer ${accessToken}` } });
 }
 async function drainOutbox(projectId: string, accessToken: string, now: Date) {
   const clock = fortalezaClock(now);
@@ -223,7 +249,7 @@ async function drainOutbox(projectId: string, accessToken: string, now: Date) {
         delete batch.data.courseId;
         batch.data.title = batch.title; batch.data.body = batch.body;
       }
-      const response = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/notify-fcm`, { method: "POST", headers: { "content-type": "application/json", apikey: Deno.env.get("SUPABASE_ANON_KEY") || "", "x-internal-scheduler": Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "" }, body: JSON.stringify(batch) });
+      const response = await firestoreQuotaFetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/notify-fcm`, { method: "POST", headers: { "content-type": "application/json", apikey: Deno.env.get("SUPABASE_ANON_KEY") || "", "x-internal-scheduler": Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "" }, body: JSON.stringify(batch) });
       const result = await response.json();
       if (!response.ok || !result.ok) throw new Error(`Resumo não enviado: ${response.status}`);
       for (const d of items) await patchStringFields(d.name!, accessToken, { state: "sent", sentAt: now.toISOString() });
@@ -251,10 +277,10 @@ Deno.serve(async (request) => {
       let firebaseSchedules: unknown = { status: "not_checked" };
       try {
         const cloudToken = await googleAccessToken(account, "https://www.googleapis.com/auth/cloud-platform");
-        const response = await fetch(`https://cloudfunctions.googleapis.com/v1/projects/${projectId}/locations/-/functions`, { headers: { authorization: `Bearer ${cloudToken}` } });
+        const response = await firestoreQuotaFetch(`https://cloudfunctions.googleapis.com/v1/projects/${projectId}/locations/-/functions`, { headers: { authorization: `Bearer ${cloudToken}` } });
         const result = await response.json();
         firebaseFunctions = { status: response.status, reason: result.error?.message || "", functions: (result.functions || []).map((f: { name: string; status: string }) => ({ name: f.name, status: f.status })) };
-        const jobs = await fetch(`https://cloudscheduler.googleapis.com/v1/projects/${projectId}/locations/us-central1/jobs`, { headers: { authorization: `Bearer ${cloudToken}` } });
+        const jobs = await firestoreQuotaFetch(`https://cloudscheduler.googleapis.com/v1/projects/${projectId}/locations/us-central1/jobs`, { headers: { authorization: `Bearer ${cloudToken}` } });
         const jobData = await jobs.json();
         firebaseSchedules = { status: jobs.status, reason: jobData.error?.message || "", jobs: (jobData.jobs || []).map((j: { name: string; schedule: string; timeZone: string; state: string }) => ({ name: j.name, schedule: j.schedule, timeZone: j.timeZone, state: j.state })) };
       } catch { firebaseFunctions = { status: "unavailable" }; }
@@ -341,6 +367,8 @@ Deno.serve(async (request) => {
 
     return json({ ok: true, checkedTokens: tokens.length, due, sent, failed, digestSent, checkedAt: now.toISOString() });
   } catch (error) {
+    const limited = upstreamQuotaResponse(error, cors);
+    if (limited) return limited;
     console.error("pwa-scheduled-notifications failed", error instanceof Error ? error.message : "unknown");
     return json({ error: error instanceof Error ? error.message : "Falha no agendador de notificações." }, 500);
   }

@@ -1,6 +1,32 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { importPKCS8, SignJWT } from "npm:jose@5.10.0";
 
+// BEGIN UPSTREAM QUOTA GUARD
+// Per-isolate circuit breaker: no immediate retries and no automatic replay of writes.
+// A cold isolate can still make one probe; this is not a project-wide quota guarantee.
+let firestoreRetryAt = 0;
+async function firestoreQuotaFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const target = new URL(input instanceof Request ? input.url : String(input));
+  const guarded = target.hostname === "firestore.googleapis.com";
+  if (guarded && Date.now() < firestoreRetryAt) throw new Error("FIRESTORE_RESOURCE_EXHAUSTED");
+  const response = await fetch(input, init);
+  if (guarded && response.status === 429) {
+    const retry = Number(response.headers.get("retry-after"));
+    const seconds = Number.isFinite(retry) && retry > 0 ? Math.max(900, Math.min(retry, 3600)) : 900;
+    firestoreRetryAt = Date.now() + seconds * 1000;
+  } else if (guarded && response.ok) firestoreRetryAt = 0;
+  return response;
+}
+function upstreamQuotaResponse(error: unknown, responseHeaders: Record<string, string>): Response | null {
+  const message = error instanceof Error ? error.message : String(error);
+  if (!/\b429\b|RESOURCE_EXHAUSTED/i.test(message)) return null;
+  const seconds = Math.max(1, Math.ceil((firestoreRetryAt - Date.now()) / 1000)) || 900;
+  return new Response(JSON.stringify({ error: "Serviço temporariamente limitado. Os dados pendentes permanecem preservados.", code: "UPSTREAM_RATE_LIMITED", retryable: true }), {
+    status: 503, headers: { ...responseHeaders, "retry-after": String(seconds), "cache-control": "no-store" }
+  });
+}
+// END UPSTREAM QUOTA GUARD
+
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const DATASTORE_SCOPE = "https://www.googleapis.com/auth/datastore";
 const DEFAULT_HANDLE = "@micrhemaoficial";
@@ -84,7 +110,7 @@ async function googleAccessToken(account: ServiceAccount) {
     .setIssuedAt(now)
     .setExpirationTime(now + 3600)
     .sign(key);
-  const response = await fetch(GOOGLE_TOKEN_URL, {
+  const response = await firestoreQuotaFetch(GOOGLE_TOKEN_URL, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion }),
@@ -96,7 +122,7 @@ async function googleAccessToken(account: ServiceAccount) {
 
 async function youtube<T>(path: string, key: string): Promise<T> {
   const separator = path.includes("?") ? "&" : "?";
-  const response = await fetch(`https://www.googleapis.com/youtube/v3/${path}${separator}key=${encodeURIComponent(key)}`, { cache: "no-store" });
+  const response = await firestoreQuotaFetch(`https://www.googleapis.com/youtube/v3/${path}${separator}key=${encodeURIComponent(key)}`, { cache: "no-store" });
   const payload = await response.json();
   if (!response.ok) {
     const detail = payload?.error?.message || `YouTube API ${response.status}`;
@@ -107,7 +133,7 @@ async function youtube<T>(path: string, key: string): Promise<T> {
 
 async function firestoreGet(projectId: string, token: string) {
   const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/settings/live_stream`;
-  const response = await fetch(url, { headers: { authorization: `Bearer ${token}` }, cache: "no-store" });
+  const response = await firestoreQuotaFetch(url, { headers: { authorization: `Bearer ${token}` }, cache: "no-store" });
   if (response.status === 404) return null;
   if (!response.ok) throw new Error(`Falha ao ler configuração da live: ${response.status}`);
   return await response.json() as FireDocument;
@@ -115,7 +141,7 @@ async function firestoreGet(projectId: string, token: string) {
 
 async function firestoreWrite(projectId: string, token: string, fields: Record<string, FireField>) {
   const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/settings/live_stream`;
-  const response = await fetch(url, {
+  const response = await firestoreQuotaFetch(url, {
     method: "PATCH",
     headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
     body: JSON.stringify({ fields }),
@@ -266,6 +292,8 @@ Deno.serve(async (request) => {
       autoError: autoError || undefined,
     });
   } catch (error) {
+    const limited = upstreamQuotaResponse(error, cors);
+    if (limited) return limited;
     console.error("youtube-live failed", error instanceof Error ? error.message : error);
     return json({ error: error instanceof Error ? error.message : "Falha ao verificar transmissão." }, 500);
   }
