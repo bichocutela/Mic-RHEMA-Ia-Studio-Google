@@ -1,6 +1,32 @@
 import { importPKCS8, SignJWT } from "npm:jose@5.10.0";
 import { studies } from "./studies.ts";
 
+// BEGIN UPSTREAM QUOTA GUARD
+// Per-isolate circuit breaker: no immediate retries and no automatic replay of writes.
+// A cold isolate can still make one probe; this is not a project-wide quota guarantee.
+let firestoreRetryAt = 0;
+async function firestoreQuotaFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const target = new URL(input instanceof Request ? input.url : String(input));
+  const guarded = target.hostname === "firestore.googleapis.com";
+  if (guarded && Date.now() < firestoreRetryAt) throw new Error("FIRESTORE_RESOURCE_EXHAUSTED");
+  const response = await fetch(input, init);
+  if (guarded && response.status === 429) {
+    const retry = Number(response.headers.get("retry-after"));
+    const seconds = Number.isFinite(retry) && retry > 0 ? Math.max(900, Math.min(retry, 3600)) : 900;
+    firestoreRetryAt = Date.now() + seconds * 1000;
+  } else if (guarded && response.ok) firestoreRetryAt = 0;
+  return response;
+}
+function upstreamQuotaResponse(error: unknown, responseHeaders: Record<string, string>): Response | null {
+  const message = error instanceof Error ? error.message : String(error);
+  if (!/\b429\b|RESOURCE_EXHAUSTED/i.test(message)) return null;
+  const seconds = Math.max(1, Math.ceil((firestoreRetryAt - Date.now()) / 1000)) || 900;
+  return new Response(JSON.stringify({ error: "Serviço temporariamente limitado. Os dados pendentes permanecem preservados.", code: "UPSTREAM_RATE_LIMITED", retryable: true }), {
+    status: 503, headers: { ...responseHeaders, "retry-after": String(seconds), "cache-control": "no-store" }
+  });
+}
+// END UPSTREAM QUOTA GUARD
+
 const KEY_HASH = "ba749b2eba2b9a00951b19d4efcf09970cbff65f5c93816ff8d5bb393dfe3a23";
 const BASE = "https://firestore.googleapis.com/v1/projects/mic-rhema/databases/(default)/documents";
 const FIREBASE_API_KEY = "AIzaSyD-GPqTLRFmOiNATJwzKUHGqJeTPQcf0E8";
@@ -19,7 +45,7 @@ async function googleToken(scope = "https://www.googleapis.com/auth/datastore ht
   if (a.project_id !== "mic-rhema" || !a.client_email || !a.private_key) throw new Error("Credencial do MICRHEMA indisponível");
   const now = Math.floor(Date.now()/1000);
   const jwt = await new SignJWT({iss:a.client_email,scope,aud:"https://oauth2.googleapis.com/token"}).setProtectedHeader({alg:"RS256",typ:"JWT"}).setIssuedAt(now).setExpirationTime(now+3600).sign(await importPKCS8(a.private_key.replace(/\\n/g,"\n"),"RS256"));
-  const r = await fetch("https://oauth2.googleapis.com/token", {method:"POST",body:new URLSearchParams({grant_type:"urn:ietf:params:oauth:grant-type:jwt-bearer",assertion:jwt})});
+  const r = await firestoreQuotaFetch("https://oauth2.googleapis.com/token", {method:"POST",body:new URLSearchParams({grant_type:"urn:ietf:params:oauth:grant-type:jwt-bearer",assertion:jwt})});
   const b = await r.json(); if (!r.ok || !b.access_token) throw new Error("Autenticação do publicador indisponível"); return b.access_token as string;
 }
 async function scheduler(request: Request) {
@@ -29,29 +55,29 @@ async function scheduler(request: Request) {
 }
 async function admin(request: Request) {
   const idToken = request.headers.get("authorization")?.replace(/^Bearer\s+/i,""); if (!idToken) return false;
-  const r = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${FIREBASE_API_KEY}`, {method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({idToken})});
+  const r = await firestoreQuotaFetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${FIREBASE_API_KEY}`, {method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({idToken})});
   const b = await r.json(); const u = b.users?.[0]; if (!r.ok || !u?.localId) return false;
   const claims = JSON.parse(u.customAttributes || "{}"); return claims.isAdmin === true || u.email === "admin@micrhema.app";
 }
 async function get(token: string, collection: string, id: string): Promise<Doc | null> {
-  const r = await fetch(`${BASE}/${collection}/${encodeURIComponent(id)}`, {headers:{authorization:`Bearer ${token}`}});
+  const r = await firestoreQuotaFetch(`${BASE}/${collection}/${encodeURIComponent(id)}`, {headers:{authorization:`Bearer ${token}`}});
   if (r.status === 404) return null; if (!r.ok) throw new Error(`Leitura falhou: ${r.status}`); return r.json();
 }
 async function list(token: string, collection: string) {
   const result: Doc[] = []; let page = "";
   do { const u = new URL(`${BASE}/${collection}`); u.searchParams.set("pageSize","100"); if (page) u.searchParams.set("pageToken",page);
-    const r = await fetch(u,{headers:{authorization:`Bearer ${token}`}}); if (!r.ok) throw new Error(`Consulta falhou: ${r.status}`);
+    const r = await firestoreQuotaFetch(u,{headers:{authorization:`Bearer ${token}`}}); if (!r.ok) throw new Error(`Consulta falhou: ${r.status}`);
     const b = await r.json(); result.push(...(b.documents||[])); page=b.nextPageToken||"";
   } while(page); return result;
 }
 async function query(token: string, collection: string, where: unknown): Promise<Doc[]> {
-  const r = await fetch(`${BASE}:runQuery`, {method:"POST",headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},body:JSON.stringify({structuredQuery:{from:[{collectionId:collection}],where,limit:100}})});
+  const r = await firestoreQuotaFetch(`${BASE}:runQuery`, {method:"POST",headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},body:JSON.stringify({structuredQuery:{from:[{collectionId:collection}],where,limit:100}})});
   if (!r.ok) throw new Error(`Fila indisponível: ${r.status}`); const b = await r.json(); return b.filter((v:{document?:Doc})=>v.document).map((v:{document:Doc})=>v.document);
 }
 async function patch(token: string, d: Doc, values: Record<string, string | number | boolean>) {
   const u = new URL(`https://firestore.googleapis.com/v1/${d.name}`); for (const k of Object.keys(values)) u.searchParams.append("updateMask.fieldPaths",k);
   if (d.updateTime) u.searchParams.set("currentDocument.updateTime",d.updateTime);
-  const r = await fetch(u,{method:"PATCH",headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},body:JSON.stringify({fields:encode(values)})});
+  const r = await firestoreQuotaFetch(u,{method:"PATCH",headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},body:JSON.stringify({fields:encode(values)})});
   if (r.status===409||r.status===412) return null; if (!r.ok) throw new Error(`Atualização falhou: ${r.status}`); return r.json() as Promise<Doc>;
 }
 function pushData(d: Doc) {
@@ -69,7 +95,7 @@ async function notify(token: string, d: Doc) {
     const current=await get(token,"discipulado_pdfs",d.name.split("/").pop()!);
     if (!current || current.fields?.isPublished?.booleanValue!==true ||
         current.fields?.releaseNotificationPending?.booleanValue!==true) return false;
-    const r=await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/notify-fcm`,{method:"POST",headers:{"content-type":"application/json",apikey:Deno.env.get("SUPABASE_ANON_KEY")||""},body:JSON.stringify(pushData(d)),signal:AbortSignal.timeout(30000)});
+    const r=await firestoreQuotaFetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/notify-fcm`,{method:"POST",headers:{"content-type":"application/json",apikey:Deno.env.get("SUPABASE_ANON_KEY")||""},body:JSON.stringify(pushData(d)),signal:AbortSignal.timeout(30000)});
     const b=await r.json(); if(!r.ok||b.ok!==true)throw new Error(`Aviso não aceito: ${r.status}`);
     if(!await patch(token,lock,{releaseNotificationPending:false,releaseNotificationState:"sent",releaseNotificationSentAt:new Date().toISOString(),releaseNotificationLeaseUntil:""}))throw new Error("Confirmação de envio não registrada");
     return true;
@@ -83,7 +109,7 @@ async function release(token: string) {
     const id=d.name.split("/").pop()!; const existing=await get(token,"discipulado_pdfs",id);
     const name=`projects/mic-rhema/databases/(default)/documents/discipulado_pdfs/${id}`;
     const fields={...d.fields,...encode({isPublished:true,published:true,scheduledPublishAt:0,releaseNotificationPending:true,publishedAt:now,releaseNotificationState:"pending"})};
-    const r=await fetch(`${BASE}:commit`,{method:"POST",headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},body:JSON.stringify({writes:[{update:{name,fields},currentDocument:existing?{updateTime:existing.updateTime}:{exists:false}},{delete:d.name,currentDocument:{updateTime:d.updateTime}}]})});
+    const r=await firestoreQuotaFetch(`${BASE}:commit`,{method:"POST",headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},body:JSON.stringify({writes:[{update:{name,fields},currentDocument:existing?{updateTime:existing.updateTime}:{exists:false}},{delete:d.name,currentDocument:{updateTime:d.updateTime}}]})});
     if(r.status===409||r.status===412)continue; if(!r.ok){failed.push(id);continue;}published.push(str(d,"title"));
   }
   const pending=await query(token,"discipulado_pdfs",{fieldFilter:{field:{fieldPath:"releaseNotificationPending"},op:"EQUAL",value:{booleanValue:true}}});
@@ -108,7 +134,7 @@ async function importStudies(token:string){
   for(const s of studies){if([...existing,...schedules].some(d=>driveId(str(d,"fileUrl"))===s.driveId))continue;
     const id=`drive-${s.driveId}`; const fields=encode({id,title:s.title,subtitle:s.subtitle,description:s.description,category:s.category,fileUrl:s.fileUrl,fileType:"word",storagePath:"",coverUrl:"",pageCount:0,order:s.order,isPublished:false,scheduledPublishAt:Date.parse(s.releaseAt),createdAt:Date.now(),sourceDriveId:s.driveId,releaseNotificationPending:false});
     const u=new URL(`${BASE}/discipulado_schedules/${id}`);u.searchParams.set("currentDocument.exists","false");
-    const r=await fetch(u,{method:"PATCH",headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},body:JSON.stringify({fields})});
+    const r=await firestoreQuotaFetch(u,{method:"PATCH",headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},body:JSON.stringify({fields})});
     if(r.status===409||r.status===412)continue;if(!r.ok)throw new Error(`Cadastro falhou: ${r.status}`);imported.push(s.title);
   }return{ok:true,imported};
 }
@@ -128,8 +154,8 @@ Deno.serve(async(request)=>{
       return json({ok:true,published:published.map(describe),scheduled:scheduled.map(describe).sort((a,b)=>a.scheduledPublishAt-b.scheduledPublishAt)});
     }
     if(input.action==="validateNotification"){
-      const p=pushData({name:"test",fields:encode({title:studies[0].title})});const r=await fetch("https://fcm.googleapis.com/v1/projects/mic-rhema/messages:send",{method:"POST",headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},body:JSON.stringify({validate_only:true,message:{topic:p.topic,data:p.data,android:{priority:"high",ttl:"86400s"}}})});return json({ok:r.ok,status:r.status,result:await r.json()});
+      const p=pushData({name:"test",fields:encode({title:studies[0].title})});const r=await firestoreQuotaFetch("https://fcm.googleapis.com/v1/projects/mic-rhema/messages:send",{method:"POST",headers:{authorization:`Bearer ${token}`,"content-type":"application/json"},body:JSON.stringify({validate_only:true,message:{topic:p.topic,data:p.data,android:{priority:"high",ttl:"86400s"}}})});return json({ok:r.ok,status:r.status,result:await r.json()});
     }
     return json({error:"Ação inválida"},400);
-  }catch(e){console.error("discipulado-release",e instanceof Error?e.message:"unknown");return json({error:e instanceof Error?e.message:"Falha no publicador"},500);}
+  }catch(e){const limited=upstreamQuotaResponse(e,headers);if(limited)return limited;console.error("discipulado-release",e instanceof Error?e.message:"unknown");return json({error:e instanceof Error?e.message:"Falha no publicador"},500);}
 });
