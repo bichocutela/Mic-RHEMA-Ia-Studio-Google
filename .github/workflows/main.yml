@@ -71,8 +71,8 @@ jobs:
 
       - name: Configurar variáveis públicas do Supabase
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_URL: https://sinzscjscvgzkvkimcbd.supabase.co
+          SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNpbnpzY2pzY3Znemt2a2ltY2JkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQwODAxMjYsImV4cCI6MjEwOTY1NjEyNn0.PlO3cCbVauz2VGNJOLUIzL0D1aIvWVUV92KF9dxgf_I
         run: |
           cp .env.example .env
           if [ -n "$SUPABASE_URL" ]; then sed -i "s|^SUPABASE_URL=.*|SUPABASE_URL=$SUPABASE_URL|" .env; fi
@@ -201,8 +201,8 @@ jobs:
       - name: Notificar nova versão via Supabase
         continue-on-error: true
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_URL: https://sinzscjscvgzkvkimcbd.supabase.co
+          SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNpbnpzY2pzY3Znemt2a2ltY2JkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQwODAxMjYsImV4cCI6MjEwOTY1NjEyNn0.PlO3cCbVauz2VGNJOLUIzL0D1aIvWVUV92KF9dxgf_I
           VERSION_NAME: ${{ env.VERSION_NAME }}
         run: |
           set -euo pipefail
@@ -230,8 +230,8 @@ jobs:
       - name: Testar 8 notificações de Configurações
         if: contains(github.event.head_commit.message, '[notification-tests]')
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_URL: https://sinzscjscvgzkvkimcbd.supabase.co
+          SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNpbnpzY2pzY3Znemt2a2ltY2JkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQwODAxMjYsImV4cCI6MjEwOTY1NjEyNn0.PlO3cCbVauz2VGNJOLUIzL0D1aIvWVUV92KF9dxgf_I
         run: |
           set -euo pipefail
           send_test() {

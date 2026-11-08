@@ -1,6 +1,6 @@
 import { firebaseAdminAuth } from "./firebase";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://cwphbkdtorfpgmnlafqb.supabase.co";
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://sinzscjscvgzkvkimcbd.supabase.co";
 const gateway = `${supabaseUrl}/functions/v1/storage-gateway`;
 const ibrDocxGateway = `${supabaseUrl}/functions/v1/pwa-ibr-docx`;
 

@@ -16,7 +16,7 @@ export async function saveDiscipuladoDocument(id: string, data: Record<string, u
     void (async () => {
       const token = await firebaseAdminAuth?.currentUser?.getIdToken();
       if (!token) return;
-      const url = import.meta.env.VITE_SUPABASE_URL || "https://cwphbkdtorfpgmnlafqb.supabase.co";
+      const url = import.meta.env.VITE_SUPABASE_URL || "https://sinzscjscvgzkvkimcbd.supabase.co";
       await fetch(`${url}/functions/v1/discipulado-release`, {
         method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
         body: JSON.stringify({ action: "release" }), signal: AbortSignal.timeout(30000),

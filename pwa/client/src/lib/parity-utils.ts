@@ -1,6 +1,6 @@
 export type AcceptedDate = Date | null;
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://cwphbkdtorfpgmnlafqb.supabase.co";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://sinzscjscvgzkvkimcbd.supabase.co";
 const MEDIA_ASSETS_PUBLIC_BASE = `${SUPABASE_URL}/storage/v1/object/public/media-assets/`;
 const PWA_MEDIA_STREAM_BASE = `${SUPABASE_URL}/functions/v1/pwa-media-stream`;
 
@@ -87,7 +87,8 @@ function mediaAssetsPublicUrl(raw: string) {
     const marker = markers.find((candidate) => url.pathname.includes(candidate));
     if (!marker) return "";
     const objectPath = url.pathname.slice(url.pathname.indexOf(marker) + marker.length);
-    return `${url.origin}/storage/v1/object/public/media-assets/${objectPath}`;
+    const origin = url.hostname === "cwphbkdtorfpgmnlafqb.supabase.co" ? SUPABASE_URL.replace(/\/$/, "") : url.origin;
+    return `${origin}/storage/v1/object/public/media-assets/${objectPath}`;
   } catch { return ""; }
 }
 
@@ -102,7 +103,7 @@ function isManagedPortableSource(raw: string) {
   try {
     const host = new URL(raw).hostname.replace(/^www\./, "").toLowerCase();
     return host === "drive.google.com" || host === "docs.google.com" || host === "drive.usercontent.google.com"
-      || host === "cwphbkdtorfpgmnlafqb.supabase.co" || host === "firebasestorage.googleapis.com";
+      || host === "cwphbkdtorfpgmnlafqb.supabase.co" || host === "sinzscjscvgzkvkimcbd.supabase.co" || host === "firebasestorage.googleapis.com";
   } catch { return false; }
 }
 

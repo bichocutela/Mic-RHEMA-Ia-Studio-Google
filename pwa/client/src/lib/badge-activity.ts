@@ -1,7 +1,7 @@
 import { firebaseAuth } from "./firebase";
 import { awardPwaXp } from "./xp";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://cwphbkdtorfpgmnlafqb.supabase.co";
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://sinzscjscvgzkvkimcbd.supabase.co";
 
 export type BadgeActivityKey = "plans" | "plan_themes" | "books" | "videos" | "bible_chapters" | "bible_news" | "devotionals" | "audios" | "active_minutes";
 

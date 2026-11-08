@@ -1,6 +1,6 @@
 import { firebaseAuth } from "./firebase";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://cwphbkdtorfpgmnlafqb.supabase.co";
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://sinzscjscvgzkvkimcbd.supabase.co";
 
 export type PwaXpAccount = {
   member_id: string;

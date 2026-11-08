@@ -27,7 +27,8 @@ jobs:
         working-directory: pwa
     env:
       BASE_PATH: /${{ github.event.repository.name }}/
-      VITE_SUPABASE_URL: https://cwphbkdtorfpgmnlafqb.supabase.co
+      VITE_SUPABASE_URL: https://sinzscjscvgzkvkimcbd.supabase.co
+      VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNpbnpzY2pzY3Znemt2a2ltY2JkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQwODAxMjYsImV4cCI6MjEwOTY1NjEyNn0.PlO3cCbVauz2VGNJOLUIzL0D1aIvWVUV92KF9dxgf_I
     steps:
       - name: Baixar código
         uses: actions/checkout@v4
