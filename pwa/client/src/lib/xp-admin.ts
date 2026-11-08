@@ -2,7 +2,6 @@ import { firebaseAdminAuth } from "./firebase";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://cwphbkdtorfpgmnlafqb.supabase.co";
 const publishableKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_Dv98hBnbJB2TzRCG6aJNwA_KMPHLZSw";
-const migratedBackend = supabaseUrl.replace(/\/$/, "") === "https://sinzscjscvgzkvkimcbd.supabase.co";
 
 export type AdminXpShopItem = {
   id: string;
@@ -88,13 +87,12 @@ function requireAdminSession() {
 
 async function callFunction(endpoint: string, body: JsonObject, admin = true): Promise<JsonObject> {
   if (admin) requireAdminSession();
-  const identityToken = admin ? await firebaseAdminAuth?.currentUser?.getIdToken() : undefined;
   const response = await fetch(`${supabaseUrl}/functions/v1/${endpoint}`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
       apikey: publishableKey,
-      authorization: `Bearer ${migratedBackend && identityToken ? identityToken : publishableKey}`,
+      authorization: `Bearer ${publishableKey}`,
     },
     body: JSON.stringify(body),
   });

@@ -1,10 +1,8 @@
-import { useState, useRef, useEffect } from "react";
-import { RecaptchaVerifier, signInWithPhoneNumber, type ConfirmationResult } from "firebase/auth";
-import { firebaseAuth } from "@/lib/firebase";
+import { useState } from "react";
 import { ArrowLeft, CheckCircle2, LoaderCircle, LockKeyhole } from "lucide-react";
 import { toast } from "sonner";
 import { ASSETS } from "@/lib/pwa-data";
-import { normalizeMemberPhone, requiresVerifiedPhone, signInOrRequestPwa, signInPwa, type PwaSession } from "@/lib/pwa-auth";
+import { normalizeMemberPhone, signInOrRequestPwa, signInPwa, type PwaSession } from "@/lib/pwa-auth";
 import "./AndroidLoginParity.css";
 
 type AndroidLoginParityProps = {
@@ -21,12 +19,6 @@ export function AndroidLoginParity({ onClose, onSuccess, initialAdmin = false }:
   const [busy,setBusy]=useState(false);
   const [pendingMessage,setPendingMessage]=useState("");
   const [error,setError]=useState("");
-  const [confirmation,setConfirmation]=useState<ConfirmationResult|null>(null);
-  const [code,setCode]=useState("");
-  const confirmedPhone=useRef("");
-  const captchaContainer=useRef<HTMLDivElement>(null);
-  const captcha=useRef<RecaptchaVerifier|null>(null);
-  useEffect(()=>()=>{captcha.current?.clear();},[]);
 
   const submit=async(event:React.FormEvent)=>{
     event.preventDefault();
@@ -46,21 +38,6 @@ export function AndroidLoginParity({ onClose, onSuccess, initialAdmin = false }:
       if(!name.trim()||cleanPhone.length<10||cleanPhone.length>11){
         setError("Preencha seu nome completo e um telefone válido com DDD.");
         return;
-      }
-      if(!firebaseAuth) throw new Error("A conexão Firebase não está configurada.");
-      if(requiresVerifiedPhone&&firebaseAuth.currentUser?.phoneNumber!==`+55${cleanPhone}`){
-        if(!confirmation||confirmedPhone.current!==cleanPhone){
-          if(!captchaContainer.current) throw new Error("Reabra a tela para confirmar o telefone.");
-          captcha.current?.clear();
-          captcha.current=new RecaptchaVerifier(firebaseAuth,captchaContainer.current,{size:"invisible"});
-          const result=await signInWithPhoneNumber(firebaseAuth,`+55${cleanPhone}`,captcha.current);
-          confirmedPhone.current=cleanPhone;
-          setConfirmation(result);
-          toast.success("Código enviado por SMS. Digite-o para continuar.");
-          return;
-        }
-        if(!/^\d{6}$/.test(code))throw new Error("Digite os 6 números do código recebido por SMS.");
-        await confirmation.confirm(code);
       }
       const result=await signInOrRequestPwa({name,phone:cleanPhone});
       if(result.session){
@@ -89,16 +66,14 @@ export function AndroidLoginParity({ onClose, onSuccess, initialAdmin = false }:
             {adminMode?<><span>ADMINISTRAÇÃO</span><h1>Acesso administrativo</h1><p>Este login é exclusivo do Painel ADM e não usa a sessão do Meu Perfil.</p></>:<><span>ÁREA DE MEMBROS</span><h1>Entre ou peça seu acesso</h1><p>Este login é exclusivo do Meu Perfil. Entrar aqui não libera o Painel ADM.</p></>}
           </div>
           {!adminMode&&<label>Nome completo<input value={name} onChange={(event)=>setName(event.target.value)} autoComplete="name" placeholder="Seu nome completo"/></label>}
-          {!adminMode&&<label>Número de telefone com DDD<input value={phone} onChange={(event)=>{setPhone(event.target.value.replace(/\D/g,"").slice(0,13));setConfirmation(null);setCode("");}} inputMode="numeric" autoComplete="tel" placeholder="Ex: 84999832583"/></label>}
-          {!adminMode&&confirmation&&<label>Código recebido por SMS<input value={code} onChange={event=>setCode(event.target.value.replace(/\D/g,"").slice(0,6))} inputMode="numeric" autoComplete="one-time-code" placeholder="6 números"/></label>}
+          {!adminMode&&<label>Número de telefone com DDD<input value={phone} onChange={(event)=>setPhone(event.target.value.replace(/\D/g,"").slice(0,13))} inputMode="numeric" autoComplete="tel" placeholder="Ex: 84999832583"/></label>}
           {adminMode&&<label>Usuário<input value="admin" readOnly autoComplete="username"/></label>}
           {adminMode&&<label>Senha<input type="password" value={password} onChange={(event)=>setPassword(event.target.value)} autoComplete="current-password" placeholder="Sua senha"/></label>}
           {error&&<p className="android-login-error">{error}</p>}
           <button className="android-login-submit" disabled={busy} type="submit">{busy?<><LoaderCircle className="android-login-spin" size={21}/> Verificando…</>:adminMode?<><LockKeyhole size={19}/> Entrar como administrador</>:"Entrar ou solicitar acesso"}</button>
-          {!adminMode&&<p className="android-login-note">{requiresVerifiedPhone?"Seu telefone identifica a conta. A confirmação por SMS protege seu perfil e seu progresso.":"Seu telefone identifica a conta. Em outro aparelho, use o mesmo número para recuperar seu perfil e progresso."}</p>}
+          {!adminMode&&<p className="android-login-note">Seu telefone identifica a conta. Em outro aparelho, use o mesmo número para recuperar o perfil e o progresso já sincronizado.</p>}
         </form>}
       </section>
-      {!adminMode&&<div ref={captchaContainer}/>}
     </div>
   </div>;
 }

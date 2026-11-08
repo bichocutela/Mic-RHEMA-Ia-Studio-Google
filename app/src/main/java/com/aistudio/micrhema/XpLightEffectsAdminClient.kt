@@ -60,7 +60,7 @@ object XpLightEffectsAdminClient {
         val request = Request.Builder()
             .url("$baseUrl/functions/v1/xp-light-effects-admin")
             .header("apikey", apiKey)
-            .header("Authorization", "Bearer ${if (MigrationAuthentication.enabled && adminAuthenticatedState.value) MigrationAuthentication.adminToken() else apiKey}")
+            .header("Authorization", "Bearer $apiKey")
             .header("Content-Type", "application/json")
             .post(payload.toString().toRequestBody("application/json".toMediaType()))
             .build()

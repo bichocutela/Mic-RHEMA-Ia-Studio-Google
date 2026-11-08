@@ -39,3 +39,11 @@ Commit `09aac2a` passed the full Android Kotlin compilation, Edge authentication
 After credential transfer, 19 Deno authentication/configuration/media tests and 15 Node scheduler/notification/quota tests passed. The destination YouTube public read endpoint returned HTTP 200 with cached status. Forced YouTube refreshes now require a signed administrator or the scheduler credential; ordinary public reads cannot write configuration or force API refreshes. Its destination cron job uses authenticated POST and remains inactive until cutover. Vault changes require an Edge Function redeploy/cold start to refresh the per-worker configuration cache.
 
 All seven GitHub workflows passed for code commit `abd59b99af05d803d3c08c9376cd2f475d45f7fb`, including Android compilation, PWA build, Edge authentication and document handling. No production cutover or release has been performed.
+
+## Scope correction requested by the user
+
+The user explicitly restricted this work to copying Supabase only. No Android/PWA changes, login changes, new SMS/email flows, production application URL changes or app releases are authorized. All draft client adaptations were removed; the application client files match the original base commit. No migration client code was merged or published.
+
+The database/storage/credentials copies described above are retained. Destination cron jobs remain inactive because the original project remains in use and duplicate jobs would publish/send twice. Source data, source functions and source cron jobs remain intact.
+
+Exact source authentication-function parity remains blocked: automatic review rejected redeploying the original pwa-auth code because it reintroduces the source hardcoded administrative password-hash fallback. That rejected deployment did not change the destination. The currently deployed destination protected login is not an exact copy of the original member login. Do not treat SMS configuration or app changes as migration prerequisites; they are outside the requested scope. Do not cut over the application while backend parity is incomplete.

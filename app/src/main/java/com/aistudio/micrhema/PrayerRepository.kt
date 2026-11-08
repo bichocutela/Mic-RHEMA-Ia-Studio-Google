@@ -43,7 +43,7 @@ object PrayerRepository {
         val token = runCatching { FirebaseMessaging.getInstance().token.await() }.getOrDefault("")
         val now = System.currentTimeMillis()
         val item = PrayerRequest(
-            id = if (MigrationAuthentication.enabled) MigrationAuthentication.submitPrayer(context, name, requestText, token) else UUID.randomUUID().toString(),
+            id = UUID.randomUUID().toString(),
             name = name.trim(),
             request = requestText.trim(),
             date = formatDate(now),
@@ -54,21 +54,19 @@ object PrayerRepository {
             status = "pendente"
         )
 
-        if (!MigrationAuthentication.enabled) {
-            FirebaseFirestore.getInstance()
-                .collection("prayer_requests")
-                .document(item.id)
-                .set(item)
-                .await()
+        FirebaseFirestore.getInstance()
+            .collection("prayer_requests")
+            .document(item.id)
+            .set(item)
+            .await()
 
-            NotificationDispatcher.enqueue(
-                topic = "prayer_admins",
-                title = "Novo pedido de oração",
-                body = "Há um novo pedido aguardando a equipe pastoral.",
-                collection = "prayer_requests",
-                documentId = item.id
-            )
-        }
+        NotificationDispatcher.enqueue(
+            topic = "prayer_admins",
+            title = "Novo pedido de oração",
+            body = "Há um novo pedido aguardando a equipe pastoral.",
+            collection = "prayer_requests",
+            documentId = item.id
+        )
 
         if (userPrayerRequestsState.none { it.id == item.id }) userPrayerRequestsState.add(0, item)
         XpActivityBridge.prayer(context, item.id)

@@ -87,8 +87,7 @@ function mediaAssetsPublicUrl(raw: string) {
     const marker = markers.find((candidate) => url.pathname.includes(candidate));
     if (!marker) return "";
     const objectPath = url.pathname.slice(url.pathname.indexOf(marker) + marker.length);
-    const origin = url.hostname === "cwphbkdtorfpgmnlafqb.supabase.co" ? SUPABASE_URL.replace(/\/$/, "") : url.origin;
-    return `${origin}/storage/v1/object/public/media-assets/${objectPath}`;
+    return `${url.origin}/storage/v1/object/public/media-assets/${objectPath}`;
   } catch { return ""; }
 }
 
@@ -103,7 +102,7 @@ function isManagedPortableSource(raw: string) {
   try {
     const host = new URL(raw).hostname.replace(/^www\./, "").toLowerCase();
     return host === "drive.google.com" || host === "docs.google.com" || host === "drive.usercontent.google.com"
-      || host === new URL(SUPABASE_URL).hostname || host === "cwphbkdtorfpgmnlafqb.supabase.co" || host === "firebasestorage.googleapis.com";
+      || host === "cwphbkdtorfpgmnlafqb.supabase.co" || host === "firebasestorage.googleapis.com";
   } catch { return false; }
 }
 

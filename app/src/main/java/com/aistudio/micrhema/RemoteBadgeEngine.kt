@@ -143,7 +143,7 @@ object RemoteBadgeEngineClient {
         val request = Request.Builder()
             .url("$baseUrl/functions/v1/badge-engine")
             .header("apikey", apiKey)
-            .header("Authorization", "Bearer ${if (MigrationAuthentication.enabled && action == "reconcile") MigrationAuthentication.memberToken(memberId) else apiKey}")
+            .header("Authorization", "Bearer $apiKey")
             .header("Content-Type", "application/json")
             .post(payload.toString().toRequestBody("application/json".toMediaType()))
             .build()

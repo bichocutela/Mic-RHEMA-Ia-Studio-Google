@@ -33,7 +33,6 @@ object MemberXpAdminClient {
         .build()
 
     private suspend fun ensureRemoteAdminSession(forceRefresh: Boolean): String {
-        if (MigrationAuthentication.enabled) return MigrationAuthentication.adminToken()
         if (!adminAuthenticatedState.value) {
             throw IllegalStateException("Abra a Área Administrativa antes de alterar XP.")
         }

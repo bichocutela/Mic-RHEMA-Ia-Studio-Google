@@ -76,8 +76,7 @@ import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.URL
 
-private val LIVE_ENDPOINT: String
-    get() = "${BuildConfig.SUPABASE_URL.trim().trimEnd('/')}/functions/v1/youtube-live"
+private const val LIVE_ENDPOINT = "https://cwphbkdtorfpgmnlafqb.supabase.co/functions/v1/youtube-live"
 private const val DEFAULT_LIVE_HANDLE = "@micrhemaoficial"
 
 data class LiveStreamModel(
@@ -134,7 +133,6 @@ object LiveStreamRepository {
     }
 
     suspend fun refresh(force: Boolean = false) = withContext(Dispatchers.IO) {
-        val adminToken = if (force && MigrationAuthentication.enabled) MigrationAuthentication.adminToken() else null
         val endpoint = if (force) "$LIVE_ENDPOINT?force=1" else LIVE_ENDPOINT
         val connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
             requestMethod = if (force) "POST" else "GET"
@@ -142,7 +140,6 @@ object LiveStreamRepository {
             readTimeout = 18_000
             doInput = true
             setRequestProperty("Accept", "application/json")
-            if (adminToken != null) setRequestProperty("Authorization", "Bearer $adminToken")
             if (force) {
                 doOutput = true
                 setRequestProperty("Content-Type", "application/json")
