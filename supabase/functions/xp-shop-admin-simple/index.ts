@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { AccessError, administrator } from "../_shared/migration-auth.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 
 const ITEM_KINDS = new Set(["digital", "profile", "physical"]);
@@ -87,6 +88,7 @@ Deno.serve(async (request) => {
   try {
     const input = await request.json() as Record<string, unknown>;
     const action = clean(input.action, 60);
+    if (action !== "cosmetics_catalog") await administrator(request);
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     if (!supabaseUrl || !serviceRole) throw new Error("Backend da Loja XP não configurado.");
@@ -206,8 +208,6 @@ Deno.serve(async (request) => {
         .select("id,kind,name,description,challenge,challenge_metric,challenge_target,image_ref,active,purchasable,xp_cost,emblem_ids,free_for_all,created_at,updated_at")
         .eq("kind", kind).order("created_at", { ascending: true });
       if (error) throw error;
-      // Opt-in keeps older Android/PWA clients unchanged. Original shop rows
-      // remain the source of truth, preserving purchases and entitlement IDs.
       const items = [...(data ?? [])];
       if (input.includeBuiltins === true) {
         const ids = Object.keys(BUILTIN_COSMETICS).filter(id => BUILTIN_COSMETICS[id] === kind);
@@ -235,7 +235,6 @@ Deno.serve(async (request) => {
         if (imageRef && !imageRef.startsWith(prefix)) return json({ error: "Envie um PNG ou mantenha a arte original." }, 400);
         const cost = Number(input.xpCost);
         if (!Number.isSafeInteger(cost) || cost <= 0 || cost > 2147483647) return json({ error: "Informe um valor em XP maior que zero." }, 400);
-        // Update only editable cosmetic fields; leave stock, scheduling and ledger intact.
         const { data: original, error: originalError } = await sb.from("xp_shop_items")
           .update({ name, description, cost, image_url: imageRef, active, updated_at: new Date().toISOString() })
           .eq("id", builtinId).select("id,name,description,cost,image_url,active").single();
@@ -295,6 +294,7 @@ Deno.serve(async (request) => {
 
     return json({ error: "Ação inválida." }, 400);
   } catch (error) {
+    if (error instanceof AccessError) return json({ error: error.message }, error.status);
     console.error("xp-shop-admin-simple failed", error);
     return json({ error: error instanceof Error ? error.message : "Falha na administração da Loja XP." }, 500);
   }

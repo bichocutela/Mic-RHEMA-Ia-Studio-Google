@@ -95,7 +95,7 @@ async function notify(token: string, d: Doc) {
     const current=await get(token,"discipulado_pdfs",d.name.split("/").pop()!);
     if (!current || current.fields?.isPublished?.booleanValue!==true ||
         current.fields?.releaseNotificationPending?.booleanValue!==true) return false;
-    const r=await firestoreQuotaFetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/notify-fcm`,{method:"POST",headers:{"content-type":"application/json",apikey:Deno.env.get("SUPABASE_ANON_KEY")||""},body:JSON.stringify(pushData(d)),signal:AbortSignal.timeout(30000)});
+    const r=await firestoreQuotaFetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/notify-fcm`,{method:"POST",headers:{"content-type":"application/json",apikey:Deno.env.get("SUPABASE_ANON_KEY")||"","x-internal-scheduler":Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")||""},body:JSON.stringify(pushData(d)),signal:AbortSignal.timeout(30000)});
     const b=await r.json(); if(!r.ok||b.ok!==true)throw new Error(`Aviso não aceito: ${r.status}`);
     if(!await patch(token,lock,{releaseNotificationPending:false,releaseNotificationState:"sent",releaseNotificationSentAt:new Date().toISOString(),releaseNotificationLeaseUntil:""}))throw new Error("Confirmação de envio não registrada");
     return true;

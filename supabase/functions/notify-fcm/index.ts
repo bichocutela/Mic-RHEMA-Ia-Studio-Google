@@ -1,6 +1,7 @@
 import { notificationSlot, isDailySlot, eventDigest } from "./notification-policy.ts";
 import { notificationPresentation } from "./notification-presentation.ts";
 import { importPKCS8, SignJWT } from "npm:jose@5.10.0";
+import { AccessError, administrator } from "../_shared/migration-auth.ts";
 
 const GOOGLE_SCOPE = "https://www.googleapis.com/auth/firebase.messaging https://www.googleapis.com/auth/datastore";
 const FCM_TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -96,10 +97,7 @@ Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (request.method !== "POST") return json({ error: "Método não permitido." }, 405);
   try {
-    const configuredKey = Deno.env.get("SUPABASE_ANON_KEY");
-    const providedKey = request.headers.get("apikey");
-    if (configuredKey && providedKey && providedKey !== configuredKey) return json({ error: "Chave pública do Supabase inválida." }, 401);
-
+    await administrator(request, true);
     const input = await request.json() as NotificationRequest;
     const directToken = String(input.token ?? "").trim().slice(0, 4096);
     const topic = cleanText(input.topic, "all_users").replace(/[^a-zA-Z0-9_.-]/g, "");
@@ -149,6 +147,7 @@ Deno.serve(async (request) => {
 
     return json({ ok: true, target: directToken ? "token" : `topic:${topic}`, webRecipients, webSent, webFiltered, message: primary.body });
   } catch (error) {
+    if (error instanceof AccessError) return json({ error: error.message }, error.status);
     console.error("notify-fcm failed", error);
     return json({ error: error instanceof Error ? error.message : "Erro ao enviar notificação." }, 500);
   }

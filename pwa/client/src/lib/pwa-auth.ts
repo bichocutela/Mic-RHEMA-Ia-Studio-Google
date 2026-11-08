@@ -59,9 +59,10 @@ export function normalizeMemberPhone(value: string) {
 }
 
 async function authRequest(input: { name: string; phone: string; password?: string }): Promise<AuthPayload> {
+  const identityToken = input.password ? undefined : await firebaseAuth?.currentUser?.getIdToken();
   const response = await fetch(`${supabaseUrl}/functions/v1/pwa-auth`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...(identityToken ? { authorization: `Bearer ${identityToken}` } : {}) },
     body: JSON.stringify(input),
   });
   const payload = await response.json().catch(() => ({})) as AuthPayload;
@@ -70,11 +71,13 @@ async function authRequest(input: { name: string; phone: string; password?: stri
 }
 
 async function recoverAndroidMemberSession(phone: string): Promise<RecoveryPayload> {
+  const identityToken = await firebaseAuth?.currentUser?.getIdToken();
+  if (!identityToken) throw new Error("Confirme seu telefone antes de recuperar o perfil.");
   const response = await fetch(`${supabaseUrl}/functions/v1/member-session`, {
     method: "POST",
     headers: {
       apikey: supabasePublishableKey,
-      authorization: `Bearer ${supabasePublishableKey}`,
+      authorization: `Bearer ${identityToken}`,
       "content-type": "application/json",
     },
     body: JSON.stringify({ action: "recover", phone }),
@@ -123,8 +126,7 @@ export async function signInOrRequestPwa(input: { name: string; phone: string })
     throw new Error("Preencha seu nome completo e um telefone válido com DDD.");
   }
 
-  // Primeiro usa exatamente a recuperação do Android. Isso preserva a identidade
-  // pelo telefone, consolida cadastros duplicados e recupera também perfis pendentes.
+  // Recover the verified member's identity and history without deleting duplicates.
   const recovery = await recoverAndroidMemberSession(phone);
   if (recovery.found) {
     const session = await sessionFromRecovery(recovery, completeName);

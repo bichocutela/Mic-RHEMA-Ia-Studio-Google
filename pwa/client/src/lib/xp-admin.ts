@@ -87,12 +87,13 @@ function requireAdminSession() {
 
 async function callFunction(endpoint: string, body: JsonObject, admin = true): Promise<JsonObject> {
   if (admin) requireAdminSession();
+  const identityToken = admin ? await firebaseAdminAuth?.currentUser?.getIdToken() : undefined;
   const response = await fetch(`${supabaseUrl}/functions/v1/${endpoint}`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
       apikey: publishableKey,
-      authorization: `Bearer ${publishableKey}`,
+      ...(identityToken ? { authorization: `Bearer ${identityToken}` } : {}),
     },
     body: JSON.stringify(body),
   });

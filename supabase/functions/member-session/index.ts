@@ -1,10 +1,10 @@
 import { importPKCS8, SignJWT } from "npm:jose@5.10.0";
+import { AccessError, caller, ownsMember, verifiedPhone } from "../_shared/migration-auth.ts";
 
 const FIRESTORE_SCOPE = "https://www.googleapis.com/auth/datastore";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const CUSTOM_TOKEN_AUD = "https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit";
 const DEFAULT_PROJECT_ID = "mic-rhema";
-const CURRENT_PUBLISHABLE_KEY = "sb_publishable_Dv98hBnbJB2TzRCG6aJNwA_KMPHLZSw";
 const LEVEL_BADGES = [
   "caminhante", "semeador", "discipulo", "perseverante", "estudante_rhema", "mestre_da_palavra", "guardiao_da_fe",
   "semente_da_fe", "caminho_da_promessa", "escudo_da_fe", "aguas_vivas", "videira_verdadeira", "luz_do_mundo",
@@ -196,12 +196,7 @@ async function patchDocument(projectId: string, token: string, collection: strin
   });
   if (!response.ok) throw new Error(`Falha ao sincronizar ${collection}: ${response.status} ${(await response.text()).slice(0, 160)}`);
 }
-async function deleteDocument(projectId: string, token: string, collection: string, id: string) {
-  const response = await fetch(`${baseUrl(projectId)}/${collection}/${encodeURIComponent(id)}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
-  if (!response.ok && response.status !== 404) throw new Error(`Falha ao remover duplicado em ${collection}: ${response.status}`);
-}
-
-async function consolidateMatches(projectId: string, token: string, phone: string, matches: FirestoreDocument[], persist = true) {
+async function consolidateMatches(projectId: string, token: string, phone: string, matches: FirestoreDocument[]) {
   const sorted = [...matches].sort((a, b) => rankMember(b) - rankMember(a));
   const selected = sorted[0];
   const memberId = memberIdFromDocument(selected);
@@ -242,17 +237,8 @@ async function consolidateMatches(projectId: string, token: string, phone: strin
     createdAt: createdCandidates.length ? Math.min(...createdCandidates) : Date.now(),
     updatedAt: Date.now(),
   };
-  // A sessão normal é somente leitura; apenas uma recuperação de duplicados
-  // precisa consolidar documentos e remover registros redundantes.
+  // Compose a recovery response without changing or deleting source documents.
   const duplicateIds = sorted.slice(1).map(memberIdFromDocument);
-  if (persist) {
-    await patchDocument(projectId, token, "acessos_pendentes", memberId, merged);
-    await patchDocument(projectId, token, "users", memberId, merged);
-    for (const duplicateId of duplicateIds) {
-      await deleteDocument(projectId, token, "acessos_pendentes", duplicateId);
-      await deleteDocument(projectId, token, "users", duplicateId);
-    }
-  }
   return { memberId, merged, duplicateIds };
 }
 
@@ -260,29 +246,24 @@ Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (request.method !== "POST") return json({ error: "Método não permitido." }, 405);
   try {
-    const configuredLegacyKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-    const providedKey = request.headers.get("apikey") ?? "";
-    const authorization = request.headers.get("authorization") ?? "";
-    const validLegacy = Boolean(configuredLegacyKey) && providedKey === configuredLegacyKey && authorization === `Bearer ${configuredLegacyKey}`;
-    const validPublishable = providedKey === CURRENT_PUBLISHABLE_KEY && authorization === `Bearer ${CURRENT_PUBLISHABLE_KEY}`;
-    if (!validLegacy && !validPublishable) return json({ error: "Cliente não autorizado." }, 401);
+    const identity = await caller(request);
 
     const input = await request.json() as Record<string, unknown>;
     const action = String(input.action ?? "recover");
     const phone = normalizePhone(input.phone);
     if (phone.length < 10 || phone.length > 11) return json({ error: "Telefone inválido." }, 400);
+    if (identity.isAdmin !== true && !verifiedPhone(identity, phone) && identity.firebase?.sign_in_provider === "anonymous") return json({ error: "Confirme seu telefone para recuperar o cadastro." }, 403);
 
     const account = JSON.parse(Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON") ?? "{}") as ServiceAccount;
     const projectId = account.project_id || Deno.env.get("FIREBASE_PROJECT_ID") || DEFAULT_PROJECT_ID;
     const token = await googleAccessToken(account);
-    const matches = await findMembers(projectId, token, phone);
+    const matches = (await findMembers(projectId, token, phone)).filter(document => ownsMember(identity, memberIdFromDocument(document), documentData(document)));
 
     if (action === "recover") {
       if (matches.length === 0) return json({ ok: true, found: false });
       const beforeDuplicateCount = Math.max(0, matches.length - 1);
-      // Mesma composição de perfil (inclusive badges e histórico), mas sem
-      // regravar a conta em cada login quando não existem duplicados.
-      const consolidated = await consolidateMatches(projectId, token, phone, matches, matches.length > 1);
+      // Preserve badges and history without rewriting or deleting member records.
+      const consolidated = await consolidateMatches(projectId, token, phone, matches);
       const customToken = await firebaseCustomToken(account, consolidated.memberId);
       return json({
         ok: true,
@@ -291,7 +272,7 @@ Deno.serve(async (request) => {
         customToken,
         member: { ...consolidated.merged, id: consolidated.memberId, phone },
         duplicateCount: beforeDuplicateCount,
-        duplicatesRemoved: consolidated.duplicateIds,
+        duplicatesRemoved: [],
       });
     }
 
@@ -303,6 +284,7 @@ Deno.serve(async (request) => {
       if (!/^[a-z0-9_:-]{1,180}$/i.test(avatarId)) return json({ error: "Avatar inválido." }, 400);
       const current = await getDocument(projectId, token, "acessos_pendentes", memberId);
       if (!current) return json({ error: "Cadastro não encontrado." }, 404);
+      if (!ownsMember(identity, memberId, documentData(current))) return json({ error: "Este cadastro pertence a outro membro." }, 403);
       if (normalizePhone(documentData(current).phone) !== identityPhone) {
         return json({ error: "Identidade do membro não confere." }, 403);
       }
@@ -322,6 +304,7 @@ Deno.serve(async (request) => {
       const current = await getDocument(projectId, token, "acessos_pendentes", memberId);
       if (!current) return json({ error: "Cadastro não encontrado." }, 404);
       const currentData = documentData(current);
+      if (!ownsMember(identity, memberId, currentData)) return json({ error: "Este cadastro pertence a outro membro." }, 403);
       if (normalizePhone(currentData.phone) !== identityPhone) return json({ error: "Identidade do membro não confere." }, 403);
       const userDocument = await getDocument(projectId, token, "users", memberId);
       const userData = documentData(userDocument);
@@ -362,6 +345,7 @@ Deno.serve(async (request) => {
 
     return json({ error: "Ação inválida." }, 400);
   } catch (error) {
+    if (error instanceof AccessError) return json({ error: error.message }, error.status);
     console.error("member-session failed", error);
     const detail = error instanceof Error ? error.message : String(error);
     if (/\b429\b|RESOURCE_EXHAUSTED/i.test(detail)) {

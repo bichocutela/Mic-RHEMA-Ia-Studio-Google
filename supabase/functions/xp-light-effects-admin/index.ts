@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { AccessError, administrator } from "../_shared/migration-auth.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 
 const TONES = new Set(["suave", "medio", "forte"]);
@@ -68,6 +69,7 @@ Deno.serve(async (request) => {
   try {
     const input = await request.json() as Record<string, unknown>;
     const action = clean(input.action, 30).toLowerCase();
+    if (action !== "list") await administrator(request);
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     if (!supabaseUrl || !serviceRole) throw new Error("Backend dos efeitos de luz não configurado.");
@@ -79,8 +81,10 @@ Deno.serve(async (request) => {
         .order("created_at", { ascending: true });
       if (error) throw error;
       const items = (data ?? []) as LightEffectRow[];
-      await syncCatalogToShop(sb, items);
-      return json({ ok: true, items });
+      let adminList = false;
+      try { await administrator(request); adminList = true; } catch (error) { if (!(error instanceof AccessError)) throw error; }
+      if (adminList) await syncCatalogToShop(sb, items);
+      return json({ ok: true, items: adminList ? items : items.filter(item => item.active) });
     }
 
     if (action === "upsert") {
@@ -141,6 +145,7 @@ Deno.serve(async (request) => {
 
     return json({ error: "Ação inválida." }, 400);
   } catch (error) {
+    if (error instanceof AccessError) return json({ error: error.message }, error.status);
     console.error("xp-light-effects-admin failed", error);
     return json({ error: error instanceof Error ? error.message : "Falha na sincronização dos efeitos de luz." }, 500);
   }

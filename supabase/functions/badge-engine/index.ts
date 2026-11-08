@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { AccessError, caller, ownsMember } from "../_shared/migration-auth.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 
 const cors = {
@@ -18,6 +19,14 @@ Deno.serve(async (request) => {
   if (request.method !== "POST") return json({ error: "Método não permitido." }, 405);
 
   try {
+    const input = await request.json() as Record<string, unknown>;
+    const action = clean(input.action, 40);
+    if (action === "reconcile") {
+      const memberId = clean(input.memberId, 120);
+      if (!memberId) return json({ error: "Membro inválido." }, 400);
+      const identity = await caller(request);
+      if (!ownsMember(identity, memberId, {})) return json({ error: "Este histórico pertence a outro membro." }, 403);
+    }
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     if (!supabaseUrl || !serviceRole) throw new Error("Backend de emblemas não configurado.");
@@ -25,8 +34,6 @@ Deno.serve(async (request) => {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    const input = await request.json() as Record<string, unknown>;
-    const action = clean(input.action, 40);
 
     if (action === "catalog") {
       const { data, error } = await sb.from("custom_profile_badges")
@@ -72,6 +79,7 @@ Deno.serve(async (request) => {
 
     return json({ error: "Ação inválida." }, 400);
   } catch (error) {
+    if (error instanceof AccessError) return json({ error: error.message }, error.status);
     console.error("badge-engine failed", error);
     return json({ error: error instanceof Error ? error.message : "Falha no motor remoto de emblemas." }, 500);
   }
