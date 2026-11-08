@@ -8,6 +8,8 @@ Source: `cwphbkdtorfpgmnlafqb`. Destination: `sinzscjscvgzkvkimcbd`.
 - RLS remains enabled on all 14 tables; access is through the backend service role, as in the source.
 - All 30 application Edge Functions deployed. Six needed the authentication changes in this branch. The storage gateway has no built-in admin password fallback in the destination.
 - Three buckets created with the source visibility, MIME and size settings.
+- All 43 storage files (78,894,227 bytes) copied after the source quota restriction cleared. File paths, sizes and content ETags matched for all 43 files; the transfer also checked SHA-256 hashes between the two servers.
+- All 42 historical database migration records copied and their combined checksum verified.
 - Four cron definitions and the scheduler's Vault secret copied. The destination cron jobs remain inactive until cutover, avoiding duplicate notifications and publications.
 - Temporary `migration-copy-20261108` transfer functions on both projects were replaced with inactive HTTP 410 handlers, with gateway JWT verification enabled.
 
@@ -19,8 +21,9 @@ Member recovery requires a bound, non-anonymous identity or a recent Firebase Ph
 
 ## Blocking completion and cutover
 
-- The source currently returns HTTP 402 with `exceed_egress_quota`, preventing download of all 43 objects (78,894,227 bytes). No file bytes have been copied yet.
-- Configure the destination's Firebase service-account credential, administrative password configuration, and other used integrations such as the YouTube API. Built-in Supabase credentials are destination-specific and must not be copied from the source. Do not put secret values into this repository.
+- The original quota restriction has cleared and file transfer is complete.
+- The source has Firebase service-account/project configuration and a YouTube key. Transfer of credential values to the destination was blocked by automatic review pending explicit user authorization for these sensitive credentials. No runtime credentials were transferred. Destination Vault configuration helpers are restricted to `service_role`: `anon` and `authenticated` cannot execute them. Built-in Supabase credentials remain destination-specific and must never be copied from the source. No secret values are stored in this repository.
+- The source has no configured `RHEMA_ADMIN_PASSWORD` or `RHEMA_ADMIN_PASSWORD_SHA256`; its legacy code relied on built-in defaults. The new server does not have those defaults. Administrative authentication must be completed without restoring a published fallback password.
 - Phone Auth must be configured and tested in Firebase before using SMS verification in production. Android and PWA client adaptations are prepared in this branch: the destination uses Firebase tokens, verified phone recovery and server-validated admin login. The original backend keeps its existing client contract until the URL changes.
 - Application URLs, public keys, GitHub build secrets and existing Firebase-stored media links still need the destination configuration after file transfer and end-to-end validation.
 - Fixed live-stream URLs now follow the configured backend. PWA legacy public media links and its media gateway preserve object paths when resolving them against the destination. Android prayer submissions use the server endpoint so pastoral notifications remain server-authenticated.
