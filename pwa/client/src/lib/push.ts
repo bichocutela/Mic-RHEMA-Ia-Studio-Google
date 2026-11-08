@@ -4,7 +4,7 @@ import { firebaseAdminAuth, firebaseApp, firebaseAuth } from "./firebase";
 import { getPrayerDeviceIdentity } from "./prayer-device";
 
 const VAPID_PUBLIC_KEY = "BHkibd35bzMzP9t3If0K32xxrgMlulTQXvevAe370icbBosqINSM1WDL_TEi3k6Ja7LhHHqn6ec7NiCyArEjSkM";
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://cwphbkdtorfpgmnlafqb.supabase.co";
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://sinzscjscvgzkvkimcbd.supabase.co";
 const settingsKey = "micrhema:pwa:settings";
 
 export type PwaPushPreferences = {

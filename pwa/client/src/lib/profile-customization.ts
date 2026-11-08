@@ -1,8 +1,8 @@
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { firestore } from "./firebase";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://cwphbkdtorfpgmnlafqb.supabase.co";
-const publishableKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_Dv98hBnbJB2TzRCG6aJNwA_KMPHLZSw";
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://sinzscjscvgzkvkimcbd.supabase.co";
+const publishableKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNpbnpzY2pzY3Znemt2a2ltY2JkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQwODAxMjYsImV4cCI6MjEwOTY1NjEyNn0.PlO3cCbVauz2VGNJOLUIzL0D1aIvWVUV92KF9dxgf_I";
 
 export type PwaProfileCosmetic = {
   id: string;

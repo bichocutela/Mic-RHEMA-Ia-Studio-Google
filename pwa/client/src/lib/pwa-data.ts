@@ -3,9 +3,9 @@
  * Dados reais substituem estes cartões automaticamente quando os listeners Firestore estiverem configurados.
  */
 export const ASSETS = {
-  hero: "https://cwphbkdtorfpgmnlafqb.supabase.co/storage/v1/object/public/media-assets/rhema-admin/media-73d6c1c3-49f9-4725-8e06-5939165e4226.jpg",
-  devotional: "https://cwphbkdtorfpgmnlafqb.supabase.co/storage/v1/object/public/media-assets/rhema-admin/media-dc267d77-3931-49bf-944d-e633b1c2f69c.jpg",
-  media: "https://cwphbkdtorfpgmnlafqb.supabase.co/storage/v1/object/public/media-assets/rhema-admin/media-f98917a4-16e2-44db-b2b0-82844006a344.jpg",
+  hero: "https://sinzscjscvgzkvkimcbd.supabase.co/storage/v1/object/public/media-assets/rhema-admin/media-73d6c1c3-49f9-4725-8e06-5939165e4226.jpg",
+  devotional: "https://sinzscjscvgzkvkimcbd.supabase.co/storage/v1/object/public/media-assets/rhema-admin/media-dc267d77-3931-49bf-944d-e633b1c2f69c.jpg",
+  media: "https://sinzscjscvgzkvkimcbd.supabase.co/storage/v1/object/public/media-assets/rhema-admin/media-f98917a4-16e2-44db-b2b0-82844006a344.jpg",
   logo: `${import.meta.env.BASE_URL}brand/mic-rhema-android-logo.png`,
 };
 
