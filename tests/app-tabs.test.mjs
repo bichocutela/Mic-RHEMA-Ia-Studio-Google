@@ -9,9 +9,10 @@ test('configuração antiga recebe Discipulado após IBR sem alterar origem',()=
  assert.equal(source[1].order,5);
  assert.deepEqual(ensureDiscipuladoTab(result),result);
 });
-test('configuração explícita oculta ou renomeada é preservada',()=>{
+test('Discipulado permanece público e visível, preservando título e ordem personalizados',()=>{
  const tabs=[{id:'custom',systemRoute:'discipulado',isVisible:false,title:'Estudos',order:9}];
- assert.deepEqual(ensureDiscipuladoTab(tabs),tabs);
+ assert.deepEqual(ensureDiscipuladoTab(tabs),[{...tabs[0],isVisible:true,isPrivate:false,type:'SYSTEM'}]);
+ assert.equal(tabs[0].isVisible,false);
 });
 test('todas as abas padrão do Android possuem rota no PWA',async()=>{
  const {readFileSync}=await import('node:fs');

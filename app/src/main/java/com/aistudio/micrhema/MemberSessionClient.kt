@@ -104,7 +104,7 @@ object MemberSessionClient {
         val request = Request.Builder()
             .url("$baseUrl/functions/v1/member-session")
             .header("apikey", anonKey)
-            .header("Authorization", "Bearer $anonKey")
+            .header("Authorization", "Bearer ${if (MigrationAuthentication.enabled) MigrationAuthentication.memberToken(payload.optString("memberId").takeIf { it.isNotBlank() }) else anonKey}")
             .header("Content-Type", "application/json")
             .post(payload.toString().toRequestBody("application/json".toMediaType()))
             .build()
@@ -148,6 +148,23 @@ object MemberSessionClient {
             member = member,
             duplicateCount = response.optInt("duplicateCount", 0)
         )
+    }
+
+    suspend fun registerVerified(context: Context, name: String, phone: String): RecoveryResult = withContext(Dispatchers.IO) {
+        val identityToken = MigrationAuthentication.memberToken()
+        val payload = JSONObject().put("name", name.trim()).put("phone", normalizePhone(phone))
+        val request = Request.Builder()
+            .url("${BuildConfig.SUPABASE_URL.trim().trimEnd('/')}/functions/v1/pwa-auth")
+            .header("Authorization", "Bearer $identityToken")
+            .header("Content-Type", "application/json")
+            .post(payload.toString().toRequestBody("application/json".toMediaType())).build()
+        val token = client.newCall(request).execute().use { response ->
+            val body = runCatching { JSONObject(response.body?.string().orEmpty()) }.getOrElse { JSONObject() }
+            if (!response.isSuccessful) throw IllegalStateException(body.optString("error").ifBlank { "Não foi possível solicitar acesso." })
+            body.optString("token").also { check(it.isNotBlank()) { "Sessão do membro incompleta." } }
+        }
+        MemberFirebaseAuth.get().signInWithCustomToken(token).await()
+        recover(context, phone)
     }
 
     fun syncMemberState(

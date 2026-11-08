@@ -110,7 +110,7 @@ object NotificationDispatcher {
                 val request = Request.Builder()
                     .url("$baseUrl/functions/v1/$FUNCTION_NAME")
                     .header("apikey", anonKey)
-                    .header("Authorization", "Bearer $anonKey")
+                    .header("Authorization", "Bearer ${if (MigrationAuthentication.enabled) MigrationAuthentication.adminToken() else anonKey}")
                     .header("Content-Type", "application/json")
                     .post(payload.toString().toRequestBody("application/json".toMediaType()))
                     .build()

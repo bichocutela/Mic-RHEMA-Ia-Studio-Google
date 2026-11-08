@@ -86,7 +86,7 @@ object XpShopAdminClient {
         val request = Request.Builder()
             .url("$baseUrl/functions/v1/xp-shop-admin-simple")
             .header("apikey", apiKey)
-            .header("Authorization", "Bearer $apiKey")
+            .header("Authorization", "Bearer ${if (MigrationAuthentication.enabled && action != "cosmetics_catalog") MigrationAuthentication.adminToken() else apiKey}")
             .header("Content-Type", "application/json")
             .post(payload.toString().toRequestBody("application/json".toMediaType()))
             .build()

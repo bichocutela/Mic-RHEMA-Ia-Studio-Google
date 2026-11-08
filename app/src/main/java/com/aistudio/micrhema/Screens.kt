@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.clickable
+import kotlinx.coroutines.launch
 
 @Composable
 fun MembersScreen() {
@@ -171,11 +172,14 @@ fun MembersScreen() {
 @Composable
 fun AdminScreen(initialSection: String? = null) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val migrationScope = rememberCoroutineScope()
     val loggedIn = loggedInMemberState.value
     var isAuthenticated by adminAuthenticatedState
 
     LaunchedEffect(loggedIn) {
-        if (loggedIn?.isAdmin == true) {
+        if (MigrationAuthentication.enabled) {
+            isAuthenticated = runCatching { MigrationAuthentication.adminToken() }.isSuccess
+        } else if (loggedIn?.isAdmin == true) {
             isAuthenticated = true
         }
     }
@@ -211,6 +215,12 @@ fun AdminScreen(initialSection: String? = null) {
 
     LaunchedEffect(isAuthenticated) {
         if (isAuthenticated) {
+            if (MigrationAuthentication.enabled) {
+                runCatching { MigrationAuthentication.adminToken() }
+                    .onSuccess { activateRemoteAdminSession(com.google.firebase.auth.FirebaseAuth.getInstance()) }
+                    .onFailure { isAuthenticated = false }
+                return@LaunchedEffect
+            }
             val firebaseAuth = com.google.firebase.auth.FirebaseAuth.getInstance()
             val adminEmail = "admin@micrhema.app"
             if (firebaseAuth.currentUser?.email == adminEmail) {
@@ -341,17 +351,26 @@ fun AdminScreen(initialSection: String? = null) {
                     Button(
                         enabled = !isSigningIn,
                         onClick = {
-                            if (loggedIn?.isAdmin == true) {
+                            if (!MigrationAuthentication.enabled && loggedIn?.isAdmin == true) {
                                 isAuthenticated = true
                                 return@Button
                             }
-                            if (username.trim().lowercase() != "admin" || password != "igreja10") {
+                            if (username.trim().lowercase() != "admin" || password.isBlank() || (!MigrationAuthentication.enabled && password != "igreja10")) {
                                 error = "Informe o usuário admin e a senha correta."
                                 return@Button
                             }
 
                             isSigningIn = true
                             error = ""
+                            if (MigrationAuthentication.enabled) {
+                                migrationScope.launch {
+                                    runCatching { MigrationAuthentication.signInAdmin(password) }
+                                        .onSuccess { isAuthenticated = true }
+                                        .onFailure { error = it.localizedMessage ?: "Não foi possível autenticar o administrador." }
+                                    isSigningIn = false
+                                }
+                                return@Button
+                            }
                             val firebaseAuth = com.google.firebase.auth.FirebaseAuth.getInstance()
                             val adminEmail = "admin@micrhema.app"
                             val finishAdminLogin: () -> Unit = {

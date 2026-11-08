@@ -7,6 +7,7 @@ import { firebaseAdminAuth, firebaseAuth } from "./firebase";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://cwphbkdtorfpgmnlafqb.supabase.co";
 const supabasePublishableKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_Dv98hBnbJB2TzRCG6aJNwA_KMPHLZSw";
+export const requiresVerifiedPhone = supabaseUrl.replace(/\/$/, "") === "https://sinzscjscvgzkvkimcbd.supabase.co";
 
 export type PwaSession = {
   uid: string;
@@ -72,12 +73,12 @@ async function authRequest(input: { name: string; phone: string; password?: stri
 
 async function recoverAndroidMemberSession(phone: string): Promise<RecoveryPayload> {
   const identityToken = await firebaseAuth?.currentUser?.getIdToken();
-  if (!identityToken) throw new Error("Confirme seu telefone antes de recuperar o perfil.");
+  if (requiresVerifiedPhone && !identityToken) throw new Error("Confirme seu telefone antes de recuperar o perfil.");
   const response = await fetch(`${supabaseUrl}/functions/v1/member-session`, {
     method: "POST",
     headers: {
       apikey: supabasePublishableKey,
-      authorization: `Bearer ${identityToken}`,
+      authorization: `Bearer ${requiresVerifiedPhone ? identityToken : supabasePublishableKey}`,
       "content-type": "application/json",
     },
     body: JSON.stringify({ action: "recover", phone }),

@@ -21,6 +21,21 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.tasks.await
+import com.google.firebase.FirebaseException
+import com.google.firebase.auth.PhoneAuthOptions
+import com.google.firebase.auth.PhoneAuthProvider
+import com.google.firebase.auth.PhoneAuthCredential
+import java.util.concurrent.TimeUnit
+
+private fun migrationLoginActivity(context: android.content.Context): android.app.Activity? {
+    var current = context
+    while (current is android.content.ContextWrapper) {
+        if (current is android.app.Activity) return current
+        current = current.baseContext
+    }
+    return current as? android.app.Activity
+}
 
 private fun shortMemberName(fullName: String): String {
     return fullName.trim()
@@ -48,6 +63,9 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var verificationId by remember { mutableStateOf("") }
+    var verificationCode by remember { mutableStateOf("") }
+    var phoneConfirmed by remember { mutableStateOf(false) }
 
     fun createAccessRequest() {
         val completeName = name.trim()
@@ -66,13 +84,56 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                 MemberOfflineCache.restoreTrusted(context, cleanPhone)
                     ?: MemberOfflineCache.restoreLegacy(context, cleanPhone)
             }
-            if (local != null) {
+            if (local != null && (!MigrationAuthentication.enabled || MemberFirebaseAuth.forMember(local.id)?.currentUser?.isAnonymous == false)) {
                 MemberManager.setLoggedInMember(context, local, bindFirebaseIdentity = false)
                 XpAccountCache.restore(context, local)
                 MemberOfflineSync.schedule(context)
                 isLoading = false
                 onLoginSuccess()
                 return@launch
+            }
+
+            if (MigrationAuthentication.enabled && !phoneConfirmed) {
+                val auth = MemberFirebaseAuth.get()
+                if (verificationId.isBlank()) {
+                    val activity = migrationLoginActivity(context)
+                    if (activity == null) { isLoading = false; errorMessage = "Reabra a tela para confirmar seu telefone."; return@launch }
+                    auth.setLanguageCode("pt-BR")
+                    val callbacks = object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
+                        override fun onVerificationFailed(exception: FirebaseException) {
+                            isLoading = false
+                            errorMessage = exception.localizedMessage ?: "Não foi possível enviar o código. Tente novamente."
+                        }
+                        override fun onCodeSent(id: String, token: PhoneAuthProvider.ForceResendingToken) {
+                            if (normalizeMemberPhone(phone) != cleanPhone) return
+                            verificationId = id
+                            isLoading = false
+                        }
+                        override fun onVerificationCompleted(credential: PhoneAuthCredential) {
+                            if (normalizeMemberPhone(phone) != cleanPhone || phoneConfirmed) return
+                            scope.launch {
+                                runCatching { auth.signInWithCredential(credential).await() }
+                                    .onSuccess { phoneConfirmed = true; createAccessRequest() }
+                                    .onFailure { isLoading = false; errorMessage = it.localizedMessage ?: "Não foi possível confirmar o telefone." }
+                            }
+                        }
+                    }
+                    runCatching {
+                        PhoneAuthProvider.verifyPhoneNumber(PhoneAuthOptions.newBuilder(auth)
+                            .setPhoneNumber("+55$cleanPhone").setTimeout(60, TimeUnit.SECONDS)
+                            .setActivity(activity).setCallbacks(callbacks).build())
+                    }.onFailure { isLoading = false; errorMessage = it.localizedMessage }
+                    return@launch
+                }
+                if (!verificationCode.matches(Regex("\\d{6}"))) {
+                    isLoading = false; errorMessage = "Digite os 6 números do código recebido por SMS."; return@launch
+                }
+                try {
+                    auth.signInWithCredential(PhoneAuthProvider.getCredential(verificationId, verificationCode)).await()
+                    phoneConfirmed = true
+                } catch (exception: Exception) {
+                    isLoading = false; errorMessage = exception.localizedMessage ?: "Código inválido. Tente novamente."; return@launch
+                }
             }
 
             val recovery = runCatching { MemberSessionClient.recover(context, cleanPhone) }
@@ -102,6 +163,22 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                 }
                 android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
                 onLoginSuccess()
+                return@launch
+            }
+
+            if (MigrationAuthentication.enabled) {
+                runCatching { MemberSessionClient.registerVerified(context, completeName, cleanPhone) }
+                    .onSuccess { result ->
+                        val member = result.member
+                        if (member == null) { errorMessage = "O servidor retornou um cadastro incompleto." }
+                        else {
+                            MemberManager.setLoggedInMember(context, member, bindFirebaseIdentity = false)
+                            MemberOfflineSync.schedule(context, immediate = false)
+                            onLoginSuccess()
+                        }
+                    }
+                    .onFailure { errorMessage = it.localizedMessage ?: "Não foi possível solicitar acesso." }
+                isLoading = false
                 return@launch
             }
 
@@ -187,7 +264,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                 Spacer(modifier = Modifier.height(10.dp))
                 OutlinedTextField(
                     value = phone,
-                    onValueChange = { phone = it.filter { character -> character.isDigit() }.take(13) },
+                    onValueChange = { phone = it.filter { character -> character.isDigit() }.take(13); verificationId = ""; verificationCode = ""; phoneConfirmed = false },
                     label = { Text("Número de telefone com DDD") },
                     placeholder = { Text("Ex: 84999832583") },
                     modifier = Modifier.fillMaxWidth(),
@@ -196,6 +273,16 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
                 Spacer(modifier = Modifier.height(16.dp))
+                if (MigrationAuthentication.enabled && verificationId.isNotBlank() && !phoneConfirmed) {
+                    OutlinedTextField(
+                        value = verificationCode,
+                        onValueChange = { verificationCode = it.filter(Char::isDigit).take(6) },
+                        label = { Text("Código recebido por SMS") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth(), singleLine = true
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
                 Button(
                     onClick = { createAccessRequest() },
                     modifier = Modifier.fillMaxWidth().height(48.dp),

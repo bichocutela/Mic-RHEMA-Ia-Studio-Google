@@ -2,6 +2,7 @@ import { firebaseAdminAuth } from "./firebase";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://cwphbkdtorfpgmnlafqb.supabase.co";
 const publishableKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_Dv98hBnbJB2TzRCG6aJNwA_KMPHLZSw";
+const migratedBackend = supabaseUrl.replace(/\/$/, "") === "https://sinzscjscvgzkvkimcbd.supabase.co";
 
 export type AdminXpShopItem = {
   id: string;
@@ -93,7 +94,7 @@ async function callFunction(endpoint: string, body: JsonObject, admin = true): P
     headers: {
       "content-type": "application/json",
       apikey: publishableKey,
-      ...(identityToken ? { authorization: `Bearer ${identityToken}` } : {}),
+      authorization: `Bearer ${migratedBackend && identityToken ? identityToken : publishableKey}`,
     },
     body: JSON.stringify(body),
   });

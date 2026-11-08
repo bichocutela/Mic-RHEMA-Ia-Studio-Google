@@ -1,0 +1,44 @@
+name: Validar autenticação da migração
+
+on:
+  pull_request:
+    paths:
+      - "app/**"
+      - "supabase/functions/**"
+      - ".github/workflows/migration-auth-check.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  edge-auth:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.5.6
+      - name: Validar tokens, permissões e isolamento dos membros
+        run: deno test --allow-read=supabase/functions --allow-env --allow-net=www.googleapis.com supabase/functions/_shared/migration-auth.test.ts
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          validate-wrappers: false
+      - name: Restaurar configuração Firebase existente
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          test -n "$GOOGLE_SERVICES_JSON"
+          printf '%s' "$GOOGLE_SERVICES_JSON" > app/google-services.json
+          cp .env.example .env
+          sed -i 's|https://your-project.supabase.co|https://sinzscjscvgzkvkimcbd.supabase.co|' .env
+      - name: Compilar Android sem publicar APK
+        run: bash gradlew :app:compileDebugKotlin --no-daemon --stacktrace

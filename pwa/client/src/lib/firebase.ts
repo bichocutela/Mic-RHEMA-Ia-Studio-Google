@@ -147,13 +147,13 @@ export async function saveIbrProgress(memberId: string, progress: { courseId: st
  */
 export async function submitPendingAccessRequest(input: { name: string; phone: string }) {
   const identityToken = await firebaseAuth?.currentUser?.getIdToken();
-  if (!identityToken) throw new Error("Entre pelo Meu Perfil e confirme seu telefone antes de solicitar acesso.");
+  if (supabaseUrl.includes("sinzscjscvgzkvkimcbd") && !identityToken) throw new Error("Entre pelo Meu Perfil e confirme seu telefone antes de solicitar acesso.");
   const digits = String(input.phone || "").replace(/\D/g, "");
   const phone = digits.length >= 12 && digits.length <= 13 && digits.startsWith("55") ? digits.slice(2) : digits;
   if (!input.name.trim() || phone.length < 10 || phone.length > 11) throw new Error("Informe nome e telefone válidos.");
   const response = await fetch(`${supabaseUrl}/functions/v1/pwa-auth`, {
     method: "POST",
-    headers: { "content-type": "application/json", authorization: `Bearer ${identityToken}` },
+    headers: { "content-type": "application/json", ...(identityToken ? { authorization: `Bearer ${identityToken}` } : {}) },
     body: JSON.stringify({ name: input.name.trim(), phone }),
   });
   const payload = await response.json().catch(() => ({}));

@@ -4,7 +4,7 @@ import { firebaseAuth } from "@/lib/firebase";
 import { ArrowLeft, CheckCircle2, LoaderCircle, LockKeyhole } from "lucide-react";
 import { toast } from "sonner";
 import { ASSETS } from "@/lib/pwa-data";
-import { normalizeMemberPhone, signInOrRequestPwa, signInPwa, type PwaSession } from "@/lib/pwa-auth";
+import { normalizeMemberPhone, requiresVerifiedPhone, signInOrRequestPwa, signInPwa, type PwaSession } from "@/lib/pwa-auth";
 import "./AndroidLoginParity.css";
 
 type AndroidLoginParityProps = {
@@ -48,7 +48,7 @@ export function AndroidLoginParity({ onClose, onSuccess, initialAdmin = false }:
         return;
       }
       if(!firebaseAuth) throw new Error("A conexão Firebase não está configurada.");
-      if(firebaseAuth.currentUser?.phoneNumber!==`+55${cleanPhone}`){
+      if(requiresVerifiedPhone&&firebaseAuth.currentUser?.phoneNumber!==`+55${cleanPhone}`){
         if(!confirmation||confirmedPhone.current!==cleanPhone){
           if(!captchaContainer.current) throw new Error("Reabra a tela para confirmar o telefone.");
           captcha.current?.clear();
@@ -95,7 +95,7 @@ export function AndroidLoginParity({ onClose, onSuccess, initialAdmin = false }:
           {adminMode&&<label>Senha<input type="password" value={password} onChange={(event)=>setPassword(event.target.value)} autoComplete="current-password" placeholder="Sua senha"/></label>}
           {error&&<p className="android-login-error">{error}</p>}
           <button className="android-login-submit" disabled={busy} type="submit">{busy?<><LoaderCircle className="android-login-spin" size={21}/> Verificando…</>:adminMode?<><LockKeyhole size={19}/> Entrar como administrador</>:"Entrar ou solicitar acesso"}</button>
-          {!adminMode&&<p className="android-login-note">Seu telefone identifica a conta. A confirmação por SMS protege seu perfil e seu progresso.</p>}
+          {!adminMode&&<p className="android-login-note">{requiresVerifiedPhone?"Seu telefone identifica a conta. A confirmação por SMS protege seu perfil e seu progresso.":"Seu telefone identifica a conta. Em outro aparelho, use o mesmo número para recuperar seu perfil e progresso."}</p>}
         </form>}
       </section>
       {!adminMode&&<div ref={captchaContainer}/>}
