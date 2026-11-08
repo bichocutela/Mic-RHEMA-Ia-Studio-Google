@@ -76,7 +76,8 @@ import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.URL
 
-private const val LIVE_ENDPOINT = "https://cwphbkdtorfpgmnlafqb.supabase.co/functions/v1/youtube-live"
+private val LIVE_ENDPOINT: String
+    get() = "${BuildConfig.SUPABASE_URL.trim().trimEnd('/')}/functions/v1/youtube-live"
 private const val DEFAULT_LIVE_HANDLE = "@micrhemaoficial"
 
 data class LiveStreamModel(

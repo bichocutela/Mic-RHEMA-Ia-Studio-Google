@@ -25,7 +25,7 @@ export type LiveStreamSettings = {
   upcomingScheduledAt?: string;
 };
 
-const endpoint = "https://cwphbkdtorfpgmnlafqb.supabase.co/functions/v1/youtube-live";
+const endpoint = `${(import.meta.env.VITE_SUPABASE_URL || "https://cwphbkdtorfpgmnlafqb.supabase.co").replace(/\/$/, "")}/functions/v1/youtube-live`;
 
 export async function refreshLiveStream(force = false) {
   const response = await fetch(force ? `${endpoint}?force=1` : endpoint, {

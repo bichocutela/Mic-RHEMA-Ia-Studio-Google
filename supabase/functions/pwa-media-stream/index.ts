@@ -1,7 +1,9 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
-const SUPABASE_MEDIA_BASE = "https://cwphbkdtorfpgmnlafqb.supabase.co/storage/v1/object/public/media-assets/";
+const PROJECT_BASE = (Deno.env.get("SUPABASE_URL") || "https://cwphbkdtorfpgmnlafqb.supabase.co").replace(/\/$/, "");
+const SUPABASE_MEDIA_BASE = `${PROJECT_BASE}/storage/v1/object/public/media-assets/`;
 const ALLOWED_HOSTS = new Set([
+  new URL(PROJECT_BASE).hostname,
   "cwphbkdtorfpgmnlafqb.supabase.co",
   "drive.google.com",
   "docs.google.com",
@@ -50,7 +52,8 @@ function normalizeSource(rawValue: string) {
   const marker = markers.find((candidate) => url.pathname.includes(candidate));
   if (marker) {
     const objectPath = url.pathname.slice(url.pathname.indexOf(marker) + marker.length);
-    return `${url.origin}/storage/v1/object/public/media-assets/${objectPath}`;
+    const origin = host === "cwphbkdtorfpgmnlafqb.supabase.co" ? PROJECT_BASE : url.origin;
+    return `${origin}/storage/v1/object/public/media-assets/${objectPath}`;
   }
   return url.toString();
 }
