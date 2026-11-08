@@ -1,3 +1,5 @@
+import { loadRuntimeConfiguration as _loadRuntimeConfiguration, runtimeEnv as _runtimeEnv } from "../_shared/runtime-configuration.ts";
+await _loadRuntimeConfiguration();
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { createRemoteJWKSet, importPKCS8, jwtVerify, SignJWT } from "npm:jose@5.10.0";
 
@@ -121,7 +123,7 @@ async function resolveIdentity(request: Request, input: Record<string, unknown>)
   const auth = request.headers.get("authorization") ?? "";
   const bearer = auth.match(/^Bearer\s+(.+)$/i)?.[1] ?? "";
   const providedKey = request.headers.get("apikey") ?? "";
-  const legacyKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+  const legacyKey = _runtimeEnv("SUPABASE_ANON_KEY") ?? "";
   const legacy = Boolean(legacyKey) && providedKey === legacyKey && bearer === legacyKey;
   const publishable = providedKey === CURRENT_PUBLISHABLE_KEY && bearer === CURRENT_PUBLISHABLE_KEY;
   if (legacy || publishable) {
@@ -371,13 +373,13 @@ Deno.serve(async (request) => {
       return json({ error: "Atualize o MIC Rhema e entre novamente para sincronizar a Jornada XP com segurança." }, 401);
     }
 
-    const serviceAccount = JSON.parse(Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON") ?? "{}") as ServiceAccount;
-    const projectId = serviceAccount.project_id || Deno.env.get("FIREBASE_PROJECT_ID") || DEFAULT_PROJECT_ID;
+    const serviceAccount = JSON.parse(_runtimeEnv("FIREBASE_SERVICE_ACCOUNT_JSON") ?? "{}") as ServiceAccount;
+    const projectId = serviceAccount.project_id || _runtimeEnv("FIREBASE_PROJECT_ID") || DEFAULT_PROJECT_ID;
     const googleToken = await googleAccessToken(serviceAccount);
     const member = await loadMember(projectId, googleToken, identity);
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-    const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const supabaseUrl = _runtimeEnv("SUPABASE_URL") ?? "";
+    const serviceRole = _runtimeEnv("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     if (!supabaseUrl || !serviceRole) throw new Error("Backend do XP não configurado.");
     const supabase = createClient(supabaseUrl, serviceRole, { auth: { persistSession: false, autoRefreshToken: false } });
 

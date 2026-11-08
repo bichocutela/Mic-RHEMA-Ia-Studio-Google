@@ -28,9 +28,11 @@ export type LiveStreamSettings = {
 const endpoint = `${(import.meta.env.VITE_SUPABASE_URL || "https://cwphbkdtorfpgmnlafqb.supabase.co").replace(/\/$/, "")}/functions/v1/youtube-live`;
 
 export async function refreshLiveStream(force = false) {
+  const migrated = endpoint.startsWith("https://sinzscjscvgzkvkimcbd.supabase.co/");
+  const token = force && migrated ? await (await import("@/lib/firebase")).firebaseAdminAuth?.currentUser?.getIdToken() : undefined;
   const response = await fetch(force ? `${endpoint}?force=1` : endpoint, {
     method: force ? "POST" : "GET",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
     cache: "no-store",
   });
   const payload = await response.json().catch(() => ({}));

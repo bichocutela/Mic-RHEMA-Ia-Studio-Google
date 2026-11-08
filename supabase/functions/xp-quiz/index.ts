@@ -1,3 +1,5 @@
+import { loadRuntimeConfiguration as _loadRuntimeConfiguration, runtimeEnv as _runtimeEnv } from "../_shared/runtime-configuration.ts";
+await _loadRuntimeConfiguration();
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { createRemoteJWKSet, importPKCS8, jwtVerify, SignJWT } from "npm:jose@5.10.0";
@@ -254,7 +256,7 @@ async function resolveMember(
   const auth = request.headers.get("authorization") ?? "";
   const bearer = auth.match(/^Bearer\s+(.+)$/i)?.[1] ?? "";
   const provided = request.headers.get("apikey") ?? "";
-  const configured = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+  const configured = _runtimeEnv("SUPABASE_ANON_KEY") ?? "";
   let memberId = "";
   let phone = "";
   let firebase = false;
@@ -300,16 +302,16 @@ Deno.serve(async (request) => {
   try {
     const input = await request.json() as Record<string, unknown>;
     const action = clean(input.action, 40);
-    const serviceAccount = JSON.parse(Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON") ?? "{}") as ServiceAccount;
-    const projectId = serviceAccount.project_id || Deno.env.get("FIREBASE_PROJECT_ID") || FIREBASE_PROJECT_ID;
+    const serviceAccount = JSON.parse(_runtimeEnv("FIREBASE_SERVICE_ACCOUNT_JSON") ?? "{}") as ServiceAccount;
+    const projectId = serviceAccount.project_id || _runtimeEnv("FIREBASE_PROJECT_ID") || FIREBASE_PROJECT_ID;
     const fireToken = await googleToken(serviceAccount);
     const member = await resolveMember(request, input, projectId, fireToken);
     if (["hint", "answer", "claim_mission"].includes(action) && !member.firebaseAuth) {
       return json({ error: "Atualize o MIC Rhema e entre novamente para usar o Quiz com segurança." }, 401);
     }
 
-    const url = Deno.env.get("SUPABASE_URL") ?? "";
-    const role = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const url = _runtimeEnv("SUPABASE_URL") ?? "";
+    const role = _runtimeEnv("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     if (!url || !role) throw new Error("Backend XP não configurado.");
     const sb = createClient(url, role, { auth: { persistSession: false, autoRefreshToken: false } });
     const { data: ensured, error: ensureError } = await sb.rpc("xp_ensure_account", {

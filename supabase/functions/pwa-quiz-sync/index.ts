@@ -1,3 +1,5 @@
+import { loadRuntimeConfiguration as _loadRuntimeConfiguration, runtimeEnv as _runtimeEnv } from "../_shared/runtime-configuration.ts";
+await _loadRuntimeConfiguration();
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { createRemoteJWKSet, importPKCS8, jwtVerify, SignJWT } from "npm:jose@5.10.0";
@@ -92,7 +94,7 @@ Deno.serve(async (request) => {
   if (request.method !== "POST") return json({ error: "Método não permitido." }, 405);
   try {
     const memberId = await memberIdFromRequest(request);
-    const service = JSON.parse(Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON") || "{}") as ServiceAccount;
+    const service = JSON.parse(_runtimeEnv("FIREBASE_SERVICE_ACCOUNT_JSON") || "{}") as ServiceAccount;
     const projectId = service.project_id || FIREBASE_PROJECT_ID;
     const token = await firestoreToken(service);
     const accessPath = `acessos_pendentes/${encodeURIComponent(memberId)}`;
@@ -101,8 +103,8 @@ Deno.serve(async (request) => {
     const accessData = fields(accessDoc);
     if (accessData.isApproved !== true && accessData.isAdmin !== true) throw new HttpError(403, "Perfil ainda não aprovado.");
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
-    const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    const supabaseUrl = _runtimeEnv("SUPABASE_URL") || "";
+    const serviceRole = _runtimeEnv("SUPABASE_SERVICE_ROLE_KEY") || "";
     if (!supabaseUrl || !serviceRole) throw new HttpError(500, "Ledger do Quiz não configurado.");
     const supabase = createClient(supabaseUrl, serviceRole, { auth: { persistSession: false, autoRefreshToken: false } });
     const [{ data: attempts, error: attemptsError }, { data: hardTx, error: hardError }, { data: legacy, error: legacyError }] = await Promise.all([

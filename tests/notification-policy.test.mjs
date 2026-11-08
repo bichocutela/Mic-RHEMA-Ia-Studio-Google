@@ -6,7 +6,8 @@ import vm from 'node:vm';
 import { webcrypto } from 'node:crypto';
 
 const policy = readFileSync(new URL('../supabase/functions/notify-fcm/notification-policy.ts', import.meta.url), 'utf8').replace(/export /g, '');
-const scheduled = readFileSync(new URL('../supabase/functions/pwa-scheduled-notifications/index.ts', import.meta.url), 'utf8').replace(/^import .*;\n/gm, '');
+// The VM fixture supplies configuration; the real Vault loader has its own tests.
+const scheduled = readFileSync(new URL('../supabase/functions/pwa-scheduled-notifications/index.ts', import.meta.url), 'utf8').replace(/^import .*;\n/gm, '').replace(/^await _loadRuntimeConfiguration\(\);\n/gm, '');
 function fixture(hour = 15) {
   const records = new Map(); const sends = []; let handler;
   class Clock extends Date {
@@ -28,7 +29,7 @@ function fixture(hour = 15) {
     if (!init.method) return response({ name, fields: { isPublished: { booleanValue: true } } });
     throw new Error(`Unexpected request: ${url}`);
   };
-  const c = vm.createContext({ Date: Clock, Intl, URL, URLSearchParams, Request, Response, TextEncoder, Uint8Array, crypto: webcrypto, fetch, console, notificationPresentation: () => ({ icon: 'icon', badge: 'badge', link: 'https://example' }), Deno: { env: { get: () => 'https://example.supabase.co' }, serve: fn => { handler = fn; } } });
+  const c = vm.createContext({ Date: Clock, Intl, URL, URLSearchParams, Request, Response, TextEncoder, Uint8Array, crypto: webcrypto, fetch, console, _runtimeEnv: () => 'https://example.supabase.co', notificationPresentation: () => ({ icon: 'icon', badge: 'badge', link: 'https://example' }), Deno: { env: { get: () => 'https://example.supabase.co' }, serve: fn => { handler = fn; } } });
   vm.runInContext(stripTypeScriptTypes(policy + '\n' + scheduled) + '\nglobalThis.api = { notificationSlot, fortalezaClock, claimDelivery, drainOutbox, send };', c);
   return { api: c.api, records, sends, handler: () => handler };
 }

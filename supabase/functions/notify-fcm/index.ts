@@ -1,3 +1,5 @@
+import { loadRuntimeConfiguration as _loadRuntimeConfiguration, runtimeEnv as _runtimeEnv } from "../_shared/runtime-configuration.ts";
+await _loadRuntimeConfiguration();
 import { notificationSlot, isDailySlot, eventDigest } from "./notification-policy.ts";
 import { notificationPresentation } from "./notification-presentation.ts";
 import { importPKCS8, SignJWT } from "npm:jose@5.10.0";
@@ -103,8 +105,8 @@ Deno.serve(async (request) => {
     const topic = cleanText(input.topic, "all_users").replace(/[^a-zA-Z0-9_.-]/g, "");
     const title = cleanText(input.title, "Nova atualização disponível");
     const body = cleanText(input.body, "Confira as novidades no MIC Rhema.");
-    const account = JSON.parse(Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON") ?? "{}") as ServiceAccount;
-    const projectId = account.project_id || Deno.env.get("FIREBASE_PROJECT_ID") || DEFAULT_PROJECT_ID;
+    const account = JSON.parse(_runtimeEnv("FIREBASE_SERVICE_ACCOUNT_JSON") ?? "{}") as ServiceAccount;
+    const projectId = account.project_id || _runtimeEnv("FIREBASE_PROJECT_ID") || DEFAULT_PROJECT_ID;
     const token = await accessToken(account);
     const data = Object.fromEntries(Object.entries(input.data ?? {}).map(([key, value]) => [key, String(value)]));
     data.title = data.title || title;
@@ -112,7 +114,7 @@ Deno.serve(async (request) => {
     data.category = data.category || "content_updates";
     const androidOnly = isAndroidOnlyCategory(data.category);
 
-    const internal = request.headers.get("x-internal-scheduler") === Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") && Boolean(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"));
+    const internal = request.headers.get("x-internal-scheduler") === _runtimeEnv("SUPABASE_SERVICE_ROLE_KEY") && Boolean(_runtimeEnv("SUPABASE_SERVICE_ROLE_KEY"));
     const slot = notificationSlot(data);
     if (!directToken && !internal && isDailySlot(slot)) return json({ ok: true, silent: true, reason: "daily_reminder_owned_by_scheduler" });
     if (!directToken && !internal && slot !== null) {

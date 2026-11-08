@@ -1,3 +1,5 @@
+import { loadRuntimeConfiguration as _loadRuntimeConfiguration, runtimeEnv as _runtimeEnv } from "../_shared/runtime-configuration.ts";
+await _loadRuntimeConfiguration();
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { createRemoteJWKSet, importPKCS8, jwtVerify, SignJWT } from "npm:jose@5.10.0";
 
@@ -198,13 +200,13 @@ Deno.serve(async (request) => {
     const contentId = String(input.contentId ?? "").trim().slice(0, 1500);
     if (!(["book", "audio", "video"] as string[]).includes(mediaType) || !contentId) return json({ error: "Mídia inválida." }, 400);
 
-    const serviceAccount = JSON.parse(Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON") ?? "{}") as ServiceAccount;
-    const projectId = serviceAccount.project_id || Deno.env.get("FIREBASE_PROJECT_ID") || DEFAULT_PROJECT_ID;
+    const serviceAccount = JSON.parse(_runtimeEnv("FIREBASE_SERVICE_ACCOUNT_JSON") ?? "{}") as ServiceAccount;
+    const projectId = serviceAccount.project_id || _runtimeEnv("FIREBASE_PROJECT_ID") || DEFAULT_PROJECT_ID;
     const googleToken = await googleAccessToken(serviceAccount);
     const member = await loadMember(projectId, googleToken, memberId);
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-    const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const supabaseUrl = _runtimeEnv("SUPABASE_URL") ?? "";
+    const serviceRole = _runtimeEnv("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     if (!supabaseUrl || !serviceRole) throw new Error("Backend de mídia XP não configurado.");
     const supabase = createClient(supabaseUrl, serviceRole, { auth: { persistSession: false, autoRefreshToken: false } });
 

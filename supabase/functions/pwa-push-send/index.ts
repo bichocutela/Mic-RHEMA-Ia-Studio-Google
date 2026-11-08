@@ -1,3 +1,5 @@
+import { loadRuntimeConfiguration as _loadRuntimeConfiguration, runtimeEnv as _runtimeEnv } from "../_shared/runtime-configuration.ts";
+await _loadRuntimeConfiguration();
 import { notificationPresentation } from "../notify-fcm/notification-presentation.ts";
 import { importPKCS8, SignJWT } from "npm:jose@5.10.0";
 
@@ -83,8 +85,8 @@ Deno.serve(async (request) => {
     const category = text(input.category, "content_updates");
     const explicitLink = String(input.link ?? "").trim();
     const link = explicitLink || categoryLink(category);
-    const account = JSON.parse(Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON") || "{}") as ServiceAccount;
-    const projectId = account.project_id || Deno.env.get("FIREBASE_PROJECT_ID") || "mic-rhema";
+    const account = JSON.parse(_runtimeEnv("FIREBASE_SERVICE_ACCOUNT_JSON") || "{}") as ServiceAccount;
+    const projectId = account.project_id || _runtimeEnv("FIREBASE_PROJECT_ID") || "mic-rhema";
     const accessToken = await googleAccessToken(account);
     const all = await pwaTokens(projectId, accessToken);
     const tokens = all.filter((item) => accepts(item, category));

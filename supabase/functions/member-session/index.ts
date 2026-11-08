@@ -1,3 +1,5 @@
+import { loadRuntimeConfiguration as _loadRuntimeConfiguration, runtimeEnv as _runtimeEnv } from "../_shared/runtime-configuration.ts";
+await _loadRuntimeConfiguration();
 import { importPKCS8, SignJWT } from "npm:jose@5.10.0";
 import { AccessError, caller, ownsMember, verifiedPhone } from "../_shared/migration-auth.ts";
 
@@ -254,8 +256,8 @@ Deno.serve(async (request) => {
     if (phone.length < 10 || phone.length > 11) return json({ error: "Telefone inválido." }, 400);
     if (identity.isAdmin !== true && !verifiedPhone(identity, phone) && identity.firebase?.sign_in_provider === "anonymous") return json({ error: "Confirme seu telefone para recuperar o cadastro." }, 403);
 
-    const account = JSON.parse(Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON") ?? "{}") as ServiceAccount;
-    const projectId = account.project_id || Deno.env.get("FIREBASE_PROJECT_ID") || DEFAULT_PROJECT_ID;
+    const account = JSON.parse(_runtimeEnv("FIREBASE_SERVICE_ACCOUNT_JSON") ?? "{}") as ServiceAccount;
+    const projectId = account.project_id || _runtimeEnv("FIREBASE_PROJECT_ID") || DEFAULT_PROJECT_ID;
     const token = await googleAccessToken(account);
     const matches = (await findMembers(projectId, token, phone)).filter(document => ownsMember(identity, memberIdFromDocument(document), documentData(document)));
 

@@ -1,3 +1,6 @@
+import { loadRuntimeConfiguration as _loadRuntimeConfiguration, runtimeEnv as _runtimeEnv } from "../_shared/runtime-configuration.ts";
+await _loadRuntimeConfiguration();
+import { AccessError, administrator } from "../_shared/migration-auth.ts";
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { importPKCS8, SignJWT } from "npm:jose@5.10.0";
 
@@ -195,17 +198,22 @@ Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (!["GET", "POST"].includes(request.method)) return json({ error: "Método não permitido." }, 405);
   try {
-    const apiKey = Deno.env.get("YOUTUBE_API_KEY")?.trim() || "";
+    const force = request.method === "POST" || new URL(request.url).searchParams.get("force") === "1";
+    if (force) {
+      const scheduler = request.headers.get("x-scheduler-key") || "";
+      const digest = scheduler ? [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(scheduler)))].map(byte => byte.toString(16).padStart(2, "0")).join("") : "";
+      if (digest !== "ba749b2eba2b9a00951b19d4efcf09970cbff65f5c93816ff8d5bb393dfe3a23") await administrator(request);
+    }
+    const apiKey = _runtimeEnv("YOUTUBE_API_KEY")?.trim() || "";
     if (!apiKey) return json({ error: "YOUTUBE_API_KEY não configurada." }, 500);
-    const account = JSON.parse(Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON") || "{}") as ServiceAccount;
-    const projectId = account.project_id || Deno.env.get("FIREBASE_PROJECT_ID") || "mic-rhema";
+    const account = JSON.parse(_runtimeEnv("FIREBASE_SERVICE_ACCOUNT_JSON") || "{}") as ServiceAccount;
+    const projectId = account.project_id || _runtimeEnv("FIREBASE_PROJECT_ID") || "mic-rhema";
     const accessToken = await googleAccessToken(account);
     const current = await firestoreGet(projectId, accessToken);
     const fields = current?.fields || {};
     const config = configFrom(current);
-    const force = request.method === "POST" || new URL(request.url).searchParams.get("force") === "1";
     const lastChecked = timestamp(fields.checkedAt);
-    if (!force && lastChecked > 0 && Date.now() - lastChecked < CACHE_WINDOW_MS) {
+    if (!force) {
       return json({
         ok: true,
         cached: true,
@@ -292,6 +300,7 @@ Deno.serve(async (request) => {
       autoError: autoError || undefined,
     });
   } catch (error) {
+    if (error instanceof AccessError) return json({ error: error.message }, error.status);
     const limited = upstreamQuotaResponse(error, cors);
     if (limited) return limited;
     console.error("youtube-live failed", error instanceof Error ? error.message : error);

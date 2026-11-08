@@ -1,10 +1,13 @@
+import { loadRuntimeConfiguration as _loadRuntimeConfiguration, runtimeEnv as _runtimeEnv } from "../_shared/runtime-configuration.ts";
+await _loadRuntimeConfiguration();
 import { importPKCS8, SignJWT } from "npm:jose@5.10.0";
 import { AccessError, caller, verifiedPhone, ownsMember } from "../_shared/migration-auth.ts";
+import { firebaseAdministratorUid } from "../_shared/firebase-password-auth.ts";
 
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const IDENTITY_TOOLKIT_AUDIENCE = "https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit";
 const FIREBASE_PROJECT_ID = "mic-rhema";
-const ADMIN_PASSWORD_SHA256 = Deno.env.get("RHEMA_ADMIN_PASSWORD_SHA256") || "";
+const ADMIN_PASSWORD_SHA256 = _runtimeEnv("RHEMA_ADMIN_PASSWORD_SHA256") || "";
 const ADMIN_EMAIL = "admin@micrhema.app";
 
 type ServiceAccount = { project_id?: string; client_email?: string; private_key?: string };
@@ -186,17 +189,22 @@ Deno.serve(async (request) => {
     const phone = normalizePhone(input.phone);
     const password = clean(input.password);
     const adminAttempt = name.toLowerCase() === "admin";
-    if (adminAttempt && !ADMIN_PASSWORD_SHA256) return json({ error: "Senha administrativa ainda não configurada no servidor." }, 503);
-    const isAdministrator = adminAttempt && password.length > 0 && await sha256(password) === ADMIN_PASSWORD_SHA256;
+    let verifiedAdminUid = "";
+    if (adminAttempt && !ADMIN_PASSWORD_SHA256) verifiedAdminUid = await firebaseAdministratorUid(password, _runtimeEnv("FIREBASE_WEB_API_KEY") || "AIzaSyD-GPqTLRFmOiNATJwzKUHGqJeTPQcf0E8");
+    const isAdministrator = adminAttempt && (verifiedAdminUid.length > 0 || (password.length > 0 && await sha256(password) === ADMIN_PASSWORD_SHA256));
     if (adminAttempt && !isAdministrator) return json({ error: "Credenciais administrativas inválidas." }, 403);
     const identity = isAdministrator ? null : await caller(request);
-    const account = JSON.parse(Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON") || "{}") as ServiceAccount;
-    const projectId = account.project_id || Deno.env.get("FIREBASE_PROJECT_ID") || FIREBASE_PROJECT_ID;
+    const account = JSON.parse(_runtimeEnv("FIREBASE_SERVICE_ACCOUNT_JSON") || "{}") as ServiceAccount;
+    const projectId = account.project_id || _runtimeEnv("FIREBASE_PROJECT_ID") || FIREBASE_PROJECT_ID;
     const accessToken = await googleAccessToken(account);
 
     let member: Member;
+    let pending = false;
+    let requested = false;
     if (isAdministrator) {
-      const androidAdmin = await findAndroidAdmin(projectId, accessToken);
+      const boundAdmin = verifiedAdminUid ? memberFromDocument(await getMemberById(projectId, accessToken, verifiedAdminUid)) : null;
+      if (verifiedAdminUid && boundAdmin?.isAdmin !== true) return json({ error: "Esta conta não tem permissão administrativa." }, 403);
+      const androidAdmin = verifiedAdminUid ? boundAdmin : await findAndroidAdmin(projectId, accessToken);
       member = androidAdmin
         ? { ...androidAdmin, name: androidAdmin.name || "Administrador", isApproved: true, isAdmin: true, isIbr: true }
         : { id: "admin", name: "Administrador", isApproved: true, isIbr: true, isAdmin: true };
@@ -206,14 +214,14 @@ Deno.serve(async (request) => {
       if (!existing) {
         if (!identity || !verifiedPhone(identity, phone)) return json({ error: "Confirme seu telefone antes de solicitar acesso." }, 403);
         member = await createPendingMember(projectId, accessToken, name, phone);
-        if (!member.isApproved) return json({ ok: true, pending: true, requested: true, member: { ...member, isAdmin: false } });
+        requested = !member.isApproved && !member.isAdmin;
       } else {
         const document = await getMemberById(projectId, accessToken, existing.id);
         const boundUid = document?.fields?.firebaseUid?.stringValue;
         if (!identity || !ownsMember(identity, existing.id, { phone, firebaseUid: boundUid, isAdmin: existing.isAdmin })) return json({ error: "Confirme seu telefone para acessar este cadastro." }, 403);
         member = existing;
-        if (!member.isApproved && !member.isAdmin) return json({ ok: true, pending: true, requested: false, member: { ...member, isAdmin: false } });
       }
+      pending = !member.isApproved && !member.isAdmin;
     }
 
     const explicitAdminSession = isAdministrator && member.isAdmin;
@@ -223,7 +231,7 @@ Deno.serve(async (request) => {
       isIbr: member.isIbr,
       memberId: member.id,
     });
-    return json({ ok: true, token, pending: false, requested: false, member: publicMember });
+    return json({ ok: true, token, pending, requested, member: publicMember });
   } catch (error) {
     if (error instanceof AccessError) return json({ error: error.message }, error.status);
     console.error("pwa-auth failed", error instanceof Error ? error.message : "unknown");

@@ -5,7 +5,8 @@ import vm from 'node:vm';
 import { stripTypeScriptTypes } from 'node:module';
 import { webcrypto } from 'node:crypto';
 
-const source = readFileSync(new URL('../index.ts', import.meta.url), 'utf8').replace(/^import .*;\n/gm, '');
+// Configuration is injected into this isolated business-logic fixture.
+const source = readFileSync(new URL('../index.ts', import.meta.url), 'utf8').replace(/^import .*;\n/gm, '').replace(/^await _loadRuntimeConfiguration\(\);\n/gm, '');
 const now = Date.parse('2026-10-08T15:00:00Z');
 const prefix = 'projects/mic-rhema/databases/(default)/documents/';
 const value = v => typeof v === 'boolean' ? {booleanValue:v} : typeof v === 'number' ? {integerValue:String(v)} : {stringValue:v};
@@ -55,7 +56,7 @@ function fixture({future=false, failNotification=false, hideBeforeNotification=f
     return existing?reply(structuredClone(existing)):reply({},404);
   };
   class Clock extends Date {static now(){return now;}constructor(...args){super(...(args.length?args:[now]));}}
-  const context=vm.createContext({fetch,Date:Clock,URL,URLSearchParams,Response,Request,TextEncoder,Uint8Array,crypto:webcrypto,AbortSignal,console:{error(){}},studies:[],Deno:{env:{get:()=> 'https://example.supabase.co'},serve:fn=>{handler=fn;}}});
+  const context=vm.createContext({fetch,Date:Clock,URL,URLSearchParams,Response,Request,TextEncoder,Uint8Array,crypto:webcrypto,AbortSignal,console:{error(){}},studies:[],_runtimeEnv:()=> 'https://example.supabase.co',Deno:{env:{get:()=> 'https://example.supabase.co'},serve:fn=>{handler=fn;}}});
   vm.runInContext(stripTypeScriptTypes(source)+'\nglobalThis.api={release};',context);
   return {run:()=>context.api.release('test-token'),handler:()=>handler,docs,counts:()=>({deliveries,commits})};
 }

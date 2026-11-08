@@ -1,3 +1,5 @@
+import { loadRuntimeConfiguration as _loadRuntimeConfiguration, runtimeEnv as _runtimeEnv } from "../_shared/runtime-configuration.ts";
+await _loadRuntimeConfiguration();
 import { createRemoteJWKSet, errors as joseErrors, importPKCS8, jwtVerify, SignJWT } from "npm:jose@5.10.0";
 
 const FIREBASE_PROJECT_ID = "mic-rhema";
@@ -121,7 +123,7 @@ Deno.serve(async (request: Request) => {
     const activity = String(input.activity || "").trim();
     const itemId = String(input.itemId || "").trim().slice(0, 180);
     if (!reconcileOnly && (!ALLOWED_ACTIVITIES.has(activity) || !itemId)) return json({ error: "Atividade inválida." }, 400);
-    const account = JSON.parse(Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON") || "{}") as ServiceAccount;
+    const account = JSON.parse(_runtimeEnv("FIREBASE_SERVICE_ACCOUNT_JSON") || "{}") as ServiceAccount;
     const projectId = account.project_id || FIREBASE_PROJECT_ID;
     const accessToken = await firestoreAccessToken(account);
     const memberPath = `acessos_pendentes/${encodeURIComponent(memberId)}`;

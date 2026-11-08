@@ -1,3 +1,5 @@
+import { loadRuntimeConfiguration as _loadRuntimeConfiguration, runtimeEnv as _runtimeEnv } from "../_shared/runtime-configuration.ts";
+await _loadRuntimeConfiguration();
 import { importPKCS8, SignJWT } from "npm:jose@5.10.0";
 import { studies } from "./studies.ts";
 
@@ -41,7 +43,7 @@ function encode(values: Record<string, string | number | boolean>): Record<strin
 }
 function driveId(url: string) { return url.match(/\/d\/([^/?]+)/)?.[1] || url.match(/[?&]id=([^&]+)/)?.[1] || ""; }
 async function googleToken(scope = "https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/firebase.messaging") {
-  const a = JSON.parse(Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON") || "{}");
+  const a = JSON.parse(_runtimeEnv("FIREBASE_SERVICE_ACCOUNT_JSON") || "{}");
   if (a.project_id !== "mic-rhema" || !a.client_email || !a.private_key) throw new Error("Credencial do MICRHEMA indisponível");
   const now = Math.floor(Date.now()/1000);
   const jwt = await new SignJWT({iss:a.client_email,scope,aud:"https://oauth2.googleapis.com/token"}).setProtectedHeader({alg:"RS256",typ:"JWT"}).setIssuedAt(now).setExpirationTime(now+3600).sign(await importPKCS8(a.private_key.replace(/\\n/g,"\n"),"RS256"));
@@ -95,7 +97,7 @@ async function notify(token: string, d: Doc) {
     const current=await get(token,"discipulado_pdfs",d.name.split("/").pop()!);
     if (!current || current.fields?.isPublished?.booleanValue!==true ||
         current.fields?.releaseNotificationPending?.booleanValue!==true) return false;
-    const r=await firestoreQuotaFetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/notify-fcm`,{method:"POST",headers:{"content-type":"application/json",apikey:Deno.env.get("SUPABASE_ANON_KEY")||"","x-internal-scheduler":Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")||""},body:JSON.stringify(pushData(d)),signal:AbortSignal.timeout(30000)});
+    const r=await firestoreQuotaFetch(`${_runtimeEnv("SUPABASE_URL")}/functions/v1/notify-fcm`,{method:"POST",headers:{"content-type":"application/json",apikey:_runtimeEnv("SUPABASE_ANON_KEY")||"","x-internal-scheduler":_runtimeEnv("SUPABASE_SERVICE_ROLE_KEY")||""},body:JSON.stringify(pushData(d)),signal:AbortSignal.timeout(30000)});
     const b=await r.json(); if(!r.ok||b.ok!==true)throw new Error(`Aviso não aceito: ${r.status}`);
     if(!await patch(token,lock,{releaseNotificationPending:false,releaseNotificationState:"sent",releaseNotificationSentAt:new Date().toISOString(),releaseNotificationLeaseUntil:""}))throw new Error("Confirmação de envio não registrada");
     return true;

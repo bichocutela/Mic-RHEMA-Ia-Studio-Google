@@ -1,3 +1,5 @@
+import { loadRuntimeConfiguration as _loadRuntimeConfiguration, runtimeEnv as _runtimeEnv } from "../_shared/runtime-configuration.ts";
+await _loadRuntimeConfiguration();
 import { fortalezaClock, eventDigest } from "../notify-fcm/notification-policy.ts";
 import { notificationPresentation } from "../notify-fcm/notification-presentation.ts";
 import { importPKCS8, SignJWT } from "npm:jose@5.10.0";
@@ -249,7 +251,7 @@ async function drainOutbox(projectId: string, accessToken: string, now: Date) {
         delete batch.data.courseId;
         batch.data.title = batch.title; batch.data.body = batch.body;
       }
-      const response = await firestoreQuotaFetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/notify-fcm`, { method: "POST", headers: { "content-type": "application/json", apikey: Deno.env.get("SUPABASE_ANON_KEY") || "", "x-internal-scheduler": Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "" }, body: JSON.stringify(batch) });
+      const response = await firestoreQuotaFetch(`${_runtimeEnv("SUPABASE_URL")}/functions/v1/notify-fcm`, { method: "POST", headers: { "content-type": "application/json", apikey: _runtimeEnv("SUPABASE_ANON_KEY") || "", "x-internal-scheduler": _runtimeEnv("SUPABASE_SERVICE_ROLE_KEY") || "" }, body: JSON.stringify(batch) });
       const result = await response.json();
       if (!response.ok || !result.ok) throw new Error(`Resumo não enviado: ${response.status}`);
       for (const d of items) await patchStringFields(d.name!, accessToken, { state: "sent", sentAt: now.toISOString() });
@@ -265,8 +267,8 @@ Deno.serve(async (request) => {
   try {
     const schedulerHash = await eventDigest(request.headers.get("x-scheduler-key") || "");
     if (schedulerHash !== "ba749b2eba2b9a00951b19d4efcf09970cbff65f5c93816ff8d5bb393dfe3a23") return json({ error: "Não autorizado" }, 401);
-    const account = JSON.parse(Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON") || "{}") as ServiceAccount;
-    const projectId = account.project_id || Deno.env.get("FIREBASE_PROJECT_ID") || DEFAULT_PROJECT_ID;
+    const account = JSON.parse(_runtimeEnv("FIREBASE_SERVICE_ACCOUNT_JSON") || "{}") as ServiceAccount;
+    const projectId = account.project_id || _runtimeEnv("FIREBASE_PROJECT_ID") || DEFAULT_PROJECT_ID;
     const accessToken = await googleAccessToken(account);
     const now = new Date();
     const input = await request.json().catch(() => ({}));

@@ -1,3 +1,5 @@
+import { loadRuntimeConfiguration as _loadRuntimeConfiguration, runtimeEnv as _runtimeEnv } from "../_shared/runtime-configuration.ts";
+await _loadRuntimeConfiguration();
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { createRemoteJWKSet, errors as joseErrors, importPKCS8, jwtVerify, SignJWT } from "npm:jose@5.10.0";
@@ -273,13 +275,13 @@ Deno.serve(async (request: Request) => {
     const memberId = clean(claims.user_id || claims.sub, 180);
     if (!memberId) throw new HttpError(401, "Sessão sem identificador de membro.");
 
-    const serviceAccount = JSON.parse(Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON") || "{}") as ServiceAccount;
+    const serviceAccount = JSON.parse(_runtimeEnv("FIREBASE_SERVICE_ACCOUNT_JSON") || "{}") as ServiceAccount;
     const projectId = serviceAccount.project_id || FIREBASE_PROJECT_ID;
     const googleToken = await googleAccessToken(serviceAccount);
     const member = await loadMember(projectId, googleToken, memberId);
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
-    const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    const supabaseUrl = _runtimeEnv("SUPABASE_URL") || "";
+    const serviceRole = _runtimeEnv("SUPABASE_SERVICE_ROLE_KEY") || "";
     if (!supabaseUrl || !serviceRole) throw new HttpError(500, "Backend XP não configurado.");
     const supabase = createClient(supabaseUrl, serviceRole, { auth: { persistSession: false, autoRefreshToken: false } });
 

@@ -1,3 +1,5 @@
+import { loadRuntimeConfiguration as _loadRuntimeConfiguration, runtimeEnv as _runtimeEnv } from "../_shared/runtime-configuration.ts";
+await _loadRuntimeConfiguration();
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createRemoteJWKSet, errors as joseErrors, jwtVerify, importPKCS8, SignJWT } from "npm:jose@5.10.0";
 
@@ -27,7 +29,7 @@ Deno.serve(async(request:Request)=>{
   if(request.method==="OPTIONS")return json({ok:true});if(request.method!=="POST")return json({error:"Método não permitido."},405);
   try{
     const firebaseToken=bearer(request);const claims=await verifyFirebaseToken(firebaseToken);const memberId=claims.user_id||claims.sub||"";if(!memberId)throw new HttpError(401,"Sessão sem identificador de membro.");
-    const account=JSON.parse(Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON")||"{}") as ServiceAccount;const accessToken=await googleAccessToken(account);const input=await request.json().catch(()=>({})) as {action?:string;data?:ProfilePatch};const{url,document}=await readMember(account,accessToken,memberId);const fields=document.fields||{};const current=profileFromFields(fields);current.id=memberId;if(!current.isApproved&&!current.isAdmin)throw new HttpError(403,"Seu acesso de membro ainda não está aprovado.");
+    const account=JSON.parse(_runtimeEnv("FIREBASE_SERVICE_ACCOUNT_JSON")||"{}") as ServiceAccount;const accessToken=await googleAccessToken(account);const input=await request.json().catch(()=>({})) as {action?:string;data?:ProfilePatch};const{url,document}=await readMember(account,accessToken,memberId);const fields=document.fields||{};const current=profileFromFields(fields);current.id=memberId;if(!current.isApproved&&!current.isAdmin)throw new HttpError(403,"Seu acesso de membro ainda não está aprovado.");
     if((input.action||"get")==="get")return json({ok:true,profile:current});if(input.action!=="save")throw new HttpError(400,"Ação de perfil inválida.");
     const data=input.data||{};
     if(typeof data.phone==="string"&&normalizePhone(data.phone)!==normalizePhone(current.phone))throw new HttpError(409,"O telefone é a identidade fixa desta conta e não pode ser alterado. Altere apenas o nome e os demais dados do perfil.");
