@@ -264,7 +264,13 @@ Deno.serve(async (request) => {
     const providedKey = request.headers.get("apikey") ?? "";
     const authorization = request.headers.get("authorization") ?? "";
     const validLegacy = Boolean(configuredLegacyKey) && providedKey === configuredLegacyKey && authorization === `Bearer ${configuredLegacyKey}`;
-    const validPublishable = providedKey === CURRENT_PUBLISHABLE_KEY && authorization === `Bearer ${CURRENT_PUBLISHABLE_KEY}`;
+    // Preserve installed clients and accept the public keys of the migrated project.
+    const supportedPublicKeys = new Set([
+      CURRENT_PUBLISHABLE_KEY,
+      "sb_publishable_oXgw0f5fc7gAMoO9gZFAHw_r40JITaY",
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNpbnpzY2pzY3Znemt2a2ltY2JkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQwODAxMjYsImV4cCI6MjEwOTY1NjEyNn0.PlO3cCbVauz2VGNJOLUIzL0D1aIvWVUV92KF9dxgf_I",
+    ]);
+    const validPublishable = supportedPublicKeys.has(providedKey) && authorization === `Bearer ${providedKey}`;
     if (!validLegacy && !validPublishable) return json({ error: "Cliente não autorizado." }, 401);
 
     const input = await request.json() as Record<string, unknown>;
