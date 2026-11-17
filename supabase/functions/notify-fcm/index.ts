@@ -98,7 +98,9 @@ Deno.serve(async (request) => {
   try {
     const configuredKey = Deno.env.get("SUPABASE_ANON_KEY");
     const providedKey = request.headers.get("apikey");
-    if (configuredKey && providedKey && providedKey !== configuredKey) return json({ error: "Chave pública do Supabase inválida." }, 401);
+    // Public client keys from the current project remain valid after migration.
+    const supportedPublicKeys = new Set([configuredKey, "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNpbnpzY2pzY3Znemt2a2ltY2JkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQwODAxMjYsImV4cCI6MjEwOTY1NjEyNn0.PlO3cCbVauz2VGNJOLUIzL0D1aIvWVUV92KF9dxgf_I", "sb_publishable_oXgw0f5fc7gAMoO9gZFAHw_r40JITaY"]);
+    if (configuredKey && providedKey && !supportedPublicKeys.has(providedKey)) return json({ error: "Chave pública do Supabase inválida." }, 401);
 
     const input = await request.json() as NotificationRequest;
     const directToken = String(input.token ?? "").trim().slice(0, 4096);
