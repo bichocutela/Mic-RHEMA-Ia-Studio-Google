@@ -796,11 +796,11 @@ fun AlbumCard(album: ContentPhotoAlbum, onClick: () -> Unit) {
                     offsetX = album.coverOffsetX,
                     offsetY = album.coverOffsetY,
                     fit = album.coverFit,
-                    modifier = Modifier.fillMaxWidth().height(ALBUM_CARD_COVER_HEIGHT_DP.dp)
+                    modifier = Modifier.fillMaxWidth().aspectRatio(ALBUM_CARD_ASPECT_RATIO)
                 )
             } else {
                 Box(
-                    modifier = Modifier.fillMaxWidth().height(ALBUM_CARD_COVER_HEIGHT_DP.dp).background(MaterialTheme.colorScheme.surfaceVariant),
+                    modifier = Modifier.fillMaxWidth().aspectRatio(ALBUM_CARD_ASPECT_RATIO).background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Default.PhotoAlbum, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
