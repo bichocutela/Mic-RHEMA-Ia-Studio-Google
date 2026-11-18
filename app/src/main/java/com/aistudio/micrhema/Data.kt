@@ -930,7 +930,11 @@ data class ContentPhotoAlbum(
     var description: String = "",
     var coverUrl: String? = null,
     var photos: List<AlbumPhoto> = emptyList(),
-    var driveFolderUrl: String = ""
+    var driveFolderUrl: String = "",
+    var coverScale: Float = 1f,
+    var coverOffsetX: Float = 0f,
+    var coverOffsetY: Float = 0f,
+    var coverFit: Boolean = false
 )
 
 
