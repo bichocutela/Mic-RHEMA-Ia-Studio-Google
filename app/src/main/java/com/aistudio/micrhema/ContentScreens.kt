@@ -2,7 +2,16 @@ package com.aistudio.micrhema
 import androidx.compose.ui.draw.blur
 
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.ui.input.pointer.awaitPointerEvent
+import androidx.compose.ui.input.pointer.consume
+import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 
@@ -783,10 +792,12 @@ fun AlbumCard(album: ContentPhotoAlbum, onClick: () -> Unit) {
     ) {
         Column {
             if (album.coverUrl != null) {
-                coil.compose.AsyncImage(
-                    model = album.coverUrl,
-                    contentDescription = null,
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                AlbumCoverImage(
+                    url = album.coverUrl,
+                    scale = album.coverScale,
+                    offsetX = album.coverOffsetX,
+                    offsetY = album.coverOffsetY,
+                    fit = album.coverFit,
                     modifier = Modifier.fillMaxWidth().height(160.dp)
                 )
             } else {
@@ -826,15 +837,61 @@ fun AlbumDetail(album: ContentPhotoAlbum, onBack: () -> Unit) {
             initialPage = initialPhotoIndex!!,
             pageCount = { album.photos.size }
         )
+        val navigationScope = rememberCoroutineScope()
+        val context = LocalContext.current
+        var isDownloading by remember { mutableStateOf(false) }
+        // Em Android 8 e 9 o sistema abre o seletor de pasta, sem precisar pedir
+        // permissões antigas de armazenamento.
+        var pendingLegacyDownload by remember { mutableStateOf("") }
+        val legacySave = androidx.activity.compose.rememberLauncherForActivityResult(
+            androidx.activity.result.contract.ActivityResultContracts.CreateDocument("image/jpeg")
+        ) { destination ->
+            if (destination != null && pendingLegacyDownload.isNotBlank()) {
+                val photoUrl = pendingLegacyDownload
+                navigationScope.launch {
+                    isDownloading = true
+                    val success = downloadAlbumPhoto(context, photoUrl, destination)
+                    isDownloading = false
+                    android.widget.Toast.makeText(context, if (success) "Foto salva no aparelho" else "Não foi possível baixar a foto", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+            pendingLegacyDownload = ""
+        }
         Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
             androidx.compose.foundation.pager.HorizontalPager(
                 state = pagerState,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
+                beyondViewportPageCount = 1
             ) { page ->
-                ZoomableImage(
-                    model = album.photos[page].url,
-                    onClose = { initialPhotoIndex = null }
-                )
+                ZoomableImage(model = album.photos[page].url)
+            }
+
+            Row(
+                modifier = Modifier.align(Alignment.TopEnd).padding(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                IconButton(
+                    enabled = !isDownloading,
+                    onClick = {
+                        val url = album.photos[pagerState.currentPage].url
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                            navigationScope.launch {
+                                isDownloading = true
+                                val success = downloadAlbumPhoto(context, url)
+                                isDownloading = false
+                                android.widget.Toast.makeText(context, if (success) "Foto salva em Imagens/MIC Rhema" else "Não foi possível baixar a foto", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        } else {
+                            pendingLegacyDownload = url
+                            legacySave.launch("MIC-Rhema-${System.currentTimeMillis()}.jpg")
+                        }
+                    }
+                ) {
+                    Icon(Icons.Default.Download, contentDescription = "Baixar foto", tint = Color.White)
+                }
+                IconButton(onClick = { initialPhotoIndex = null }) {
+                    Icon(Icons.Default.Close, contentDescription = "Fechar", tint = Color.White)
+                }
             }
 
             Column(
@@ -854,13 +911,39 @@ fun AlbumDetail(album: ContentPhotoAlbum, onBack: () -> Unit) {
                     color = Color.White,
                     style = MaterialTheme.typography.labelLarge
                 )
-            }
-
-            IconButton(
-                onClick = { initialPhotoIndex = null },
-                modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
-            ) {
-                Icon(Icons.Default.Close, contentDescription = "Fechar", tint = Color.White)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        enabled = pagerState.currentPage > 0,
+                        onClick = {
+                            navigationScope.launch {
+                                pagerState.animateScrollToPage(
+                                    pagerState.currentPage - 1,
+                                    animationSpec = tween(320, easing = FastOutSlowInEasing)
+                                )
+                            }
+                        }
+                    ) {
+                        Icon(Icons.Default.ChevronLeft, contentDescription = "Foto anterior", tint = Color.White)
+                    }
+                    Text("Deslize para mudar de foto", color = Color.White.copy(alpha = .8f), style = MaterialTheme.typography.labelSmall)
+                    IconButton(
+                        enabled = pagerState.currentPage < album.photos.lastIndex,
+                        onClick = {
+                            navigationScope.launch {
+                                pagerState.animateScrollToPage(
+                                    pagerState.currentPage + 1,
+                                    animationSpec = tween(320, easing = FastOutSlowInEasing)
+                                )
+                            }
+                        }
+                    ) {
+                        Icon(Icons.Default.ChevronRight, contentDescription = "Próxima foto", tint = Color.White)
+                    }
+                }
             }
         }
     } else {
@@ -899,6 +982,7 @@ fun AlbumDetail(album: ContentPhotoAlbum, onBack: () -> Unit) {
                         }
                     }
                     item {
+                        val viewHeight = (LocalConfiguration.current.screenHeightDp - 200).coerceIn(360, 900).dp
                         androidx.compose.ui.viewinterop.AndroidView(
                             factory = { context ->
                                 android.webkit.WebView(context).apply {
@@ -906,11 +990,27 @@ fun AlbumDetail(album: ContentPhotoAlbum, onBack: () -> Unit) {
                                     settings.domStorageEnabled = true
                                     settings.builtInZoomControls = true
                                     settings.displayZoomControls = false
+                                    isVerticalScrollBarEnabled = true
+                                    isHorizontalScrollBarEnabled = true
+                                    isScrollbarFadingEnabled = false
                                     webViewClient = android.webkit.WebViewClient()
+                                    setOnTouchListener { view, event ->
+                                        // WebView e LazyColumn aninhados: deixe o gesto
+                                        // na página do Drive até o dedo ser levantado.
+                                        when (event.actionMasked) {
+                                            android.view.MotionEvent.ACTION_DOWN,
+                                            android.view.MotionEvent.ACTION_MOVE ->
+                                                view.parent?.requestDisallowInterceptTouchEvent(true)
+                                            android.view.MotionEvent.ACTION_UP,
+                                            android.view.MotionEvent.ACTION_CANCEL ->
+                                                view.parent?.requestDisallowInterceptTouchEvent(false)
+                                        }
+                                        false
+                                    }
                                     loadUrl(album.driveFolderUrl)
                                 }
                             },
-                            modifier = Modifier.fillMaxWidth().height(600.dp).clip(RoundedCornerShape(8.dp))
+                            modifier = Modifier.fillMaxWidth().height(viewHeight).clip(RoundedCornerShape(8.dp))
                         )
                     }
                 }
@@ -960,12 +1060,12 @@ fun AlbumDetail(album: ContentPhotoAlbum, onBack: () -> Unit) {
 }
 
 @Composable
-fun ZoomableImage(model: Any?, onClose: () -> Unit) {
-    var scale by remember { mutableStateOf(1f) }
-    var offset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+fun ZoomableImage(model: Any?) {
+    var scale by remember(model) { mutableFloatStateOf(1f) }
+    var offset by remember(model) { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
 
     coil.compose.SubcomposeAsyncImage(
-        model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+        model = coil.request.ImageRequest.Builder(LocalContext.current)
             .data(model)
             .crossfade(true)
             .build(),
@@ -973,12 +1073,12 @@ fun ZoomableImage(model: Any?, onClose: () -> Unit) {
             coil.compose.AsyncImage(
                 model = getThumbnailUrl(model.toString()),
                 contentDescription = null,
-                contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize().blur(8.dp)
             )
         },
-        contentDescription = null,
-        contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+        contentDescription = "Foto ampliável com dois dedos",
+        contentScale = ContentScale.Fit,
         modifier = Modifier
             .fillMaxSize()
             .graphicsLayer(
@@ -987,22 +1087,34 @@ fun ZoomableImage(model: Any?, onClose: () -> Unit) {
                 translationX = offset.x,
                 translationY = offset.y
             )
-            .pointerInput(Unit) {
-                detectTransformGestures { _, pan, zoom, _ ->
-                    scale = (scale * zoom).coerceIn(1f, 5f)
-                    if (scale > 1f) {
-                        offset = androidx.compose.ui.geometry.Offset(
-                            x = offset.x + pan.x,
-                            y = offset.y + pan.y
-                        )
-                    } else {
-                        offset = androidx.compose.ui.geometry.Offset.Zero
-                    }
+            .pointerInput(model) {
+                // Quando a foto não está ampliada, um dedo fica livre para
+                // o HorizontalPager deslizar naturalmente para a foto vizinha.
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    do {
+                        val event = awaitPointerEvent()
+                        val fingers = event.changes.count { it.pressed }
+                        if (fingers >= 2 || scale > 1f) {
+                            scale = (scale * event.calculateZoom()).coerceIn(1f, 5f)
+                            offset = if (scale > 1f) {
+                                val pan = event.calculatePan()
+                                val maxX = size.width * (scale - 1f) / 2f
+                                val maxY = size.height * (scale - 1f) / 2f
+                                androidx.compose.ui.geometry.Offset(
+                                    x = (offset.x + pan.x).coerceIn(-maxX, maxX),
+                                    y = (offset.y + pan.y).coerceIn(-maxY, maxY)
+                                )
+                            } else androidx.compose.ui.geometry.Offset.Zero
+                            event.changes.forEach { change ->
+                                if (change.positionChanged()) change.consume()
+                            }
+                        }
+                    } while (event.changes.any { it.pressed })
                 }
             }
-            .pointerInput(Unit) {
+            .pointerInput(model) {
                 detectTapGestures(
-                    onTap = { onClose() },
                     onDoubleTap = {
                         scale = if (scale > 1f) 1f else 2f
                         offset = androidx.compose.ui.geometry.Offset.Zero
