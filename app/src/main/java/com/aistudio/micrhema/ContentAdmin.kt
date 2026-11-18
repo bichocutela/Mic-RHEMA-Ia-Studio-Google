@@ -295,6 +295,10 @@ fun EditMediaSection() {
                 var albumDesc by remember { mutableStateOf("") }
                 var albumDriveUrl by remember { mutableStateOf("") }
                 var customCoverUrl by remember { mutableStateOf<String?>(null) }
+                var coverScale by remember { mutableFloatStateOf(1f) }
+                var coverOffsetX by remember { mutableFloatStateOf(0f) }
+                var coverOffsetY by remember { mutableFloatStateOf(0f) }
+                var coverFit by remember { mutableStateOf(false) }
                 var isUploadingCover by remember { mutableStateOf(false) }
                 var coverProgress by remember { mutableFloatStateOf(0f) }
                 var isGenerating by remember { mutableStateOf(false) }
@@ -337,10 +341,24 @@ fun EditMediaSection() {
                     }
                 }
 
+                if (!customCoverUrl.isNullOrBlank()) {
+                    AlbumCoverEditor(
+                        coverUrl = customCoverUrl,
+                        scale = coverScale,
+                        offsetX = coverOffsetX,
+                        offsetY = coverOffsetY,
+                        fit = coverFit,
+                        onScaleChange = { coverScale = it },
+                        onOffsetXChange = { coverOffsetX = it },
+                        onOffsetYChange = { coverOffsetY = it },
+                        onFitChange = { coverFit = it }
+                    )
+                }
+
                 Button(onClick = {
                     val finalDriveUrl = convertGoogleDriveUrl(albumDriveUrl)
                     if (customCoverUrl != null) {
-                        addContentPhotoAlbum(ContentPhotoAlbum(id = System.currentTimeMillis().toString(), title = albumTitle, description = albumDesc, coverUrl = convertGoogleDriveUrl(customCoverUrl!!), photos = listOf(AlbumPhoto(url = convertGoogleDriveUrl(customCoverUrl!!), caption = "")), driveFolderUrl = finalDriveUrl))
+                        addContentPhotoAlbum(ContentPhotoAlbum(id = System.currentTimeMillis().toString(), title = albumTitle, description = albumDesc, coverUrl = convertGoogleDriveUrl(customCoverUrl!!), photos = listOf(AlbumPhoto(url = convertGoogleDriveUrl(customCoverUrl!!), caption = "")), driveFolderUrl = finalDriveUrl, coverScale = coverScale, coverOffsetX = coverOffsetX, coverOffsetY = coverOffsetY, coverFit = coverFit))
                         albumTitle = ""
                         albumDesc = ""
                         albumDriveUrl = ""
@@ -350,7 +368,7 @@ fun EditMediaSection() {
                         scope.launch {
                             val generatedCover = generatePlaceholderAlbumCover("A beautiful abstract aesthetic background suitable for a photo album cover titled '$albumTitle'. Minimalist, pastel colors.")
                             val finalCoverUrl = generatedCover ?: "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=500&q=80" // Fallback se a API não estiver configurada
-                            addContentPhotoAlbum(ContentPhotoAlbum(id = System.currentTimeMillis().toString(), title = albumTitle, description = albumDesc, coverUrl = finalCoverUrl, driveFolderUrl = finalDriveUrl))
+                            addContentPhotoAlbum(ContentPhotoAlbum(id = System.currentTimeMillis().toString(), title = albumTitle, description = albumDesc, coverUrl = finalCoverUrl, driveFolderUrl = finalDriveUrl, coverScale = coverScale, coverOffsetX = coverOffsetX, coverOffsetY = coverOffsetY, coverFit = coverFit))
                             isGenerating = false
                             albumTitle = ""
                             albumDesc = ""
@@ -545,7 +563,11 @@ fun EditMediaSection() {
         var editTitle by remember(editingAlbum) { mutableStateOf(editingAlbum!!.title) }
         var editDesc by remember(editingAlbum) { mutableStateOf(editingAlbum!!.description) }
         var editDriveUrl by remember(editingAlbum) { mutableStateOf(editingAlbum!!.driveFolderUrl) }
-        var editCoverUrl by remember(editingAlbum) { mutableStateOf(editingAlbum!!.coverUrl ?: "") }
+        var editCoverUrl by remember(editingAlbum!!.id) { mutableStateOf(editingAlbum!!.coverUrl ?: "") }
+        var editCoverScale by remember(editingAlbum!!.id) { mutableFloatStateOf(editingAlbum!!.coverScale) }
+        var editCoverOffsetX by remember(editingAlbum!!.id) { mutableFloatStateOf(editingAlbum!!.coverOffsetX) }
+        var editCoverOffsetY by remember(editingAlbum!!.id) { mutableFloatStateOf(editingAlbum!!.coverOffsetY) }
+        var editCoverFit by remember(editingAlbum!!.id) { mutableStateOf(editingAlbum!!.coverFit) }
         
         var photoUriInput by remember { mutableStateOf<android.net.Uri?>(null) }
         var isUploadingPhoto by remember { mutableStateOf(false) }
@@ -596,6 +618,17 @@ fun EditMediaSection() {
                     GlassTextField(value = editDesc, onValueChange = { editDesc = it }, label = { Text("Descrição") }, modifier = Modifier.fillMaxWidth())
                     Spacer(modifier = Modifier.height(8.dp))
                     LocalUploadField(value = editCoverUrl, onValueChange = { editCoverUrl = it }, label = "Capa do Álbum (URL da Imagem)", mimeType = "image/*")
+                    AlbumCoverEditor(
+                        coverUrl = editCoverUrl,
+                        scale = editCoverScale,
+                        offsetX = editCoverOffsetX,
+                        offsetY = editCoverOffsetY,
+                        fit = editCoverFit,
+                        onScaleChange = { editCoverScale = it },
+                        onOffsetXChange = { editCoverOffsetX = it },
+                        onOffsetYChange = { editCoverOffsetY = it },
+                        onFitChange = { editCoverFit = it }
+                    )
                     Spacer(modifier = Modifier.height(8.dp))
                     GlassTextField(value = editDriveUrl, onValueChange = { editDriveUrl = it }, label = { Text("Link Google Drive da Pasta/Álbum") }, modifier = Modifier.fillMaxWidth())
                     Spacer(modifier = Modifier.height(16.dp))
@@ -672,7 +705,7 @@ fun EditMediaSection() {
                 TextButton(onClick = {
                     val index = contentAlbumsState.indexOfFirst { it.id == editingAlbum!!.id }
                     if (index != -1) {
-                        val updated = editingAlbum!!.copy(title = editTitle, description = editDesc, driveFolderUrl = convertGoogleDriveUrl(editDriveUrl), coverUrl = convertGoogleDriveUrl(editCoverUrl))
+                        val updated = editingAlbum!!.copy(title = editTitle, description = editDesc, driveFolderUrl = convertGoogleDriveUrl(editDriveUrl), coverUrl = convertGoogleDriveUrl(editCoverUrl), coverScale = editCoverScale, coverOffsetX = editCoverOffsetX, coverOffsetY = editCoverOffsetY, coverFit = editCoverFit)
                         contentAlbumsState[index] = updated
                         addContentPhotoAlbum(updated)
                     }
