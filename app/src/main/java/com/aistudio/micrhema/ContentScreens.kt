@@ -769,7 +769,7 @@ fun AlbumsList(
             }
         } else {
             LazyColumn(
-                contentPadding = PaddingValues(16.dp),
+                contentPadding = PaddingValues(ALBUM_CARD_SIDE_PADDING_DP.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
@@ -796,11 +796,11 @@ fun AlbumCard(album: ContentPhotoAlbum, onClick: () -> Unit) {
                     offsetX = album.coverOffsetX,
                     offsetY = album.coverOffsetY,
                     fit = album.coverFit,
-                    modifier = Modifier.fillMaxWidth().height(160.dp)
+                    modifier = Modifier.fillMaxWidth().height(ALBUM_CARD_COVER_HEIGHT_DP.dp)
                 )
             } else {
                 Box(
-                    modifier = Modifier.fillMaxWidth().height(160.dp).background(MaterialTheme.colorScheme.surfaceVariant),
+                    modifier = Modifier.fillMaxWidth().height(ALBUM_CARD_COVER_HEIGHT_DP.dp).background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Default.PhotoAlbum, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
