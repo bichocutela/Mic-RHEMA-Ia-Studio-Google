@@ -9,6 +9,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
@@ -16,6 +17,13 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+
+/**
+ * Altura real da capa no cartão da lista de álbuns.
+ * A tela de Fotos tem 16dp de espaçamento nas duas laterais.
+ */
+const val ALBUM_CARD_COVER_HEIGHT_DP = 160
+const val ALBUM_CARD_SIDE_PADDING_DP = 16
 
 /**
  * Mesma imagem/enquadramento em todas as capas e na prévia do editor.
@@ -65,10 +73,21 @@ fun AlbumCoverEditor(
     onOffsetYChange: (Float) -> Unit,
     onFitChange: (Boolean) -> Unit
 ) {
+    // O editor é um diálogo estreito, mas o cartão verdadeiro usa toda
+    // a largura da página (menos o padding lateral). Exibir 160dp de
+    // altura nos dois lugares cria proporções diferentes e engana o editor.
+    // Manter a proporção da capa real, escalando a prévia por inteiro,
+    // reproduz exatamente o recorte, o zoom e as faixas laterais do app.
+    val screenWidthDp = LocalConfiguration.current.screenWidthDp
+    val cardCoverAspectRatio = (screenWidthDp - 2 * ALBUM_CARD_SIDE_PADDING_DP)
+        .coerceAtLeast(ALBUM_CARD_COVER_HEIGHT_DP)
+        .toFloat() / ALBUM_CARD_COVER_HEIGHT_DP
+
     Column(modifier = Modifier.fillMaxWidth()) {
         Text("Redimensionar capa", fontWeight = FontWeight.SemiBold)
         Text(
-            "Prévia como aparece no app (a foto original não será alterada).",
+            "Prévia com a mesma proporção da capa na aba Fotos. " +
+                "A imagem original não será alterada.",
             style = MaterialTheme.typography.bodySmall
         )
         Spacer(Modifier.height(8.dp))
@@ -78,7 +97,7 @@ fun AlbumCoverEditor(
             offsetX = offsetX,
             offsetY = offsetY,
             fit = fit,
-            modifier = Modifier.fillMaxWidth().height(160.dp)
+            modifier = Modifier.fillMaxWidth().aspectRatio(cardCoverAspectRatio)
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(checked = fit, onCheckedChange = onFitChange)
